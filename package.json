@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "NEXTAUTH_URL=http://localhost:3000 NEXTAUTH_SECRET=fallback prisma generate && NEXTAUTH_URL=http://localhost:3000 NEXTAUTH_SECRET=fallback next build",
+    "build": "prisma generate && next build",
     "start": "node server.js",
     "lint": "next lint"
   },
