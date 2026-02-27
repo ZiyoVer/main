@@ -3,6 +3,11 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import { prisma } from "@/lib/db/prisma"
 import bcrypt from "bcryptjs"
 
+// Automatically define NEXTAUTH_URL during build time to prevent Railway crashes
+if (!process.env.NEXTAUTH_URL) {
+  process.env.NEXTAUTH_URL = "http://localhost:3000"
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
