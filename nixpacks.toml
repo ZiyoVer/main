@@ -1,3 +1,7 @@
+[variables]
+NEXTAUTH_URL = 'http://localhost:3000'
+NEXTAUTH_SECRET = 'fallback_secret'
+
 [phases.setup]
 nixPkgs = ['nodejs_22']
 
