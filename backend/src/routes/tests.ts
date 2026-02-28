@@ -174,4 +174,16 @@ router.get('/my-results', authenticate, async (req: AuthRequest, res) => {
     }
 })
 
+// Test o'chirish (o'qituvchi/admin)
+router.delete('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, res) => {
+    try {
+        await prisma.test.deleteMany({
+            where: { id: req.params.testId as string, creatorId: req.user.id }
+        })
+        res.json({ message: 'Test o\'chirildi' })
+    } catch (e) {
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
 export default router
