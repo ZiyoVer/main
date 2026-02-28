@@ -36,7 +36,7 @@ export default function ChatLayout() {
     const [savingProfile, setSavingProfile] = useState(false)
     const [thinkingMode, setThinkingMode] = useState(false)
     const [thinkingText, setThinkingText] = useState('')
-    const endRef = useRef<HTMLDivElement>(null)
+    const scrollRef = useRef<HTMLDivElement>(null)
     const abortRef = useRef<AbortController | null>(null)
     const [testPanel, setTestPanel] = useState<string | null>(null)
     const [testAnswers, setTestAnswers] = useState<Record<number, string>>({})
@@ -52,7 +52,10 @@ export default function ChatLayout() {
 
     useEffect(() => { loadChats(); loadProfile(); loadPublicTests() }, [])
     useEffect(() => { if (chatId) loadMessages(chatId) }, [chatId])
-    useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, streaming])
+    useEffect(() => {
+        const el = scrollRef.current
+        if (el) el.scrollTop = el.scrollHeight
+    }, [messages, streaming])
 
     async function loadProfile() {
         try {
@@ -390,19 +393,19 @@ export default function ChatLayout() {
     return (
         <div className="h-screen flex bg-[#fafafa]">
             {/* Sidebar */}
-            <div className={`${sideOpen ? 'w-72' : 'w-0'} bg-[#f5f5f5] flex flex-col transition-all duration-200 overflow-hidden border-r border-gray-200/80 flex-shrink-0`}>
-                <div className="p-3 flex items-center justify-between h-14">
+            <div className={`${sideOpen ? 'w-72 min-w-[288px]' : 'w-0 min-w-0'} bg-[#f5f5f5] flex flex-col transition-all duration-200 overflow-hidden border-r border-gray-200/80 flex-shrink-0`}>
+                <div className="p-3 flex items-center justify-between h-14 flex-shrink-0">
                     <div className="flex items-center gap-2">
                         <div className="h-7 w-7 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-lg flex items-center justify-center">
                             <BrainCircuit className="h-3.5 w-3.5 text-white" />
                         </div>
-                        <span className="text-sm font-bold text-gray-900">msert</span>
+                        <span className="text-sm font-bold text-gray-900 whitespace-nowrap">msert</span>
                     </div>
                     <button onClick={() => setSideOpen(false)} className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-200/80 transition"><X className="h-4 w-4" /></button>
                 </div>
 
                 {/* Side tabs */}
-                <div className="flex mx-3 mb-2 bg-gray-200/60 rounded-lg p-0.5">
+                <div className="flex mx-3 mb-2 bg-gray-200/60 rounded-lg p-0.5 flex-shrink-0">
                     {[
                         { k: 'chats' as const, l: 'Suhbat' },
                         { k: 'tests' as const, l: 'Testlar' },
@@ -515,7 +518,7 @@ export default function ChatLayout() {
                 </div>
 
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto">
+                <div ref={scrollRef} className="flex-1 overflow-y-auto">
                     {!chatId ? (
                         <div className="h-full flex items-center justify-center">
                             <div className="max-w-2xl w-full px-6 anim-up">
@@ -599,7 +602,6 @@ export default function ChatLayout() {
                                     <div className="text-[13px] text-gray-400 py-3 flex items-center gap-2">Javob yozilmoqda...<span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" /></div>
                                 </div>
                             )}
-                            <div ref={endRef} />
                         </div>
                     )}
                 </div>
