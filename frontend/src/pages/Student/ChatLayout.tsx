@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2, Paperclip } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -11,6 +11,53 @@ import { useAuthStore } from '@/store/authStore'
 interface Chat { id: string; title: string; subject?: string; updatedAt: string }
 interface Msg { id: string; role: string; content: string; createdAt: string }
 interface Profile { onboardingDone: boolean; subject?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string; totalTests?: number; avgScore?: number }
+
+// MdMessage komponentni tashqarida va memo bilan ta'riflaymiz —
+// shunda har keystrokeda re-render bo'lmaydi (ReactMarkdown+KaTeX qimmat!)
+const MdMessage = memo(({ content, onOpenTest }: { content: string; onOpenTest: (s: string) => void }) => (
+    <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]} components={{
+        p: ({ children }) => <p className="mb-2.5 last:mb-0 leading-relaxed">{children}</p>,
+        strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
+        em: ({ children }) => <em className="text-gray-600">{children}</em>,
+        ul: ({ children }) => <ul className="list-disc pl-5 mb-3 space-y-1.5">{children}</ul>,
+        ol: ({ children }) => <ol className="list-decimal pl-5 mb-3 space-y-1.5">{children}</ol>,
+        li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+        h1: ({ children }) => <h3 className="text-[15px] font-bold text-gray-900 mt-4 mb-2 pb-1 border-b border-gray-100">{children}</h3>,
+        h2: ({ children }) => <h3 className="text-[15px] font-bold text-gray-900 mt-4 mb-2 pb-1 border-b border-gray-100">{children}</h3>,
+        h3: ({ children }) => <h4 className="text-[14px] font-bold text-gray-900 mt-3 mb-1.5">{children}</h4>,
+        table: ({ children }) => <div className="overflow-x-auto my-3"><table className="w-full text-[13px] border-collapse">{children}</table></div>,
+        thead: ({ children }) => <thead className="bg-gray-50">{children}</thead>,
+        th: ({ children }) => <th className="border border-gray-200 px-3 py-2 text-left font-semibold text-gray-700">{children}</th>,
+        td: ({ children }) => <td className="border border-gray-200 px-3 py-2 text-gray-700">{children}</td>,
+        code: ({ children, className }: any) => {
+            if (className?.includes('language-test')) {
+                const jsonStr = String(children).trim()
+                let qCount = 0
+                try { qCount = JSON.parse(jsonStr).length } catch { }
+                return (
+                    <div className="my-3 bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-xl flex items-center justify-center"><ClipboardList className="h-5 w-5 text-white" /></div>
+                            <div>
+                                <p className="text-sm font-semibold text-gray-900">📋 Test tayyor — {qCount} savol</p>
+                                <p className="text-xs text-gray-500">Yon oynada yechishingiz mumkin</p>
+                            </div>
+                        </div>
+                        <button onClick={() => onOpenTest(jsonStr)} className="h-9 px-4 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition flex items-center gap-2">
+                            <BookOpen className="h-4 w-4" /> Testni ochish
+                        </button>
+                    </div>
+                )
+            }
+            const isBlock = className?.includes('language-')
+            return isBlock
+                ? <pre className="bg-blue-50/60 border border-blue-100 rounded-xl p-4 text-[13px] overflow-x-auto my-3 font-mono leading-relaxed"><code>{children}</code></pre>
+                : <code className="bg-blue-50 text-blue-800 border border-blue-100 px-1.5 py-0.5 rounded-md text-[13px] font-mono">{children}</code>
+        },
+        blockquote: ({ children }) => <blockquote className="border-l-[3px] border-blue-400 bg-blue-50/40 rounded-r-xl pl-4 pr-3 py-2 my-3 text-gray-700">{children}</blockquote>,
+        hr: () => <hr className="border-gray-100 my-4" />,
+    }}>{content}</ReactMarkdown>
+))
 
 export default function ChatLayout() {
     const { chatId } = useParams()
@@ -240,12 +287,12 @@ export default function ChatLayout() {
     const daysLeft = profile?.examDate ? Math.max(0, Math.ceil((new Date(profile.examDate).getTime() - Date.now()) / 86400000)) : null
 
     // Open test in side panel
-    function openTestPanel(jsonStr: string) {
+    const openTestPanel = useCallback((jsonStr: string) => {
         setTestPanel(jsonStr)
         setTestAnswers({})
         setTestSubmitted(false)
         setTestPanelMaximized(false)
-    }
+    }, [])
 
     async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0]
@@ -280,120 +327,6 @@ export default function ChatLayout() {
         const summary = `Test natijasi: ${score}/${questions.length}\n\n${results}\n\nIltimos natijalarimni tahlil qiling va qaysi mavzularni qayta o'rganishim kerakligini ayting.`
         if (chatId) setTimeout(() => quickAction(summary), 500)
     }
-
-    // Interactive Test Widget
-    const TestWidget = ({ jsonStr }: { jsonStr: string }) => {
-        const [answers, setAnswers] = useState<Record<number, string>>({})
-        const [submitted, setSubmitted] = useState(false)
-        let questions: any[] = []
-        try { questions = JSON.parse(jsonStr) } catch { return <pre className="bg-gray-50 rounded-xl p-4 text-sm overflow-x-auto my-3 border">{jsonStr}</pre> }
-        if (!questions.length) return null
-
-        const score = submitted ? questions.filter((q: any, i: number) => answers[i] === q.correct).length : 0
-
-        return (
-            <div className="my-4 bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-                <div className="bg-gradient-to-r from-blue-600 to-cyan-500 px-5 py-3 flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-white"><ClipboardList className="h-4 w-4" /><span className="text-sm font-semibold">Test — {questions.length} savol</span></div>
-                    {submitted && <span className="text-white/90 text-sm font-medium">{score}/{questions.length} to'g'ri</span>}
-                </div>
-                <div className="divide-y divide-gray-100">
-                    {questions.map((q: any, i: number) => (
-                        <div key={i} className="p-5">
-                            <p className="text-[14px] font-medium text-gray-900 mb-3">{i + 1}. {q.q}</p>
-                            <div className="grid grid-cols-2 gap-2">
-                                {(['a', 'b', 'c', 'd'] as const).map(opt => {
-                                    const isSelected = answers[i] === opt
-                                    const isCorrect = q.correct === opt
-                                    let cls = 'text-left px-4 py-2.5 rounded-xl text-[13px] border transition-all '
-                                    if (submitted) {
-                                        if (isCorrect) cls += 'border-emerald-300 bg-emerald-50 text-emerald-800 font-medium'
-                                        else if (isSelected && !isCorrect) cls += 'border-red-300 bg-red-50 text-red-700'
-                                        else cls += 'border-gray-100 text-gray-400'
-                                    } else {
-                                        cls += isSelected ? 'border-blue-400 bg-blue-50 text-blue-800 font-medium shadow-sm' : 'border-gray-200 text-gray-700 hover:border-gray-400 hover:bg-gray-50'
-                                    }
-                                    return (
-                                        <button key={opt} disabled={submitted} onClick={() => setAnswers({ ...answers, [i]: opt })} className={cls}>
-                                            <span className="font-semibold mr-1.5">{opt.toUpperCase()})</span> {q[opt]}
-                                            {submitted && isCorrect && <span className="ml-1">✅</span>}
-                                            {submitted && isSelected && !isCorrect && <span className="ml-1">❌</span>}
-                                        </button>
-                                    )
-                                })}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-                <div className="px-5 py-4 bg-gray-50 border-t border-gray-100">
-                    {!submitted ? (
-                        <button disabled={Object.keys(answers).length < questions.length} onClick={() => {
-                            setSubmitted(true)
-                            // Auto-send results to AI
-                            const results = questions.map((q: any, i: number) => {
-                                const correct = answers[i] === q.correct
-                                return `${i + 1}. ${q.q} — Javob: ${(answers[i] || '?').toUpperCase()}) ${correct ? '✅ to\'g\'ri' : '❌ xato (to\'g\'ri: ' + q.correct.toUpperCase() + ')'}`
-                            }).join('\n')
-                            const summary = `Test natijasi: ${questions.filter((q: any, i: number) => answers[i] === q.correct).length}/${questions.length}\n\n${results}\n\nIltimos natijalarimni tahlil qiling va qaysi mavzularni qayta o'rganishim kerakligini ayting.`
-                            if (chatId) {
-                                setTimeout(() => quickAction(summary), 500)
-                            }
-                        }} className="w-full h-11 rounded-xl text-sm font-semibold text-white bg-gray-900 hover:bg-gray-800 disabled:bg-gray-200 disabled:text-gray-400 transition flex items-center justify-center gap-2">
-                            <Target className="h-4 w-4" /> Testni tugatish ({Object.keys(answers).length}/{questions.length})
-                        </button>
-                    ) : (
-                        <div className="text-center">
-                            <p className="text-sm font-semibold text-gray-900">{score}/{questions.length} to'g'ri javob — {Math.round(score / questions.length * 100)}%</p>
-                            <p className="text-xs text-gray-400 mt-1">Natijalar AI ustozga yuborildi, tahlil kutilmoqda...</p>
-                        </div>
-                    )}
-                </div>
-            </div>
-        )
-    }
-
-    // Markdown with KaTeX + Test detection
-    const MdMessage = ({ content }: { content: string }) => (
-        <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]} components={{
-            p: ({ children }) => <p className="mb-2.5 last:mb-0 leading-relaxed">{children}</p>,
-            strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
-            em: ({ children }) => <em className="text-gray-600">{children}</em>,
-            ul: ({ children }) => <ul className="list-disc pl-5 mb-3 space-y-1.5">{children}</ul>,
-            ol: ({ children }) => <ol className="list-decimal pl-5 mb-3 space-y-1.5">{children}</ol>,
-            li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-            h1: ({ children }) => <h3 className="text-[15px] font-bold text-gray-900 mt-4 mb-2 pb-1 border-b border-gray-100">{children}</h3>,
-            h2: ({ children }) => <h3 className="text-[15px] font-bold text-gray-900 mt-4 mb-2 pb-1 border-b border-gray-100">{children}</h3>,
-            h3: ({ children }) => <h4 className="text-[14px] font-bold text-gray-900 mt-3 mb-1.5">{children}</h4>,
-            code: ({ children, className }) => {
-                // Detect test blocks → open in side panel
-                if (className?.includes('language-test')) {
-                    const jsonStr = String(children).trim()
-                    let qCount = 0
-                    try { qCount = JSON.parse(jsonStr).length } catch { }
-                    return (
-                        <div className="my-3 bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-xl flex items-center justify-center"><ClipboardList className="h-5 w-5 text-white" /></div>
-                                <div>
-                                    <p className="text-sm font-semibold text-gray-900">📋 Test tayyor — {qCount} savol</p>
-                                    <p className="text-xs text-gray-500">Yon oynada yechishingiz mumkin</p>
-                                </div>
-                            </div>
-                            <button onClick={() => openTestPanel(jsonStr)} className="h-9 px-4 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition flex items-center gap-2">
-                                <BookOpen className="h-4 w-4" /> Testni ochish
-                            </button>
-                        </div>
-                    )
-                }
-                const isBlock = className?.includes('language-')
-                return isBlock
-                    ? <pre className="bg-blue-50/60 border border-blue-100 rounded-xl p-4 text-[13px] overflow-x-auto my-3 font-mono leading-relaxed"><code>{children}</code></pre>
-                    : <code className="bg-blue-50 text-blue-800 border border-blue-100 px-1.5 py-0.5 rounded-md text-[13px] font-mono">{children}</code>
-            },
-            blockquote: ({ children }) => <blockquote className="border-l-[3px] border-blue-400 bg-blue-50/40 rounded-r-xl pl-4 pr-3 py-2 my-3 text-gray-700">{children}</blockquote>,
-            hr: () => <hr className="border-gray-100 my-4" />,
-        }}>{content}</ReactMarkdown>
-    )
 
     // Onboarding
     if (showOnboarding) {
@@ -610,7 +543,7 @@ export default function ChatLayout() {
                                     {m.role === 'user' ? (
                                         <div className="max-w-[90%] text-[14px] leading-relaxed bg-gray-100 text-gray-900 rounded-2xl rounded-br-md px-4 py-3 whitespace-pre-wrap">{m.content}</div>
                                     ) : (
-                                        <div className="flex-1 text-[14px] leading-relaxed text-gray-800 py-1"><MdMessage content={m.content} /></div>
+                                        <div className="flex-1 text-[14px] leading-relaxed text-gray-800 py-1"><MdMessage content={m.content} onOpenTest={openTestPanel} /></div>
                                     )}
                                 </div>
                             ))}
@@ -630,7 +563,7 @@ export default function ChatLayout() {
                                 <div className="flex gap-3">
                                     <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 flex-shrink-0 flex items-center justify-center mt-0.5"><BrainCircuit className="h-3.5 w-3.5 text-white" /></div>
                                     <div className="flex-1 text-[14px] leading-relaxed text-gray-800 py-1">
-                                        <MdMessage content={streaming} />
+                                        <MdMessage content={streaming} onOpenTest={openTestPanel} />
                                         {/```test/.test(streaming) && !/```test[\s\S]*?```/.test(streaming) && (
                                             <div className="mt-3 flex items-center gap-2 text-[13px] text-blue-600 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5">
                                                 <div className="h-4 w-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
