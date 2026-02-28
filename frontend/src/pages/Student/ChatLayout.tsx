@@ -322,7 +322,7 @@ export default function ChatLayout() {
                             </div>
                         </div>
                     ) : (
-                        <div className="max-w-4xl mx-auto px-6 py-8 space-y-6">
+                        <div className="max-w-5xl mx-auto px-8 py-8 space-y-6">
                             {messages.map((m, i) => (
                                 <div key={m.id || i} className={`flex gap-3 ${m.role === 'user' ? 'justify-end' : ''}`}>
                                     {m.role !== 'user' && (
@@ -356,7 +356,7 @@ export default function ChatLayout() {
                 {/* Input */}
                 {chatId && (
                     <div className="px-4 pb-6 pt-2">
-                        <form onSubmit={sendMessage} className="max-w-4xl mx-auto">
+                        <form onSubmit={sendMessage} className="max-w-5xl mx-auto">
                             <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-2xl px-4 shadow-sm focus-within:border-gray-300 focus-within:shadow-md transition-all">
                                 <input value={input} onChange={e => setInput(e.target.value)} placeholder="Xabar yozing..." disabled={loading}
                                     className="flex-1 h-12 bg-transparent outline-none text-sm text-gray-900 placeholder:text-gray-400" />
