@@ -184,21 +184,23 @@ export default function ChatLayout() {
     // Markdown component
     const MdMessage = ({ content }: { content: string }) => (
         <ReactMarkdown components={{
-            p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+            p: ({ children }) => <p className="mb-2.5 last:mb-0 leading-relaxed">{children}</p>,
             strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
-            ul: ({ children }) => <ul className="list-disc pl-5 mb-2 space-y-1">{children}</ul>,
-            ol: ({ children }) => <ol className="list-decimal pl-5 mb-2 space-y-1">{children}</ol>,
-            li: ({ children }) => <li>{children}</li>,
-            h1: ({ children }) => <h3 className="text-base font-bold text-gray-900 mt-3 mb-1">{children}</h3>,
-            h2: ({ children }) => <h3 className="text-base font-bold text-gray-900 mt-3 mb-1">{children}</h3>,
-            h3: ({ children }) => <h4 className="text-sm font-bold text-gray-900 mt-2 mb-1">{children}</h4>,
+            em: ({ children }) => <em className="text-gray-600">{children}</em>,
+            ul: ({ children }) => <ul className="list-disc pl-5 mb-3 space-y-1.5">{children}</ul>,
+            ol: ({ children }) => <ol className="list-decimal pl-5 mb-3 space-y-1.5">{children}</ol>,
+            li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+            h1: ({ children }) => <h3 className="text-[15px] font-bold text-gray-900 mt-4 mb-2 pb-1 border-b border-gray-100">{children}</h3>,
+            h2: ({ children }) => <h3 className="text-[15px] font-bold text-gray-900 mt-4 mb-2 pb-1 border-b border-gray-100">{children}</h3>,
+            h3: ({ children }) => <h4 className="text-[14px] font-bold text-gray-900 mt-3 mb-1.5">{children}</h4>,
             code: ({ children, className }) => {
                 const isBlock = className?.includes('language-')
                 return isBlock
-                    ? <pre className="bg-gray-50 rounded-lg p-3 text-sm overflow-x-auto my-2 border"><code>{children}</code></pre>
-                    : <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm font-mono text-gray-800">{children}</code>
+                    ? <pre className="bg-blue-50/60 border border-blue-100 rounded-xl p-4 text-[13px] overflow-x-auto my-3 font-mono leading-relaxed"><code>{children}</code></pre>
+                    : <code className="bg-blue-50 text-blue-800 border border-blue-100 px-1.5 py-0.5 rounded-md text-[13px] font-mono">{children}</code>
             },
-            blockquote: ({ children }) => <blockquote className="border-l-3 border-blue-300 pl-3 italic text-gray-600 my-2">{children}</blockquote>,
+            blockquote: ({ children }) => <blockquote className="border-l-[3px] border-blue-400 bg-blue-50/40 rounded-r-xl pl-4 pr-3 py-2 my-3 text-gray-700">{children}</blockquote>,
+            hr: () => <hr className="border-gray-100 my-4" />,
         }}>{content}</ReactMarkdown>
     )
 
@@ -320,16 +322,16 @@ export default function ChatLayout() {
                             </div>
                         </div>
                     ) : (
-                        <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
+                        <div className="max-w-4xl mx-auto px-6 py-8 space-y-6">
                             {messages.map((m, i) => (
                                 <div key={m.id || i} className={`flex gap-3 ${m.role === 'user' ? 'justify-end' : ''}`}>
                                     {m.role !== 'user' && (
                                         <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 flex-shrink-0 flex items-center justify-center mt-0.5"><BrainCircuit className="h-3.5 w-3.5 text-white" /></div>
                                     )}
                                     {m.role === 'user' ? (
-                                        <div className="max-w-[85%] text-[14px] leading-relaxed bg-gray-100 text-gray-900 rounded-2xl rounded-br-md px-4 py-3 whitespace-pre-wrap">{m.content}</div>
+                                        <div className="max-w-[90%] text-[14px] leading-relaxed bg-gray-100 text-gray-900 rounded-2xl rounded-br-md px-4 py-3 whitespace-pre-wrap">{m.content}</div>
                                     ) : (
-                                        <div className="max-w-[85%] text-[14px] leading-relaxed text-gray-800 py-1 prose-sm"><MdMessage content={m.content} /></div>
+                                        <div className="flex-1 text-[14px] leading-relaxed text-gray-800 py-1"><MdMessage content={m.content} /></div>
                                     )}
                                 </div>
                             ))}
@@ -337,7 +339,7 @@ export default function ChatLayout() {
                             {streaming && (
                                 <div className="flex gap-3">
                                     <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 flex-shrink-0 flex items-center justify-center mt-0.5"><BrainCircuit className="h-3.5 w-3.5 text-white" /></div>
-                                    <div className="max-w-[85%] text-[14px] leading-relaxed text-gray-800 py-1 prose-sm"><MdMessage content={streaming} /></div>
+                                    <div className="flex-1 text-[14px] leading-relaxed text-gray-800 py-1"><MdMessage content={streaming} /></div>
                                 </div>
                             )}
                             {loading && !streaming && (
@@ -354,7 +356,7 @@ export default function ChatLayout() {
                 {/* Input */}
                 {chatId && (
                     <div className="px-4 pb-6 pt-2">
-                        <form onSubmit={sendMessage} className="max-w-2xl mx-auto">
+                        <form onSubmit={sendMessage} className="max-w-4xl mx-auto">
                             <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-2xl px-4 shadow-sm focus-within:border-gray-300 focus-within:shadow-md transition-all">
                                 <input value={input} onChange={e => setInput(e.target.value)} placeholder="Xabar yozing..." disabled={loading}
                                     className="flex-1 h-12 bg-transparent outline-none text-sm text-gray-900 placeholder:text-gray-400" />
