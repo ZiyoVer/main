@@ -31,7 +31,31 @@ if (process.env.NODE_ENV === 'production') {
     })
 }
 
+import prisma from './utils/db'
+import bcrypt from 'bcryptjs'
+
 const PORT = process.env.PORT || 8080
-app.listen(PORT, () => {
-    console.log(`Server listening on port ${PORT}`)
-})
+
+async function bootstrap() {
+    // Ensure default admin exists
+    const adminExists = await prisma.user.findUnique({ where: { email: 'admin@msert.uz' } })
+    if (!adminExists) {
+        const defaultPassword = process.env.ADMIN_PASSWORD || 'admin123'
+        const hashedPassword = await bcrypt.hash(defaultPassword, 10)
+        await prisma.user.create({
+            data: {
+                name: 'Asosiy Administrator',
+                email: 'admin@msert.uz',
+                password: hashedPassword,
+                role: 'ADMIN'
+            }
+        })
+        console.log('Seeded default admin: admin@msert.uz')
+    }
+
+    app.listen(PORT, () => {
+        console.log(`Server listening on port ${PORT}`)
+    })
+}
+
+bootstrap()

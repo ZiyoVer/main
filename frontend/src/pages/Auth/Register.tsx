@@ -4,7 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
 import { fetchApi } from "@/lib/api"
 
@@ -53,19 +52,6 @@ export default function Register() {
                         <div className="grid gap-2">
                             <Label htmlFor="password">Parol</Label>
                             <Input id="password" type="password" required value={data.password} onChange={(e) => setData({ ...data, password: e.target.value })} />
-                        </div>
-                        <div className="grid gap-2">
-                            <Label>Rol (Kim bo'lib kirmasiz?)</Label>
-                            <Select value={data.role} onValueChange={(v) => setData({ ...data, role: v })}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Rolni tanlang" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="STUDENT">Talaba</SelectItem>
-                                    <SelectItem value="TEACHER">O'qituvchi</SelectItem>
-                                    <SelectItem value="ADMIN">Admin</SelectItem>
-                                </SelectContent>
-                            </Select>
                         </div>
                         <Button type="submit" className="w-full" disabled={loading}>
                             {loading ? "Kutilmoqda..." : "Ro'yxatdan O'tish"}
