@@ -1,9 +1,19 @@
 import { Router } from 'express'
+import multer from 'multer'
+import pdfParse from 'pdf-parse'
+import OpenAI from 'openai'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
 import { updateAbility } from '../utils/rasch'
 
 const router = Router()
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } })
+
+const openai = new OpenAI({
+    baseURL: 'https://api.deepseek.com',
+    apiKey: process.env.OPENAI_API_KEY || ''
+})
 
 // Public testlar ro'yxati (barcha o'quvchilar uchun)
 router.get('/public', authenticate, async (req: AuthRequest, res) => {
@@ -19,6 +29,60 @@ router.get('/public', authenticate, async (req: AuthRequest, res) => {
         res.json(tests)
     } catch (e) {
         res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+// AI yordamida fayl/screenshot dan test savollari yaratish
+router.post('/generate-from-file', authenticate, requireRole('TEACHER', 'ADMIN'), upload.single('file'), async (req: AuthRequest, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'Fayl yuklanmadi' })
+        const { mimetype, buffer } = req.file
+        const subject = (req.body.subject as string) || ''
+        const jsonPrompt = `Javobni FAQAT JSON array formatda qaytargil, boshqa hech narsa yozma:
+[{"text":"Savol matni?","options":["A variant","B variant","C variant","D variant"],"correctIdx":0}]
+correctIdx — to'g'ri javob indeksi (0=A, 1=B, 2=C, 3=D). Eng kamida 5 ta, eng ko'pi 20 ta savol.${subject ? ` Fan: ${subject}.` : ''}`
+
+        let messages: any[]
+
+        if (mimetype === 'application/pdf') {
+            const data = await pdfParse(buffer)
+            const text = data.text.trim().substring(0, 8000)
+            messages = [{ role: 'user', content: `Quyidagi matndan test savollari yaratib ber.\n${jsonPrompt}\n\nMatn:\n${text}` }]
+        } else if (mimetype.startsWith('image/')) {
+            const base64 = buffer.toString('base64')
+            messages = [{
+                role: 'user',
+                content: [
+                    { type: 'image_url', image_url: { url: `data:${mimetype};base64,${base64}` } },
+                    { type: 'text', text: `Bu rasmdagi test savollarini ajratib ol va yangi formatda qaytargil.\n${jsonPrompt}` }
+                ]
+            }]
+        } else {
+            return res.status(400).json({ error: 'Faqat PDF va rasm fayllari qo\'llab-quvvatlanadi' })
+        }
+
+        const completion = await openai.chat.completions.create({
+            model: 'deepseek-chat',
+            messages: [
+                { role: 'system', content: 'Siz test savollari generatorisiz. FAQAT JSON formatda javob bering.' },
+                ...messages
+            ],
+            max_tokens: 4096,
+            temperature: 0.2
+        })
+
+        const content = completion.choices[0]?.message?.content || '[]'
+        const jsonMatch = content.match(/\[[\s\S]*\]/)
+        if (!jsonMatch) return res.status(500).json({ error: 'AI savollarni ajrata olmadi, PDF formatda yuklang' })
+
+        const questions = JSON.parse(jsonMatch[0])
+        if (!Array.isArray(questions) || questions.length === 0) {
+            return res.status(500).json({ error: 'AI hech qanday savol topa olmadi' })
+        }
+        res.json({ questions })
+    } catch (e: any) {
+        console.error('AI test generation error:', e.message)
+        res.status(500).json({ error: 'AI test yarata olmadi. PDF formatini sinab ko\'ring.' })
     }
 })
 
