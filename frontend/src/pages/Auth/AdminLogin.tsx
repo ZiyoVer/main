@@ -15,7 +15,7 @@ export default function AdminLogin() {
         e.preventDefault(); setLoading(true); setErr('')
         try {
             const data = await fetchApi('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
-            if (data.user.role === 'STUDENT') { setErr('Ruxsat yo\'q'); setLoading(false); return }
+            if (data.user.role === 'STUDENT') { setErr('Faqat admin va o\'qituvchilar kirishi mumkin'); setLoading(false); return }
             login(data.token, data.user)
             nav(data.user.role === 'ADMIN' ? '/admin' : '/teacher')
         } catch (e: any) { setErr(e.message) }

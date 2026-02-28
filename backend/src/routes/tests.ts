@@ -57,23 +57,6 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), async (req
     }
 })
 
-// Public testlar ro'yxati (o'quvchilar uchun)
-router.get('/public', authenticate, async (req: AuthRequest, res) => {
-    try {
-        const tests = await prisma.test.findMany({
-            where: { isPublic: true },
-            select: {
-                id: true, title: true, description: true, subject: true,
-                createdAt: true, _count: { select: { questions: true } },
-                creator: { select: { name: true } }
-            },
-            orderBy: { createdAt: 'desc' }
-        })
-        res.json(tests)
-    } catch (e) {
-        res.status(500).json({ error: 'Server xatoligi' })
-    }
-})
 
 // Test olish (link bo'yicha ham)
 router.get('/by-link/:shareLink', authenticate, async (req: AuthRequest, res) => {
@@ -194,9 +177,12 @@ router.get('/my-results', authenticate, async (req: AuthRequest, res) => {
 // Test o'chirish (o'qituvchi/admin)
 router.delete('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, res) => {
     try {
-        await prisma.test.deleteMany({
-            where: { id: req.params.testId as string, creatorId: req.user.id }
-        })
+        // Admin har qanday testni o'chira oladi, o'qituvchi faqat o'zinikini
+        const where = req.user.role === 'ADMIN'
+            ? { id: req.params.testId as string }
+            : { id: req.params.testId as string, creatorId: req.user.id }
+        const deleted = await prisma.test.deleteMany({ where })
+        if (deleted.count === 0) return res.status(404).json({ error: 'Test topilmadi yoki ruxsat yo\'q' })
         res.json({ message: 'Test o\'chirildi' })
     } catch (e) {
         res.status(500).json({ error: 'Server xatoligi' })

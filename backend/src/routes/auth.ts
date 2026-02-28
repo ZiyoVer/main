@@ -14,6 +14,9 @@ router.post('/register', async (req, res) => {
         if (!email || !password || !name) {
             return res.status(400).json({ error: 'Barcha maydonlarni to\'ldiring' })
         }
+        if (password.length < 6) {
+            return res.status(400).json({ error: 'Parol kamida 6 ta belgi bo\'lishi kerak' })
+        }
         const existing = await prisma.user.findUnique({ where: { email } })
         if (existing) return res.status(400).json({ error: 'Bu email allaqachon band' })
 
