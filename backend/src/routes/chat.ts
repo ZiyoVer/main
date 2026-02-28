@@ -90,6 +90,13 @@ Har bir mavzuni quyidagi ketma-ketlikda o'rgat:
 - O'quvchiga tanlov ber: "A variantni yoki B variantni ko'rib chiqamizmi?"
 - "Yana nimani tushuntirishimni xohlaysiz?" deb so'ra
 
+## 3.5. MOCK TEST / SINOV TEST
+- O'quvchi "mock test", "sinov test", "Milliy sertifikat test" desa — DARHOL 10-20 ta test savol ber
+- Diagnostika qilMA, to'g'ridan-to'g'ri test ber
+- Savollar Milliy Sertifikat formatida bo'lsin
+- Har xil mavzulardan aralashtir (faqat bitta mavzudan emas)
+- Test formatini \`\`\`test JSON formatda ber
+
 ## 4. DIAGNOSTIK INTELLEKT (Eng muhim farqing!)
 
 Sen oddiy AI emas — AQLLI ustozsan. O'quvchi biror mavzu qiyin desa, DARHOL o'sha mavzudan gaplashMA. Avval DIAGNOSTIKA qil:
@@ -254,7 +261,7 @@ async function searchRAGContext(query: string, subject?: string): Promise<string
 // Streaming xabar yuborish (SSE)
 router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
     try {
-        const { content } = req.body
+        const { content, thinking } = req.body
         if (!content?.trim()) return res.status(400).json({ error: 'Xabar bo\'sh' })
 
         const chat = await prisma.chat.findFirst({
@@ -292,6 +299,9 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
             ...history.map(m => ({ role: m.role, content: m.content }))
         ]
 
+        // Model tanlash: thinking=true -> deepseek-reasoner (R1), aks holda deepseek-chat (V3)
+        const model = thinking ? 'deepseek-reasoner' : 'deepseek-chat'
+
         // SSE headers
         res.setHeader('Content-Type', 'text/event-stream')
         res.setHeader('Cache-Control', 'no-cache')
@@ -299,21 +309,46 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
         res.flushHeaders()
 
         let fullReply = ''
+        let aborted = false
 
-        const stream = await openai.chat.completions.create({
-            model: 'deepseek-chat',
+        // Client disconnect detection
+        req.on('close', () => { aborted = true })
+
+        const streamOptions: any = {
+            model,
             messages,
-            max_tokens: aiSettings.maxTokens,
-            temperature: aiSettings.temperature,
+            max_tokens: thinking ? 8192 : aiSettings.maxTokens,
             stream: true
-        })
+        }
+        // deepseek-reasoner doesn't support temperature
+        if (!thinking) {
+            streamOptions.temperature = aiSettings.temperature
+        }
+
+        const stream = await openai.chat.completions.create(streamOptions) as any
 
         for await (const chunk of stream) {
+            if (aborted) break
             const delta = chunk.choices[0]?.delta?.content || ''
+            // Reasoning tokens (thinking process)
+            const reasoning = (chunk.choices[0]?.delta as any)?.reasoning_content || ''
+            if (reasoning) {
+                res.write(`data: ${JSON.stringify({ thinking: reasoning })}\n\n`)
+            }
             if (delta) {
                 fullReply += delta
-                res.write(`data: ${JSON.stringify({ content: delta })} \n\n`)
+                res.write(`data: ${JSON.stringify({ content: delta })}\n\n`)
             }
+        }
+
+        if (aborted) {
+            // Save partial response
+            if (fullReply.trim()) {
+                await prisma.message.create({
+                    data: { chatId: chat.id, role: 'assistant', content: fullReply }
+                })
+            }
+            return res.end()
         }
 
         // Stream tugagandan keyin bazaga saqlash
@@ -327,14 +362,14 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
             await prisma.chat.update({ where: { id: chat.id }, data: { title: shortTitle } })
         }
 
-        res.write(`data: ${JSON.stringify({ done: true, id: saved.id })} \n\n`)
+        res.write(`data: ${JSON.stringify({ done: true, id: saved.id })}\n\n`)
         res.end()
     } catch (e: any) {
         console.error('AI stream error:', e.message)
         if (!res.headersSent) {
             res.status(500).json({ error: 'AI javob bera olmadi' })
         } else {
-            res.write(`data: ${JSON.stringify({ error: 'AI xatoligi' })} \n\n`)
+            res.write(`data: ${JSON.stringify({ error: 'AI xatoligi' })}\n\n`)
             res.end()
         }
     }

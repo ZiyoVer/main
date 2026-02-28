@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
@@ -34,7 +34,10 @@ export default function ChatLayout() {
         weakTopics: '', strongTopics: '', concerns: ''
     })
     const [savingProfile, setSavingProfile] = useState(false)
+    const [thinkingMode, setThinkingMode] = useState(false)
+    const [thinkingText, setThinkingText] = useState('')
     const endRef = useRef<HTMLDivElement>(null)
+    const abortRef = useRef<AbortController | null>(null)
 
     useEffect(() => { loadChats(); loadProfile(); loadPublicTests() }, [])
     useEffect(() => { if (chatId) loadMessages(chatId) }, [chatId])
@@ -108,18 +111,22 @@ export default function ChatLayout() {
 
     // Stream helper
     async function streamToChat(targetChatId: string, prompt: string) {
-        setLoading(true); setStreaming('')
+        setLoading(true); setStreaming(''); setThinkingText('')
+        const controller = new AbortController()
+        abortRef.current = controller
         try {
             const token = localStorage.getItem('token')
             const res = await fetch(`/api/chat/${targetChatId}/stream`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ content: prompt })
+                body: JSON.stringify({ content: prompt, thinking: thinkingMode }),
+                signal: controller.signal
             })
             if (!res.ok) throw new Error()
             const reader = res.body?.getReader()
             const decoder = new TextDecoder()
             let fullText = ''
+            let thinkBuf = ''
             if (reader) {
                 while (true) {
                     const { done, value } = await reader.read()
@@ -129,6 +136,7 @@ export default function ChatLayout() {
                         if (line.startsWith('data: ')) {
                             try {
                                 const d = JSON.parse(line.slice(6))
+                                if (d.thinking) { thinkBuf += d.thinking; setThinkingText(thinkBuf) }
                                 if (d.content) { fullText += d.content; setStreaming(fullText) }
                                 if (d.done) {
                                     setMessages(prev => {
@@ -138,18 +146,36 @@ export default function ChatLayout() {
                                         { id: d.id || 'a-' + Date.now(), role: 'assistant', content: fullText, createdAt: new Date().toISOString() }
                                         ]
                                     })
-                                    setStreaming(''); loadChats()
+                                    setStreaming(''); setThinkingText(''); loadChats()
                                 }
                             } catch { }
                         }
                     }
                 }
             }
-        } catch {
-            setMessages(prev => [...prev, { id: 'err', role: 'assistant', content: 'Xatolik yuz berdi.', createdAt: new Date().toISOString() }])
-            setStreaming('')
+        } catch (err: any) {
+            if (err?.name === 'AbortError') {
+                // User stopped — keep partial
+                if (streaming) {
+                    setMessages(prev => {
+                        const filtered = prev.filter(m => m.id !== 'temp-u')
+                        return [...filtered,
+                        { id: 'u-' + Date.now(), role: 'user', content: prompt, createdAt: new Date().toISOString() },
+                        { id: 'a-' + Date.now(), role: 'assistant', content: streaming + '\n\n*[To\'xtatildi]*', createdAt: new Date().toISOString() }
+                        ]
+                    })
+                }
+            } else {
+                setMessages(prev => [...prev, { id: 'err', role: 'assistant', content: 'Xatolik yuz berdi.', createdAt: new Date().toISOString() }])
+            }
+            setStreaming(''); setThinkingText('')
         }
-        setLoading(false); setInput('')
+        setLoading(false); setInput(''); abortRef.current = null
+    }
+
+    function stopGeneration() {
+        abortRef.current?.abort()
+        abortRef.current = null
     }
 
     async function sendMessage(e: React.FormEvent) {
@@ -490,16 +516,34 @@ export default function ChatLayout() {
                                     )}
                                 </div>
                             ))}
+                            {/* Thinking process display */}
+                            {thinkingText && (
+                                <div className="flex gap-3">
+                                    <div className="h-7 w-7 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex-shrink-0 flex items-center justify-center mt-0.5"><Lightbulb className="h-3.5 w-3.5 text-white" /></div>
+                                    <div className="flex-1">
+                                        <details open className="group">
+                                            <summary className="text-[12px] font-medium text-purple-500 cursor-pointer select-none mb-2">🧠 AI fikrlash jarayoni <span className="text-purple-300 group-open:hidden">(ko'rish)</span></summary>
+                                            <div className="bg-purple-50/60 border border-purple-100 rounded-xl p-3 text-[12px] text-purple-700 leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto">{thinkingText}</div>
+                                        </details>
+                                    </div>
+                                </div>
+                            )}
                             {streaming && (
                                 <div className="flex gap-3">
                                     <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 flex-shrink-0 flex items-center justify-center mt-0.5"><BrainCircuit className="h-3.5 w-3.5 text-white" /></div>
                                     <div className="flex-1 text-[14px] leading-relaxed text-gray-800 py-1"><MdMessage content={streaming} /></div>
                                 </div>
                             )}
-                            {loading && !streaming && (
+                            {loading && !streaming && !thinkingText && (
                                 <div className="flex gap-3">
                                     <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 flex-shrink-0 flex items-center justify-center"><BrainCircuit className="h-3.5 w-3.5 text-white" /></div>
                                     <div className="flex gap-1 py-3"><span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" /><span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce [animation-delay:150ms]" /><span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce [animation-delay:300ms]" /></div>
+                                </div>
+                            )}
+                            {loading && thinkingText && !streaming && (
+                                <div className="flex gap-3">
+                                    <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 flex-shrink-0 flex items-center justify-center"><BrainCircuit className="h-3.5 w-3.5 text-white" /></div>
+                                    <div className="text-[13px] text-gray-400 py-3 flex items-center gap-2">Javob yozilmoqda...<span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" /></div>
                                 </div>
                             )}
                             <div ref={endRef} />
@@ -528,9 +572,24 @@ export default function ChatLayout() {
                             <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-2xl px-4 shadow-sm focus-within:border-gray-300 focus-within:shadow-md transition-all">
                                 <input value={input} onChange={e => setInput(e.target.value)} placeholder="Xabar yozing..." disabled={loading}
                                     className="flex-1 h-12 bg-transparent outline-none text-sm text-gray-900 placeholder:text-gray-400" />
-                                <button type="submit" disabled={loading || !input.trim()}
-                                    className="h-8 w-8 flex items-center justify-center rounded-lg bg-gray-900 text-white disabled:bg-gray-200 disabled:text-gray-400 transition"><Send className="h-3.5 w-3.5" /></button>
+                                {/* Thinking mode toggle */}
+                                <button type="button" onClick={() => setThinkingMode(!thinkingMode)} title={thinkingMode ? 'Chuqur fikrlash yoqilgan (R1)' : 'Oddiy rejim (V3)'}
+                                    className={`h-8 w-8 flex items-center justify-center rounded-lg transition ${thinkingMode ? 'bg-purple-100 text-purple-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}>
+                                    <Lightbulb className="h-3.5 w-3.5" />
+                                </button>
+                                {loading ? (
+                                    <button type="button" onClick={stopGeneration}
+                                        className="h-8 w-8 flex items-center justify-center rounded-lg bg-red-500 text-white hover:bg-red-600 transition animate-pulse">
+                                        <Square className="h-3 w-3" />
+                                    </button>
+                                ) : (
+                                    <button type="submit" disabled={!input.trim()}
+                                        className="h-8 w-8 flex items-center justify-center rounded-lg bg-gray-900 text-white disabled:bg-gray-200 disabled:text-gray-400 transition">
+                                        <Send className="h-3.5 w-3.5" />
+                                    </button>
+                                )}
                             </div>
+                            {thinkingMode && <p className="text-[11px] text-purple-500 mt-1.5 ml-4">🧠 Chuqur fikrlash rejimi (DeepSeek R1) — murakkabroq vazifalar uchun</p>}
                         </form>
                     </div>
                 )}
