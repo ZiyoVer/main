@@ -5,7 +5,7 @@
   "main": "dist/app.js",
   "scripts": {
     "build": "npx prisma generate && npx tsc",
-    "start": "node dist/app.js",
+    "start": "npx prisma db push --accept-data-loss && node dist/app.js",
     "dev": "nodemon src/app.ts"
   },
   "dependencies": {
