@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2 } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2, Paperclip } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
@@ -38,9 +38,13 @@ export default function ChatLayout() {
     const [thinkingText, setThinkingText] = useState('')
     const scrollRef = useRef<HTMLDivElement>(null)
     const abortRef = useRef<AbortController | null>(null)
+    const fileInputRef = useRef<HTMLInputElement>(null)
     const [testPanel, setTestPanel] = useState<string | null>(null)
     const [testAnswers, setTestAnswers] = useState<Record<number, string>>({})
     const [testSubmitted, setTestSubmitted] = useState(false)
+    const [testPanelMaximized, setTestPanelMaximized] = useState(false)
+    const [attachedFile, setAttachedFile] = useState<{ name: string; text: string; type: string } | null>(null)
+    const [uploadingFile, setUploadingFile] = useState(false)
 
     // Auto-close sidebar on mobile
     useEffect(() => {
@@ -161,6 +165,14 @@ export default function ChatLayout() {
                                         ]
                                     })
                                     setStreaming(''); setThinkingText(''); loadChats()
+                                    // Test avtomatik ochish
+                                    const testMatch = fullText.match(/```test\n([\s\S]*?)```/)
+                                    if (testMatch) {
+                                        try {
+                                            JSON.parse(testMatch[1].trim())
+                                            setTimeout(() => openTestPanel(testMatch[1].trim()), 400)
+                                        } catch { }
+                                    }
                                 }
                             } catch { }
                         }
@@ -194,8 +206,14 @@ export default function ChatLayout() {
 
     async function sendMessage(e: React.FormEvent) {
         e.preventDefault()
-        if (!input.trim() || !chatId || loading) return
-        const text = input; setInput('')
+        if ((!input.trim() && !attachedFile) || !chatId || loading) return
+        let text = input.trim()
+        if (attachedFile) {
+            const prefix = `📎 **${attachedFile.name}** faylidan:\n\n${attachedFile.text}`
+            text = text ? `${prefix}\n\n${text}` : prefix
+            setAttachedFile(null)
+        }
+        setInput('')
         setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: text, createdAt: new Date().toISOString() }])
         await streamToChat(chatId, text)
     }
@@ -223,6 +241,27 @@ export default function ChatLayout() {
         setTestPanel(jsonStr)
         setTestAnswers({})
         setTestSubmitted(false)
+        setTestPanelMaximized(false)
+    }
+
+    async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0]
+        if (!file || !chatId) return
+        setUploadingFile(true)
+        try {
+            const formData = new FormData()
+            formData.append('file', file)
+            const token = localStorage.getItem('token')
+            const res = await fetch(`/api/chat/${chatId}/upload-file`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+                body: formData
+            })
+            const data = await res.json()
+            setAttachedFile({ name: file.name, text: data.text, type: data.fileType })
+        } catch { }
+        setUploadingFile(false)
+        if (fileInputRef.current) fileInputRef.current.value = ''
     }
 
     function submitTestPanel() {
@@ -587,7 +626,15 @@ export default function ChatLayout() {
                             {streaming && (
                                 <div className="flex gap-3">
                                     <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 flex-shrink-0 flex items-center justify-center mt-0.5"><BrainCircuit className="h-3.5 w-3.5 text-white" /></div>
-                                    <div className="flex-1 text-[14px] leading-relaxed text-gray-800 py-1"><MdMessage content={streaming} /></div>
+                                    <div className="flex-1 text-[14px] leading-relaxed text-gray-800 py-1">
+                                        <MdMessage content={streaming} />
+                                        {/```test/.test(streaming) && !/```test[\s\S]*?```/.test(streaming) && (
+                                            <div className="mt-3 flex items-center gap-2 text-[13px] text-blue-600 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5">
+                                                <div className="h-4 w-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                                                <span>Test tayyorlanmoqda...</span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             )}
                             {loading && !streaming && !thinkingText && (
@@ -624,7 +671,26 @@ export default function ChatLayout() {
                             </div>
                         )}
                         <form onSubmit={sendMessage} className="max-w-5xl mx-auto">
+                            {/* Attached file preview */}
+                            {attachedFile && (
+                                <div className="mb-2 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2">
+                                    <FileText className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                                    <span className="text-[13px] text-blue-700 flex-1 truncate">{attachedFile.name}</span>
+                                    <button type="button" onClick={() => setAttachedFile(null)} className="text-blue-400 hover:text-blue-600 transition">
+                                        <X className="h-3.5 w-3.5" />
+                                    </button>
+                                </div>
+                            )}
                             <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-2xl px-4 shadow-sm focus-within:border-gray-300 focus-within:shadow-md transition-all">
+                                {/* Hidden file input */}
+                                <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.txt,image/*" className="hidden" onChange={handleFileSelect} />
+                                {/* File attach button */}
+                                <button type="button" onClick={() => fileInputRef.current?.click()} disabled={loading || uploadingFile} title="Fayl biriktirish"
+                                    className="h-8 w-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition disabled:opacity-40">
+                                    {uploadingFile
+                                        ? <div className="h-4 w-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                                        : <Paperclip className="h-3.5 w-3.5" />}
+                                </button>
                                 <input value={input} onChange={e => setInput(e.target.value)} placeholder="Xabar yozing..." disabled={loading}
                                     className="flex-1 h-12 bg-transparent outline-none text-sm text-gray-900 placeholder:text-gray-400" />
                                 {/* Thinking mode toggle */}
@@ -638,7 +704,7 @@ export default function ChatLayout() {
                                         <Square className="h-3 w-3" />
                                     </button>
                                 ) : (
-                                    <button type="submit" disabled={!input.trim()}
+                                    <button type="submit" disabled={!input.trim() && !attachedFile}
                                         className="h-8 w-8 flex items-center justify-center rounded-lg bg-gray-900 text-white disabled:bg-gray-200 disabled:text-gray-400 transition">
                                         <Send className="h-3.5 w-3.5" />
                                     </button>
@@ -657,14 +723,19 @@ export default function ChatLayout() {
                 const answered = Object.keys(testAnswers).length
                 const score = testSubmitted ? questions.filter((q: any, i: number) => testAnswers[i] === q.correct).length : 0
                 return (
-                    <div className="w-96 bg-white border-l border-gray-200 flex flex-col flex-shrink-0 animate-in">
+                    <div className={testPanelMaximized ? 'fixed inset-0 z-50 bg-white flex flex-col' : 'w-96 bg-white border-l border-gray-200 flex flex-col flex-shrink-0 animate-in'}>
                         {/* Panel header */}
                         <div className="h-14 flex items-center justify-between px-4 border-b border-gray-100 flex-shrink-0">
                             <div className="flex items-center gap-2">
                                 <div className="h-7 w-7 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-lg flex items-center justify-center"><ClipboardList className="h-3.5 w-3.5 text-white" /></div>
                                 <span className="text-sm font-semibold text-gray-900">Test — {questions.length} savol</span>
                             </div>
-                            <button onClick={() => setTestPanel(null)} className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"><X className="h-4 w-4" /></button>
+                            <div className="flex items-center gap-1">
+                                <button onClick={() => setTestPanelMaximized(!testPanelMaximized)} className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition" title={testPanelMaximized ? 'Kichraytirish' : 'Kattalashtirish'}>
+                                    {testPanelMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                                </button>
+                                <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false) }} className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"><X className="h-4 w-4" /></button>
+                            </div>
                         </div>
 
                         {/* Progress bar */}
@@ -673,7 +744,8 @@ export default function ChatLayout() {
                         </div>
 
                         {/* Questions */}
-                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                        <div className="flex-1 overflow-y-auto min-h-0 p-4 space-y-4">
+                            <div className={testPanelMaximized ? 'max-w-3xl mx-auto space-y-4' : 'space-y-4'}>
                             {questions.map((q: any, i: number) => (
                                 <div key={i} className="bg-gray-50 rounded-xl p-4">
                                     <p className="text-[13px] font-medium text-gray-900 mb-3">{i + 1}. {q.q}</p>
@@ -702,10 +774,12 @@ export default function ChatLayout() {
                                     </div>
                                 </div>
                             ))}
+                            </div>
                         </div>
 
                         {/* Submit / Results */}
                         <div className="p-4 border-t border-gray-100 flex-shrink-0">
+                            <div className={testPanelMaximized ? 'max-w-3xl mx-auto' : ''}>
                             {!testSubmitted ? (
                                 <button onClick={submitTestPanel} disabled={answered < questions.length}
                                     className="w-full h-11 rounded-xl text-sm font-semibold text-white bg-gray-900 hover:bg-gray-800 disabled:bg-gray-200 disabled:text-gray-400 transition flex items-center justify-center gap-2">
@@ -715,9 +789,10 @@ export default function ChatLayout() {
                                 <div className="text-center space-y-2">
                                     <p className="text-lg font-bold text-gray-900">{score}/{questions.length} <span className="text-sm font-normal text-gray-400">— {Math.round(score / questions.length * 100)}%</span></p>
                                     <p className="text-xs text-gray-400">Natijalar chatga yuborildi</p>
-                                    <button onClick={() => setTestPanel(null)} className="text-sm text-blue-600 hover:underline">Panelni yopish</button>
+                                    <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false) }} className="text-sm text-blue-600 hover:underline">Panelni yopish</button>
                                 </div>
                             )}
+                            </div>
                         </div>
                     </div>
                 )

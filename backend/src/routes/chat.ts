@@ -1,7 +1,12 @@
 import { Router } from 'express'
+import multer from 'multer'
+import pdfParse from 'pdf-parse'
+import mammoth from 'mammoth'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest } from '../middleware/auth'
 import OpenAI from 'openai'
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } })
 
 const router = Router()
 
@@ -257,6 +262,46 @@ async function searchRAGContext(query: string, subject?: string): Promise<string
         return ''
     }
 }
+
+// Chat uchun fayl yuklash va matn extraction
+router.post('/:chatId/upload-file', authenticate, upload.single('file'), async (req: AuthRequest, res) => {
+    try {
+        const chat = await prisma.chat.findFirst({ where: { id: req.params.chatId as string, userId: req.user.id } })
+        if (!chat) return res.status(404).json({ error: 'Chat topilmadi' })
+        if (!req.file) return res.status(400).json({ error: 'Fayl yuklanmadi' })
+
+        const { mimetype, originalname, buffer } = req.file
+        let extractedText = ''
+        let fileType = 'other'
+
+        if (mimetype === 'application/pdf') {
+            fileType = 'pdf'
+            const data = await pdfParse(buffer)
+            extractedText = data.text.trim()
+        } else if (mimetype.includes('word') || originalname.endsWith('.docx') || originalname.endsWith('.doc')) {
+            fileType = 'word'
+            const result = await mammoth.extractRawText({ buffer })
+            extractedText = result.value.trim()
+        } else if (mimetype.startsWith('text/')) {
+            fileType = 'text'
+            extractedText = buffer.toString('utf-8').trim()
+        } else if (mimetype.startsWith('image/')) {
+            fileType = 'image'
+            extractedText = `[Rasm yuklandi: ${originalname}]`
+        } else {
+            extractedText = `[Fayl: ${originalname}]`
+        }
+
+        if (extractedText.length > 6000) {
+            extractedText = extractedText.substring(0, 6000) + '\n...(fayl qisqartirildi)'
+        }
+
+        res.json({ text: extractedText, fileName: originalname, fileType })
+    } catch (e: any) {
+        console.error('File upload error:', e.message)
+        res.status(500).json({ error: 'Fayl o\'qib bo\'lmadi' })
+    }
+})
 
 // Streaming xabar yuborish (SSE)
 router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
