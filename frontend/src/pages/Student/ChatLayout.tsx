@@ -1,11 +1,12 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { BrainCircuit } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 
 interface Chat { id: string; title: string; subject?: string; updatedAt: string }
 interface Msg { id: string; role: string; content: string; createdAt: string }
+interface Profile { onboardingDone: boolean; subject?: string; examDate?: string; targetScore?: number }
 
 export default function ChatLayout() {
     const { chatId } = useParams()
@@ -15,17 +16,47 @@ export default function ChatLayout() {
     const [messages, setMessages] = useState<Msg[]>([])
     const [input, setInput] = useState('')
     const [loading, setLoading] = useState(false)
+    const [creating, setCreating] = useState(false)
     const [sideOpen, setSideOpen] = useState(true)
     const [currentChat, setCurrentChat] = useState<Chat | null>(null)
+    const [profile, setProfile] = useState<Profile | null>(null)
+    const [showOnboarding, setShowOnboarding] = useState(false)
+    const [onboardingForm, setOnboardingForm] = useState({
+        subject: 'Matematika', targetScore: 80, examDate: '',
+        weakTopics: '', strongTopics: '', concerns: ''
+    })
+    const [savingProfile, setSavingProfile] = useState(false)
     const endRef = useRef<HTMLDivElement>(null)
 
-    // Chat ro'yxatini yuklash
-    useEffect(() => { loadChats() }, [])
+    useEffect(() => { loadChats(); loadProfile() }, [])
     useEffect(() => { if (chatId) loadMessages(chatId) }, [chatId])
     useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
+    async function loadProfile() {
+        try {
+            const p = await fetchApi('/profile')
+            setProfile(p)
+            if (p && !p.onboardingDone) setShowOnboarding(true)
+        } catch { setShowOnboarding(true) }
+    }
+
+    async function saveOnboarding(e: React.FormEvent) {
+        e.preventDefault(); setSavingProfile(true)
+        try {
+            const data = {
+                ...onboardingForm,
+                weakTopics: onboardingForm.weakTopics ? onboardingForm.weakTopics.split(',').map(s => s.trim()) : [],
+                strongTopics: onboardingForm.strongTopics ? onboardingForm.strongTopics.split(',').map(s => s.trim()) : [],
+            }
+            await fetchApi('/profile', { method: 'PUT', body: JSON.stringify(data) })
+            setShowOnboarding(false)
+            await loadProfile()
+        } catch { }
+        setSavingProfile(false)
+    }
+
     async function loadChats() {
-        try { const data = await fetchApi('/chat/list'); setChats(data) } catch { }
+        try { setChats(await fetchApi('/chat/list')) } catch { }
     }
 
     async function loadMessages(id: string) {
@@ -36,23 +67,30 @@ export default function ChatLayout() {
         } catch { }
     }
 
-    async function createChat() {
+    const createChat = useCallback(async () => {
+        if (creating) return
+        setCreating(true)
         try {
-            const data = await fetchApi('/chat/new', { method: 'POST', body: JSON.stringify({ title: 'Yangi suhbat' }) })
+            const data = await fetchApi('/chat/new', { method: 'POST', body: JSON.stringify({ title: 'Yangi suhbat', subject: profile?.subject }) })
             await loadChats()
             nav(`/chat/${data.id}`)
         } catch { }
-    }
+        setCreating(false)
+    }, [creating, profile])
 
     async function sendMessage(e: React.FormEvent) {
         e.preventDefault()
         if (!input.trim() || !chatId || loading) return
         const text = input; setInput('')
-        setMessages(prev => [...prev, { id: 'temp', role: 'user', content: text, createdAt: new Date().toISOString() }])
+        const tempMsg: Msg = { id: 'temp-u', role: 'user', content: text, createdAt: new Date().toISOString() }
+        setMessages(prev => [...prev, tempMsg])
         setLoading(true)
         try {
             const reply = await fetchApi(`/chat/${chatId}/send`, { method: 'POST', body: JSON.stringify({ content: text }) })
-            setMessages(prev => [...prev.filter(m => m.id !== 'temp' || m.role !== 'user'), { id: 'u-' + Date.now(), role: 'user', content: text, createdAt: new Date().toISOString() }, reply])
+            setMessages(prev => {
+                const filtered = prev.filter(m => m.id !== 'temp-u')
+                return [...filtered, { id: 'u-' + Date.now(), role: 'user', content: text, createdAt: new Date().toISOString() }, reply]
+            })
             loadChats()
         } catch {
             setMessages(prev => [...prev, { id: 'err', role: 'assistant', content: 'Xatolik yuz berdi. Qayta urinib ko\'ring.', createdAt: new Date().toISOString() }])
@@ -60,7 +98,8 @@ export default function ChatLayout() {
         setLoading(false)
     }
 
-    async function deleteChat(id: string) {
+    async function deleteChat(id: string, e: React.MouseEvent) {
+        e.stopPropagation()
         try {
             await fetchApi(`/chat/${id}`, { method: 'DELETE' })
             if (chatId === id) { nav('/chat'); setMessages([]); setCurrentChat(null) }
@@ -68,86 +107,169 @@ export default function ChatLayout() {
         } catch { }
     }
 
+    // Onboarding modal
+    if (showOnboarding) {
+        return (
+            <div className="h-screen bg-[#fafafa] flex items-center justify-center p-6">
+                <div className="w-full max-w-lg anim-up">
+                    <div className="text-center mb-8">
+                        <div className="h-14 w-14 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/20">
+                            <GraduationCap className="h-7 w-7 text-white" />
+                        </div>
+                        <h1 className="text-2xl font-bold text-gray-900">Keling tanishamiz!</h1>
+                        <p className="text-gray-500 mt-2 text-sm">Bu ma'lumotlar AI ustozingiz samarali ishlashi uchun kerak</p>
+                    </div>
+                    <form onSubmit={saveOnboarding} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
+                        <div>
+                            <label className="text-sm font-medium text-gray-700 block mb-1.5">Qaysi fandan tayyorlanasiz?</label>
+                            <select value={onboardingForm.subject} onChange={e => setOnboardingForm({ ...onboardingForm, subject: e.target.value })}
+                                className="w-full h-11 px-4 rounded-xl border border-gray-200 bg-white focus:border-blue-500 outline-none text-sm">
+                                {['Matematika', 'Fizika', 'Kimyo', 'Biologiya', 'Ona tili', 'Ingliz tili', 'Tarix', 'Geografiya'].map(f =>
+                                    <option key={f} value={f}>{f}</option>
+                                )}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium text-gray-700 block mb-1.5">Imtihon sanasi</label>
+                            <input type="date" value={onboardingForm.examDate} onChange={e => setOnboardingForm({ ...onboardingForm, examDate: e.target.value })}
+                                className="w-full h-11 px-4 rounded-xl border border-gray-200 focus:border-blue-500 outline-none text-sm" />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium text-gray-700 block mb-1.5">Maqsad ball (0-100)</label>
+                            <input type="number" min="0" max="100" value={onboardingForm.targetScore} onChange={e => setOnboardingForm({ ...onboardingForm, targetScore: parseInt(e.target.value) || 0 })}
+                                className="w-full h-11 px-4 rounded-xl border border-gray-200 focus:border-blue-500 outline-none text-sm" />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium text-gray-700 block mb-1.5">Qiyin mavzular <span className="text-gray-400">(vergul bilan ajrating)</span></label>
+                            <input placeholder="masalan: trigonometriya, integrallar" value={onboardingForm.weakTopics} onChange={e => setOnboardingForm({ ...onboardingForm, weakTopics: e.target.value })}
+                                className="w-full h-11 px-4 rounded-xl border border-gray-200 focus:border-blue-500 outline-none text-sm" />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium text-gray-700 block mb-1.5">Yaxshi biladigan mavzular</label>
+                            <input placeholder="masalan: algebra, geometriya" value={onboardingForm.strongTopics} onChange={e => setOnboardingForm({ ...onboardingForm, strongTopics: e.target.value })}
+                                className="w-full h-11 px-4 rounded-xl border border-gray-200 focus:border-blue-500 outline-none text-sm" />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium text-gray-700 block mb-1.5">Nimalar tashvishlantiradi?</label>
+                            <input placeholder="masalan: formulalarni eslab qolish" value={onboardingForm.concerns} onChange={e => setOnboardingForm({ ...onboardingForm, concerns: e.target.value })}
+                                className="w-full h-11 px-4 rounded-xl border border-gray-200 focus:border-blue-500 outline-none text-sm" />
+                        </div>
+                        <div className="flex gap-3 pt-2">
+                            <button type="submit" disabled={savingProfile} className="flex-1 h-11 rounded-xl text-sm font-semibold text-white bg-gray-900 hover:bg-gray-800 transition disabled:opacity-50">
+                                {savingProfile ? 'Saqlanmoqda...' : 'Davom etish'}
+                            </button>
+                            <button type="button" onClick={() => setShowOnboarding(false)} className="h-11 px-6 rounded-xl text-sm text-gray-500 border border-gray-200 hover:bg-gray-50 transition">
+                                Keyinroq
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        )
+    }
+
     return (
-        <div className="h-screen flex bg-gray-50">
+        <div className="h-screen flex bg-[#fafafa]">
             {/* Sidebar */}
-            <div className={`${sideOpen ? 'w-72' : 'w-0'} bg-gray-900 flex flex-col transition-all duration-300 overflow-hidden`}>
-                <div className="p-4 flex items-center justify-between">
-                    <span className="text-lg font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">msert</span>
-                    <button onClick={() => setSideOpen(false)} className="text-gray-400 hover:text-white text-lg">✕</button>
+            <div className={`${sideOpen ? 'w-64' : 'w-0'} bg-[#f5f5f5] flex flex-col transition-all duration-200 overflow-hidden border-r border-gray-200/80 flex-shrink-0`}>
+                <div className="p-3 flex items-center justify-between h-14">
+                    <div className="flex items-center gap-2">
+                        <div className="h-7 w-7 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-lg flex items-center justify-center">
+                            <BrainCircuit className="h-3.5 w-3.5 text-white" />
+                        </div>
+                        <span className="text-sm font-bold text-gray-900">msert</span>
+                    </div>
+                    <button onClick={() => setSideOpen(false)} className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-200/80 transition">
+                        <X className="h-4 w-4" />
+                    </button>
                 </div>
 
-                {/* Yangi chat */}
-                <button onClick={createChat} className="mx-3 mb-3 h-10 flex items-center justify-center gap-2 rounded-xl border border-gray-700 text-sm text-gray-300 hover:bg-gray-800 transition">
-                    ＋ Yangi suhbat
-                </button>
+                <div className="px-3 mb-2">
+                    <button onClick={createChat} disabled={creating}
+                        className="w-full h-9 flex items-center justify-center gap-2 rounded-lg text-sm font-medium text-gray-600 border border-gray-300 hover:bg-white transition disabled:opacity-50">
+                        <Plus className="h-3.5 w-3.5" /> Yangi suhbat
+                    </button>
+                </div>
 
-                {/* Chatlar */}
-                <div className="flex-1 overflow-y-auto px-3 space-y-1">
+                <div className="flex-1 overflow-y-auto px-2 space-y-0.5">
                     {chats.map(c => (
-                        <div key={c.id} className={`group flex items-center gap-2 px-3 py-2.5 rounded-xl cursor-pointer text-sm transition ${chatId === c.id ? 'bg-gray-800 text-white' : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'}`}
+                        <div key={c.id}
+                            className={`group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-[13px] transition-colors ${chatId === c.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:bg-gray-200/50'}`}
                             onClick={() => nav(`/chat/${c.id}`)}>
                             <span className="flex-1 truncate">{c.title}</span>
-                            <button onClick={(e) => { e.stopPropagation(); deleteChat(c.id) }} className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 text-xs transition">✕</button>
+                            <button onClick={(e) => deleteChat(c.id, e)}
+                                className="opacity-0 group-hover:opacity-100 h-5 w-5 flex items-center justify-center rounded text-gray-400 hover:text-red-500 transition">
+                                <Trash2 className="h-3 w-3" />
+                            </button>
                         </div>
                     ))}
                 </div>
 
-                {/* User */}
-                <div className="p-3 border-t border-gray-800">
-                    <div className="flex items-center gap-3 px-3 py-2">
-                        <div className="h-8 w-8 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center text-white text-xs font-bold">{user?.name?.[0]}</div>
+                <div className="p-3 border-t border-gray-200/80">
+                    <div className="flex items-center gap-2.5 px-2 py-1.5">
+                        <div className="h-7 w-7 bg-gray-300 rounded-full flex items-center justify-center text-[11px] font-semibold text-white">{user?.name?.[0]?.toUpperCase()}</div>
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm text-white truncate">{user?.name}</p>
-                            <p className="text-xs text-gray-500">{user?.role}</p>
+                            <p className="text-[13px] font-medium text-gray-900 truncate">{user?.name}</p>
                         </div>
-                        <button onClick={() => { logout(); nav('/') }} className="text-gray-500 hover:text-red-400 text-xs">Chiqish</button>
+                        <button onClick={() => { logout(); nav('/') }} className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-gray-200/80 transition">
+                            <LogOut className="h-3.5 w-3.5" />
+                        </button>
                     </div>
                 </div>
             </div>
 
-            {/* Main Chat Area */}
+            {/* Main */}
             <div className="flex-1 flex flex-col min-w-0">
-                {/* Top bar */}
-                <div className="h-14 border-b border-gray-200 bg-white flex items-center px-4 gap-3">
-                    {!sideOpen && <button onClick={() => setSideOpen(true)} className="text-gray-400 hover:text-gray-600 text-lg">☰</button>}
-                    <span className="text-sm font-medium text-gray-700 truncate">{currentChat?.title || 'msert AI Ustoz'}</span>
+                {/* Header */}
+                <div className="h-14 flex items-center px-4 gap-3 flex-shrink-0">
+                    {!sideOpen && (
+                        <button onClick={() => setSideOpen(true)} className="h-8 w-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 transition">
+                            <Menu className="h-4 w-4" />
+                        </button>
+                    )}
+                    <span className="text-sm font-medium text-gray-500 truncate">{currentChat?.title || ''}</span>
                 </div>
 
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto">
                     {!chatId ? (
                         <div className="h-full flex items-center justify-center">
-                            <div className="text-center anim-up">
-                                <div className="text-5xl mb-4">🧠</div>
-                                <h2 className="text-2xl font-bold text-gray-900 mb-2">msert AI Ustoz</h2>
-                                <p className="text-gray-400 mb-6 max-w-sm">Yangi suhbat oching va imtihonga tayyorgarlikni boshlang</p>
-                                <button onClick={createChat} className="h-11 px-8 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-cyan-500 shadow-lg shadow-blue-500/25">
-                                    Yangi suhbat boshlash
+                            <div className="text-center max-w-md px-6 anim-up">
+                                <div className="h-12 w-12 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-lg shadow-blue-500/15">
+                                    <BrainCircuit className="h-6 w-6 text-white" />
+                                </div>
+                                <h2 className="text-xl font-semibold text-gray-900 mb-2">Nima haqida gaplashamiz?</h2>
+                                <p className="text-sm text-gray-400 mb-6">AI ustoz sizga Milliy Sertifikat tayyorgarligida yordam beradi</p>
+                                <button onClick={createChat} disabled={creating}
+                                    className="h-10 px-6 rounded-xl text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 transition disabled:opacity-50">
+                                    Suhbat boshlash
                                 </button>
                             </div>
                         </div>
                     ) : (
-                        <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
+                        <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
                             {messages.map((m, i) => (
                                 <div key={m.id || i} className={`flex gap-3 ${m.role === 'user' ? 'justify-end' : ''}`}>
                                     {m.role !== 'user' && (
-                                        <div className="h-8 w-8 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex-shrink-0 flex items-center justify-center text-white text-xs font-bold mt-0.5">AI</div>
+                                        <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 flex-shrink-0 flex items-center justify-center mt-0.5">
+                                            <BrainCircuit className="h-3.5 w-3.5 text-white" />
+                                        </div>
                                     )}
-                                    <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${m.role === 'user'
-                                        ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-br-md shadow-md'
-                                        : 'bg-white border border-gray-100 text-gray-800 rounded-bl-md shadow-sm'
+                                    <div className={`max-w-[85%] text-[14px] leading-relaxed whitespace-pre-wrap ${m.role === 'user'
+                                            ? 'bg-gray-100 text-gray-900 rounded-2xl rounded-br-md px-4 py-3'
+                                            : 'text-gray-800 py-1'
                                         }`}>{m.content}</div>
-                                    {m.role === 'user' && (
-                                        <div className="h-8 w-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex-shrink-0 flex items-center justify-center text-white text-xs font-bold mt-0.5">{user?.name?.[0]}</div>
-                                    )}
                                 </div>
                             ))}
                             {loading && (
                                 <div className="flex gap-3">
-                                    <div className="h-8 w-8 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex-shrink-0 flex items-center justify-center text-white text-xs font-bold">AI</div>
-                                    <div className="bg-white border border-gray-100 px-4 py-3 rounded-2xl rounded-bl-md shadow-sm">
-                                        <div className="flex gap-1"><span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" /><span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce [animation-delay:150ms]" /><span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce [animation-delay:300ms]" /></div>
+                                    <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 flex-shrink-0 flex items-center justify-center">
+                                        <BrainCircuit className="h-3.5 w-3.5 text-white" />
+                                    </div>
+                                    <div className="flex gap-1 py-3">
+                                        <span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" />
+                                        <span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce [animation-delay:150ms]" />
+                                        <span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce [animation-delay:300ms]" />
                                     </div>
                                 </div>
                             )}
@@ -158,13 +280,16 @@ export default function ChatLayout() {
 
                 {/* Input */}
                 {chatId && (
-                    <div className="p-4 border-t border-gray-200 bg-white">
-                        <form onSubmit={sendMessage} className="max-w-3xl mx-auto flex gap-3">
-                            <input value={input} onChange={e => setInput(e.target.value)} placeholder="Savolingizni yozing..." disabled={loading}
-                                className="flex-1 h-12 px-5 rounded-2xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none text-sm transition" />
-                            <button type="submit" disabled={loading || !input.trim()} className="h-12 px-6 rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-medium text-sm shadow-lg shadow-blue-500/20 disabled:opacity-40 transition">
-                                Yuborish
-                            </button>
+                    <div className="px-4 pb-6 pt-2">
+                        <form onSubmit={sendMessage} className="max-w-2xl mx-auto">
+                            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-2xl px-4 shadow-sm focus-within:border-gray-300 focus-within:shadow-md transition-all">
+                                <input value={input} onChange={e => setInput(e.target.value)} placeholder="Xabar yozing..." disabled={loading}
+                                    className="flex-1 h-12 bg-transparent outline-none text-sm text-gray-900 placeholder:text-gray-400" />
+                                <button type="submit" disabled={loading || !input.trim()}
+                                    className="h-8 w-8 flex items-center justify-center rounded-lg bg-gray-900 text-white disabled:bg-gray-200 disabled:text-gray-400 transition">
+                                    <Send className="h-3.5 w-3.5" />
+                                </button>
+                            </div>
                         </form>
                     </div>
                 )}
