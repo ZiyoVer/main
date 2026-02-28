@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { BrainCircuit } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 
@@ -100,7 +101,7 @@ export default function ChatLayout() {
                             <p className="text-sm text-white truncate">{user?.name}</p>
                             <p className="text-xs text-gray-500">{user?.role}</p>
                         </div>
-                        <button onClick={() => { logout(); nav('/login') }} className="text-gray-500 hover:text-red-400 text-xs">Chiqish</button>
+                        <button onClick={() => { logout(); nav('/') }} className="text-gray-500 hover:text-red-400 text-xs">Chiqish</button>
                     </div>
                 </div>
             </div>
@@ -134,8 +135,8 @@ export default function ChatLayout() {
                                         <div className="h-8 w-8 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex-shrink-0 flex items-center justify-center text-white text-xs font-bold mt-0.5">AI</div>
                                     )}
                                     <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${m.role === 'user'
-                                            ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-br-md shadow-md'
-                                            : 'bg-white border border-gray-100 text-gray-800 rounded-bl-md shadow-sm'
+                                        ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-br-md shadow-md'
+                                        : 'bg-white border border-gray-100 text-gray-800 rounded-bl-md shadow-sm'
                                         }`}>{m.content}</div>
                                     {m.role === 'user' && (
                                         <div className="h-8 w-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex-shrink-0 flex items-center justify-center text-white text-xs font-bold mt-0.5">{user?.name?.[0]}</div>

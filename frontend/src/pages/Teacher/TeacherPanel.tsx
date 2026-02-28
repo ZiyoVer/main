@@ -57,7 +57,7 @@ export default function TeacherPanel() {
                         <span className="text-lg font-bold bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">msert</span>
                         <span className="text-xs text-gray-400 font-medium">O'qituvchi</span>
                     </div>
-                    <button onClick={() => { logout(); nav('/login') }} className="text-sm text-gray-400 hover:text-gray-600">Chiqish</button>
+                    <button onClick={() => { logout(); nav('/') }} className="text-sm text-gray-400 hover:text-gray-600">Chiqish</button>
                 </div>
             </header>
 

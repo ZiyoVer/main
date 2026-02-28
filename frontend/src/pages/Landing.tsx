@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { BrainCircuit, Sparkles, Target, BarChart3, MessageCircle, BookOpen, Zap, ArrowRight, ChevronRight, Shield, Clock, Trophy } from 'lucide-react'
+import { BrainCircuit, Sparkles, Target, BarChart3, MessageCircle, BookOpen, Zap, ArrowRight, ChevronRight, Clock, Trophy } from 'lucide-react'
 
 export default function Landing() {
     return (
@@ -55,8 +55,8 @@ export default function Landing() {
                             Bepul ro'yxatdan o'tish
                             <ChevronRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
                         </Link>
-                        <Link to="/admin-login" className="h-13 px-8 flex items-center gap-2 text-base font-medium text-gray-600 border-2 border-gray-200 rounded-2xl hover:border-gray-300 hover:bg-white transition-all">
-                            <Shield className="h-4 w-4" /> Admin kirish
+                        <Link to="/login" className="h-13 px-8 flex items-center gap-2 text-base font-medium text-gray-600 border-2 border-gray-200 rounded-2xl hover:border-gray-300 hover:bg-white transition-all">
+                            Kirish
                         </Link>
                     </div>
                 </div>

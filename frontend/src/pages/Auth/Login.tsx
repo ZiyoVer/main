@@ -24,7 +24,7 @@ export default function Login() {
     }
 
     return (
-        <div className="min-h-screen bg-auth flex">
+        <div className="min-h-screen bg-[#fafafa] flex">
             <div className="hidden lg:flex flex-1 bg-mesh-dark items-center justify-center relative overflow-hidden">
                 <div className="absolute top-20 left-10 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl anim-float" />
                 <div className="text-center z-10 anim-up">
