@@ -314,11 +314,78 @@ export default function ChatLayout() {
                 <div className="flex-1 overflow-y-auto">
                     {!chatId ? (
                         <div className="h-full flex items-center justify-center">
-                            <div className="text-center max-w-md px-6 anim-up">
-                                <div className="h-12 w-12 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-lg shadow-blue-500/15"><BrainCircuit className="h-6 w-6 text-white" /></div>
-                                <h2 className="text-xl font-semibold text-gray-900 mb-2">Nima haqida gaplashamiz?</h2>
-                                <p className="text-sm text-gray-400 mb-6">AI ustoz sizga Milliy Sertifikat tayyorgarligida yordam beradi</p>
-                                <button onClick={createChat} disabled={creating} className="h-10 px-6 rounded-xl text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 transition disabled:opacity-50">Suhbat boshlash</button>
+                            <div className="max-w-2xl w-full px-6 anim-up">
+                                <div className="text-center mb-10">
+                                    <div className="h-14 w-14 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-lg shadow-blue-500/15"><BrainCircuit className="h-7 w-7 text-white" /></div>
+                                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Salom, {user?.name?.split(' ')[0]}! 👋</h2>
+                                    <p className="text-sm text-gray-400">Bugun nima o'rganmoqchisiz? Quyidagilardan birini tanlang yoki o'zingiz yozing</p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {[
+                                        { icon: '📖', title: 'Mavzu tushuntir', desc: 'Mavzuni boshidan tushuntirib ber', prompt: 'Menga bugungi mavzuni boshidan tushuntirib bering' },
+                                        { icon: '📝', title: 'Bilimimni testla', desc: 'Test savollari bilan tekshir', prompt: 'Mening bilimimni test savollari bilan tekshiring' },
+                                        { icon: '📋', title: 'O\'quv reja tuz', desc: 'Imtihongacha bo\'lgan reja', prompt: 'Imtihongacha bo\'lgan kunlar uchun o\'quv reja tuzing' },
+                                        { icon: '💡', title: 'Formula va qoidalar', desc: 'Asosiy formulalarni ko\'rsat', prompt: 'Bu fandagi eng muhim formulalar va qoidalarni ko\'rsating' },
+                                        { icon: '🔍', title: 'Zaif joylarimni aniqla', desc: 'Qayerda qiynalayotganimni top', prompt: 'Menga savollar berib zaif joylarimni aniqlang' },
+                                        { icon: '🎯', title: 'Imtihon strategiya', desc: 'Vaqt boshqarish, taktika', prompt: 'Milliy sertifikat imtihonida vaqt boshqarish va javob berish strategiyasini o\'rgating' },
+                                    ].map((s, i) => (
+                                        <button key={i} onClick={async () => {
+                                            if (creating) return; setCreating(true)
+                                            try {
+                                                const data = await fetchApi('/chat/new', { method: 'POST', body: JSON.stringify({ title: s.title, subject: profile?.subject }) })
+                                                await loadChats()
+                                                nav(`/chat/${data.id}`)
+                                                // Auto-send after navigation
+                                                setTimeout(async () => {
+                                                    try {
+                                                        setInput(s.prompt)
+                                                        const token = localStorage.getItem('token')
+                                                        setMessages([{ id: 'temp-u', role: 'user', content: s.prompt, createdAt: new Date().toISOString() }])
+                                                        setLoading(true); setStreaming('')
+                                                        const res = await fetch(`/api/chat/${data.id}/stream`, {
+                                                            method: 'POST',
+                                                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                                                            body: JSON.stringify({ content: s.prompt })
+                                                        })
+                                                        if (!res.ok) throw new Error()
+                                                        const reader = res.body?.getReader()
+                                                        const decoder = new TextDecoder()
+                                                        let fullText = ''
+                                                        if (reader) {
+                                                            while (true) {
+                                                                const { done, value } = await reader.read()
+                                                                if (done) break
+                                                                const chunk = decoder.decode(value, { stream: true })
+                                                                for (const line of chunk.split('\n')) {
+                                                                    if (line.startsWith('data: ')) {
+                                                                        try {
+                                                                            const d = JSON.parse(line.slice(6))
+                                                                            if (d.content) { fullText += d.content; setStreaming(fullText) }
+                                                                            if (d.done) {
+                                                                                setMessages([
+                                                                                    { id: 'u-' + Date.now(), role: 'user', content: s.prompt, createdAt: new Date().toISOString() },
+                                                                                    { id: d.id || 'a-' + Date.now(), role: 'assistant', content: fullText, createdAt: new Date().toISOString() }
+                                                                                ])
+                                                                                setStreaming(''); loadChats()
+                                                                            }
+                                                                        } catch { }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                        setInput(''); setLoading(false)
+                                                    } catch { setLoading(false) }
+                                                }, 300)
+                                            } catch { }
+                                            setCreating(false)
+                                        }}
+                                            className="text-left p-4 bg-white border border-gray-150 rounded-2xl hover:border-gray-300 hover:shadow-md transition-all group">
+                                            <span className="text-xl mb-2 block">{s.icon}</span>
+                                            <p className="text-sm font-semibold text-gray-900 mb-0.5 group-hover:text-blue-600 transition">{s.title}</p>
+                                            <p className="text-xs text-gray-400">{s.desc}</p>
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     ) : (
