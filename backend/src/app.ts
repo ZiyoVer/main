@@ -18,6 +18,7 @@ import testRoutes from './routes/tests'
 import docRoutes from './routes/documents'
 import analyticsRoutes from './routes/analytics'
 import profileRoutes from './routes/profile'
+import aiSettingsRoutes from './routes/aiSettings'
 
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', time: new Date().toISOString() })
@@ -29,6 +30,7 @@ app.use('/api/tests', testRoutes)
 app.use('/api/documents', docRoutes)
 app.use('/api/analytics', analyticsRoutes)
 app.use('/api/profile', profileRoutes)
+app.use('/api/ai-settings', aiSettingsRoutes)
 
 // Static frontend (production)
 if (process.env.NODE_ENV === 'production') {

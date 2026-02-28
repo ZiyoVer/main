@@ -153,3 +153,12 @@ model VisitLog {
   ip        String?
   createdAt DateTime @default(now())
 }
+
+// ============ AI SETTINGS ============
+
+model AISetting {
+  id        String   @id @default(uuid())
+  key       String   @unique  // "system_prompt_extra", "temperature", "max_tokens", "behavior_rules"
+  value     String   // JSON or string value
+  updatedAt DateTime @updatedAt
+}

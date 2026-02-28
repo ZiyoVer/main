@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BrainCircuit, Users, UserCheck, GraduationCap, Clock, CalendarDays, CalendarRange, BarChart3, MessageSquare, FileText, Layers, Target, LogOut, Upload, Trash2, Plus, Activity } from 'lucide-react'
+import { BrainCircuit, Users, UserCheck, GraduationCap, Clock, CalendarDays, CalendarRange, BarChart3, MessageSquare, FileText, Layers, Target, LogOut, Upload, Trash2, Plus, Activity, Bot, Save } from 'lucide-react'
 import { fetchApi, uploadFile } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 
 export default function AdminPanel() {
     const nav = useNavigate()
     const { logout } = useAuthStore()
-    const [tab, setTab] = useState<'stats' | 'users' | 'teachers' | 'docs'>('stats')
+    const [tab, setTab] = useState<'stats' | 'users' | 'teachers' | 'docs' | 'ai'>('stats')
     const [stats, setStats] = useState<any>(null)
     const [users, setUsers] = useState<any[]>([])
     const [docs, setDocs] = useState<any[]>([])
@@ -16,12 +16,16 @@ export default function AdminPanel() {
     const [docSubject, setDocSubject] = useState('Matematika')
     const [msg, setMsg] = useState('')
     const [creating, setCreating] = useState(false)
+    const [aiConfig, setAiConfig] = useState({ temperature: '0.7', max_tokens: '4096', extra_rules: '' })
+    const [aiSaving, setAiSaving] = useState(false)
+    const [aiMsg, setAiMsg] = useState('')
 
     useEffect(() => { loadAll() }, [])
     async function loadAll() {
         try { setStats(await fetchApi('/analytics/stats')) } catch { }
         try { setUsers(await fetchApi('/auth/users')) } catch { }
         try { setDocs(await fetchApi('/documents/list')) } catch { }
+        try { const ai = await fetchApi('/ai-settings'); setAiConfig(ai) } catch { }
     }
 
     async function createTeacher(e: React.FormEvent) {
@@ -61,6 +65,7 @@ export default function AdminPanel() {
         { k: 'users' as const, l: 'Foydalanuvchilar', icon: Users },
         { k: 'teachers' as const, l: 'O\'qituvchi +', icon: UserCheck },
         { k: 'docs' as const, l: 'RAG Materiallar', icon: FileText },
+        { k: 'ai' as const, l: 'AI Sozlamalar', icon: Bot },
     ]
 
     return (
@@ -310,6 +315,56 @@ export default function AdminPanel() {
                                 </button>
                             </div>
                         ))}
+                    </div>
+                )}
+
+                {/* === AI SETTINGS === */}
+                {tab === 'ai' && (
+                    <div className="max-w-xl anim-up">
+                        <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-6">
+                            <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center">
+                                    <Bot className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-gray-900">AI Xulq-atvor sozlamalari</h3>
+                                    <p className="text-xs text-gray-400">AI ustozning javob berish uslubini sozlang</p>
+                                </div>
+                            </div>
+                            {aiMsg && <div className={`text-sm px-4 py-2.5 rounded-xl ${aiMsg.includes('✓') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>{aiMsg}</div>}
+                            <div>
+                                <label className="text-sm font-medium text-gray-700 block mb-2">Harorat (Temperature): {aiConfig.temperature}</label>
+                                <input type="range" min="0" max="2" step="0.1" value={aiConfig.temperature}
+                                    onChange={e => setAiConfig({ ...aiConfig, temperature: e.target.value })}
+                                    className="w-full accent-purple-600" />
+                                <div className="flex justify-between text-[11px] text-gray-400 mt-1"><span>0 — aniq</span><span>1 — kreativ</span><span>2 — juda kreativ</span></div>
+                            </div>
+                            <div>
+                                <label className="text-sm font-medium text-gray-700 block mb-1.5">Max tokenlar</label>
+                                <input type="number" min="1000" max="8000" step="500" value={aiConfig.max_tokens}
+                                    onChange={e => setAiConfig({ ...aiConfig, max_tokens: e.target.value })}
+                                    className="w-full h-11 px-4 rounded-xl border border-gray-200 focus:border-purple-500 outline-none text-sm" />
+                                <p className="text-[11px] text-gray-400 mt-1">AI javobining maksimal uzunligi (1000-8000)</p>
+                            </div>
+                            <div>
+                                <label className="text-sm font-medium text-gray-700 block mb-1.5">Qo'shimcha qoidalar</label>
+                                <textarea value={aiConfig.extra_rules}
+                                    onChange={e => setAiConfig({ ...aiConfig, extra_rules: e.target.value })}
+                                    rows={6} placeholder="Masalan: O'quvchilarga doimo motivatsion gaplar ayt. Har bir darsda kamida 3 ta misol ber."
+                                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-purple-500 outline-none text-sm resize-none" />
+                                <p className="text-[11px] text-gray-400 mt-1">Bu qoidalar AI system promptga qo'shiladi</p>
+                            </div>
+                            <button onClick={async () => {
+                                setAiSaving(true); setAiMsg('')
+                                try {
+                                    await fetchApi('/ai-settings', { method: 'PUT', body: JSON.stringify(aiConfig) })
+                                    setAiMsg('✓ Sozlamalar saqlandi!')
+                                } catch (e: any) { setAiMsg(e.message) }
+                                setAiSaving(false)
+                            }} disabled={aiSaving} className="w-full h-11 rounded-xl text-sm font-semibold text-white bg-gray-900 hover:bg-gray-800 transition disabled:opacity-50 flex items-center justify-center gap-2">
+                                <Save className="h-4 w-4" /> {aiSaving ? 'Saqlanmoqda...' : 'Sozlamalarni saqlash'}
+                            </button>
+                        </div>
                     </div>
                 )}
             </div>

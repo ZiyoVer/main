@@ -10,7 +10,20 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY || ''
 })
 
-function buildSystemPrompt(profile: any, subject?: string): string {
+async function getAISettings(): Promise<{ temperature: number; maxTokens: number; extraRules: string }> {
+    const defaults = { temperature: 0.7, maxTokens: 4096, extraRules: '' }
+    try {
+        const settings = await prisma.aISetting.findMany()
+        for (const s of settings) {
+            if (s.key === 'temperature') defaults.temperature = parseFloat(s.value) || 0.7
+            if (s.key === 'max_tokens') defaults.maxTokens = parseInt(s.value) || 4096
+            if (s.key === 'extra_rules') defaults.extraRules = s.value
+        }
+    } catch { }
+    return defaults
+}
+
+function buildSystemPrompt(profile: any, subject?: string, extraRules?: string): string {
     const now = new Date()
     let daysLeft = ''
     if (profile?.examDate) {
@@ -19,40 +32,89 @@ function buildSystemPrompt(profile: any, subject?: string): string {
         else daysLeft = 'Imtihon sanasi o\'tgan.'
     }
 
-    const weakTopics = profile?.weakTopics ? JSON.parse(profile.weakTopics) : []
-    const strongTopics = profile?.strongTopics ? JSON.parse(profile.strongTopics) : []
+    let weakTopics: string[] = []
+    let strongTopics: string[] = []
+    try { weakTopics = profile?.weakTopics ? JSON.parse(profile.weakTopics) : [] } catch { }
+    try { strongTopics = profile?.strongTopics ? JSON.parse(profile.strongTopics) : [] } catch { }
 
-    return `Sen "msert" platformasining AI ustozisan — tajribali pedagog. Faqat o'zbek tilida gaplashasan.
+    return `Sen "msert" platformasining AI pedagog-ustozisan. O'zbek tilida ishla.
 
-# SEN KIM
-Sen Milliy Sertifikat imtihoniga o'quvchilarni tayyorlaydigan tajribali pedagog-ustozsan. Sen samimiy, sabr-toqatli va motivatsiya beradigasan.
+# 🎓 SENING ROLIN
+Sen — tajribali, sabr-toqatli, samimiy Milliy Sertifikat ustozi. Oddiy tushunarli tilda gapirasanng. Sen o'quvchini imtihonga eng samarali tayyorlaysan.
 
-# O'QUVCHI HAQIDA
-${subject ? `Fan: ${subject}` : ''}
-${daysLeft}
-${weakTopics.length > 0 ? `O'quvchi qiyin dega mavzular: ${weakTopics.join(', ')}` : ''}
-${strongTopics.length > 0 ? `O'quvchi yaxshi biladigan mavzular: ${strongTopics.join(', ')}` : ''}
-${profile?.targetScore ? `Maqsad ball: ${profile.targetScore}` : ''}
-${profile?.concerns ? `Tashvishi: ${profile.concerns}` : ''}
+# 📋 O'QUVCHI MA'LUMOTLARI
+${subject ? `**Fan:** ${subject}` : ''}
+${daysLeft ? `**Imtihon:** ${daysLeft}` : ''}
+${weakTopics.length > 0 ? `**Qiyin degan mavzulari:** ${weakTopics.join(', ')} (lekin bu o'quvchining o'z fikri — haqiqiy bilimini sen o'zing aniqla!)` : ''}
+${strongTopics.length > 0 ? `**Yaxshi biladigan mavzulari:** ${strongTopics.join(', ')}` : ''}
+${profile?.targetScore ? `**Maqsad ball:** ${profile.targetScore}` : ''}
+${profile?.concerns ? `**Tashvishi:** ${profile.concerns}` : ''}
 
-# XULQ-ATVOR QOIDALARI (juda muhim!)
+# 📖 O'QITISH METODIKASI (Eng muhim qism!)
 
-1. **BOSHIDA TEST TAKLIF QIL**: Birinchi suhbatda: "Keling avval bilimingizni tekshirib olaylik, shunda to'g'ri yo'nalishda ishlaymiz" de va 5-10 ta savol ber.
-2. **ZAIF MAVZULARGA SHOSHILMA**: O'quvchi zaif mavzularni kiritgan bo'lsa ham, darhol o'sha mavzudan dars boshLAMA. Avval o'quvchi bilan gaplashib, uning haqiqiy bilim darajasini aniqla.
-3. **REJALASH**: O'quvchi bilan birgalikda o'quv reja tuz. "Sizningcha qaysi mavzudan boshlaylik?" deb so'ra.
-4. **PEDAGOG BO'L**: Faqat javob berma — o'rgatadigan ustozday bo'l. Misollar, qiyoslashlar, hayotiy parallelllar ishlatib tushuntir.
-5. **QISQACHA YOZMA**: Har bir javobning oxirida qisqacha savol bilan davom ettir. Bir marta juda ko'p narsa tashLAMA.
-6. **PROGRESSNI KUZAT**: O'quvchi nimani o'rgandisA eslab qol. "O'tgan safar X ni o'rgandik, endi Y ga o'tamiz" degin.
-7. **MOTIVATSIYA**: Har bir muvaffaqiyatni ta'kidla. "Juda yaxshi! To'g'ri javob berdingiz!" de.
-8. **VAQTNI HISOBLA**: ${daysLeft ? daysLeft + ' Buni eslatib tur va reja tuz.' : 'Imtihon sanasi noaniq, lekin rejali ishlashga undagin.'}
-9. **FORMATLASH**: Javoblaringda Markdown ishlat:
-   - **Muhim tushunchalar** qalin bo'lsin
-   - Ro'yxatlarni raqamlab yoki bullet bilan yoz
-   - Misollarni alohida ajrat
-   - Formulalarni aniq yoz
-10. **BIR CHATDA KO'P MAVZU**: O'quvchi bitta chatda turli mavzular so'rashi mumkin — hammasiga javob ber va kontekstni eslab qol.
+## 1. AVVAL TUSHUNTIR — keyin MISOL — keyin TEST
+Har bir mavzuni quyidagi ketma-ketlikda o'rgat:
 
-Hozirgi sana: ${now.toLocaleDateString('uz-UZ')}.`
+**A) NAZARIYA** (avval)
+- Mavzuning mohiyatini oddiy, tushunarli tilda tushuntir
+- **Formulalar**, teoremalar, qoidalarni bergin — qalin shriftda
+- Hayotiy misollar, qiyoslashlar keltir
+- Step-by-step bo'lib tushuntir: "1-qadam → 2-qadam → 3-qadam"
+- O'quvchining darajasiga mosla — oddiy boshlb murakkablashtirad
+
+**B) TEKSHIRUV** (o'rtada)
+- "Tushunarlimi? Qaysi qismini qayta tushuntirayin?" deb so'ra
+- O'quvchi tushundim desa — kichik savol ber tekshirish uchun
+- Tushunmasa — boshqa usulda, boshqa misol bilan qayta tushuntir
+
+**C) AMALIY MASHQ** (keyin)
+- Misollar ber — oddiydan murakkabga
+- Har bir misolni **to'liq yechimini** ko'rsat
+- "Endi siz yechib ko'ring" degin va alohida misol ber
+
+**D) TEST** (oxirida)
+- O'quvchi tayyor bo'lgandagina test ber
+- "Bilimingizni tekshirib olaylikmi?" deb so'ra
+- 3-5 ta test savol ber (A, B, C, D variantlar bilan)
+- O'quvchi javob bergach — har bir javobni tahlil qil
+- To'g'ri javoblarni ta'kidla, xato javoblarni tushuntir
+
+## 2. TAHlIL VA REJALASHTIRISH
+- Har bir test natijasini batafsil tahlil qil
+- "3 tadan 2 tasini to'g'ri javob berdingiz. X mavzusini qaytadan ko'rib chiqishimiz kerak" de
+- Keyingi dars rejasini taklif qil
+
+## 3. DOIMO DIALOG YURIT
+- Faqat ma'lumot tashLAMA — dialog qil
+- Har 2-3 ta gap dan keyin savol ber
+- O'quvchiga tanlov ber: "A variantni yoki B variantni ko'rib chiqamizmi?"
+- "Yana nimani tushuntirishimni xohlaysiz?" deb so'ra
+
+## 4. ZAIF MAVZULARGA YONDASHUV
+- O'quvchi "integrallar qiyin" desa — DARHOL integral haqida gaplashma
+- Avval: "Integrallarning qaysi qismi qiyin? Tushunchasi, hisoblash usullari yoki qo'llash qismi?"
+- Keyin o'sha aniq qismdan ishla
+- Asosiy tushunchalardan boshlb murakkab mavzularga o't
+
+# 📝 FORMATLASH QOIDALARI (Juda muhim!)
+
+1. **Muhim tushunchalar** va **formulalar** — qalin shriftda
+2. Ro'yxatlar — raqamli yoki bullet bilan
+3. Formulalar — alohida qatorida, aniq yozilgan
+4. Qadamlar: "**1-qadam:** ..., **2-qadam:** ..., **3-qadam:** ..."
+5. Misollar va yechimlar — aniq ajratilgan
+6. Test savollari — A), B), C), D) formatda
+7. Javoblarni tahlil qilganda — ✅ to'g'ri, ❌ xato belgilar ishlat
+
+# ⚠️ QILMA!
+- Bitta xabarda juda ko'p ma'lumot tashLAMA — bo'lib-bo'lib ber
+- O'quvchi hali tushunmaganda test berMA
+- Javob bermasdan turib yangi mavzuga o'tMA
+- O'quvchining bilim darajasini tekshirmasdan murakkab mavzuga o'tMA
+- Rag materiallarini aynan nusxalaMA — o'z so'zlaring bilan qayta tushuntir
+
+Hozirgi sana: ${now.toLocaleDateString('uz-UZ')}.
+${extraRules ? '\n# 🔧 ADMIN QOIDALARI\n' + extraRules : ''}`
 }
 
 // Yangi chat ochish
@@ -105,6 +167,45 @@ router.get('/:chatId/messages', authenticate, async (req: AuthRequest, res) => {
     }
 })
 
+// RAG: content-based relevant chunks search
+async function searchRAGContext(query: string, subject?: string): Promise<string> {
+    try {
+        // Search relevant chunks by content similarity (keyword matching)
+        const keywords = query.toLowerCase().split(/\s+/).filter(w => w.length > 3)
+        if (keywords.length === 0) return ''
+
+        const allChunks = await prisma.documentChunk.findMany({
+            where: {
+                document: subject ? { subject } : undefined
+            },
+            include: { document: { select: { fileName: true, subject: true } } },
+            take: 100 // get more chunks for relevance scoring
+        })
+
+        // Score chunks by keyword match relevance
+        const scored = allChunks.map(chunk => {
+            const lower = chunk.content.toLowerCase()
+            let score = 0
+            for (const kw of keywords) {
+                const matches = lower.split(kw).length - 1
+                score += matches
+            }
+            return { chunk, score }
+        })
+            .filter(s => s.score > 0)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 5) // top 5 most relevant
+
+        if (scored.length === 0) return ''
+
+        return '\n\n📚 TEGISHLI O\'QUV MATERIALLARI (RAG):\n' +
+            scored.map(s => `[${s.chunk.document.fileName}]: ${s.chunk.content}`).join('\n---\n') +
+            '\n\nYuqoridagi materiallarni o\'z so\'zlaring bilan qayta tushuntir, aynan nusxalama.'
+    } catch {
+        return ''
+    }
+}
+
 // Streaming xabar yuborish (SSE)
 router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
     try {
@@ -121,11 +222,11 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
             data: { chatId: chat.id, role: 'user', content }
         })
 
-        // Oldingi xabarlar
+        // Oldingi xabarlar (ko'proq kontekst)
         const history = await prisma.message.findMany({
             where: { chatId: chat.id },
             orderBy: { createdAt: 'asc' },
-            take: 50
+            take: 80
         })
 
         // Profile olish
@@ -133,20 +234,13 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
             where: { userId: req.user.id }
         })
 
-        // RAG kontekst
-        let ragContext = ''
-        try {
-            const chunks = await prisma.documentChunk.findMany({
-                where: { document: { subject: chat.subject || undefined } },
-                take: 5,
-                orderBy: { createdAt: 'desc' }
-            })
-            if (chunks.length > 0) {
-                ragContext = '\n\nTEGISHLI O\'QUV MATERIALLARI:\n' + chunks.map(c => c.content).join('\n---\n')
-            }
-        } catch { }
+        // AI settings
+        const aiSettings = await getAISettings()
 
-        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined) + ragContext
+        // RAG kontekst — relevance based
+        const ragContext = await searchRAGContext(content, chat.subject || undefined)
+
+        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, aiSettings.extraRules) + ragContext
 
         const messages: any[] = [
             { role: 'system', content: systemPrompt },
@@ -164,8 +258,8 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
         const stream = await openai.chat.completions.create({
             model: 'deepseek-chat',
             messages,
-            max_tokens: 4096,
-            temperature: 0.7,
+            max_tokens: aiSettings.maxTokens,
+            temperature: aiSettings.temperature,
             stream: true
         })
 
@@ -219,26 +313,17 @@ router.post('/:chatId/send', authenticate, async (req: AuthRequest, res) => {
         const history = await prisma.message.findMany({
             where: { chatId: chat.id },
             orderBy: { createdAt: 'asc' },
-            take: 50
+            take: 80
         })
 
         const profile = await prisma.studentProfile.findUnique({
             where: { userId: req.user.id }
         })
 
-        let ragContext = ''
-        try {
-            const chunks = await prisma.documentChunk.findMany({
-                where: { document: { subject: chat.subject || undefined } },
-                take: 5,
-                orderBy: { createdAt: 'desc' }
-            })
-            if (chunks.length > 0) {
-                ragContext = '\n\nTEGISHLI O\'QUV MATERIALLARI:\n' + chunks.map(c => c.content).join('\n---\n')
-            }
-        } catch { }
+        const aiSettings = await getAISettings()
+        const ragContext = await searchRAGContext(content, chat.subject || undefined)
+        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, aiSettings.extraRules) + ragContext
 
-        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined) + ragContext
         const msgs: any[] = [
             { role: 'system', content: systemPrompt },
             ...history.map(m => ({ role: m.role, content: m.content }))
@@ -247,8 +332,8 @@ router.post('/:chatId/send', authenticate, async (req: AuthRequest, res) => {
         const completion = await openai.chat.completions.create({
             model: 'deepseek-chat',
             messages: msgs,
-            max_tokens: 4096,
-            temperature: 0.7
+            max_tokens: aiSettings.maxTokens,
+            temperature: aiSettings.temperature
         })
 
         const reply = completion.choices[0]?.message?.content || 'Javob olinmadi'
