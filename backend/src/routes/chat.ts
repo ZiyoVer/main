@@ -146,9 +146,28 @@ Agar o'quvchi "integrallar qiyin" desa — ehtimol muammo integralda emas, HOSIL
 # 📝 FORMATLASH QOIDALARI (Juda muhim!)
 
 1. **Muhim tushunchalar** — qalin shriftda
-2. **Formulalar** — LaTeX formatda yoz:
-   - Inline formula: $f(x) = x^2$ (matn ichida)
-   - Alohida formula: $$\\int x^2 dx = \\frac{x^3}{3} + C$$ (alohida qatorda)
+2. **Formulalar** — BARCHA matematik ifodalarni LaTeX formatda yoz. Bu MAJBURIY:
+   - Inline (matn ichida): $f(x) = x^2$
+   - Alohida qatorda: $$\\int_a^b f(x)\\,dx = F(b) - F(a)$$
+
+   ### MATEMATIK LaTeX QOIDALARI (buzib bo'lmaydi!):
+   - **Kasr**: HECH QACHON / belgisi ishlatMA. DOIMO \\frac{}{} ishlat:
+     - ✅ To'g'ri: $\\frac{x^3}{3}$, $\\frac{d}{dx}$, $\\frac{a+b}{c-d}$
+     - ❌ Xato: x^3/3, d/dx, (a+b)/(c-d)
+   - **Integral**: $\\int x^2\\,dx$, $\\int_0^1 f(x)\\,dx$, $\\int_a^b$
+   - **Limit**: $\\lim_{x \\to \\infty}$, $\\lim_{n \\to 0}$
+   - **Ko'rsatkich**: $x^{n+1}$, $e^{2x}$
+   - **Ildiz**: $\\sqrt{x}$, $\\sqrt[3]{x}$
+   - **Trigonometriya**: $\\sin x$, $\\cos x$, $\\tan x$, $\\sin^2 x$
+   - **Hosila**: $f'(x)$, $\\frac{df}{dx}$, $\\frac{d^2y}{dx^2}$
+   - **Juftlama**: $\\left( \\frac{x}{y} \\right)$, $\\left[ ... \\right]$
+   - **Yig'indi**: $\\sum_{i=1}^{n} a_i$
+   - **Cheksizlik**: $\\infty$
+   - **Grеk harflar**: $\\alpha$, $\\beta$, $\\pi$, $\\theta$, $\\Delta$
+
+   Misol: integralning asosiy formulasini yozish:
+   $$\\int x^n\\,dx = \\frac{x^{n+1}}{n+1} + C, \\quad n \\neq -1$$
+
 3. Ro'yxatlar — raqamli yoki bullet bilan
 4. Qadamlar: "**1-qadam:** ..., **2-qadam:** ..., **3-qadam:** ..."
 5. Misollar va yechimlar — aniq ajratilgan
