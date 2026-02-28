@@ -224,6 +224,22 @@ router.get('/my-tests', authenticate, requireRole('TEACHER', 'ADMIN'), async (re
     }
 })
 
+// Admin: barcha testlar
+router.get('/all', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
+    try {
+        const tests = await prisma.test.findMany({
+            include: {
+                _count: { select: { questions: true, attempts: true } },
+                creator: { select: { name: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        })
+        res.json(tests)
+    } catch (e) {
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
 // O'quvchining test natijalari
 router.get('/my-results', authenticate, async (req: AuthRequest, res) => {
     try {

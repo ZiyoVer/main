@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BrainCircuit, Users, UserCheck, GraduationCap, Clock, CalendarDays, CalendarRange, BarChart3, MessageSquare, FileText, Layers, Target, LogOut, Upload, Trash2, Plus, Activity, Bot, Save } from 'lucide-react'
+import { BrainCircuit, Users, UserCheck, GraduationCap, Clock, CalendarDays, CalendarRange, BarChart3, MessageSquare, FileText, Layers, Target, LogOut, Upload, Trash2, Activity, Bot, Save, Globe, Lock } from 'lucide-react'
 import { fetchApi, uploadFile } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 
 export default function AdminPanel() {
     const nav = useNavigate()
     const { logout } = useAuthStore()
-    const [tab, setTab] = useState<'stats' | 'users' | 'teachers' | 'docs' | 'ai'>('stats')
+    const [tab, setTab] = useState<'stats' | 'users' | 'teachers' | 'docs' | 'tests' | 'ai'>('stats')
     const [stats, setStats] = useState<any>(null)
     const [users, setUsers] = useState<any[]>([])
     const [docs, setDocs] = useState<any[]>([])
+    const [tests, setTests] = useState<any[]>([])
     const [tf, setTf] = useState({ name: '', email: '', password: '' })
     const [uploading, setUploading] = useState(false)
     const [docSubject, setDocSubject] = useState('Matematika')
@@ -27,6 +28,7 @@ export default function AdminPanel() {
         try { setStats(await fetchApi('/analytics/stats')) } catch { setStats({}) }
         try { setUsers(await fetchApi('/auth/users')) } catch { setUsers([]) }
         try { setDocs(await fetchApi('/documents/list')) } catch { setDocs([]) }
+        try { setTests(await fetchApi('/tests/all')) } catch { setTests([]) }
         try { const ai = await fetchApi('/ai-settings'); setAiConfig(ai) } catch { }
         setLoading(false)
     }
@@ -63,20 +65,26 @@ export default function AdminPanel() {
         try { await fetchApi(`/documents/${id}`, { method: 'DELETE' }); loadAll() } catch { }
     }
 
+    async function deleteTest(id: string) {
+        if (!confirm('Testni o\'chirmoqchimisiz?')) return
+        try { await fetchApi(`/tests/${id}`, { method: 'DELETE' }); loadAll() } catch { }
+    }
+
     const tabs = [
         { k: 'stats' as const, l: 'Statistika', icon: BarChart3 },
         { k: 'users' as const, l: 'Foydalanuvchilar', icon: Users },
-        { k: 'teachers' as const, l: 'O\'qituvchi +', icon: UserCheck },
-        { k: 'docs' as const, l: 'RAG Materiallar', icon: FileText },
+        { k: 'teachers' as const, l: 'O\'qituvchi', icon: UserCheck },
+        { k: 'tests' as const, l: 'Testlar', icon: Layers },
+        { k: 'docs' as const, l: 'Materiallar', icon: FileText },
         { k: 'ai' as const, l: 'AI Sozlamalar', icon: Bot },
     ]
 
     return (
         <div className="min-h-screen bg-[#fafafa]">
             {/* Header */}
-            <header className="bg-white/80 backdrop-blur-xl border-b border-gray-100 sticky top-0 z-40">
-                <div className="max-w-6xl mx-auto flex items-center justify-between py-3 px-6">
-                    <div className="flex items-center gap-2.5">
+            <header className="bg-white/90 backdrop-blur-xl border-b border-gray-100 sticky top-0 z-40">
+                <div className="max-w-6xl mx-auto flex items-center justify-between py-3 px-5">
+                    <div className="flex items-center gap-2">
                         <div className="h-7 w-7 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-lg flex items-center justify-center">
                             <BrainCircuit className="h-3.5 w-3.5 text-white" />
                         </div>
@@ -89,163 +97,137 @@ export default function AdminPanel() {
                 </div>
             </header>
 
-            <div className="max-w-6xl mx-auto px-6 py-8">
+            <div className="max-w-6xl mx-auto px-5 py-5">
                 {/* Tabs */}
-                <div className="flex gap-1 mb-8 bg-gray-100 rounded-xl p-1 w-fit">
+                <div className="flex gap-0.5 mb-5 bg-gray-100 rounded-xl p-1 w-fit overflow-x-auto">
                     {tabs.map(t => (
                         <button key={t.k} onClick={() => setTab(t.k)}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${tab === t.k ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                            <t.icon className="h-4 w-4" /> {t.l}
+                            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[13px] font-medium transition whitespace-nowrap ${tab === t.k ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                            <t.icon className="h-3.5 w-3.5" /> {t.l}
                         </button>
                     ))}
                 </div>
 
                 {/* === STATS === */}
                 {tab === 'stats' && loading && (
-                    <div className="flex items-center justify-center py-24">
+                    <div className="flex items-center justify-center py-20">
                         <div className="text-center">
-                            <div className="w-8 h-8 border-2 border-gray-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-3" />
-                            <p className="text-sm text-gray-400">Statistika yuklanmoqda...</p>
+                            <div className="w-7 h-7 border-2 border-gray-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-2" />
+                            <p className="text-sm text-gray-400">Yuklanmoqda...</p>
                         </div>
                     </div>
                 )}
                 {tab === 'stats' && !loading && stats && (
-                    <div className="space-y-6 anim-up">
-                        {/* Kirish statistikasi */}
+                    <div className="space-y-4">
                         <div>
-                            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Kirish statistikasi</h3>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Kirish statistikasi</p>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                                 {[
                                     { n: stats.logins24h, l: 'Oxirgi 24 soat', icon: Clock, color: 'text-blue-600 bg-blue-50' },
-                                    { n: stats.loginsWeek, l: 'Oxirgi 7 kun', icon: CalendarDays, color: 'text-emerald-600 bg-emerald-50' },
-                                    { n: stats.loginsMonth, l: 'Oxirgi 30 kun', icon: CalendarRange, color: 'text-purple-600 bg-purple-50' },
+                                    { n: stats.loginsWeek, l: '7 kun', icon: CalendarDays, color: 'text-emerald-600 bg-emerald-50' },
+                                    { n: stats.loginsMonth, l: '30 kun', icon: CalendarRange, color: 'text-cyan-600 bg-cyan-50' },
                                     { n: stats.totalVisits, l: 'Jami tashriflar', icon: Activity, color: 'text-amber-600 bg-amber-50' },
                                 ].map((s, i) => (
-                                    <div key={i} className="bg-white rounded-2xl p-5 border border-gray-100">
-                                        <div className={`h-9 w-9 rounded-xl flex items-center justify-center mb-3 ${s.color}`}>
-                                            <s.icon className="h-4 w-4" />
+                                    <div key={i} className="bg-white rounded-xl p-4 border border-gray-100 flex items-center gap-3">
+                                        <div className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${s.color}`}>
+                                            <s.icon className="h-3.5 w-3.5" />
                                         </div>
-                                        <p className="text-2xl font-bold text-gray-900 tabular-nums">{s.n ?? 0}</p>
-                                        <p className="text-xs text-gray-400 mt-0.5">{s.l}</p>
+                                        <div>
+                                            <p className="text-xl font-bold text-gray-900 tabular-nums leading-none">{s.n ?? 0}</p>
+                                            <p className="text-[11px] text-gray-400 mt-0.5">{s.l}</p>
+                                        </div>
                                     </div>
                                 ))}
                             </div>
                         </div>
-                        {/* Foydalanuvchilar */}
-                        <div>
-                            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Foydalanuvchilar</h3>
-                            <div className="grid grid-cols-3 gap-3">
-                                {[
-                                    { n: stats.totalUsers, l: 'Jami', icon: Users, color: 'text-gray-600 bg-gray-50' },
-                                    { n: stats.students, l: 'O\'quvchilar', icon: GraduationCap, color: 'text-blue-600 bg-blue-50' },
-                                    { n: stats.teachers, l: 'O\'qituvchilar', icon: UserCheck, color: 'text-emerald-600 bg-emerald-50' },
-                                ].map((s, i) => (
-                                    <div key={i} className="bg-white rounded-2xl p-5 border border-gray-100">
-                                        <div className={`h-9 w-9 rounded-xl flex items-center justify-center mb-3 ${s.color}`}>
-                                            <s.icon className="h-4 w-4" />
-                                        </div>
-                                        <p className="text-2xl font-bold text-gray-900 tabular-nums">{s.n ?? 0}</p>
-                                        <p className="text-xs text-gray-400 mt-0.5">{s.l}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                        {/* Kontent */}
-                        <div>
-                            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Kontent va faollik</h3>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                {[
-                                    { n: stats.totalChats, l: 'AI suhbatlar', icon: MessageSquare, color: 'text-blue-600 bg-blue-50' },
-                                    { n: stats.totalMessages, l: 'Xabarlar', icon: MessageSquare, color: 'text-cyan-600 bg-cyan-50' },
-                                    { n: stats.totalTests, l: 'Testlar', icon: Target, color: 'text-purple-600 bg-purple-50' },
-                                    { n: stats.totalAttempts, l: 'Test urinishlar', icon: BarChart3, color: 'text-amber-600 bg-amber-50' },
-                                ].map((s, i) => (
-                                    <div key={i} className="bg-white rounded-2xl p-5 border border-gray-100">
-                                        <div className={`h-9 w-9 rounded-xl flex items-center justify-center mb-3 ${s.color}`}>
-                                            <s.icon className="h-4 w-4" />
-                                        </div>
-                                        <p className="text-2xl font-bold text-gray-900 tabular-nums">{s.n ?? 0}</p>
-                                        <p className="text-xs text-gray-400 mt-0.5">{s.l}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                        {/* RAG va Ball */}
-                        <div className="grid md:grid-cols-2 gap-3">
-                            <div className="bg-white rounded-2xl p-5 border border-gray-100">
-                                <div className="flex items-center gap-3 mb-1">
-                                    <div className="h-9 w-9 rounded-xl flex items-center justify-center text-emerald-600 bg-emerald-50">
-                                        <FileText className="h-4 w-4" />
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                            {[
+                                { n: stats.totalUsers, l: 'Jami foydalanuvchi', icon: Users, color: 'text-gray-600 bg-gray-50' },
+                                { n: stats.students, l: 'O\'quvchilar', icon: GraduationCap, color: 'text-blue-600 bg-blue-50' },
+                                { n: stats.teachers, l: 'O\'qituvchilar', icon: UserCheck, color: 'text-emerald-600 bg-emerald-50' },
+                                { n: stats.totalChats, l: 'AI suhbatlar', icon: MessageSquare, color: 'text-cyan-600 bg-cyan-50' },
+                            ].map((s, i) => (
+                                <div key={i} className="bg-white rounded-xl p-4 border border-gray-100 flex items-center gap-3">
+                                    <div className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${s.color}`}>
+                                        <s.icon className="h-3.5 w-3.5" />
                                     </div>
                                     <div>
-                                        <p className="text-2xl font-bold text-gray-900 tabular-nums">{stats.totalDocuments ?? 0}</p>
-                                        <p className="text-xs text-gray-400">RAG hujjatlar</p>
+                                        <p className="text-xl font-bold text-gray-900 tabular-nums leading-none">{s.n ?? 0}</p>
+                                        <p className="text-[11px] text-gray-400 mt-0.5">{s.l}</p>
                                     </div>
                                 </div>
-                                <p className="text-xs text-gray-400 mt-2 pl-12">{stats.totalChunks ?? 0} ta matn bo'lagi indekslangan</p>
-                            </div>
-                            <div className="bg-white rounded-2xl p-5 border border-gray-100">
-                                <div className="flex items-center gap-3 mb-1">
-                                    <div className="h-9 w-9 rounded-xl flex items-center justify-center text-orange-600 bg-orange-50">
-                                        <BarChart3 className="h-4 w-4" />
+                            ))}
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                            {[
+                                { n: stats.totalMessages, l: 'Xabarlar', icon: MessageSquare, color: 'text-blue-600 bg-blue-50' },
+                                { n: stats.totalTests, l: 'Testlar', icon: Target, color: 'text-indigo-600 bg-indigo-50' },
+                                { n: stats.totalAttempts, l: 'Test urinishlar', icon: BarChart3, color: 'text-amber-600 bg-amber-50' },
+                                { n: `${stats.avgScore ?? 0}%`, l: 'O\'rtacha ball', icon: Target, color: 'text-emerald-600 bg-emerald-50' },
+                            ].map((s, i) => (
+                                <div key={i} className="bg-white rounded-xl p-4 border border-gray-100 flex items-center gap-3">
+                                    <div className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${s.color}`}>
+                                        <s.icon className="h-3.5 w-3.5" />
                                     </div>
                                     <div>
-                                        <p className="text-2xl font-bold text-gray-900 tabular-nums">{stats.avgScore ?? 0}%</p>
-                                        <p className="text-xs text-gray-400">O'rtacha test bali</p>
+                                        <p className="text-xl font-bold text-gray-900 tabular-nums leading-none">{s.n ?? 0}</p>
+                                        <p className="text-[11px] text-gray-400 mt-0.5">{s.l}</p>
                                     </div>
                                 </div>
-                                <p className="text-xs text-gray-400 mt-2 pl-12">{stats.totalAttempts ?? 0} ta test urinishdan</p>
-                            </div>
+                            ))}
                         </div>
-                        {/* Oxirgi ro'yxatdan o'tganlar */}
-                        {stats.recentUsers?.length > 0 && (
-                            <div>
-                                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Oxirgi ro'yxatdan o'tganlar</h3>
-                                <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-50">
-                                    {stats.recentUsers.map((u: any) => (
-                                        <div key={u.id} className="flex items-center gap-3 px-5 py-3">
-                                            <div className="h-8 w-8 bg-gray-100 rounded-full flex items-center justify-center text-xs font-semibold text-gray-500">{u.name?.[0]?.toUpperCase()}</div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium text-gray-900 truncate">{u.name}</p>
-                                                <p className="text-xs text-gray-400">{u.email}</p>
-                                            </div>
-                                            <span className={`px-2 py-0.5 rounded-md text-[11px] font-medium ${u.role === 'ADMIN' ? 'bg-red-50 text-red-600' : u.role === 'TEACHER' ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-500'}`}>{u.role}</span>
+                        <div className="grid md:grid-cols-2 gap-2.5">
+                            <div className="bg-white rounded-xl p-4 border border-gray-100 flex items-center gap-3">
+                                <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 text-emerald-600 bg-emerald-50"><FileText className="h-3.5 w-3.5" /></div>
+                                <div>
+                                    <p className="text-xl font-bold text-gray-900 tabular-nums leading-none">{stats.totalDocuments ?? 0}</p>
+                                    <p className="text-[11px] text-gray-400 mt-0.5">RAG hujjatlar · {stats.totalChunks ?? 0} chunk</p>
+                                </div>
+                            </div>
+                            <div className="bg-white rounded-xl p-4 border border-gray-100">
+                                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Oxirgi ro'yxatdan o'tganlar</p>
+                                <div className="space-y-1.5">
+                                    {(stats.recentUsers || []).slice(0, 3).map((u: any) => (
+                                        <div key={u.id} className="flex items-center gap-2">
+                                            <div className="h-6 w-6 bg-gray-100 rounded-full flex items-center justify-center text-[10px] font-semibold text-gray-500 flex-shrink-0">{u.name?.[0]?.toUpperCase()}</div>
+                                            <span className="text-[12px] text-gray-700 flex-1 truncate">{u.name}</span>
+                                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${u.role === 'TEACHER' ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-500'}`}>{u.role}</span>
                                         </div>
                                     ))}
                                 </div>
                             </div>
-                        )}
+                        </div>
                     </div>
                 )}
 
                 {/* === USERS === */}
                 {tab === 'users' && (
-                    <div className="anim-up">
-                        <div className="text-xs text-gray-400 mb-3">{users.length} ta foydalanuvchi</div>
-                        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                    <div>
+                        <p className="text-[11px] text-gray-400 mb-3">{users.length} ta foydalanuvchi</p>
+                        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="border-b border-gray-50 bg-gray-50/50">
-                                        <th className="text-left py-3 px-4 font-medium text-gray-400 text-xs">Ism</th>
-                                        <th className="text-left py-3 px-4 font-medium text-gray-400 text-xs">Email</th>
-                                        <th className="text-left py-3 px-4 font-medium text-gray-400 text-xs">Rol</th>
-                                        <th className="text-left py-3 px-4 font-medium text-gray-400 text-xs">Sana</th>
+                                        <th className="text-left py-2.5 px-4 font-medium text-gray-400 text-[11px] uppercase">Ism</th>
+                                        <th className="text-left py-2.5 px-4 font-medium text-gray-400 text-[11px] uppercase">Email</th>
+                                        <th className="text-left py-2.5 px-4 font-medium text-gray-400 text-[11px] uppercase">Rol</th>
+                                        <th className="text-left py-2.5 px-4 font-medium text-gray-400 text-[11px] uppercase">Sana</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {users.map(u => (
                                         <tr key={u.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition">
-                                            <td className="py-3 px-4">
-                                                <div className="flex items-center gap-2.5">
-                                                    <div className="h-7 w-7 bg-gray-100 rounded-full flex items-center justify-center text-[11px] font-semibold text-gray-500">{u.name?.[0]?.toUpperCase()}</div>
-                                                    <span className="font-medium text-gray-900">{u.name}</span>
+                                            <td className="py-2.5 px-4">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="h-6 w-6 bg-gray-100 rounded-full flex items-center justify-center text-[10px] font-semibold text-gray-500">{u.name?.[0]?.toUpperCase()}</div>
+                                                    <span className="text-[13px] font-medium text-gray-900">{u.name}</span>
                                                 </div>
                                             </td>
-                                            <td className="py-3 px-4 text-gray-500">{u.email}</td>
-                                            <td className="py-3 px-4">
-                                                <span className={`px-2 py-0.5 rounded-md text-[11px] font-medium ${u.role === 'ADMIN' ? 'bg-red-50 text-red-600' : u.role === 'TEACHER' ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-500'}`}>{u.role}</span>
+                                            <td className="py-2.5 px-4 text-[13px] text-gray-500">{u.email}</td>
+                                            <td className="py-2.5 px-4">
+                                                <span className={`px-2 py-0.5 rounded text-[11px] font-medium ${u.role === 'ADMIN' ? 'bg-red-50 text-red-600' : u.role === 'TEACHER' ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-500'}`}>{u.role}</span>
                                             </td>
-                                            <td className="py-3 px-4 text-gray-400 text-xs tabular-nums">{new Date(u.createdAt).toLocaleDateString('uz')}</td>
+                                            <td className="py-2.5 px-4 text-[12px] text-gray-400 tabular-nums">{new Date(u.createdAt).toLocaleDateString('uz')}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -256,23 +238,23 @@ export default function AdminPanel() {
 
                 {/* === CREATE TEACHER === */}
                 {tab === 'teachers' && (
-                    <div className="max-w-md anim-up">
-                        <div className="bg-white rounded-2xl border border-gray-100 p-6">
-                            <div className="flex items-center gap-3 mb-5">
-                                <div className="h-10 w-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
-                                    <UserCheck className="h-5 w-5" />
+                    <div className="max-w-md">
+                        <div className="bg-white rounded-xl border border-gray-100 p-5">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="h-9 w-9 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+                                    <UserCheck className="h-4.5 w-4.5" />
                                 </div>
                                 <div>
-                                    <h3 className="font-semibold text-gray-900">Yangi O'qituvchi</h3>
+                                    <h3 className="font-semibold text-gray-900 text-sm">Yangi O'qituvchi</h3>
                                     <p className="text-xs text-gray-400">Login/parol yaratib berasiz</p>
                                 </div>
                             </div>
-                            {msg && <div className={`text-sm px-4 py-2.5 rounded-xl mb-4 ${msg.startsWith('✓') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>{msg}</div>}
-                            <form onSubmit={createTeacher} className="space-y-3">
-                                <input placeholder="Ism" required value={tf.name} onChange={e => setTf({ ...tf, name: e.target.value })} className="w-full h-11 px-4 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 outline-none text-sm transition" />
-                                <input type="email" placeholder="Email" required value={tf.email} onChange={e => setTf({ ...tf, email: e.target.value })} className="w-full h-11 px-4 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 outline-none text-sm transition" />
-                                <input type="password" placeholder="Parol (kamida 6 ta belgi)" required minLength={6} value={tf.password} onChange={e => setTf({ ...tf, password: e.target.value })} className="w-full h-11 px-4 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 outline-none text-sm transition" />
-                                <button type="submit" disabled={creating} className="w-full h-11 rounded-xl text-sm font-semibold text-white bg-gray-900 hover:bg-gray-800 transition disabled:opacity-50">
+                            {msg && <div className={`text-sm px-4 py-2.5 rounded-xl mb-3 ${msg.startsWith('✓') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>{msg}</div>}
+                            <form onSubmit={createTeacher} className="space-y-2.5">
+                                <input placeholder="Ism" required value={tf.name} onChange={e => setTf({ ...tf, name: e.target.value })} className="w-full h-10 px-3.5 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 outline-none text-sm transition" />
+                                <input type="email" placeholder="Email" required value={tf.email} onChange={e => setTf({ ...tf, email: e.target.value })} className="w-full h-10 px-3.5 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 outline-none text-sm transition" />
+                                <input type="password" placeholder="Parol (kamida 6 ta belgi)" required minLength={6} value={tf.password} onChange={e => setTf({ ...tf, password: e.target.value })} className="w-full h-10 px-3.5 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 outline-none text-sm transition" />
+                                <button type="submit" disabled={creating} className="w-full h-10 rounded-lg text-sm font-semibold text-white bg-gray-900 hover:bg-gray-800 transition disabled:opacity-50">
                                     {creating ? 'Yaratilmoqda...' : 'O\'qituvchi yaratish'}
                                 </button>
                             </form>
@@ -280,49 +262,76 @@ export default function AdminPanel() {
                     </div>
                 )}
 
+                {/* === TESTS === */}
+                {tab === 'tests' && (
+                    <div>
+                        <p className="text-[11px] text-gray-400 mb-3">{tests.length} ta test</p>
+                        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                            {tests.length === 0 && <p className="text-sm text-gray-400 text-center py-10">Hozircha testlar yo'q</p>}
+                            {tests.map(t => (
+                                <div key={t.id} className="flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition">
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <p className="text-[13px] font-medium text-gray-900 truncate">{t.title}</p>
+                                            <span className={`flex-shrink-0 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium ${t.isPublic ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-50 text-gray-400'}`}>
+                                                {t.isPublic ? <Globe className="h-2.5 w-2.5" /> : <Lock className="h-2.5 w-2.5" />}
+                                                {t.isPublic ? 'Ochiq' : 'Yopiq'}
+                                            </span>
+                                        </div>
+                                        <p className="text-[11px] text-gray-400 mt-0.5">{t.subject} · {t._count?.questions || 0} savol · {t._count?.attempts || 0} urinish · {t.creator?.name}</p>
+                                    </div>
+                                    <button onClick={() => deleteTest(t.id)} className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition flex-shrink-0">
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* === RAG DOCS === */}
                 {tab === 'docs' && (
-                    <div className="space-y-4 anim-up">
-                        <div className="bg-white rounded-2xl border border-gray-100 p-6">
+                    <div className="space-y-3">
+                        <div className="bg-white rounded-xl border border-gray-100 p-5">
                             <div className="flex items-center gap-3 mb-4">
-                                <div className="h-10 w-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
-                                    <Upload className="h-5 w-5" />
+                                <div className="h-9 w-9 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
+                                    <Upload className="h-4.5 w-4.5" />
                                 </div>
                                 <div>
-                                    <h3 className="font-semibold text-gray-900">Material Yuklash</h3>
-                                    <p className="text-xs text-gray-400">PDF, Word yoki TXT — chunklarga bo'linib RAG tizimiga qo'shiladi</p>
+                                    <h3 className="font-semibold text-gray-900 text-sm">Material Yuklash</h3>
+                                    <p className="text-xs text-gray-400">PDF, Word yoki TXT — RAG tizimiga qo'shiladi</p>
                                 </div>
                             </div>
-                            <div className="flex gap-3 items-end">
+                            <div className="flex gap-2.5 items-end">
                                 <div className="flex-1">
                                     <label className="text-xs font-medium text-gray-500 block mb-1">Fan</label>
-                                    <select value={docSubject} onChange={e => setDocSubject(e.target.value)} className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm">
+                                    <select value={docSubject} onChange={e => setDocSubject(e.target.value)} className="w-full h-9 px-3 rounded-lg border border-gray-200 bg-white text-sm">
                                         {['Matematika', 'Fizika', 'Kimyo', 'Biologiya', 'Ona tili', 'Ingliz tili', 'Tarix', 'Geografiya', 'Umumiy'].map(f =>
                                             <option key={f} value={f}>{f}</option>
                                         )}
                                     </select>
                                 </div>
-                                <label className="h-10 px-5 inline-flex items-center gap-2 rounded-lg text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 cursor-pointer transition">
-                                    <Upload className="h-4 w-4" />
+                                <label className="h-9 px-4 inline-flex items-center gap-2 rounded-lg text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 cursor-pointer transition">
+                                    <Upload className="h-3.5 w-3.5" />
                                     {uploading ? 'Yuklanmoqda...' : 'Fayl tanlash'}
                                     <input type="file" accept=".pdf,.docx,.doc,.txt" onChange={uploadDoc} className="hidden" disabled={uploading} />
                                 </label>
                             </div>
                         </div>
                         {docs.length === 0 && (
-                            <div className="text-center py-12 text-sm text-gray-400">Hozircha hech qanday material yuklanmagan</div>
+                            <div className="text-center py-10 text-sm text-gray-400">Hozircha hech qanday material yuklanmagan</div>
                         )}
                         {docs.map(d => (
-                            <div key={d.id} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-4">
-                                <div className="h-10 w-10 bg-gray-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                            <div key={d.id} className="bg-white rounded-xl border border-gray-100 p-3.5 flex items-center gap-3">
+                                <div className="h-9 w-9 bg-gray-50 rounded-lg flex items-center justify-center flex-shrink-0">
                                     <FileText className="h-4 w-4 text-gray-400" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-gray-900 truncate">{d.fileName}</p>
-                                    <p className="text-xs text-gray-400 mt-0.5">{d._count?.chunks || 0} chunk · {d.fileType} · {new Date(d.createdAt).toLocaleDateString('uz')}</p>
+                                    <p className="text-[13px] font-medium text-gray-900 truncate">{d.fileName}</p>
+                                    <p className="text-[11px] text-gray-400 mt-0.5">{d._count?.chunks || 0} chunk · {d.fileType} · {new Date(d.createdAt).toLocaleDateString('uz')}</p>
                                 </div>
-                                <button onClick={() => deleteDoc(d.id)} className="h-8 w-8 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition">
-                                    <Trash2 className="h-4 w-4" />
+                                <button onClick={() => deleteDoc(d.id)} className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition">
+                                    <Trash2 className="h-3.5 w-3.5" />
                                 </button>
                             </div>
                         ))}
@@ -331,38 +340,38 @@ export default function AdminPanel() {
 
                 {/* === AI SETTINGS === */}
                 {tab === 'ai' && (
-                    <div className="max-w-xl anim-up">
-                        <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-6">
+                    <div className="max-w-xl">
+                        <div className="bg-white rounded-xl border border-gray-100 p-5 space-y-5">
                             <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center">
-                                    <Bot className="h-5 w-5" />
+                                <div className="h-9 w-9 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+                                    <Bot className="h-4.5 w-4.5" />
                                 </div>
                                 <div>
-                                    <h3 className="font-semibold text-gray-900">AI Xulq-atvor sozlamalari</h3>
+                                    <h3 className="font-semibold text-gray-900 text-sm">AI Xulq-atvor sozlamalari</h3>
                                     <p className="text-xs text-gray-400">AI ustozning javob berish uslubini sozlang</p>
                                 </div>
                             </div>
                             {aiMsg && <div className={`text-sm px-4 py-2.5 rounded-xl ${aiMsg.includes('✓') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>{aiMsg}</div>}
                             <div>
-                                <label className="text-sm font-medium text-gray-700 block mb-2">Harorat (Temperature): {aiConfig.temperature}</label>
+                                <label className="text-sm font-medium text-gray-700 block mb-1.5">Harorat (Temperature): {aiConfig.temperature}</label>
                                 <input type="range" min="0" max="2" step="0.1" value={aiConfig.temperature}
                                     onChange={e => setAiConfig({ ...aiConfig, temperature: e.target.value })}
-                                    className="w-full accent-purple-600" />
+                                    className="w-full accent-blue-600" />
                                 <div className="flex justify-between text-[11px] text-gray-400 mt-1"><span>0 — aniq</span><span>1 — kreativ</span><span>2 — juda kreativ</span></div>
                             </div>
                             <div>
                                 <label className="text-sm font-medium text-gray-700 block mb-1.5">Max tokenlar</label>
                                 <input type="number" min="1000" max="8000" step="500" value={aiConfig.max_tokens}
                                     onChange={e => setAiConfig({ ...aiConfig, max_tokens: e.target.value })}
-                                    className="w-full h-11 px-4 rounded-xl border border-gray-200 focus:border-purple-500 outline-none text-sm" />
+                                    className="w-full h-10 px-3.5 rounded-lg border border-gray-200 focus:border-blue-500 outline-none text-sm" />
                                 <p className="text-[11px] text-gray-400 mt-1">AI javobining maksimal uzunligi (1000-8000)</p>
                             </div>
                             <div>
                                 <label className="text-sm font-medium text-gray-700 block mb-1.5">Qo'shimcha qoidalar</label>
                                 <textarea value={aiConfig.extra_rules}
                                     onChange={e => setAiConfig({ ...aiConfig, extra_rules: e.target.value })}
-                                    rows={6} placeholder="Masalan: O'quvchilarga doimo motivatsion gaplar ayt. Har bir darsda kamida 3 ta misol ber."
-                                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-purple-500 outline-none text-sm resize-none" />
+                                    rows={5} placeholder="Masalan: O'quvchilarga doimo motivatsion gaplar ayt..."
+                                    className="w-full px-3.5 py-2.5 rounded-lg border border-gray-200 focus:border-blue-500 outline-none text-sm resize-none" />
                                 <p className="text-[11px] text-gray-400 mt-1">Bu qoidalar AI system promptga qo'shiladi</p>
                             </div>
                             <button onClick={async () => {
@@ -372,7 +381,7 @@ export default function AdminPanel() {
                                     setAiMsg('✓ Sozlamalar saqlandi!')
                                 } catch (e: any) { setAiMsg(e.message) }
                                 setAiSaving(false)
-                            }} disabled={aiSaving} className="w-full h-11 rounded-xl text-sm font-semibold text-white bg-gray-900 hover:bg-gray-800 transition disabled:opacity-50 flex items-center justify-center gap-2">
+                            }} disabled={aiSaving} className="w-full h-10 rounded-lg text-sm font-semibold text-white bg-gray-900 hover:bg-gray-800 transition disabled:opacity-50 flex items-center justify-center gap-2">
                                 <Save className="h-4 w-4" /> {aiSaving ? 'Saqlanmoqda...' : 'Sozlamalarni saqlash'}
                             </button>
                         </div>

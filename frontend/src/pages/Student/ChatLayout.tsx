@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2, Paperclip } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Image } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
@@ -95,6 +95,9 @@ export default function ChatLayout() {
     const [loadingPublicTest, setLoadingPublicTest] = useState(false)
     const [activeTestId, setActiveTestId] = useState<string | null>(null)
     const [activeTestQuestions, setActiveTestQuestions] = useState<any[]>([])
+    const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null)
+    const [pdfViewerName, setPdfViewerName] = useState('')
+    const [pdfViewerIsImage, setPdfViewerIsImage] = useState(false)
 
     // Auto-close sidebar on mobile
     useEffect(() => {
@@ -326,6 +329,13 @@ export default function ChatLayout() {
     async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0]
         if (!file || !chatId) return
+        // PDF yoki rasm bo'lsa preview panel ochish
+        if (file.type === 'application/pdf' || file.type.startsWith('image/')) {
+            if (pdfViewerUrl) URL.revokeObjectURL(pdfViewerUrl)
+            setPdfViewerUrl(URL.createObjectURL(file))
+            setPdfViewerName(file.name)
+            setPdfViewerIsImage(file.type.startsWith('image/'))
+        }
         setUploadingFile(true)
         try {
             const formData = new FormData()
@@ -403,7 +413,7 @@ export default function ChatLayout() {
     }
 
     return (
-        <div className="h-screen flex bg-[#fafafa]">
+        <div className="h-screen flex bg-[#fafafa] overflow-hidden">
             {/* Sidebar */}
             <div className={`${sideOpen ? 'w-72 min-w-[288px]' : 'w-0 min-w-0'} bg-[#f5f5f5] flex flex-col transition-all duration-200 overflow-hidden border-r border-gray-200/80 flex-shrink-0`}>
                 <div className="p-3 flex items-center justify-between h-14 flex-shrink-0">
@@ -591,12 +601,12 @@ export default function ChatLayout() {
                             ))}
                             {/* Thinking process display */}
                             {thinkingText && (
-                                <div className="flex gap-3">
-                                    <div className="h-7 w-7 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex-shrink-0 flex items-center justify-center mt-0.5"><Lightbulb className="h-3.5 w-3.5 text-white" /></div>
+                                <div className="flex gap-3 opacity-40">
+                                    <div className="h-7 w-7 rounded-full bg-gray-100 flex-shrink-0 flex items-center justify-center mt-0.5"><Lightbulb className="h-3.5 w-3.5 text-gray-400" /></div>
                                     <div className="flex-1">
-                                        <details open className="group">
-                                            <summary className="text-[12px] font-medium text-purple-500 cursor-pointer select-none mb-2">🧠 AI fikrlash jarayoni <span className="text-purple-300 group-open:hidden">(ko'rish)</span></summary>
-                                            <div className="bg-purple-50/60 border border-purple-100 rounded-xl p-3 text-[12px] text-purple-700 leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto">{thinkingText}</div>
+                                        <details className="group">
+                                            <summary className="text-[11px] text-gray-400 cursor-pointer select-none mb-1">Fikrlash jarayoni <span className="group-open:hidden">(ko'rish)</span></summary>
+                                            <div className="bg-gray-50 rounded-lg p-2.5 text-[11px] text-gray-400 leading-relaxed whitespace-pre-wrap max-h-24 overflow-hidden mt-1">{thinkingText}</div>
                                         </details>
                                     </div>
                                 </div>
@@ -672,8 +682,8 @@ export default function ChatLayout() {
                                 <input value={input} onChange={e => setInput(e.target.value)} placeholder="Xabar yozing..." disabled={loading}
                                     className="flex-1 h-12 bg-transparent outline-none text-sm text-gray-900 placeholder:text-gray-400" />
                                 {/* Thinking mode toggle */}
-                                <button type="button" onClick={() => setThinkingMode(!thinkingMode)} title={thinkingMode ? 'Chuqur fikrlash yoqilgan (R1)' : 'Oddiy rejim (V3)'}
-                                    className={`h-8 w-8 flex items-center justify-center rounded-lg transition ${thinkingMode ? 'bg-purple-100 text-purple-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}>
+                                <button type="button" onClick={() => setThinkingMode(!thinkingMode)} title={thinkingMode ? 'Chuqur fikrlash yoqilgan' : 'Chuqur fikrlash'}
+                                    className={`h-8 w-8 flex items-center justify-center rounded-lg transition ${thinkingMode ? 'bg-blue-50 text-blue-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}>
                                     <Lightbulb className="h-3.5 w-3.5" />
                                 </button>
                                 {loading ? (
@@ -688,11 +698,32 @@ export default function ChatLayout() {
                                     </button>
                                 )}
                             </div>
-                            {thinkingMode && <p className="text-[11px] text-purple-500 mt-1.5 ml-4">🧠 Chuqur fikrlash rejimi (DeepSeek R1) — murakkabroq vazifalar uchun</p>}
+                            <p className="text-[10px] text-gray-300 mt-1 text-center select-none">AI xato qilishi mumkin — muhim ma'lumotlarni tekshirib ko'ring</p>
                         </form>
                     </div>
                 )}
             </div>
+
+            {/* PDF / Image Viewer Panel */}
+            {pdfViewerUrl && (
+                <div className="w-80 bg-white border-l border-gray-200 flex flex-col flex-shrink-0">
+                    <div className="h-14 flex items-center gap-2 px-4 border-b border-gray-100 flex-shrink-0">
+                        <div className="h-7 w-7 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                            {pdfViewerIsImage ? <Image className="h-3.5 w-3.5 text-blue-600" /> : <FileText className="h-3.5 w-3.5 text-blue-600" />}
+                        </div>
+                        <span className="text-[13px] font-medium text-gray-900 flex-1 truncate">{pdfViewerName}</span>
+                        <button onClick={() => { URL.revokeObjectURL(pdfViewerUrl); setPdfViewerUrl(null) }}
+                            className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition flex-shrink-0">
+                            <X className="h-4 w-4" />
+                        </button>
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                        {pdfViewerIsImage
+                            ? <img src={pdfViewerUrl} className="w-full h-full object-contain p-3" alt={pdfViewerName} />
+                            : <iframe src={pdfViewerUrl} className="w-full h-full border-0" title={pdfViewerName} />}
+                    </div>
+                </div>
+            )}
 
             {/* Test Side Panel */}
             {testPanel && (() => {
