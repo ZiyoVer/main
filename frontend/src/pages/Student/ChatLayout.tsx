@@ -92,6 +92,9 @@ export default function ChatLayout() {
     const [testPanelMaximized, setTestPanelMaximized] = useState(false)
     const [attachedFile, setAttachedFile] = useState<{ name: string; text: string; type: string } | null>(null)
     const [uploadingFile, setUploadingFile] = useState(false)
+    const [loadingPublicTest, setLoadingPublicTest] = useState(false)
+    const [activeTestId, setActiveTestId] = useState<string | null>(null)
+    const [activeTestQuestions, setActiveTestQuestions] = useState<any[]>([])
 
     // Auto-close sidebar on mobile
     useEffect(() => {
@@ -163,6 +166,11 @@ export default function ChatLayout() {
             const data = await fetchApi(`/chat/${id}/messages`)
             setMessages(data.messages)
             setCurrentChat(data.chat)
+            // Yangi chatga kirganda pastga scroll qilish
+            setTimeout(() => {
+                const el = scrollRef.current
+                if (el) el.scrollTop = el.scrollHeight
+            }, 50)
         } catch { }
     }
 
@@ -294,6 +302,27 @@ export default function ChatLayout() {
         setTestPanelMaximized(false)
     }, [])
 
+    // Public test ochish (sidebar dan)
+    async function openPublicTest(t: any) {
+        setLoadingPublicTest(true)
+        try {
+            const data = await fetchApi(`/tests/by-link/${t.shareLink}`)
+            const rawQuestions = data.questions || []
+            const converted = rawQuestions.map((q: any) => {
+                const opts = typeof q.options === 'string' ? JSON.parse(q.options) : q.options
+                return {
+                    q: q.text,
+                    a: opts[0] || '', b: opts[1] || '', c: opts[2] || '', d: opts[3] || '',
+                    correct: (['a', 'b', 'c', 'd'] as const)[q.correctIdx] ?? 'a'
+                }
+            })
+            setActiveTestId(t.id)
+            setActiveTestQuestions(rawQuestions)
+            openTestPanel(JSON.stringify(converted))
+        } catch { }
+        setLoadingPublicTest(false)
+    }
+
     async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0]
         if (!file || !chatId) return
@@ -326,6 +355,14 @@ export default function ChatLayout() {
         const score = questions.filter((q: any, i: number) => testAnswers[i] === q.correct).length
         const summary = `Test natijasi: ${score}/${questions.length}\n\n${results}\n\nIltimos natijalarimni tahlil qiling va qaysi mavzularni qayta o'rganishim kerakligini ayting.`
         if (chatId) setTimeout(() => quickAction(summary), 500)
+        // Public test bo'lsa backendga ham yuborish (Rasch tracking)
+        if (activeTestId && activeTestQuestions.length > 0) {
+            const backendAnswers = activeTestQuestions.map((q: any, i: number) => ({
+                questionId: q.id,
+                selectedIdx: ['a', 'b', 'c', 'd'].indexOf(testAnswers[i] || '')
+            })).filter((a: any) => a.selectedIdx !== -1)
+            fetchApi(`/tests/${activeTestId}/submit`, { method: 'POST', body: JSON.stringify({ answers: backendAnswers }) }).catch(() => {})
+        }
     }
 
     // Onboarding
@@ -412,8 +449,13 @@ export default function ChatLayout() {
                 {sideTab === 'tests' && (
                     <div className="flex-1 overflow-y-auto px-2 space-y-1">
                         {publicTests.length === 0 && <p className="text-xs text-gray-400 text-center py-8">Hozircha testlar yo'q</p>}
+                        {loadingPublicTest && (
+                            <div className="flex justify-center py-4">
+                                <div className="h-4 w-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                            </div>
+                        )}
                         {publicTests.map((t: any) => (
-                            <div key={t.id} className="bg-white rounded-lg p-3 border border-gray-100 cursor-pointer hover:shadow-sm transition">
+                            <div key={t.id} onClick={() => openPublicTest(t)} className="bg-white rounded-lg p-3 border border-gray-100 cursor-pointer hover:shadow-sm hover:border-blue-200 transition">
                                 <p className="text-[13px] font-medium text-gray-900 truncate">{t.title}</p>
                                 <p className="text-[11px] text-gray-400 mt-0.5">{t._count?.questions || 0} savol · {t.creator?.name} · {t.subject}</p>
                             </div>
@@ -670,7 +712,7 @@ export default function ChatLayout() {
                                 <button onClick={() => setTestPanelMaximized(!testPanelMaximized)} className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition" title={testPanelMaximized ? 'Kichraytirish' : 'Kattalashtirish'}>
                                     {testPanelMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
                                 </button>
-                                <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false) }} className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"><X className="h-4 w-4" /></button>
+                                <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setActiveTestId(null); setActiveTestQuestions([]) }} className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"><X className="h-4 w-4" /></button>
                             </div>
                         </div>
 
@@ -725,7 +767,7 @@ export default function ChatLayout() {
                                 <div className="text-center space-y-2">
                                     <p className="text-lg font-bold text-gray-900">{score}/{questions.length} <span className="text-sm font-normal text-gray-400">— {Math.round(score / questions.length * 100)}%</span></p>
                                     <p className="text-xs text-gray-400">Natijalar chatga yuborildi</p>
-                                    <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false) }} className="text-sm text-blue-600 hover:underline">Panelni yopish</button>
+                                    <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setActiveTestId(null); setActiveTestQuestions([]) }} className="text-sm text-blue-600 hover:underline">Panelni yopish</button>
                                 </div>
                             )}
                             </div>

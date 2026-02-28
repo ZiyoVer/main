@@ -1,12 +1,23 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { BrainCircuit } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 
 export default function Login() {
     const nav = useNavigate()
     const login = useAuthStore(s => s.login)
+    const { token, user } = useAuthStore()
     const [email, setEmail] = useState('')
+
+    // Already logged in — redirect
+    useEffect(() => {
+        if (token && user) {
+            if (user.role === 'ADMIN') nav('/admin', { replace: true })
+            else if (user.role === 'TEACHER') nav('/teacher', { replace: true })
+            else nav('/chat', { replace: true })
+        }
+    }, [])
     const [password, setPassword] = useState('')
     const [err, setErr] = useState('')
     const [loading, setLoading] = useState(false)
@@ -28,7 +39,9 @@ export default function Login() {
             <div className="hidden lg:flex flex-1 bg-mesh-dark items-center justify-center relative overflow-hidden">
                 <div className="absolute top-20 left-10 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl anim-float" />
                 <div className="text-center z-10 anim-up">
-                    <div className="h-16 w-16 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl mx-auto mb-6" />
+                    <div className="h-16 w-16 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl mx-auto mb-6 flex items-center justify-center shadow-xl shadow-blue-500/30">
+                        <BrainCircuit className="h-8 w-8 text-white" />
+                    </div>
                     <h2 className="text-3xl font-extrabold text-white mb-3">msert</h2>
                     <p className="text-gray-400 font-light max-w-xs">Milliy Sertifikat imtihonlariga aqlli tayyorgarlik</p>
                 </div>

@@ -1,9 +1,17 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { BrainCircuit } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
+import { useAuthStore } from '@/store/authStore'
 
 export default function Register() {
     const nav = useNavigate()
+    const { token, user } = useAuthStore()
+
+    // Already logged in — redirect
+    useEffect(() => {
+        if (token && user) nav('/chat', { replace: true })
+    }, [])
     const [form, setForm] = useState({ name: '', email: '', password: '' })
     const [err, setErr] = useState('')
     const [loading, setLoading] = useState(false)
@@ -22,7 +30,9 @@ export default function Register() {
             <div className="hidden lg:flex flex-1 bg-mesh-dark items-center justify-center relative overflow-hidden">
                 <div className="absolute bottom-20 right-10 w-96 h-96 bg-emerald-500/8 rounded-full blur-3xl anim-float d2" />
                 <div className="text-center z-10 anim-up">
-                    <div className="h-16 w-16 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl mx-auto mb-6" />
+                    <div className="h-16 w-16 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl mx-auto mb-6 flex items-center justify-center shadow-xl shadow-blue-500/30">
+                        <BrainCircuit className="h-8 w-8 text-white" />
+                    </div>
                     <h2 className="text-3xl font-extrabold text-white mb-3">msert</h2>
                     <p className="text-gray-400 font-light max-w-xs">AI yordamida o'qib, milliy sertifikat oling</p>
                 </div>

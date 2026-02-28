@@ -128,7 +128,7 @@ router.get('/by-link/:shareLink', authenticate, async (req: AuthRequest, res) =>
         const test = await prisma.test.findUnique({
             where: { shareLink: req.params.shareLink as string },
             include: {
-                questions: { orderBy: { orderIdx: 'asc' }, select: { id: true, text: true, options: true, orderIdx: true } },
+                questions: { orderBy: { orderIdx: 'asc' }, select: { id: true, text: true, options: true, orderIdx: true, correctIdx: true } },
                 creator: { select: { name: true } }
             }
         })

@@ -10,6 +10,12 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
     const text = await res.text()
     let data: any
     try { data = text ? JSON.parse(text) : {} } catch { data = text }
+    if (res.status === 401) {
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+        window.location.href = '/login'
+        throw new Error('Sessiya muddati tugadi. Qayta kiring.')
+    }
     if (!res.ok) throw new Error(data?.error || 'Server xatoligi')
     return data
 }

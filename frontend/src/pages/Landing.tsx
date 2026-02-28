@@ -1,7 +1,20 @@
-import { Link } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { BrainCircuit, Sparkles, Target, BarChart3, MessageCircle, BookOpen, Zap, ArrowRight, ChevronRight, Clock, Trophy } from 'lucide-react'
+import { useAuthStore } from '@/store/authStore'
 
 export default function Landing() {
+    const nav = useNavigate()
+    const { token, user } = useAuthStore()
+
+    useEffect(() => {
+        if (token && user) {
+            if (user.role === 'ADMIN') nav('/admin', { replace: true })
+            else if (user.role === 'TEACHER') nav('/teacher', { replace: true })
+            else nav('/chat', { replace: true })
+        }
+    }, [])
+
     return (
         <div className="min-h-screen bg-[#fafafa] overflow-hidden">
             {/* Nav */}
