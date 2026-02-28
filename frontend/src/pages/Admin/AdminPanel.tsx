@@ -19,13 +19,16 @@ export default function AdminPanel() {
     const [aiConfig, setAiConfig] = useState({ temperature: '0.7', max_tokens: '4096', extra_rules: '' })
     const [aiSaving, setAiSaving] = useState(false)
     const [aiMsg, setAiMsg] = useState('')
+    const [loading, setLoading] = useState(true)
 
     useEffect(() => { loadAll() }, [])
     async function loadAll() {
-        try { setStats(await fetchApi('/analytics/stats')) } catch { }
-        try { setUsers(await fetchApi('/auth/users')) } catch { }
-        try { setDocs(await fetchApi('/documents/list')) } catch { }
+        setLoading(true)
+        try { setStats(await fetchApi('/analytics/stats')) } catch { setStats({}) }
+        try { setUsers(await fetchApi('/auth/users')) } catch { setUsers([]) }
+        try { setDocs(await fetchApi('/documents/list')) } catch { setDocs([]) }
         try { const ai = await fetchApi('/ai-settings'); setAiConfig(ai) } catch { }
+        setLoading(false)
     }
 
     async function createTeacher(e: React.FormEvent) {
@@ -98,7 +101,15 @@ export default function AdminPanel() {
                 </div>
 
                 {/* === STATS === */}
-                {tab === 'stats' && stats && (
+                {tab === 'stats' && loading && (
+                    <div className="flex items-center justify-center py-24">
+                        <div className="text-center">
+                            <div className="w-8 h-8 border-2 border-gray-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-3" />
+                            <p className="text-sm text-gray-400">Statistika yuklanmoqda...</p>
+                        </div>
+                    </div>
+                )}
+                {tab === 'stats' && !loading && stats && (
                     <div className="space-y-6 anim-up">
                         {/* Kirish statistikasi */}
                         <div>
@@ -114,7 +125,7 @@ export default function AdminPanel() {
                                         <div className={`h-9 w-9 rounded-xl flex items-center justify-center mb-3 ${s.color}`}>
                                             <s.icon className="h-4 w-4" />
                                         </div>
-                                        <p className="text-2xl font-bold text-gray-900 tabular-nums">{s.n}</p>
+                                        <p className="text-2xl font-bold text-gray-900 tabular-nums">{s.n ?? 0}</p>
                                         <p className="text-xs text-gray-400 mt-0.5">{s.l}</p>
                                     </div>
                                 ))}
@@ -133,7 +144,7 @@ export default function AdminPanel() {
                                         <div className={`h-9 w-9 rounded-xl flex items-center justify-center mb-3 ${s.color}`}>
                                             <s.icon className="h-4 w-4" />
                                         </div>
-                                        <p className="text-2xl font-bold text-gray-900 tabular-nums">{s.n}</p>
+                                        <p className="text-2xl font-bold text-gray-900 tabular-nums">{s.n ?? 0}</p>
                                         <p className="text-xs text-gray-400 mt-0.5">{s.l}</p>
                                     </div>
                                 ))}
@@ -153,7 +164,7 @@ export default function AdminPanel() {
                                         <div className={`h-9 w-9 rounded-xl flex items-center justify-center mb-3 ${s.color}`}>
                                             <s.icon className="h-4 w-4" />
                                         </div>
-                                        <p className="text-2xl font-bold text-gray-900 tabular-nums">{s.n}</p>
+                                        <p className="text-2xl font-bold text-gray-900 tabular-nums">{s.n ?? 0}</p>
                                         <p className="text-xs text-gray-400 mt-0.5">{s.l}</p>
                                     </div>
                                 ))}
@@ -167,11 +178,11 @@ export default function AdminPanel() {
                                         <FileText className="h-4 w-4" />
                                     </div>
                                     <div>
-                                        <p className="text-2xl font-bold text-gray-900 tabular-nums">{stats.totalDocuments}</p>
+                                        <p className="text-2xl font-bold text-gray-900 tabular-nums">{stats.totalDocuments ?? 0}</p>
                                         <p className="text-xs text-gray-400">RAG hujjatlar</p>
                                     </div>
                                 </div>
-                                <p className="text-xs text-gray-400 mt-2 pl-12">{stats.totalChunks} ta matn bo'lagi indekslangan</p>
+                                <p className="text-xs text-gray-400 mt-2 pl-12">{stats.totalChunks ?? 0} ta matn bo'lagi indekslangan</p>
                             </div>
                             <div className="bg-white rounded-2xl p-5 border border-gray-100">
                                 <div className="flex items-center gap-3 mb-1">
@@ -179,11 +190,11 @@ export default function AdminPanel() {
                                         <BarChart3 className="h-4 w-4" />
                                     </div>
                                     <div>
-                                        <p className="text-2xl font-bold text-gray-900 tabular-nums">{stats.avgScore}%</p>
+                                        <p className="text-2xl font-bold text-gray-900 tabular-nums">{stats.avgScore ?? 0}%</p>
                                         <p className="text-xs text-gray-400">O'rtacha test bali</p>
                                     </div>
                                 </div>
-                                <p className="text-xs text-gray-400 mt-2 pl-12">{stats.totalAttempts} ta test urinishdan</p>
+                                <p className="text-xs text-gray-400 mt-2 pl-12">{stats.totalAttempts ?? 0} ta test urinishdan</p>
                             </div>
                         </div>
                         {/* Oxirgi ro'yxatdan o'tganlar */}

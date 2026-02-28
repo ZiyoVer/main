@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
@@ -38,6 +38,14 @@ export default function ChatLayout() {
     const [thinkingText, setThinkingText] = useState('')
     const endRef = useRef<HTMLDivElement>(null)
     const abortRef = useRef<AbortController | null>(null)
+
+    // Auto-close sidebar on mobile
+    useEffect(() => {
+        const checkWidth = () => { if (window.innerWidth < 768) setSideOpen(false) }
+        checkWidth()
+        window.addEventListener('resize', checkWidth)
+        return () => window.removeEventListener('resize', checkWidth)
+    }, [])
 
     useEffect(() => { loadChats(); loadProfile(); loadPublicTests() }, [])
     useEffect(() => { if (chatId) loadMessages(chatId) }, [chatId])
@@ -458,7 +466,13 @@ export default function ChatLayout() {
             <div className="flex-1 flex flex-col min-w-0">
                 <div className="h-14 flex items-center px-4 gap-3 flex-shrink-0">
                     {!sideOpen && <button onClick={() => setSideOpen(true)} className="h-8 w-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 transition"><Menu className="h-4 w-4" /></button>}
-                    <span className="text-sm font-medium text-gray-500 truncate">{currentChat?.title || ''}</span>
+                    <span className="text-sm font-medium text-gray-500 truncate flex-1">{currentChat?.title || ''}</span>
+                    <button onClick={() => {
+                        if (document.fullscreenElement) document.exitFullscreen()
+                        else document.documentElement.requestFullscreen()
+                    }} className="h-8 w-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition" title="To'liq ekran">
+                        {document.fullscreenElement ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                    </button>
                 </div>
 
                 {/* Messages */}
