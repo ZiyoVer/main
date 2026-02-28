@@ -5,6 +5,23 @@ import { updateAbility } from '../utils/rasch'
 
 const router = Router()
 
+// Public testlar ro'yxati (barcha o'quvchilar uchun)
+router.get('/public', authenticate, async (req: AuthRequest, res) => {
+    try {
+        const tests = await prisma.test.findMany({
+            where: { isPublic: true },
+            include: {
+                _count: { select: { questions: true, attempts: true } },
+                creator: { select: { name: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        })
+        res.json(tests)
+    } catch (e) {
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
 // O'qituvchi: Test yaratish
 router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, res) => {
     try {
