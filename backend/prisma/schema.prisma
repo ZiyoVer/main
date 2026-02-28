@@ -129,6 +129,8 @@ model Document {
   fileType  String          // "pdf", "word", "text"
   fileSize  Int
   subject   String?
+  s3Url     String?
+  s3Key     String?
   createdAt DateTime        @default(now())
   chunks    DocumentChunk[]
 }
