@@ -58,7 +58,10 @@ export default function ChatLayout() {
     useEffect(() => { if (chatId) loadMessages(chatId) }, [chatId])
     useEffect(() => {
         const el = scrollRef.current
-        if (el) el.scrollTop = el.scrollHeight
+        if (!el) return
+        // Foydalanuvchi yuqoriga scroll qilmagan bo'lsa avtomatik pastga tush
+        const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 180
+        if (isNearBottom) el.scrollTop = el.scrollHeight
     }, [messages, streaming])
 
     async function loadProfile() {
