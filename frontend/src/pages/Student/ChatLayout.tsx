@@ -38,6 +38,9 @@ export default function ChatLayout() {
     const [thinkingText, setThinkingText] = useState('')
     const endRef = useRef<HTMLDivElement>(null)
     const abortRef = useRef<AbortController | null>(null)
+    const [testPanel, setTestPanel] = useState<string | null>(null)
+    const [testAnswers, setTestAnswers] = useState<Record<number, string>>({})
+    const [testSubmitted, setTestSubmitted] = useState(false)
 
     // Auto-close sidebar on mobile
     useEffect(() => {
@@ -212,6 +215,27 @@ export default function ChatLayout() {
     // Days until exam
     const daysLeft = profile?.examDate ? Math.max(0, Math.ceil((new Date(profile.examDate).getTime() - Date.now()) / 86400000)) : null
 
+    // Open test in side panel
+    function openTestPanel(jsonStr: string) {
+        setTestPanel(jsonStr)
+        setTestAnswers({})
+        setTestSubmitted(false)
+    }
+
+    function submitTestPanel() {
+        if (!testPanel) return
+        let questions: any[] = []
+        try { questions = JSON.parse(testPanel) } catch { return }
+        setTestSubmitted(true)
+        const results = questions.map((q: any, i: number) => {
+            const correct = testAnswers[i] === q.correct
+            return `${i + 1}. ${q.q} — Javob: ${(testAnswers[i] || '?').toUpperCase()}) ${correct ? '✅ to\'g\'ri' : '❌ xato (to\'g\'ri: ' + q.correct.toUpperCase() + ')'}`
+        }).join('\n')
+        const score = questions.filter((q: any, i: number) => testAnswers[i] === q.correct).length
+        const summary = `Test natijasi: ${score}/${questions.length}\n\n${results}\n\nIltimos natijalarimni tahlil qiling va qaysi mavzularni qayta o'rganishim kerakligini ayting.`
+        if (chatId) setTimeout(() => quickAction(summary), 500)
+    }
+
     // Interactive Test Widget
     const TestWidget = ({ jsonStr }: { jsonStr: string }) => {
         const [answers, setAnswers] = useState<Record<number, string>>({})
@@ -296,10 +320,25 @@ export default function ChatLayout() {
             h2: ({ children }) => <h3 className="text-[15px] font-bold text-gray-900 mt-4 mb-2 pb-1 border-b border-gray-100">{children}</h3>,
             h3: ({ children }) => <h4 className="text-[14px] font-bold text-gray-900 mt-3 mb-1.5">{children}</h4>,
             code: ({ children, className }) => {
-                // Detect test blocks
+                // Detect test blocks → open in side panel
                 if (className?.includes('language-test')) {
                     const jsonStr = String(children).trim()
-                    return <TestWidget jsonStr={jsonStr} />
+                    let qCount = 0
+                    try { qCount = JSON.parse(jsonStr).length } catch { }
+                    return (
+                        <div className="my-3 bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-xl flex items-center justify-center"><ClipboardList className="h-5 w-5 text-white" /></div>
+                                <div>
+                                    <p className="text-sm font-semibold text-gray-900">📋 Test tayyor — {qCount} savol</p>
+                                    <p className="text-xs text-gray-500">Yon oynada yechishingiz mumkin</p>
+                                </div>
+                            </div>
+                            <button onClick={() => openTestPanel(jsonStr)} className="h-9 px-4 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition flex items-center gap-2">
+                                <BookOpen className="h-4 w-4" /> Testni ochish
+                            </button>
+                        </div>
+                    )
                 }
                 const isBlock = className?.includes('language-')
                 return isBlock
@@ -608,6 +647,79 @@ export default function ChatLayout() {
                     </div>
                 )}
             </div>
+
+            {/* Test Side Panel */}
+            {testPanel && (() => {
+                let questions: any[] = []
+                try { questions = JSON.parse(testPanel) } catch { return null }
+                const answered = Object.keys(testAnswers).length
+                const score = testSubmitted ? questions.filter((q: any, i: number) => testAnswers[i] === q.correct).length : 0
+                return (
+                    <div className="w-96 bg-white border-l border-gray-200 flex flex-col flex-shrink-0 animate-in">
+                        {/* Panel header */}
+                        <div className="h-14 flex items-center justify-between px-4 border-b border-gray-100 flex-shrink-0">
+                            <div className="flex items-center gap-2">
+                                <div className="h-7 w-7 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-lg flex items-center justify-center"><ClipboardList className="h-3.5 w-3.5 text-white" /></div>
+                                <span className="text-sm font-semibold text-gray-900">Test — {questions.length} savol</span>
+                            </div>
+                            <button onClick={() => setTestPanel(null)} className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"><X className="h-4 w-4" /></button>
+                        </div>
+
+                        {/* Progress bar */}
+                        <div className="h-1 bg-gray-100">
+                            <div className="h-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all" style={{ width: `${(answered / questions.length) * 100}%` }} />
+                        </div>
+
+                        {/* Questions */}
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                            {questions.map((q: any, i: number) => (
+                                <div key={i} className="bg-gray-50 rounded-xl p-4">
+                                    <p className="text-[13px] font-medium text-gray-900 mb-3">{i + 1}. {q.q}</p>
+                                    <div className="space-y-2">
+                                        {(['a', 'b', 'c', 'd'] as const).map(opt => {
+                                            const isSelected = testAnswers[i] === opt
+                                            const isCorrect = q.correct === opt
+                                            let cls = 'w-full text-left px-3.5 py-2.5 rounded-xl text-[13px] border transition-all '
+                                            if (testSubmitted) {
+                                                if (isCorrect) cls += 'border-emerald-300 bg-emerald-50 text-emerald-800 font-medium'
+                                                else if (isSelected && !isCorrect) cls += 'border-red-300 bg-red-50 text-red-700'
+                                                else cls += 'border-transparent bg-white text-gray-400'
+                                            } else {
+                                                cls += isSelected
+                                                    ? 'border-blue-400 bg-blue-50 text-blue-800 font-medium shadow-sm'
+                                                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-400'
+                                            }
+                                            return (
+                                                <button key={opt} disabled={testSubmitted} onClick={() => setTestAnswers({ ...testAnswers, [i]: opt })} className={cls}>
+                                                    <span className="font-semibold mr-1.5">{opt.toUpperCase()})</span> {q[opt]}
+                                                    {testSubmitted && isCorrect && <span className="ml-1">✅</span>}
+                                                    {testSubmitted && isSelected && !isCorrect && <span className="ml-1">❌</span>}
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Submit / Results */}
+                        <div className="p-4 border-t border-gray-100 flex-shrink-0">
+                            {!testSubmitted ? (
+                                <button onClick={submitTestPanel} disabled={answered < questions.length}
+                                    className="w-full h-11 rounded-xl text-sm font-semibold text-white bg-gray-900 hover:bg-gray-800 disabled:bg-gray-200 disabled:text-gray-400 transition flex items-center justify-center gap-2">
+                                    <Target className="h-4 w-4" /> Tugatish ({answered}/{questions.length})
+                                </button>
+                            ) : (
+                                <div className="text-center space-y-2">
+                                    <p className="text-lg font-bold text-gray-900">{score}/{questions.length} <span className="text-sm font-normal text-gray-400">— {Math.round(score / questions.length * 100)}%</span></p>
+                                    <p className="text-xs text-gray-400">Natijalar chatga yuborildi</p>
+                                    <button onClick={() => setTestPanel(null)} className="text-sm text-blue-600 hover:underline">Panelni yopish</button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )
+            })()}
         </div>
     )
 }
