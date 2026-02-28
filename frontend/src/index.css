@@ -26,8 +26,9 @@
         -webkit-font-smoothing: antialiased;
     }
 
-    html {
-        scroll-behavior: smooth;
+    html, body {
+        height: 100%;
+        overflow: hidden;
     }
 }
 

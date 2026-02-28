@@ -505,7 +505,7 @@ export default function ChatLayout() {
             </div>
 
             {/* Main */}
-            <div className="flex-1 flex flex-col min-w-0">
+            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
                 <div className="h-14 flex items-center px-4 gap-3 flex-shrink-0">
                     {!sideOpen && <button onClick={() => setSideOpen(true)} className="h-8 w-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 transition"><Menu className="h-4 w-4" /></button>}
                     <span className="text-sm font-medium text-gray-500 truncate flex-1">{currentChat?.title || ''}</span>
@@ -518,7 +518,7 @@ export default function ChatLayout() {
                 </div>
 
                 {/* Messages */}
-                <div ref={scrollRef} className="flex-1 overflow-y-auto">
+                <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-0">
                     {!chatId ? (
                         <div className="h-full flex items-center justify-center">
                             <div className="max-w-2xl w-full px-6 anim-up">
