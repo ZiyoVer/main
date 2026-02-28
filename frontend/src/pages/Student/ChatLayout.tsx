@@ -1,13 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
+import 'katex/dist/katex.min.css'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 
 interface Chat { id: string; title: string; subject?: string; updatedAt: string }
 interface Msg { id: string; role: string; content: string; createdAt: string }
-interface Profile { onboardingDone: boolean; subject?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string }
+interface Profile { onboardingDone: boolean; subject?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string; totalTests?: number; avgScore?: number }
 
 export default function ChatLayout() {
     const { chatId } = useParams()
@@ -23,8 +26,9 @@ export default function ChatLayout() {
     const [currentChat, setCurrentChat] = useState<Chat | null>(null)
     const [profile, setProfile] = useState<Profile | null>(null)
     const [showOnboarding, setShowOnboarding] = useState(false)
-    const [sideTab, setSideTab] = useState<'chats' | 'tests'>('chats')
+    const [sideTab, setSideTab] = useState<'chats' | 'tests' | 'progress'>('chats')
     const [publicTests, setPublicTests] = useState<any[]>([])
+    const [stats, setStats] = useState({ chats: 0, messages: 0, streak: 0 })
     const [onboardingForm, setOnboardingForm] = useState({
         subject: 'Matematika', targetScore: 80, examDate: '',
         weakTopics: '', strongTopics: '', concerns: ''
@@ -76,7 +80,11 @@ export default function ChatLayout() {
     }
 
     async function loadChats() {
-        try { setChats(await fetchApi('/chat/list')) } catch { }
+        try {
+            const c = await fetchApi('/chat/list')
+            setChats(c)
+            setStats(prev => ({ ...prev, chats: c.length }))
+        } catch { }
     }
 
     async function loadMessages(id: string) {
@@ -98,78 +106,64 @@ export default function ChatLayout() {
         setCreating(false)
     }, [creating, profile])
 
-    async function sendMessage(e: React.FormEvent) {
-        e.preventDefault()
-        if (!input.trim() || !chatId || loading) return
-        const text = input; setInput('')
-        setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: text, createdAt: new Date().toISOString() }])
-        setLoading(true)
-        setStreaming('')
-
+    // Stream helper
+    async function streamToChat(targetChatId: string, prompt: string) {
+        setLoading(true); setStreaming('')
         try {
             const token = localStorage.getItem('token')
-            const res = await fetch(`/api/chat/${chatId}/stream`, {
+            const res = await fetch(`/api/chat/${targetChatId}/stream`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ content: text })
+                body: JSON.stringify({ content: prompt })
             })
-
-            if (!res.ok) throw new Error('Server xatoligi')
-
+            if (!res.ok) throw new Error()
             const reader = res.body?.getReader()
             const decoder = new TextDecoder()
             let fullText = ''
-
             if (reader) {
                 while (true) {
                     const { done, value } = await reader.read()
                     if (done) break
                     const chunk = decoder.decode(value, { stream: true })
-                    const lines = chunk.split('\n')
-                    for (const line of lines) {
+                    for (const line of chunk.split('\n')) {
                         if (line.startsWith('data: ')) {
                             try {
-                                const data = JSON.parse(line.slice(6))
-                                if (data.content) {
-                                    fullText += data.content
-                                    setStreaming(fullText)
-                                }
-                                if (data.done) {
+                                const d = JSON.parse(line.slice(6))
+                                if (d.content) { fullText += d.content; setStreaming(fullText) }
+                                if (d.done) {
                                     setMessages(prev => {
                                         const filtered = prev.filter(m => m.id !== 'temp-u')
-                                        return [
-                                            ...filtered,
-                                            { id: 'u-' + Date.now(), role: 'user', content: text, createdAt: new Date().toISOString() },
-                                            { id: data.id || 'a-' + Date.now(), role: 'assistant', content: fullText, createdAt: new Date().toISOString() }
+                                        return [...filtered,
+                                        { id: 'u-' + Date.now(), role: 'user', content: prompt, createdAt: new Date().toISOString() },
+                                        { id: d.id || 'a-' + Date.now(), role: 'assistant', content: fullText, createdAt: new Date().toISOString() }
                                         ]
                                     })
-                                    setStreaming('')
-                                    loadChats()
+                                    setStreaming(''); loadChats()
                                 }
                             } catch { }
                         }
                     }
                 }
             }
-
-            // Agar stream tugasa lekin done kelmasa
-            if (fullText && streaming) {
-                setMessages(prev => {
-                    const filtered = prev.filter(m => m.id !== 'temp-u')
-                    return [
-                        ...filtered,
-                        { id: 'u-' + Date.now(), role: 'user', content: text, createdAt: new Date().toISOString() },
-                        { id: 'a-' + Date.now(), role: 'assistant', content: fullText, createdAt: new Date().toISOString() }
-                    ]
-                })
-                setStreaming('')
-                loadChats()
-            }
         } catch {
-            setMessages(prev => [...prev, { id: 'err', role: 'assistant', content: 'Xatolik yuz berdi. Qayta urinib ko\'ring.', createdAt: new Date().toISOString() }])
+            setMessages(prev => [...prev, { id: 'err', role: 'assistant', content: 'Xatolik yuz berdi.', createdAt: new Date().toISOString() }])
             setStreaming('')
         }
-        setLoading(false)
+        setLoading(false); setInput('')
+    }
+
+    async function sendMessage(e: React.FormEvent) {
+        e.preventDefault()
+        if (!input.trim() || !chatId || loading) return
+        const text = input; setInput('')
+        setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: text, createdAt: new Date().toISOString() }])
+        await streamToChat(chatId, text)
+    }
+
+    async function quickAction(prompt: string) {
+        if (!chatId || loading) return
+        setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: prompt, createdAt: new Date().toISOString() }])
+        await streamToChat(chatId, prompt)
     }
 
     async function deleteChat(id: string, e: React.MouseEvent) {
@@ -181,9 +175,12 @@ export default function ChatLayout() {
         } catch { }
     }
 
-    // Markdown component
+    // Days until exam
+    const daysLeft = profile?.examDate ? Math.max(0, Math.ceil((new Date(profile.examDate).getTime() - Date.now()) / 86400000)) : null
+
+    // Markdown with KaTeX
     const MdMessage = ({ content }: { content: string }) => (
-        <ReactMarkdown components={{
+        <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]} components={{
             p: ({ children }) => <p className="mb-2.5 last:mb-0 leading-relaxed">{children}</p>,
             strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
             em: ({ children }) => <em className="text-gray-600">{children}</em>,
@@ -233,7 +230,7 @@ export default function ChatLayout() {
                             <input placeholder="masalan: formulalarni eslab qolish" value={onboardingForm.concerns} onChange={e => setOnboardingForm({ ...onboardingForm, concerns: e.target.value })} className="w-full h-11 px-4 rounded-xl border border-gray-200 focus:border-blue-500 outline-none text-sm" /></div>
                         <div className="flex gap-3 pt-2">
                             <button type="submit" disabled={savingProfile} className="flex-1 h-11 rounded-xl text-sm font-semibold text-white bg-gray-900 hover:bg-gray-800 transition disabled:opacity-50">{savingProfile ? 'Saqlanmoqda...' : 'Saqlash'}</button>
-                            <button type="button" onClick={() => setShowOnboarding(false)} className="h-11 px-6 rounded-xl text-sm text-gray-500 border border-gray-200 hover:bg-gray-50 transition">Bekor</button>
+                            {profile?.onboardingDone && <button type="button" onClick={() => setShowOnboarding(false)} className="h-11 px-6 rounded-xl text-sm text-gray-500 border border-gray-200 hover:bg-gray-50 transition">Bekor</button>}
                         </div>
                     </form>
                 </div>
@@ -244,7 +241,7 @@ export default function ChatLayout() {
     return (
         <div className="h-screen flex bg-[#fafafa]">
             {/* Sidebar */}
-            <div className={`${sideOpen ? 'w-64' : 'w-0'} bg-[#f5f5f5] flex flex-col transition-all duration-200 overflow-hidden border-r border-gray-200/80 flex-shrink-0`}>
+            <div className={`${sideOpen ? 'w-72' : 'w-0'} bg-[#f5f5f5] flex flex-col transition-all duration-200 overflow-hidden border-r border-gray-200/80 flex-shrink-0`}>
                 <div className="p-3 flex items-center justify-between h-14">
                     <div className="flex items-center gap-2">
                         <div className="h-7 w-7 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-lg flex items-center justify-center">
@@ -255,10 +252,15 @@ export default function ChatLayout() {
                     <button onClick={() => setSideOpen(false)} className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-200/80 transition"><X className="h-4 w-4" /></button>
                 </div>
 
-                {/* Side tabs: Chats / Tests */}
+                {/* Side tabs */}
                 <div className="flex mx-3 mb-2 bg-gray-200/60 rounded-lg p-0.5">
-                    <button onClick={() => setSideTab('chats')} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition ${sideTab === 'chats' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Suhbatlar</button>
-                    <button onClick={() => setSideTab('tests')} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition ${sideTab === 'tests' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Testlar</button>
+                    {[
+                        { k: 'chats' as const, l: 'Suhbat' },
+                        { k: 'tests' as const, l: 'Testlar' },
+                        { k: 'progress' as const, l: 'Progress' },
+                    ].map(t => (
+                        <button key={t.k} onClick={() => setSideTab(t.k)} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition ${sideTab === t.k ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>{t.l}</button>
+                    ))}
                 </div>
 
                 {sideTab === 'chats' && (
@@ -292,6 +294,53 @@ export default function ChatLayout() {
                     </div>
                 )}
 
+                {sideTab === 'progress' && (
+                    <div className="flex-1 overflow-y-auto px-3 space-y-3">
+                        {/* Exam countdown */}
+                        {daysLeft !== null && (
+                            <div className="bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl p-4 text-white">
+                                <p className="text-[11px] opacity-80 mb-1">Imtihongacha</p>
+                                <p className="text-3xl font-bold tabular-nums">{daysLeft} <span className="text-sm font-normal opacity-80">kun</span></p>
+                                <p className="text-[11px] opacity-70 mt-1">{profile?.subject} · Maqsad: {profile?.targetScore} ball</p>
+                            </div>
+                        )}
+                        {/* Stats */}
+                        <div className="grid grid-cols-2 gap-2">
+                            <div className="bg-white rounded-xl p-3 border border-gray-100 text-center">
+                                <MessageSquare className="h-4 w-4 text-blue-500 mx-auto mb-1" />
+                                <p className="text-lg font-bold text-gray-900 tabular-nums">{chats.length}</p>
+                                <p className="text-[10px] text-gray-400">Suhbatlar</p>
+                            </div>
+                            <div className="bg-white rounded-xl p-3 border border-gray-100 text-center">
+                                <Target className="h-4 w-4 text-emerald-500 mx-auto mb-1" />
+                                <p className="text-lg font-bold text-gray-900 tabular-nums">{profile?.targetScore || 0}</p>
+                                <p className="text-[10px] text-gray-400">Maqsad ball</p>
+                            </div>
+                        </div>
+                        {/* Weak/Strong topics */}
+                        {profile?.weakTopics && (
+                            <div className="bg-white rounded-xl p-3 border border-gray-100">
+                                <p className="text-[11px] font-semibold text-gray-400 uppercase mb-2">Qiyin mavzular</p>
+                                <div className="flex flex-wrap gap-1">
+                                    {JSON.parse(profile.weakTopics).map((t: string, i: number) => (
+                                        <span key={i} className="text-[11px] bg-red-50 text-red-600 px-2 py-0.5 rounded-md">{t}</span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        {profile?.strongTopics && (
+                            <div className="bg-white rounded-xl p-3 border border-gray-100">
+                                <p className="text-[11px] font-semibold text-gray-400 uppercase mb-2">Kuchli mavzular</p>
+                                <div className="flex flex-wrap gap-1">
+                                    {JSON.parse(profile.strongTopics).map((t: string, i: number) => (
+                                        <span key={i} className="text-[11px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-md">{t}</span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* User + Settings */}
                 <div className="p-3 border-t border-gray-200/80">
                     <div className="flex items-center gap-2.5 px-2 py-1.5">
@@ -318,16 +367,16 @@ export default function ChatLayout() {
                                 <div className="text-center mb-10">
                                     <div className="h-14 w-14 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-lg shadow-blue-500/15"><BrainCircuit className="h-7 w-7 text-white" /></div>
                                     <h2 className="text-2xl font-bold text-gray-900 mb-2">Salom, {user?.name?.split(' ')[0]}! 👋</h2>
-                                    <p className="text-sm text-gray-400">Bugun nima o'rganmoqchisiz? Quyidagilardan birini tanlang yoki o'zingiz yozing</p>
+                                    <p className="text-sm text-gray-400">Bugun nima o'rganmoqchisiz? Quyidagilardan birini tanlang</p>
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
                                     {[
                                         { icon: '📖', title: 'Mavzu tushuntir', desc: 'Mavzuni boshidan tushuntirib ber', prompt: 'Menga bugungi mavzuni boshidan tushuntirib bering' },
                                         { icon: '📝', title: 'Bilimimni testla', desc: 'Test savollari bilan tekshir', prompt: 'Mening bilimimni test savollari bilan tekshiring' },
-                                        { icon: '📋', title: 'O\'quv reja tuz', desc: 'Imtihongacha bo\'lgan reja', prompt: 'Imtihongacha bo\'lgan kunlar uchun o\'quv reja tuzing' },
-                                        { icon: '💡', title: 'Formula va qoidalar', desc: 'Asosiy formulalarni ko\'rsat', prompt: 'Bu fandagi eng muhim formulalar va qoidalarni ko\'rsating' },
-                                        { icon: '🔍', title: 'Zaif joylarimni aniqla', desc: 'Qayerda qiynalayotganimni top', prompt: 'Menga savollar berib zaif joylarimni aniqlang' },
-                                        { icon: '🎯', title: 'Imtihon strategiya', desc: 'Vaqt boshqarish, taktika', prompt: 'Milliy sertifikat imtihonida vaqt boshqarish va javob berish strategiyasini o\'rgating' },
+                                        { icon: '📋', title: 'O\'quv reja tuz', desc: 'Imtihongacha bo\'lgan reja', prompt: 'Imtihongacha bo\'lgan kunlar uchun batafsil o\'quv reja tuzing. Har kuni qaysi mavzuni o\'rganishim kerakligini yozing.' },
+                                        { icon: '💡', title: 'Formula va qoidalar', desc: 'Asosiy formulalarni ko\'rsat', prompt: 'Bu fandagi eng muhim formulalar va qoidalarni ko\'rsating. Formulalarni LaTeX formatda yozing.' },
+                                        { icon: '🔍', title: 'Zaif joylarimni aniqla', desc: 'Diagnostika qil', prompt: 'Mening bilim darajamni aniqlash uchun diagnostik savollar bering. Avval oson savollardan boshlang, keyin qiyinlashtiring.' },
+                                        { icon: '🎯', title: 'Imtihon strategiya', desc: 'Vaqt taktikasi', prompt: 'Milliy sertifikat imtihonida vaqt boshqarish va javob berish strategiyasini o\'rgating' },
                                     ].map((s, i) => (
                                         <button key={i} onClick={async () => {
                                             if (creating) return; setCreating(true)
@@ -335,47 +384,10 @@ export default function ChatLayout() {
                                                 const data = await fetchApi('/chat/new', { method: 'POST', body: JSON.stringify({ title: s.title, subject: profile?.subject }) })
                                                 await loadChats()
                                                 nav(`/chat/${data.id}`)
-                                                // Auto-send after navigation
-                                                setTimeout(async () => {
-                                                    try {
-                                                        setInput(s.prompt)
-                                                        const token = localStorage.getItem('token')
-                                                        setMessages([{ id: 'temp-u', role: 'user', content: s.prompt, createdAt: new Date().toISOString() }])
-                                                        setLoading(true); setStreaming('')
-                                                        const res = await fetch(`/api/chat/${data.id}/stream`, {
-                                                            method: 'POST',
-                                                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                                                            body: JSON.stringify({ content: s.prompt })
-                                                        })
-                                                        if (!res.ok) throw new Error()
-                                                        const reader = res.body?.getReader()
-                                                        const decoder = new TextDecoder()
-                                                        let fullText = ''
-                                                        if (reader) {
-                                                            while (true) {
-                                                                const { done, value } = await reader.read()
-                                                                if (done) break
-                                                                const chunk = decoder.decode(value, { stream: true })
-                                                                for (const line of chunk.split('\n')) {
-                                                                    if (line.startsWith('data: ')) {
-                                                                        try {
-                                                                            const d = JSON.parse(line.slice(6))
-                                                                            if (d.content) { fullText += d.content; setStreaming(fullText) }
-                                                                            if (d.done) {
-                                                                                setMessages([
-                                                                                    { id: 'u-' + Date.now(), role: 'user', content: s.prompt, createdAt: new Date().toISOString() },
-                                                                                    { id: d.id || 'a-' + Date.now(), role: 'assistant', content: fullText, createdAt: new Date().toISOString() }
-                                                                                ])
-                                                                                setStreaming(''); loadChats()
-                                                                            }
-                                                                        } catch { }
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                        setInput(''); setLoading(false)
-                                                    } catch { setLoading(false) }
-                                                }, 300)
+                                                setTimeout(() => {
+                                                    setMessages([{ id: 'temp-u', role: 'user', content: s.prompt, createdAt: new Date().toISOString() }])
+                                                    streamToChat(data.id, s.prompt)
+                                                }, 200)
                                             } catch { }
                                             setCreating(false)
                                         }}
@@ -402,7 +414,6 @@ export default function ChatLayout() {
                                     )}
                                 </div>
                             ))}
-                            {/* Streaming message */}
                             {streaming && (
                                 <div className="flex gap-3">
                                     <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 flex-shrink-0 flex items-center justify-center mt-0.5"><BrainCircuit className="h-3.5 w-3.5 text-white" /></div>
@@ -420,9 +431,23 @@ export default function ChatLayout() {
                     )}
                 </div>
 
-                {/* Input */}
+                {/* Input + Quick Actions */}
                 {chatId && (
-                    <div className="px-4 pb-6 pt-2">
+                    <div className="px-4 pb-5 pt-2">
+                        {/* Quick Actions */}
+                        {!loading && messages.length > 0 && (
+                            <div className="max-w-5xl mx-auto mb-2 flex gap-1.5 flex-wrap">
+                                {[
+                                    { l: '📝 Testla', p: 'Meni shu mavzu bo\'yicha testlang. 5 ta test savol bering A, B, C, D variantlar bilan.' },
+                                    { l: '📖 Davom et', p: 'Keyingi mavzuga o\'tamiz. Nimani o\'rganishimiz kerak?' },
+                                    { l: '🔄 Qayta tushuntir', p: 'Bu mavzuni boshqa usulda, oddiyroq tushuntiring' },
+                                    { l: '📋 Reja tuz', p: 'Imtihongacha qolgan vaqtga mos o\'quv reja tuzing' },
+                                    { l: '💡 Formulalar', p: 'Shu mavzuning barcha muhim formulalarini yozing' },
+                                ].map((a, i) => (
+                                    <button key={i} onClick={() => quickAction(a.p)} className="h-7 px-3 text-[12px] font-medium text-gray-500 bg-white border border-gray-200 rounded-full hover:border-gray-400 hover:text-gray-700 transition whitespace-nowrap">{a.l}</button>
+                                ))}
+                            </div>
+                        )}
                         <form onSubmit={sendMessage} className="max-w-5xl mx-auto">
                             <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-2xl px-4 shadow-sm focus-within:border-gray-300 focus-within:shadow-md transition-all">
                                 <input value={input} onChange={e => setInput(e.target.value)} placeholder="Xabar yozing..." disabled={loading}
