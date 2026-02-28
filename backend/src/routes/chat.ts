@@ -137,12 +137,18 @@ Agar o'quvchi "integrallar qiyin" desa — ehtimol muammo integralda emas, HOSIL
 2. **Formulalar** — LaTeX formatda yoz:
    - Inline formula: $f(x) = x^2$ (matn ichida)
    - Alohida formula: $$\\int x^2 dx = \\frac{x^3}{3} + C$$ (alohida qatorda)
-   - Masalan: $\\sin^2(x) + \\cos^2(x) = 1$, yoki $$\\lim_{n \\to \\infty} \\frac{1}{n} = 0$$
 3. Ro'yxatlar — raqamli yoki bullet bilan
 4. Qadamlar: "**1-qadam:** ..., **2-qadam:** ..., **3-qadam:** ..."
 5. Misollar va yechimlar — aniq ajratilgan
-6. Test savollari — A), B), C), D) formatda
-7. Javoblarni tahlil qilganda — ✅ to'g'ri, ❌ xato belgilar ishlat
+6. **TEST SAVOLLARI FORMATI** — JUDA MUHIM! Test berganda FAQAT quyidagi formatda ber:
+   Avval qisqa gap yoz, keyin test savollarini \`\`\`test bilan ochib JSON array ber:
+   \`\`\`test
+   [{"q":"Savol matni?","a":"Javob A","b":"Javob B","c":"Javob C","d":"Javob D","correct":"a"}]
+   \`\`\`
+   correct maydoni — to'g'ri javob harfi (a, b, c yoki d).
+   HECH QACHON oddiy A), B), C), D) formatda test berMA. DOIMO \`\`\`test JSON formatda ber.
+   Test JSON dan keyin boshqa matn yozma — foydalanuvchi testni interaktiv yechadi.
+7. Javoblarni tahlil qilganda — ✅ to'g'ri, ❌ xato belgilar ishlat, har bir xato javobni tushuntir
 8. O'quv reja tuzsang — har kuni uchun aniq mavzu yoz
 
 # ⚠️ QILMA!
@@ -153,7 +159,7 @@ Agar o'quvchi "integrallar qiyin" desa — ehtimol muammo integralda emas, HOSIL
 - Rag materiallarini aynan nusxalaMA — o'z so'zlaring bilan qayta tushuntir
 
 Hozirgi sana: ${now.toLocaleDateString('uz-UZ')}.
-${extraRules ? '\n# 🔧 ADMIN QOIDALARI\n' + extraRules : ''}`
+${extraRules ? '\n# 🔧 ADMIN QOIDALARI\n' + extraRules : ''} `
 }
 
 // Yangi chat ochish
@@ -238,7 +244,7 @@ async function searchRAGContext(query: string, subject?: string): Promise<string
         if (scored.length === 0) return ''
 
         return '\n\n📚 TEGISHLI O\'QUV MATERIALLARI (RAG):\n' +
-            scored.map(s => `[${s.chunk.document.fileName}]: ${s.chunk.content}`).join('\n---\n') +
+            scored.map(s => `[${s.chunk.document.fileName}]: ${s.chunk.content} `).join('\n---\n') +
             '\n\nYuqoridagi materiallarni o\'z so\'zlaring bilan qayta tushuntir, aynan nusxalama.'
     } catch {
         return ''
@@ -306,7 +312,7 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
             const delta = chunk.choices[0]?.delta?.content || ''
             if (delta) {
                 fullReply += delta
-                res.write(`data: ${JSON.stringify({ content: delta })}\n\n`)
+                res.write(`data: ${JSON.stringify({ content: delta })} \n\n`)
             }
         }
 
@@ -321,14 +327,14 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
             await prisma.chat.update({ where: { id: chat.id }, data: { title: shortTitle } })
         }
 
-        res.write(`data: ${JSON.stringify({ done: true, id: saved.id })}\n\n`)
+        res.write(`data: ${JSON.stringify({ done: true, id: saved.id })} \n\n`)
         res.end()
     } catch (e: any) {
         console.error('AI stream error:', e.message)
         if (!res.headersSent) {
             res.status(500).json({ error: 'AI javob bera olmadi' })
         } else {
-            res.write(`data: ${JSON.stringify({ error: 'AI xatoligi' })}\n\n`)
+            res.write(`data: ${JSON.stringify({ error: 'AI xatoligi' })} \n\n`)
             res.end()
         }
     }
