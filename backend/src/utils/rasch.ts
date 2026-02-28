@@ -1,27 +1,52 @@
-// Rasch Model Formula - P(θ, b) = exp(θ - b) / (1 + exp(θ - b))
+// Rasch Model Utilities
+// P(correct) = 1 / (1 + exp(-(ability - difficulty)))
 
 export function raschProbability(ability: number, difficulty: number): number {
-    const diff = ability - difficulty;
-    return Math.exp(diff) / (1 + Math.exp(diff));
+    return 1 / (1 + Math.exp(-(ability - difficulty)))
 }
 
-export function updatePersonAbility(currentAbility: number, isCorrect: boolean, itemDifficulty: number): number {
-    const prob = raschProbability(currentAbility, itemDifficulty);
-    const score = isCorrect ? 1 : 0;
-
-    const k = 0.5;
-    const newAbility = currentAbility + k * (score - prob);
-    return Math.max(-4.0, Math.min(4.0, newAbility));
-}
-
-export function recalibrateItemDifficulty(currentDifficulty: number, totalAttempts: number, correctCount: number): number {
-    if (totalAttempts <= 0 || correctCount <= 0 || correctCount >= totalAttempts) {
-        return currentDifficulty;
+export function updateAbility(
+    currentAbility: number,
+    responses: { difficulty: number; isCorrect: boolean }[],
+    maxIterations = 25,
+    tolerance = 0.001
+): number {
+    let ability = currentAbility
+    for (let iter = 0; iter < maxIterations; iter++) {
+        let sumResidual = 0
+        let sumInfo = 0
+        for (const r of responses) {
+            const p = raschProbability(ability, r.difficulty)
+            sumResidual += (r.isCorrect ? 1 : 0) - p
+            sumInfo += p * (1 - p)
+        }
+        if (sumInfo === 0) break
+        const delta = sumResidual / sumInfo
+        ability += delta
+        if (Math.abs(delta) < tolerance) break
     }
+    return Math.round(ability * 1000) / 1000
+}
 
-    const pValue = correctCount / totalAttempts;
-    const estimatedNewDiff = Math.log((1 - pValue) / pValue);
-
-    const alpha = 0.1;
-    return (alpha * estimatedNewDiff) + ((1 - alpha) * currentDifficulty);
+export function updateDifficulty(
+    currentDifficulty: number,
+    attempts: { ability: number; isCorrect: boolean }[],
+    maxIterations = 25,
+    tolerance = 0.001
+): number {
+    let difficulty = currentDifficulty
+    for (let iter = 0; iter < maxIterations; iter++) {
+        let sumResidual = 0
+        let sumInfo = 0
+        for (const a of attempts) {
+            const p = raschProbability(a.ability, difficulty)
+            sumResidual += p - (a.isCorrect ? 1 : 0)
+            sumInfo += p * (1 - p)
+        }
+        if (sumInfo === 0) break
+        const delta = sumResidual / sumInfo
+        difficulty += delta
+        if (Math.abs(delta) < tolerance) break
+    }
+    return Math.round(difficulty * 1000) / 1000
 }

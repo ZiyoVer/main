@@ -1,28 +1,31 @@
-import { Routes, Route } from 'react-router-dom'
-import LandingPage from './pages/LandingPage'
+import { Routes, Route, Navigate } from 'react-router-dom'
+import { useAuthStore } from './store/authStore'
+import Landing from './pages/Landing'
 import Login from './pages/Auth/Login'
 import Register from './pages/Auth/Register'
 import AdminLogin from './pages/Auth/AdminLogin'
-import Dashboard from './pages/Student/Dashboard'
-import Onboarding from './pages/Student/Onboarding'
-import TestTaker from './pages/Student/TestTaker'
-import Chat from './pages/Student/Chat'
-import TeacherDashboard from './pages/Teacher/TeacherDashboard'
+import ChatLayout from './pages/Student/ChatLayout'
+import AdminPanel from './pages/Admin/AdminPanel'
+import TeacherPanel from './pages/Teacher/TeacherPanel'
 
-function App() {
-  return (
-    <Routes>
-      <Route path="/" element={<LandingPage />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/admin" element={<AdminLogin />} />
-      <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/onboarding" element={<Onboarding />} />
-      <Route path="/test-taker" element={<TestTaker />} />
-      <Route path="/chat" element={<Chat />} />
-      <Route path="/teacher" element={<TeacherDashboard />} />
-    </Routes>
-  )
+function ProtectedRoute({ children, roles }: { children: React.ReactNode, roles?: string[] }) {
+    const { user, token } = useAuthStore()
+    if (!token || !user) return <Navigate to="/login" replace />
+    if (roles && !roles.includes(user.role)) return <Navigate to="/" replace />
+    return <>{children}</>
 }
 
-export default App
+export default function App() {
+    return (
+        <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/admin-login" element={<AdminLogin />} />
+            <Route path="/chat" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
+            <Route path="/chat/:chatId" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute roles={['ADMIN']}><AdminPanel /></ProtectedRoute>} />
+            <Route path="/teacher" element={<ProtectedRoute roles={['TEACHER', 'ADMIN']}><TeacherPanel /></ProtectedRoute>} />
+        </Routes>
+    )
+}

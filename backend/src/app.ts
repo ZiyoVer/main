@@ -2,59 +2,58 @@ import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import path from 'path'
+import prisma from './utils/db'
+import bcrypt from 'bcryptjs'
 
 dotenv.config()
 
 const app = express()
 app.use(cors())
-app.use(express.json())
+app.use(express.json({ limit: '10mb' }))
 
+// Routes
 import authRoutes from './routes/auth'
-import testRoutes from './routes/test'
 import chatRoutes from './routes/chat'
+import testRoutes from './routes/tests'
+import docRoutes from './routes/documents'
+import analyticsRoutes from './routes/analytics'
+import profileRoutes from './routes/profile'
 
-// Health check
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok' })
+    res.json({ status: 'ok', time: new Date().toISOString() })
 })
 
 app.use('/api/auth', authRoutes)
-app.use('/api/tests', testRoutes)
 app.use('/api/chat', chatRoutes)
-// Serve React Frontend in Production
-if (process.env.NODE_ENV === 'production') {
-    const frontendDistPath = path.join(__dirname, '../../frontend/dist')
-    app.use(express.static(frontendDistPath))
+app.use('/api/tests', testRoutes)
+app.use('/api/documents', docRoutes)
+app.use('/api/analytics', analyticsRoutes)
+app.use('/api/profile', profileRoutes)
 
+// Static frontend (production)
+if (process.env.NODE_ENV === 'production') {
+    const frontendDist = path.join(__dirname, '../../frontend/dist')
+    app.use(express.static(frontendDist))
     app.get(/.*/, (req, res) => {
-        res.sendFile(path.join(frontendDistPath, 'index.html'))
+        res.sendFile(path.join(frontendDist, 'index.html'))
     })
 }
-
-import prisma from './utils/db'
-import bcrypt from 'bcryptjs'
 
 const PORT = process.env.PORT || 8080
 
 async function bootstrap() {
-    // Ensure default admin exists
+    // Seed admin
     const adminExists = await prisma.user.findUnique({ where: { email: 'admin@msert.uz' } })
     if (!adminExists) {
-        const defaultPassword = process.env.ADMIN_PASSWORD || 'admin123'
-        const hashedPassword = await bcrypt.hash(defaultPassword, 10)
+        const pw = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'admin123', 10)
         await prisma.user.create({
-            data: {
-                name: 'Asosiy Administrator',
-                email: 'admin@msert.uz',
-                password: hashedPassword,
-                role: 'ADMIN'
-            }
+            data: { email: 'admin@msert.uz', password: pw, name: 'Administrator', role: 'ADMIN' }
         })
-        console.log('Seeded default admin: admin@msert.uz')
+        console.log('✅ Admin yaratildi: admin@msert.uz')
     }
 
     app.listen(PORT, () => {
-        console.log(`Server listening on port ${PORT}`)
+        console.log(`🚀 msert server ishlayapti: port ${PORT}`)
     })
 }
 

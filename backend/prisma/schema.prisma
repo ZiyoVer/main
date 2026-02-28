@@ -1,11 +1,14 @@
-generator client {
-  provider = "prisma-client-js"
-}
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+// ============ USERS ============
 
 model User {
   id        String   @id @default(uuid())
@@ -16,82 +19,137 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  studentProfile StudentProfile?
-  teacherTests   Test[]          @relation("TeacherTests")
+  // Relations
+  chats        Chat[]
+  testAttempts TestAttempt[]
+  visitLogs    VisitLog[]
+  profile      StudentProfile?
+  testsCreated Test[]         @relation("TestCreator")
 }
 
 enum Role {
-  ADMIN
-  TEACHER
   STUDENT
+  TEACHER
+  ADMIN
 }
 
 model StudentProfile {
-  id           String @id @default(uuid())
-  userId       String @unique
-  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  schoolGrade  String
-  targetGrade  String
-  studyTime    String
-  abilityLevel Float  @default(0.0)
-  
-  testAttempts TestAttempt[]
-  weakTopics   WeakTopic[]
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Onboarding data
+  subject      String?
+  targetScore  Int?
+  weakTopics   String?  // JSON string array
+  strongTopics String?  // JSON string array
+  concerns     String?
+  examDate     DateTime?
+  studyHoursPerDay Float?
+
+  // Rasch
+  abilityLevel Float    @default(0.0)
+  totalTests   Int      @default(0)
+  avgScore     Float    @default(0.0)
+
+  onboardingDone Boolean @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
-model Subject {
-  id    String @id @default(uuid())
-  name  String @unique
-  tests Test[]
+// ============ CHAT ============
+
+model Chat {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String    @default("Yangi Suhbat")
+  subject   String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  messages  Message[]
 }
+
+model Message {
+  id        String   @id @default(uuid())
+  chatId    String
+  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  role      String   // "user", "assistant", "system"
+  content   String
+  fileUrl   String?  // Agar fayl yuklangan bo'lsa
+  fileType  String?  // "image", "pdf", "word"
+  createdAt DateTime @default(now())
+}
+
+// ============ TESTS ============
 
 model Test {
-  id          String   @id @default(uuid())
+  id          String         @id @default(uuid())
   title       String
   description String?
-  isPublished Boolean  @default(false)
-  shareLink   String?  @unique
-  subjectId   String
-  subject     Subject  @relation(fields: [subjectId], references: [id])
-  teacherId   String
-  teacher     User     @relation("TeacherTests", fields: [teacherId], references: [id])
-  createdAt   DateTime @default(now())
-
-  questions TestQuestion[]
-  attempts  TestAttempt[]
+  creatorId   String
+  creator     User           @relation("TestCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  isPublic    Boolean        @default(false)
+  shareLink   String         @unique @default(uuid())
+  subject     String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  questions   TestQuestion[]
+  attempts    TestAttempt[]
 }
 
 model TestQuestion {
-  id            String   @id @default(uuid())
-  testId        String
-  test          Test     @relation(fields: [testId], references: [id], onDelete: Cascade)
-  questionText  String
-  options       String[]
-  correctAnswer String
-  topic         String
-  difficulty    Float    @default(0.0)
-  attemptCount  Int      @default(0)
-  correctCount  Int      @default(0)
+  id         String @id @default(uuid())
+  testId     String
+  test       Test   @relation(fields: [testId], references: [id], onDelete: Cascade)
+  text       String
+  options    String // JSON array: ["A", "B", "C", "D"]
+  correctIdx Int
+  difficulty Float  @default(0.0) // Rasch difficulty
+  orderIdx   Int    @default(0)
 }
 
 model TestAttempt {
-  id               String         @id @default(uuid())
-  testId           String
-  test             Test           @relation(fields: [testId], references: [id], onDelete: Cascade)
-  studentProfileId String
-  student          StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
-  score            Int
-  totalQuestions   Int
-  completedAt      DateTime       @default(now())
+  id        String   @id @default(uuid())
+  testId    String
+  test      Test     @relation(fields: [testId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answers   String   // JSON: [{questionId, selectedIdx, isCorrect}]
+  score     Float
+  raschAbility Float @default(0.0)
+  createdAt DateTime @default(now())
 }
 
-model WeakTopic {
-  id               String         @id @default(uuid())
-  studentProfileId String
-  student          StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
-  topicName        String
-  failCount        Int            @default(1)
-  lastFailed       DateTime       @default(now())
+// ============ RAG DOCUMENTS ============
 
-  @@unique([studentProfileId, topicName])
+model Document {
+  id        String          @id @default(uuid())
+  fileName  String
+  fileType  String          // "pdf", "word", "text"
+  fileSize  Int
+  subject   String?
+  createdAt DateTime        @default(now())
+  chunks    DocumentChunk[]
+}
+
+model DocumentChunk {
+  id         String   @id @default(uuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  content    String
+  chunkIndex Int
+  embedding  String?  // JSON array of floats (vector)
+  createdAt  DateTime @default(now())
+}
+
+// ============ ANALYTICS ============
+
+model VisitLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String   // "login", "register", "page_view"
+  ip        String?
+  createdAt DateTime @default(now())
 }
