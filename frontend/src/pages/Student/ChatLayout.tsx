@@ -199,8 +199,9 @@ export default function ChatLayout() {
         setCreating(false)
     }, [creating, profile])
 
-    // Stream helper
-    async function streamToChat(targetChatId: string, prompt: string) {
+    // Stream helper — displayText ixtiyoriy: chatda ko'rinadigan matn (prompt AI ga yuboriladi)
+    async function streamToChat(targetChatId: string, prompt: string, displayText?: string) {
+        const shown = displayText !== undefined ? displayText : prompt
         setLoading(true); setStreaming(''); setThinkingText('')
         const controller = new AbortController()
         abortRef.current = controller
@@ -232,7 +233,7 @@ export default function ChatLayout() {
                                     setMessages(prev => {
                                         const filtered = prev.filter(m => m.id !== 'temp-u')
                                         return [...filtered,
-                                        { id: 'u-' + Date.now(), role: 'user', content: prompt, createdAt: new Date().toISOString() },
+                                        { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() },
                                         { id: d.id || 'a-' + Date.now(), role: 'assistant', content: fullText, createdAt: new Date().toISOString() }
                                         ]
                                     })
@@ -258,7 +259,7 @@ export default function ChatLayout() {
                     setMessages(prev => {
                         const filtered = prev.filter(m => m.id !== 'temp-u')
                         return [...filtered,
-                        { id: 'u-' + Date.now(), role: 'user', content: prompt, createdAt: new Date().toISOString() },
+                        { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() },
                         { id: 'a-' + Date.now(), role: 'assistant', content: streaming + '\n\n*[To\'xtatildi]*', createdAt: new Date().toISOString() }
                         ]
                     })
@@ -322,9 +323,11 @@ export default function ChatLayout() {
     const openTestPanel = useCallback((jsonStr: string) => {
         const aiKey = jsonStr.substring(0, 120)
         if (completedAiTestsRef.current.has(aiKey)) {
-            // Allaqachon yechilgan — faqat ko'rish rejimi
+            // Allaqachon yechilgan — saqlangan javoblar bilan ko'rish rejimi
+            let savedAnswers: Record<number, string> = {}
+            try { savedAnswers = JSON.parse(localStorage.getItem('msert_ans_' + aiKey) || '{}') } catch { }
             setTestPanel(jsonStr)
-            setTestAnswers({})
+            setTestAnswers(savedAnswers)
             setTestSubmitted(true)
             setTestReadOnly(true)
             setTestPanelMaximized(false)
@@ -405,7 +408,11 @@ export default function ChatLayout() {
         }).join('\n')
         const score = questions.filter((q: any, i: number) => testAnswers[i] === q.correct).length
         const summary = `--- YANGI TEST NATIJASI (bu mustaqil test) ---\nJami savol: ${questions.length}\nTo'g'ri javoblar: ${score}/${questions.length}\n\n${results}\n\nFaqat shu ${questions.length} ta savol bo'yicha tahlil qil va qaysi mavzularni qayta o'rganishim kerakligini ayt. Oldingi testlar bilan aralashma.`
-        if (chatId) setTimeout(() => quickAction(summary), 500)
+        const displayMsg = `📊 Test natijasi: ${score}/${questions.length} — AI tahlil qilmoqda...`
+        if (chatId) setTimeout(() => {
+            setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: displayMsg, createdAt: new Date().toISOString() }])
+            streamToChat(chatId, summary, displayMsg)
+        }, 500)
         // Public test bo'lsa backendga ham yuborish (Rasch tracking)
         if (activeTestId && activeTestQuestions.length > 0) {
             const backendAnswers = activeTestQuestions.map((q: any, i: number) => ({
@@ -415,8 +422,10 @@ export default function ChatLayout() {
             fetchApi(`/tests/${activeTestId}/submit`, { method: 'POST', body: JSON.stringify({ answers: backendAnswers }) }).catch(() => {})
             markTestCompleted(activeTestId)
         } else if (testPanel) {
-            // AI tomonidan yaratilgan test — yechilgan deb belgilaymiz
-            markAiTestCompleted(testPanel.substring(0, 120))
+            // AI tomonidan yaratilgan test — javoblarni va yechilgan holatni saqlash
+            const aiKey = testPanel.substring(0, 120)
+            markAiTestCompleted(aiKey)
+            try { localStorage.setItem('msert_ans_' + aiKey, JSON.stringify(testAnswers)) } catch { }
         }
     }
 
