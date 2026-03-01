@@ -14,7 +14,12 @@ interface Profile { onboardingDone: boolean; subject?: string; examDate?: string
 
 // MdMessage komponentni tashqarida va memo bilan ta'riflaymiz —
 // shunda har keystrokeda re-render bo'lmaydi (ReactMarkdown+KaTeX qimmat!)
-const MdMessage = memo(({ content, onOpenTest, isStreaming }: { content: string; onOpenTest: (s: string) => void; isStreaming?: boolean }) => (
+const MdMessage = memo(({ content, onOpenTest, isStreaming, onProfileUpdate }: {
+    content: string
+    onOpenTest: (s: string) => void
+    isStreaming?: boolean
+    onProfileUpdate?: (data: { weakTopics?: string[]; strongTopics?: string[] }) => void
+}) => (
     <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]} components={{
         p: ({ children }) => <p className="mb-2.5 last:mb-0 leading-relaxed">{children}</p>,
         strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
@@ -46,6 +51,35 @@ const MdMessage = memo(({ content, onOpenTest, isStreaming }: { content: string;
                         {!isStreaming && (
                             <button onClick={() => onOpenTest(jsonStr)} className="h-9 px-4 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition flex items-center gap-2">
                                 <BookOpen className="h-4 w-4" /> Testni ochish
+                            </button>
+                        )}
+                    </div>
+                )
+            }
+            if (className?.includes('language-profile-update')) {
+                let data: { weakTopics?: string[]; strongTopics?: string[] } = {}
+                try { data = JSON.parse(String(children).trim()) } catch { }
+                const hasWeak = (data.weakTopics?.length ?? 0) > 0
+                const hasStrong = (data.strongTopics?.length ?? 0) > 0
+                return (
+                    <div className="my-3 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="h-10 w-10 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                                <GraduationCap className="h-5 w-5 text-white" />
+                            </div>
+                            <div>
+                                <p className="text-sm font-semibold text-gray-900">Profilni yangilash taklifi</p>
+                                <p className="text-xs text-gray-500">Suhbat asosida aniqlandi — tasdiqlaysizmi?</p>
+                            </div>
+                        </div>
+                        <div className="space-y-1 mb-3">
+                            {hasWeak && <p className="text-xs text-gray-700">⚠️ <strong>Qiyin mavzular:</strong> {data.weakTopics!.join(', ')}</p>}
+                            {hasStrong && <p className="text-xs text-gray-700">✅ <strong>Kuchli mavzular:</strong> {data.strongTopics!.join(', ')}</p>}
+                        </div>
+                        {onProfileUpdate && !isStreaming && (
+                            <button onClick={() => onProfileUpdate(data)}
+                                className="h-8 px-4 rounded-lg text-[13px] font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition">
+                                Tasdiqlash va saqlash
                             </button>
                         )}
                     </div>
@@ -318,6 +352,20 @@ export default function ChatLayout() {
         completedAiTestsRef.current.add(key)
         try { localStorage.setItem('msert_done_ai_tests', JSON.stringify([...completedAiTestsRef.current])) } catch { }
     }
+
+    // AI taklif qilgan profil yangilashni tasdiqlash
+    const handleProfileUpdate = useCallback(async (data: { weakTopics?: string[]; strongTopics?: string[] }) => {
+        try {
+            await fetchApi('/profile', { method: 'PUT', body: JSON.stringify(data) })
+            await loadProfile()
+            // AI ga xabar ber — profil yangilandi deb
+            if (chatId) {
+                const notice = '✅ Profil yangilandi'
+                setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'user', content: notice, createdAt: new Date().toISOString() }])
+                streamToChat(chatId, 'O\'quvchi profil yangilashni tasdiqladi. Yangi mavzular ro\'yxati: ' + JSON.stringify(data) + '. Buni e\'tirof etib davom et.', notice)
+            }
+        } catch { }
+    }, [chatId])
 
     // Open test in side panel
     const openTestPanel = useCallback((jsonStr: string) => {
@@ -649,7 +697,7 @@ export default function ChatLayout() {
                                     {m.role === 'user' ? (
                                         <div className="max-w-[90%] text-[14px] leading-relaxed bg-gray-100 text-gray-900 rounded-2xl rounded-br-md px-4 py-3 whitespace-pre-wrap">{m.content}</div>
                                     ) : (
-                                        <div className="flex-1 text-[14px] leading-relaxed text-gray-800 py-1"><MdMessage content={m.content} onOpenTest={openTestPanel} /></div>
+                                        <div className="flex-1 text-[14px] leading-relaxed text-gray-800 py-1"><MdMessage content={m.content} onOpenTest={openTestPanel} onProfileUpdate={handleProfileUpdate} /></div>
                                     )}
                                 </div>
                             ))}
@@ -669,7 +717,7 @@ export default function ChatLayout() {
                                 <div className="flex gap-3">
                                     <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 flex-shrink-0 flex items-center justify-center mt-0.5"><BrainCircuit className="h-3.5 w-3.5 text-white" /></div>
                                     <div className="flex-1 text-[14px] leading-relaxed text-gray-800 py-1">
-                                        <MdMessage content={streaming} onOpenTest={openTestPanel} isStreaming={true} />
+                                        <MdMessage content={streaming} onOpenTest={openTestPanel} isStreaming={true} onProfileUpdate={handleProfileUpdate} />
                                         {/```test/.test(streaming) && !/```test[\s\S]*?```/.test(streaming) && (
                                             <div className="mt-3 flex items-center gap-2 text-[13px] text-blue-600 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5">
                                                 <div className="h-4 w-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
