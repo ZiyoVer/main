@@ -30,69 +30,189 @@ async function getAISettings(): Promise<{ temperature: number; maxTokens: number
 
 function getExamSection(subject?: string): string {
     if (subject === 'Ingliz tili') {
-        return `# 🏆 MILLIY SERTIFIKAT IMTIHONI (Ingliz tili)
+        return `# 🏆 MILLIY SERTIFIKAT IMTIHONI (Ingliz tili — CEFR)
 
-## Savol turlari:
-- **Y-1** (Yagona tanlov): To'g'ri bir javob tanlanadi. 1–3 ball.
-- **Y-2** (Moslashtirish): Ikkita ustunni moslashtirish. 2.2 ball.
-- **O** (Ochiq javob): a) va b) qismlar, 1.5–3.2 ball.
+## Umumiy ma'lumot:
+- **Daraja**: B1 / B2 / C1 (CEFR standartlari asosida)
+- **Jami ball**: 150 ball (har bir bo'lim 30 ball)
+- **Umumiy vaqt**: ~3 soat 35 daqiqa (yozma), Speaking alohida kun
+- **Sertifikat muddati**: 2 yil
+- **Natij**: Rasch modeli asosida baholanadi
 
-## 6 ta mavzu bloki:
-1. **Grammar — Zamonlar (Tenses)**
-   - Present Simple / Continuous / Perfect / Perfect Continuous
-   - Past Simple / Continuous / Perfect / Perfect Continuous
-   - Future Simple / Continuous / Perfect
-   - Used to, Would (past habits)
+---
 
-2. **Grammar — Murakkab strukturalar**
-   - Conditionals: Zero (if+present→present), First (if+present→will), Second (if+past→would), Third (if+had+pp→would have)
-   - Passive Voice: all tenses (is done / was done / has been done / will be done)
-   - Modal verbs: can/could, may/might, must/have to, should/ought to, need, dare
-   - Reported Speech: say→said, will→would, can→could, am/is→was
-   - Relative clauses: who/which/that/whose/where/when
+## 5 ta bo'lim (Section):
 
-3. **Grammar — So'z yasalishi va qo'shimchalar**
-   - Suffixes: -tion/-sion, -ment, -ness, -ity, -er/-or, -ful/-less, -ly, -ous/-ious, -able/-ible, -al, -ic
-   - Prefixes: un-, dis-, im-/in-/ir-/il-, re-, over-, under-, mis-
-   - Word formation: verb→noun, adjective→noun, noun→adjective
+### 1️⃣ LISTENING — Eshitib tushunish
+- **Vaqt**: ~35 daqiqa | **Qismlar**: 4 ta | **Savollar**: 30 ta | **Ball**: 30
+- Har bir matn 2 marta o'qiladi; savollar oldin beriladi (30 soniya)
+- **Savol turlari**:
+  - Multiple choice (A/B/C/D)
+  - True / False / Not Given
+  - Gap filling (bo'sh joyni to'ldirish)
+  - Matching (juftlashtirish)
+- **Matn turlari**: monolog (yangiliklar, e'lon, taqdimot), dialog (suhbat, intervyu)
+- **Tekshiriladi**: asosiy g'oya, tafsilot, nuqtai nazar, maqsad, kayfiyat
 
-4. **Vocabulary**
-   - Phrasal verbs: look up/out/after/forward to, give up/in/away, take off/over/on, put off/on/away
-   - Collocations: make/do/have/take + noun (make a decision, do homework, have a meal, take notes)
-   - Confusing words: affect/effect, accept/except, advice/advise, rise/raise, lay/lie
-   - Idioms va fixed expressions
+### 2️⃣ READING — O'qib tushunish
+- **Vaqt**: ~70 daqiqa | **Qismlar**: 4–5 ta | **Savollar**: 30 ta | **Ball**: 30
+- **Savol turlari**:
+  - Multiple choice (A/B/C/D)
+  - True / False / Not Given
+  - Matching headings (sarlavha moslashtirish)
+  - Gap filling (gapni to'ldirish)
+  - Paragraph matching (ma'lumotni topish)
+- **Matn turlari**: gazeta/jurnal maqolalari, entsiklopediya, reklama, e'lon, hikoya
+- **Tekshiriladi**: asosiy fikr, tafsilot, muallif nuqtai nazari, mantiqiy bog'lanish
 
-5. **Reading Comprehension**
-   - True/False/Not Given
-   - Multiple choice (A/B/C/D)
-   - Matn ichidan ma'lumot topish
-   - Asosiy g'oya va tafsilotlarni ajratish
+### 3️⃣ LEXICAL & GRAMMATICAL — Leksik-grammatik qobiliyat
+- **Vaqt**: ~30 daqiqa | **Qismlar**: 3 ta | **Savollar**: 30 ta | **Ball**: 30
+- **Savol turlari**:
+  - Gap filling — gapga to'g'ri so'z/shakl tanlash (A/B/C/D)
+  - Word formation — berilgan so'zdan to'g'ri shakl yasash
+  - Error correction — xato topish va to'g'rilash
+  - Sentence transformation — bir xil ma'noda qayta yozish
 
-6. **Translation va Sentence Transformation**
-   - O'zbek → Ingliz tarjima
-   - Sentence rewriting (same meaning, different structure)
-   - Error correction (grammatical mistakes in sentences)
+#### 📌 Grammatika mavzulari (B1/B2):
+**Zamonlar (Tenses):**
+| Zamon | Misol |
+|-------|-------|
+| Present Simple | I work every day. |
+| Present Continuous | She is working now. |
+| Present Perfect | I have finished. |
+| Present Perfect Continuous | He has been studying for 2 hours. |
+| Past Simple | They went yesterday. |
+| Past Continuous | It was raining when I arrived. |
+| Past Perfect | She had left before I came. |
+| Past Perfect Continuous | He had been waiting for an hour. |
+| Future Simple | I will call you. |
+| Future Continuous | I will be waiting. |
+| Future Perfect | By 5 PM, she will have finished. |
+| Used to / Would | I used to play football. |
 
-## Baholash (Rasch modeli → ball):
-- **A+** — 70.0 va undan yuqori
-- **A** — 65.0–69.9
-- **B+** — 60.0–64.9
-- **B** — 55.0–59.9
-- **C+** — 50.0–54.9
-- **C** — 46.0–49.9
+**Murakkab grammatika:**
+- **Conditionals**: Zero (if+V1→V1) | First (if+V1→will+V) | Second (if+V2→would+V) | Third (if+had+V3→would have+V3) | Mixed
+- **Passive Voice**: barchа zamonlarda — is/was/will be/has been/had been + done
+- **Modal verbs**: can/could, may/might, must/have to, should/ought to, need to, dare, had better, would rather
+- **Reported Speech**: "I am tired" → He said he was tired | tense backshift + pronoun change
+- **Relative clauses**: who (shaxs), which (narsa), that, whose (egalik), where (joy), when (vaqt) — defining vs non-defining
+- **Gerund vs Infinitive**: enjoy+Ving, want+to V, stop+Ving/to V, remember+Ving/to V
+- **Comparatives & Superlatives**: -er/-est, more/most, as…as, not as…as, the more…the more
+- **Articles**: a/an/the/zero — qoidalari va istisnolari
+- **Prepositions of time**: in/on/at + vaqt; **of place**: in/on/at + joy
+- **Question tags**: She is happy, isn't she? / He didn't go, did he?
+- **Inversion**: Never have I seen… / Rarely does he…
+- **Emphasis (cleft)**: It was John who called. / What I need is rest.
+- **Wish / If only**: I wish I knew. / If only he had come.
+- **Subjunctive**: I suggest that he be present. / It's important that she study.
+- **Participle clauses**: Having finished, he left. / Written in 1890, the book…
 
-## O'qitish xususiyatlari (Ingliz tili uchun):
-- Grammatika qoidasini avval O'ZBEK TILIDA tushuntir, keyin inglizcha misol ber
-- Har bir qoidaga kamida 3 ta misol ber — oddiydan murakkabga
-- Xatoni DARHOL to'g'irla, lekin negative qilma — "To'g'risi: ..." de
-- O'quvchi inglizcha yozsa — xatolarini izohla, lekin ma'nosini ham tushuntir
-- Yangi so'zni o'rgatganda: tarjima + misol gap + antonim/sinonim
+#### 📌 Leksika mavzulari:
+**Phrasal verbs (eng ko'p chiqadiganlar):**
+- look: up (qidirmoq), after (qaramoq), forward to (intizorlik), out (ehtiyot bo'lmoq)
+- give: up (voz kechmoq), in (taslim bo'lmoq), away (berib yubormoq)
+- take: off (uchmoq/yechmoq), over (egallamoq), on (qabul qilmoq), up (boshlamoq)
+- put: off (kechiktirmoq), on (kiymoq), up with (chidamoq), away (yig'ishtirib qo'ymoq)
+- carry: out (bajarmoq), on (davom etmoq), away (olib ketmoq)
+- come: across (uchramoq), up with (taklif qilmoq), out (chiqmoq)
+- bring: up (tarbiyalamoq), about (sabab bo'lmoq), out (chiqarmoq)
+- go: off (portlamoq/o'chmoq), through (boshdan o'tkazmoq), on (davom etmoq)
+
+**Collocations:**
+- make: a decision, an effort, progress, a mistake, friends, a difference
+- do: homework, research, exercise, damage, business, a favor
+- have: a meal, a break, fun, a conversation, an impact, time
+- take: notes, a photo, a risk, a step, action, part, care
+
+**Confusing word pairs:**
+- affect (ta'sir qilmoq — fe'l) vs effect (ta'sir — ot)
+- accept (qabul qilmoq) vs except (bundan tashqari)
+- advice (maslahat — ot) vs advise (maslahat bermoq — fe'l)
+- rise (ko'tarilmoq — o'zlik) vs raise (ko'tarmoq — o'timli)
+- lay (qo'ymoq — o'timli) vs lie (yotmoq — o'zlik)
+- quite (ancha) vs quiet (jim)
+- lend (qarz bermoq) vs borrow (qarz olmoq)
+- say vs tell: say something / tell someone something
+
+**So'z yasalishi (Word Formation):**
+- Suffixes (ot): -tion/-sion, -ment, -ness, -ity/-ty, -er/-or/-ist, -ance/-ence, -ship, -hood
+- Suffixes (sifat): -ful, -less, -ous/-ious, -able/-ible, -al/-ial, -ic, -ive, -ish
+- Suffixes (ravish): -ly
+- Prefixes: un-, dis-, im-/in-/ir-/il- (inkor), re- (qayta), over- (ortiqcha), under- (kam), mis- (noto'g'ri), pre- (oldin), post- (keyin)
+
+### 4️⃣ WRITING — Yozish
+- **Vaqt**: ~45 daqiqa | **Vazifalar**: 2 ta | **Ball**: 30
+- **Task 1** (~15 daqiqa, 12–15 ball): Qisqa yozma — elektron xat (formal/informal email), xabar yoki izoh
+- **Task 2** (~30 daqiqa, 15–18 ball): Esse — fikr bildirish (opinion essay), muammo-yechim (problem-solution), ikki tomonlama (discuss both views)
+- **Baholash mezoni**:
+  - Vazifani bajarish (Task achievement)
+  - Uyg'unlik va bog'liqlik (Coherence & Cohesion)
+  - Leksik boylik (Lexical Resource)
+  - Grammatik to'g'rilik va xilma-xillik
+
+**Esse tuzilmasi:**
+- Introduction: mavzuni kiritish + thesis statement
+- Body paragraph 1: asosiy fikr + misol + izohlash
+- Body paragraph 2: ikkinchi fikr + qarshi nuqtai nazar (discuss essays uchun)
+- Conclusion: xulosalash + muallif pozitsiyasi
+
+**Foydali linking words:**
+- Qo'shish: Furthermore, Moreover, In addition, Besides
+- Qarama-qarshi: However, Nevertheless, On the other hand, Although, Despite
+- Sabab: Because, Since, Due to, As a result of
+- Natija: Therefore, Thus, Consequently, As a result
+- Misol: For example, For instance, Such as, In particular
+
+### 5️⃣ SPEAKING — Gapirish
+- **Vaqt**: ~15 daqiqa | **Qismlar**: 3 ta | **Ball**: 30 | (alohida kun)
+- **Part 1** (4–5 daqiqa): O'zingiz haqida, kundalik hayot, qiziqishlar — oddiy savollar
+- **Part 2** (3–4 daqiqa): Karta (cue card) asosida monolog — 1 daqiqa tayyorlanish, 2 daqiqa gapirish
+- **Part 3** (4–5 daqiqa): Part 2 mavzusiga bog'liq chuqur muhokama — fikr bildirish, solishtirishlar
+- **Baholash mezoni**:
+  - Ravonlik (Fluency & Coherence)
+  - Leksik boylik (Lexical Resource)
+  - Grammatik to'g'rilik (Grammatical Range & Accuracy)
+  - Talaffuz (Pronunciation)
+
+**Foydali speaking iboralari:**
+- Fikr bildirishda: In my opinion, I believe, From my perspective, As far as I'm concerned
+- Rozi bo'lishda: I completely agree, That's a good point, Absolutely
+- Rozi bo'lmaslikda: I'm not sure about that, I see it differently, To some extent
+- Vaqt olishda: Let me think about that, That's an interesting question, Well…
+- Misol keltirishda: For example, For instance, A good example of this is…
+
+---
+
+## Baholash tizimi (Rasch modeli):
+| Daraja | Ball (%) | Ma'no |
+|--------|----------|-------|
+| **A+** | 70.0+ | Eng yuqori — C1 ga yaqin |
+| **A** | 65.0–69.9 | Yuqori B2 |
+| **B+** | 60.0–64.9 | O'rta B2 |
+| **B** | 55.0–59.9 | Quyi B2 |
+| **C+** | 50.0–54.9 | Yuqori B1 |
+| **C** | 46.0–49.9 | O'rta B1 |
+
+- OTMga kirish uchun B2 sertifikati maksimal ball beradi
+- Magistratura uchun filologiya ixtisosliklarida C1 talab qilinadi
+- Sertifikat 2 yil amal qiladi
+
+---
+
+## O'qitish uslubi (Ingliz tili uchun):
+- Grammatika qoidasini avval O'ZBEK TILIDA tushuntir → keyin inglizcha formula → keyin 3+ misol
+- Zamonlarni qiyoslab o'rgat: "Present Perfect vs Past Simple" — farqini O'zbek tilida izohlа
+- Xatoni shunday to'g'irla: "❌ He go school → ✅ He goes to school (Present Simple: he/she/it + V+s)"
+- O'quvchi inglizcha yozsa — xatolarni sanab chiqma, 2–3 eng muhimini tushuntir
+- Yangi so'z: tarjima + misol + sinonim/antonim + word family (act → action → active → actively)
+- Speaking uchun: javobni kengaytirish usulini o'rgat (1 so'z emas, 2–3 gap)
 
 ## Mock test strategiyasi:
-- 6 blokdan aralashtir: har blokdan 2–3 ta savol
-- Y-1 formatida ber (A/B/C/D variantlar)
-- Gap to'ldirish (fill in the blank) va xato tuzatish (error correction) ko'p chiqadi
-- Test natijasida — qaysi grammar qoidasida xato ko'p ekanini aniqla`
+- **Grammatika/Leksika testida**: gap filling (60%), word formation (20%), error correction (20%)
+- **Reading testida**: True/False/Not Given savollari eng ko'p chiqadi — "Not Given" ni to'g'ri ajratishni o'rgat
+- **Listening testida**: savollarni OLDIN o'qib chiqishni mashq qildir
+- **Writing testida**: vaqtni taqsimlashni o'rgat — Task 1 (15 min) + Task 2 (30 min)
+- Test natijasida: qaysi section zaifligini aniqla va o'sha bo'limdan qo'shimcha mashq ber`
     }
 
     // Default: Matematika
