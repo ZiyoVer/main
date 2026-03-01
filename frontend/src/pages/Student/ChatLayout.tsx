@@ -558,10 +558,27 @@ export default function ChatLayout() {
         const score = questions.filter((q: any, i: number) => testAnswers[i] === q.correct).length
         const summary = `--- YANGI TEST NATIJASI (bu mustaqil test) ---\nJami savol: ${questions.length}\nTo'g'ri javoblar: ${score}/${questions.length}\n\n${results}\n\nFaqat shu ${questions.length} ta savol bo'yicha tahlil qil va qaysi mavzularni qayta o'rganishim kerakligini ayt. Oldingi testlar bilan aralashma.`
         const displayMsg = `📊 Test natijasi: ${score}/${questions.length} — AI tahlil qilmoqda...`
-        if (chatId) setTimeout(() => {
-            setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: displayMsg, createdAt: new Date().toISOString() }])
-            streamToChat(chatId, summary, displayMsg)
-        }, 500)
+
+        if (chatId) {
+            // Chat allaqachon ochiq — to'g'ridan-to'g'ri yubor
+            setTimeout(() => {
+                setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: displayMsg, createdAt: new Date().toISOString() }])
+                streamToChat(chatId, summary, displayMsg)
+            }, 500)
+        } else {
+            // Chat yo'q — yangi chat ochib, o'sha yerga yubor
+            setTimeout(async () => {
+                try {
+                    const data = await fetchApi('/chat/new', { method: 'POST', body: JSON.stringify({ title: 'Test tahlili', subject: profile?.subject }) })
+                    await loadChats()
+                    nav(`/chat/${data.id}`)
+                    setTimeout(() => {
+                        setMessages([{ id: 'temp-u', role: 'user', content: displayMsg, createdAt: new Date().toISOString() }])
+                        streamToChat(data.id, summary, displayMsg)
+                    }, 300)
+                } catch { }
+            }, 500)
+        }
         // Public test bo'lsa backendga ham yuborish (Rasch tracking)
         if (activeTestId && activeTestQuestions.length > 0) {
             const backendAnswers = activeTestQuestions.map((q: any, i: number) => ({
