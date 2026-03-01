@@ -5,12 +5,24 @@ import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
+import katex from 'katex'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 
 interface Chat { id: string; title: string; subject?: string; updatedAt: string }
 interface Msg { id: string; role: string; content: string; createdAt: string }
-interface Profile { onboardingDone: boolean; subject?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string; totalTests?: number; avgScore?: number }
+interface Profile { onboardingDone: boolean; subject?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string; totalTests?: number; avgScore?: number; abilityLevel?: number }
+
+// Test paneli uchun inline KaTeX renderer (ReactMarkdown ishlatmaymiz, tez va engil)
+function MathText({ text }: { text: string }) {
+    if (!text?.includes('$')) return <>{text}</>
+    try {
+        const html = text
+            .replace(/\$\$([^$]+)\$\$/g, (_, m) => katex.renderToString(m.trim(), { displayMode: true, throwOnError: false }))
+            .replace(/\$([^$\n]+)\$/g, (_, m) => katex.renderToString(m.trim(), { throwOnError: false }))
+        return <span dangerouslySetInnerHTML={{ __html: html }} />
+    } catch { return <>{text}</> }
+}
 
 // MdMessage komponentni tashqarida va memo bilan ta'riflaymiz —
 // shunda har keystrokeda re-render bo'lmaydi (ReactMarkdown+KaTeX qimmat!)
@@ -135,6 +147,7 @@ export default function ChatLayout() {
     const [showOnboarding, setShowOnboarding] = useState(false)
     const [sideTab, setSideTab] = useState<'chats' | 'tests' | 'progress'>('chats')
     const [publicTests, setPublicTests] = useState<any[]>([])
+    const [myResults, setMyResults] = useState<any[]>([])
     const [stats, setStats] = useState({ chats: 0, messages: 0, streak: 0 })
     const [onboardingForm, setOnboardingForm] = useState({
         subject: 'Matematika', targetScore: 80, examDate: '',
@@ -185,7 +198,7 @@ export default function ChatLayout() {
         return () => window.removeEventListener('resize', checkWidth)
     }, [])
 
-    useEffect(() => { loadChats(); loadProfile(); loadPublicTests() }, [])
+    useEffect(() => { loadChats(); loadProfile(); loadPublicTests(); loadMyResults() }, [])
     useEffect(() => { if (chatId) loadMessages(chatId) }, [chatId])
 
     // Panel drag-to-resize (flashcard + test)
@@ -230,6 +243,10 @@ export default function ChatLayout() {
 
     async function loadPublicTests() {
         try { setPublicTests(await fetchApi('/tests/public')) } catch { }
+    }
+
+    async function loadMyResults() {
+        try { setMyResults(await fetchApi('/tests/my-results')) } catch { }
     }
 
     async function saveOnboarding(e: React.FormEvent) {
@@ -677,6 +694,76 @@ export default function ChatLayout() {
                                 </div>
                             </div>
                         )}
+                        {/* Test statistikasi */}
+                        {(() => {
+                            const abilityLevel = profile?.abilityLevel ?? 0
+                            const abilityPct = Math.round(((abilityLevel + 3) / 6) * 100)
+                            const abilityLabel = abilityLevel >= 1.5 ? 'Yuqori' : abilityLevel >= 0 ? "O'rta" : abilityLevel >= -1.5 ? 'Past' : 'Juda past'
+                            const abilityColor = abilityLevel >= 1.5 ? 'from-emerald-500 to-teal-400' : abilityLevel >= 0 ? 'from-blue-500 to-cyan-400' : abilityLevel >= -1.5 ? 'from-amber-400 to-orange-400' : 'from-red-400 to-rose-400'
+                            return (
+                                <>
+                                {/* Bilim darajasi (Rasch) */}
+                                <div className="bg-white rounded-xl p-3 border border-gray-100">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <p className="text-[11px] font-semibold text-gray-400 uppercase">Bilim darajasi</p>
+                                        <span className="text-[11px] font-semibold text-gray-600">{abilityLabel}</span>
+                                    </div>
+                                    <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden mb-1">
+                                        <div className={`h-full rounded-full bg-gradient-to-r ${abilityColor} transition-all duration-500`} style={{ width: `${abilityPct}%` }} />
+                                    </div>
+                                    <p className="text-[10px] text-gray-300 text-right">{abilityPct}% · Rasch modeli</p>
+                                </div>
+                                {/* Testlar statistikasi */}
+                                {(profile?.totalTests || 0) > 0 && (
+                                    <div className="bg-white rounded-xl p-3 border border-gray-100">
+                                        <p className="text-[11px] font-semibold text-gray-400 uppercase mb-2">Testlar natijasi</p>
+                                        <div className="grid grid-cols-2 gap-2 mb-3">
+                                            <div className="bg-gray-50 rounded-lg p-2 text-center">
+                                                <p className="text-base font-bold text-gray-900 tabular-nums">{profile?.totalTests || 0}</p>
+                                                <p className="text-[10px] text-gray-400">Jami testlar</p>
+                                            </div>
+                                            <div className="bg-gray-50 rounded-lg p-2 text-center">
+                                                <p className={`text-base font-bold tabular-nums ${(profile?.avgScore || 0) >= 70 ? 'text-emerald-600' : (profile?.avgScore || 0) >= 50 ? 'text-amber-600' : 'text-red-500'}`}>{Math.round(profile?.avgScore || 0)}%</p>
+                                                <p className="text-[10px] text-gray-400">O'rtacha ball</p>
+                                            </div>
+                                        </div>
+                                        {/* Score trend mini bar chart */}
+                                        {myResults.length > 1 && (
+                                            <div>
+                                                <p className="text-[10px] text-gray-400 mb-1.5">So'nggi {Math.min(myResults.length, 8)} ta test trendi</p>
+                                                <div className="flex items-end gap-1 h-10">
+                                                    {myResults.slice(0, 8).reverse().map((r: any, i: number) => {
+                                                        const barH = Math.max(3, Math.round(r.score * 0.38))
+                                                        const barColor = r.score >= 70 ? 'bg-emerald-400' : r.score >= 50 ? 'bg-amber-400' : 'bg-red-400'
+                                                        return (
+                                                            <div key={i} className="flex-1 flex items-end" title={`${r.test?.title || 'Test'}: ${Math.round(r.score)}%`}>
+                                                                <div className={`w-full rounded-sm ${barColor}`} style={{ height: `${barH}px` }} />
+                                                            </div>
+                                                        )
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                {/* So'nggi testlar ro'yxati */}
+                                {myResults.length > 0 && (
+                                    <div className="bg-white rounded-xl p-3 border border-gray-100">
+                                        <p className="text-[11px] font-semibold text-gray-400 uppercase mb-2">So'nggi testlar</p>
+                                        <div className="space-y-2">
+                                            {myResults.slice(0, 5).map((r: any) => (
+                                                <div key={r.id} className="flex items-center gap-2">
+                                                    <div className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${r.score >= 70 ? 'bg-emerald-400' : r.score >= 50 ? 'bg-amber-400' : 'bg-red-400'}`} />
+                                                    <span className="text-[12px] text-gray-700 flex-1 truncate">{r.test?.title || 'Test'}</span>
+                                                    <span className={`text-[11px] font-semibold tabular-nums flex-shrink-0 ${r.score >= 70 ? 'text-emerald-600' : r.score >= 50 ? 'text-amber-600' : 'text-red-500'}`}>{Math.round(r.score)}%</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                </>
+                            )
+                        })()}
                     </div>
                 )}
 
@@ -930,7 +1017,7 @@ export default function ChatLayout() {
                             <div className={testPanelMaximized ? 'max-w-3xl mx-auto space-y-4' : 'space-y-4'}>
                             {questions.map((q: any, i: number) => (
                                 <div key={i} className="bg-gray-50 rounded-xl p-4">
-                                    <p className="text-[13px] font-medium text-gray-900 mb-3">{i + 1}. {q.q}</p>
+                                    <p className="text-[13px] font-medium text-gray-900 mb-3">{i + 1}. <MathText text={q.q} /></p>
                                     <div className="space-y-2">
                                         {(['a', 'b', 'c', 'd'] as const).map(opt => {
                                             const isSelected = testAnswers[i] === opt
@@ -947,7 +1034,7 @@ export default function ChatLayout() {
                                             }
                                             return (
                                                 <button key={opt} disabled={testSubmitted} onClick={() => setTestAnswers({ ...testAnswers, [i]: opt })} className={cls}>
-                                                    <span className="font-semibold mr-1.5">{opt.toUpperCase()})</span> {q[opt]}
+                                                    <span className="font-semibold mr-1.5">{opt.toUpperCase()})</span> <MathText text={q[opt]} />
                                                     {testSubmitted && isCorrect && <span className="ml-1">✅</span>}
                                                     {testSubmitted && isSelected && !isCorrect && <span className="ml-1">❌</span>}
                                                 </button>
