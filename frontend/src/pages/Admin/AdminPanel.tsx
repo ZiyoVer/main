@@ -80,7 +80,7 @@ export default function AdminPanel() {
     ]
 
     return (
-        <div className="min-h-screen bg-[#fafafa]">
+        <div className="h-screen bg-[#fafafa] overflow-y-auto">
             {/* Header */}
             <header className="bg-white/90 backdrop-blur-xl border-b border-gray-100 sticky top-0 z-40">
                 <div className="max-w-6xl mx-auto flex items-center justify-between py-3 px-5">

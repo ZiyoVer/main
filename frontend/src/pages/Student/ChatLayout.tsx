@@ -14,7 +14,7 @@ interface Profile { onboardingDone: boolean; subject?: string; examDate?: string
 
 // MdMessage komponentni tashqarida va memo bilan ta'riflaymiz —
 // shunda har keystrokeda re-render bo'lmaydi (ReactMarkdown+KaTeX qimmat!)
-const MdMessage = memo(({ content, onOpenTest }: { content: string; onOpenTest: (s: string) => void }) => (
+const MdMessage = memo(({ content, onOpenTest, isStreaming }: { content: string; onOpenTest: (s: string) => void; isStreaming?: boolean }) => (
     <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]} components={{
         p: ({ children }) => <p className="mb-2.5 last:mb-0 leading-relaxed">{children}</p>,
         strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
@@ -43,9 +43,11 @@ const MdMessage = memo(({ content, onOpenTest }: { content: string; onOpenTest: 
                                 <p className="text-xs text-gray-500">Yon oynada yechishingiz mumkin</p>
                             </div>
                         </div>
-                        <button onClick={() => onOpenTest(jsonStr)} className="h-9 px-4 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition flex items-center gap-2">
-                            <BookOpen className="h-4 w-4" /> Testni ochish
-                        </button>
+                        {!isStreaming && (
+                            <button onClick={() => onOpenTest(jsonStr)} className="h-9 px-4 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition flex items-center gap-2">
+                                <BookOpen className="h-4 w-4" /> Testni ochish
+                            </button>
+                        )}
                     </div>
                 )
             }
@@ -102,6 +104,10 @@ export default function ChatLayout() {
     // Yechilgan testlar IDlarini localStorage da saqlaymiz
     const completedTestIdsRef = useRef<Set<string>>((() => {
         try { return new Set(JSON.parse(localStorage.getItem('msert_done_tests') || '[]')) } catch { return new Set() }
+    })())
+    // AI tomonidan yaratilgan yechilgan testlarni saqlash (JSON kaliti bo'yicha)
+    const completedAiTestsRef = useRef<Set<string>>((() => {
+        try { return new Set(JSON.parse(localStorage.getItem('msert_done_ai_tests') || '[]')) } catch { return new Set() }
     })())
 
     // Auto-close sidebar on mobile
@@ -307,8 +313,23 @@ export default function ChatLayout() {
         try { localStorage.setItem('msert_done_tests', JSON.stringify([...completedTestIdsRef.current])) } catch { }
     }
 
+    function markAiTestCompleted(key: string) {
+        completedAiTestsRef.current.add(key)
+        try { localStorage.setItem('msert_done_ai_tests', JSON.stringify([...completedAiTestsRef.current])) } catch { }
+    }
+
     // Open test in side panel
     const openTestPanel = useCallback((jsonStr: string) => {
+        const aiKey = jsonStr.substring(0, 120)
+        if (completedAiTestsRef.current.has(aiKey)) {
+            // Allaqachon yechilgan — faqat ko'rish rejimi
+            setTestPanel(jsonStr)
+            setTestAnswers({})
+            setTestSubmitted(true)
+            setTestReadOnly(true)
+            setTestPanelMaximized(false)
+            return
+        }
         setTestPanel(jsonStr)
         setTestAnswers({})
         setTestSubmitted(false)
@@ -383,7 +404,7 @@ export default function ChatLayout() {
             return `${i + 1}. ${q.q} — Javob: ${(testAnswers[i] || '?').toUpperCase()}) ${correct ? '✅ to\'g\'ri' : '❌ xato (to\'g\'ri: ' + q.correct.toUpperCase() + ')'}`
         }).join('\n')
         const score = questions.filter((q: any, i: number) => testAnswers[i] === q.correct).length
-        const summary = `Test natijasi: ${score}/${questions.length}\n\n${results}\n\nIltimos natijalarimni tahlil qiling va qaysi mavzularni qayta o'rganishim kerakligini ayting.`
+        const summary = `--- YANGI TEST NATIJASI (bu mustaqil test) ---\nJami savol: ${questions.length}\nTo'g'ri javoblar: ${score}/${questions.length}\n\n${results}\n\nFaqat shu ${questions.length} ta savol bo'yicha tahlil qil va qaysi mavzularni qayta o'rganishim kerakligini ayt. Oldingi testlar bilan aralashma.`
         if (chatId) setTimeout(() => quickAction(summary), 500)
         // Public test bo'lsa backendga ham yuborish (Rasch tracking)
         if (activeTestId && activeTestQuestions.length > 0) {
@@ -393,6 +414,9 @@ export default function ChatLayout() {
             })).filter((a: any) => a.selectedIdx !== -1)
             fetchApi(`/tests/${activeTestId}/submit`, { method: 'POST', body: JSON.stringify({ answers: backendAnswers }) }).catch(() => {})
             markTestCompleted(activeTestId)
+        } else if (testPanel) {
+            // AI tomonidan yaratilgan test — yechilgan deb belgilaymiz
+            markAiTestCompleted(testPanel.substring(0, 120))
         }
     }
 
@@ -636,7 +660,7 @@ export default function ChatLayout() {
                                 <div className="flex gap-3">
                                     <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 flex-shrink-0 flex items-center justify-center mt-0.5"><BrainCircuit className="h-3.5 w-3.5 text-white" /></div>
                                     <div className="flex-1 text-[14px] leading-relaxed text-gray-800 py-1">
-                                        <MdMessage content={streaming} onOpenTest={openTestPanel} />
+                                        <MdMessage content={streaming} onOpenTest={openTestPanel} isStreaming={true} />
                                         {/```test/.test(streaming) && !/```test[\s\S]*?```/.test(streaming) && (
                                             <div className="mt-3 flex items-center gap-2 text-[13px] text-blue-600 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5">
                                                 <div className="h-4 w-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
