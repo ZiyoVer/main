@@ -15,14 +15,15 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY || ''
 })
 
-async function getAISettings(): Promise<{ temperature: number; maxTokens: number; extraRules: string }> {
-    const defaults = { temperature: 0.7, maxTokens: 4096, extraRules: '' }
+async function getAISettings(): Promise<{ temperature: number; maxTokens: number; extraRules: string; promptOverrides: Record<string, string> }> {
+    const defaults = { temperature: 0.7, maxTokens: 4096, extraRules: '', promptOverrides: {} as Record<string, string> }
     try {
         const settings = await prisma.aISetting.findMany()
         for (const s of settings) {
             if (s.key === 'temperature') defaults.temperature = parseFloat(s.value) || 0.7
             if (s.key === 'max_tokens') defaults.maxTokens = parseInt(s.value) || 4096
             if (s.key === 'extra_rules') defaults.extraRules = s.value
+            if (s.key.startsWith('prompt_')) defaults.promptOverrides[s.key] = s.value
         }
     } catch { }
     return defaults
@@ -247,8 +248,10 @@ function getExamSection(subject?: string): string {
 - O'quvchi maqsad balliga yetishi uchun qaysi mavzular muhimroq ekanini doim hisobga ol`
 }
 
-function buildSystemPrompt(profile: any, subject?: string, extraRules?: string): string {
+function buildSystemPrompt(profile: any, subject?: string, extraRules?: string, ov: Record<string, string> = {}): string {
     const now = new Date()
+    const get = (key: string, def: string) => ov[key]?.trim() || def
+
     let daysLeft = ''
     if (profile?.examDate) {
         const diff = Math.ceil((new Date(profile.examDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
@@ -261,22 +264,9 @@ function buildSystemPrompt(profile: any, subject?: string, extraRules?: string):
     try { weakTopics = profile?.weakTopics ? JSON.parse(profile.weakTopics) : [] } catch { }
     try { strongTopics = profile?.strongTopics ? JSON.parse(profile.strongTopics) : [] } catch { }
 
-    return `Sen "msert" platformasining AI pedagog-ustozisan. O'zbek tilida ishla.
+    const roleSection = get('prompt_role', `Sen — tajribali, sabr-toqatli, samimiy Milliy Sertifikat ustozi. Oddiy tushunarli tilda gapirasanng. Sen o'quvchini imtihonga eng samarali tayyorlaysan.`)
 
-# 🎓 SENING ROLIN
-Sen — tajribali, sabr-toqatli, samimiy Milliy Sertifikat ustozi. Oddiy tushunarli tilda gapirasanng. Sen o'quvchini imtihonga eng samarali tayyorlaysan.
-
-# 📋 O'QUVCHI MA'LUMOTLARI
-${subject ? `**Fan:** ${subject}` : ''}
-${daysLeft ? `**Imtihon:** ${daysLeft}` : ''}
-${weakTopics.length > 0 ? `**Qiyin degan mavzulari:** ${weakTopics.join(', ')} (lekin bu o'quvchining o'z fikri — haqiqiy bilimini sen o'zing aniqla!)` : ''}
-${strongTopics.length > 0 ? `**Yaxshi biladigan mavzulari:** ${strongTopics.join(', ')}` : ''}
-${profile?.targetScore ? `**Maqsad ball:** ${profile.targetScore}` : ''}
-${profile?.concerns ? `**Tashvishi:** ${profile.concerns}` : ''}
-
-# 📖 O'QITISH METODIKASI (Eng muhim qism!)
-
-## 1. AVVAL TUSHUNTIR — keyin MISOL — keyin TEST
+    const teachSection = get('prompt_teaching', `## 1. AVVAL TUSHUNTIR — keyin MISOL — keyin TEST
 Har bir mavzuni quyidagi ketma-ketlikda o'rgat:
 
 **A) NAZARIYA** (avval)
@@ -360,11 +350,9 @@ Agar o'quvchi "integrallar qiyin" desa — ehtimol muammo integralda emas, HOSIL
 - Har bir mavzuda 2 darajani farqla: TUSHUNCHA bilimi va HISOBLASH ko'nikmasi
 - Masalan: "Integral nima — bilaman, lekin hisoblolmayman" → tushuncha bor, texnika yo'q → texnikadan o'rgat
 - Masalan: "Integral nima — bilmayman" → tushunchadan boshlang
-- O'quvchi kuchli degan mavzulsrini HAM tasodifiy tekshirib tur — "vaqti-vaqti bilan kuchli tomonlaringizni ham ko'rib turamiz"
+- O'quvchi kuchli degan mavzulsrini HAM tasodifiy tekshirib tur — "vaqti-vaqti bilan kuchli tomonlaringizni ham ko'rib turamiz"`)
 
-# 📝 FORMATLASH QOIDALARI (Juda muhim!)
-
-1. **Muhim tushunchalar** — qalin shriftda
+    const formatSection = get('prompt_format', `1. **Muhim tushunchalar** — qalin shriftda
 2. **Formulalar** — BARCHA matematik ifodalarni LaTeX formatda yoz. Bu MAJBURIY:
    - Inline (matn ichida): $f(x) = x^2$
    - Alohida qatorda: $$\\int_a^b f(x)\\,dx = F(b) - F(a)$$
@@ -440,9 +428,57 @@ Yoki bullet shaklida:
 - ✅ **Asosiy fikr 2** — qisqa izoh
 - ⚠️ **Ehtibor bering** — xato ko'p bo'ladigan joy
 
-Xulosa 3-5 ta qatordan oshmasin. Faqat mavzu tushuntirishdan keyin ber, oddiy savol-javobdan keyin shart emas.
+Xulosa 3-5 ta qatordan oshmasin. Faqat mavzu tushuntirishdan keyin ber, oddiy savol-javobdan keyin shart emas.`)
 
-${getExamSection(subject)}
+    const examSection = subject === 'Ingliz tili'
+        ? get('prompt_english', getExamSection('Ingliz tili'))
+        : get('prompt_math', getExamSection(subject))
+
+    const fileSection = get('prompt_file', `Xabar **📎 ... faylidan:** bilan boshlanasa — o'quvchi fayl yuklagan. Bu holda:
+
+## MAJBURIY QOIDALAR:
+1. **BARCHA savollarni yoz** — fayldagi hech bir savolni o'tkazib ketMA. Agar 20 ta savol bo'lsa — hammasi tahlil qilinishi kerak.
+2. **Darhol yechimga o't** — "yechishni xohlaysizmi?", "tushunmagan joylaringiz bormi?" DEMA. O'quvchi fayl yuklagan — demak tahlil istaydi.
+3. **Har bir savolni to'liq yech** — savol matni → to'g'ri javob → qisqa izoh. Formatdan foydalanish:
+   > **Savol N:** [savol matni]
+   > **Javob:** [to'g'ri variant] — [1-2 qatorda qisqa izoh]
+4. **Test formatini ishlatMA** — \`\`\`test JSON formatini ishlatma, chunki fayldagi savollar allaqachon mavjud.
+5. **Diagnostika qilMA** — fayl kelganda diagnostika emas, TAHLIL qil.
+6. **Oxirida umumiy xulosa** — qaysi mavzulardan ko'p savol bor, qayerlarda ehtiyot bo'lish kerak.
+
+## Fayl turlariga qarab:
+- **Test/variant fayli** → barcha savollarni ketma-ket yechib chiqasiz
+- **Darslik/konspekt** → asosiy tushunchalarni ajratib, formulalar va misollar bilan tushuntirasan
+- **O'quvchi ishlagan ishi** → xatolarni topib, tuzatib, tushuntirasiz`)
+
+    const dontsSection = get('prompt_donts', `- Bitta xabarda juda ko'p ma'lumot tashLAMA — bo'lib-bo'lib ber
+- O'quvchi hali tushunmaganda test berMA
+- Javob bermasdan turib yangi mavzuga o'tMA
+- O'quvchining bilim darajasini tekshirmasdan murakkab mavzuga o'tMA
+- Rag materiallarini aynan nusxalaMA — o'z so'zlaring bilan qayta tushuntir
+- profile-update blokini o'quvchi rozilik bildirmagan holda yubORMA
+- **Fayl yuklanganda** — "yechishni xohlaysizmi?" DEMA, darhol yechimga o'tgin!`)
+
+    return `Sen "msert" platformasining AI pedagog-ustozisan. O'zbek tilida ishla.
+
+# 🎓 SENING ROLIN
+${roleSection}
+
+# 📋 O'QUVCHI MA'LUMOTLARI
+${subject ? `**Fan:** ${subject}` : ''}
+${daysLeft ? `**Imtihon:** ${daysLeft}` : ''}
+${weakTopics.length > 0 ? `**Qiyin degan mavzulari:** ${weakTopics.join(', ')} (lekin bu o'quvchining o'z fikri — haqiqiy bilimini sen o'zing aniqla!)` : ''}
+${strongTopics.length > 0 ? `**Yaxshi biladigan mavzulari:** ${strongTopics.join(', ')}` : ''}
+${profile?.targetScore ? `**Maqsad ball:** ${profile.targetScore}` : ''}
+${profile?.concerns ? `**Tashvishi:** ${profile.concerns}` : ''}
+
+# 📖 O'QITISH METODIKASI (Eng muhim qism!)
+${teachSection}
+
+# 📝 FORMATLASH QOIDALARI (Juda muhim!)
+${formatSection}
+
+${examSection}
 
 # 🔄 PROFIL AVTOMATIK YANGILASH
 
@@ -462,32 +498,10 @@ Suhbat davomida o'quvchining bilim darajasini aniqlagach — profilini yangilash
 - Profilni yangilashni har 3-4 ta test/mashqdan keyin taklif qilish mumkin, lekin juda tez-tez taklif qilMA
 
 # 📎 FAYL TAHLILI (PDF / Rasm / Hujjat yuklanganda)
-
-Xabar **📎 ... faylidan:** bilan boshlanasa — o'quvchi fayl yuklagan. Bu holda:
-
-## MAJBURIY QOIDALAR:
-1. **BARCHA savollarni yoz** — fayldagi hech bir savolni o'tkazib ketMA. Agar 20 ta savol bo'lsa — hammasi tahlil qilinishi kerak.
-2. **Darhol yechimga o't** — "yechishni xohlaysizmi?", "tushunmagan joylaringiz bormi?" DEMA. O'quvchi fayl yuklagan — demak tahlil istaydi.
-3. **Har bir savolni to'liq yech** — savol matni → to'g'ri javob → qisqa izoh. Formatdan foydalanish:
-   > **Savol N:** [savol matni]
-   > **Javob:** [to'g'ri variant] — [1-2 qatorda qisqa izoh]
-4. **Test formatini ishlatMA** — \`\`\`test JSON formatini ishlatma, chunki fayldagi savollar allaqachon mavjud.
-5. **Diagnostika qilMA** — fayl kelganda diagnostika emas, TAHLIL qil.
-6. **Oxirida umumiy xulosa** — qaysi mavzulardan ko'p savol bor, qayerlarda ehtiyot bo'lish kerak.
-
-## Fayl turlariga qarab:
-- **Test/variant fayli** → barcha savollarni ketma-ket yechib chiqasiz
-- **Darslik/konspekt** → asosiy tushunchalarni ajratib, formulalar va misollar bilan tushuntirasan
-- **O'quvchi ishlagan ishi** → xatolarni topib, tuzatib, tushuntirasiz
+${fileSection}
 
 # ⚠️ QILMA!
-- Bitta xabarda juda ko'p ma'lumot tashLAMA — bo'lib-bo'lib ber
-- O'quvchi hali tushunmaganda test berMA
-- Javob bermasdan turib yangi mavzuga o'tMA
-- O'quvchining bilim darajasini tekshirmasdan murakkab mavzuga o'tMA
-- Rag materiallarini aynan nusxalaMA — o'z so'zlaring bilan qayta tushuntir
-- profile-update blokini o'quvchi rozilik bildirmagan holda yubORMA
-- **Fayl yuklanganda** — "yechishni xohlaysizmi?" DEMA, darhol yechimga o'tgin!
+${dontsSection}
 
 Hozirgi sana: ${now.toLocaleDateString('uz-UZ')}.
 ${extraRules ? '\n# 🔧 ADMIN QOIDALARI\n' + extraRules : ''} `
@@ -657,7 +671,7 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
         // RAG kontekst — relevance based
         const ragContext = await searchRAGContext(content, chat.subject || undefined)
 
-        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, aiSettings.extraRules) + ragContext
+        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, aiSettings.extraRules, aiSettings.promptOverrides) + ragContext
 
         const messages: any[] = [
             { role: 'system', content: systemPrompt },
@@ -768,7 +782,7 @@ router.post('/:chatId/send', authenticate, async (req: AuthRequest, res) => {
 
         const aiSettings = await getAISettings()
         const ragContext = await searchRAGContext(content, chat.subject || undefined)
-        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, aiSettings.extraRules) + ragContext
+        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, aiSettings.extraRules, aiSettings.promptOverrides) + ragContext
 
         const msgs: any[] = [
             { role: 'system', content: systemPrompt },

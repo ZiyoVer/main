@@ -17,7 +17,10 @@ export default function AdminPanel() {
     const [docSubject, setDocSubject] = useState('Matematika')
     const [msg, setMsg] = useState('')
     const [creating, setCreating] = useState(false)
-    const [aiConfig, setAiConfig] = useState({ temperature: '0.7', max_tokens: '4096', extra_rules: '' })
+    const [aiConfig, setAiConfig] = useState({ temperature: '0.7', max_tokens: '4096', extra_rules: '', prompt_role: '', prompt_teaching: '', prompt_format: '', prompt_math: '', prompt_english: '', prompt_file: '', prompt_donts: '' })
+    const [promptSection, setPromptSection] = useState('extra_rules')
+    const [defaults, setDefaults] = useState<Record<string, string>>({})
+    const [showDefault, setShowDefault] = useState(false)
     const [aiSaving, setAiSaving] = useState(false)
     const [aiMsg, setAiMsg] = useState('')
     const [loading, setLoading] = useState(true)
@@ -30,6 +33,7 @@ export default function AdminPanel() {
         try { setDocs(await fetchApi('/documents/list')) } catch { setDocs([]) }
         try { setTests(await fetchApi('/tests/all')) } catch { setTests([]) }
         try { const ai = await fetchApi('/ai-settings'); setAiConfig(ai) } catch { }
+        try { const d = await fetchApi('/ai-settings/defaults'); setDefaults(d) } catch { }
         setLoading(false)
     }
 
@@ -339,54 +343,127 @@ export default function AdminPanel() {
                 )}
 
                 {/* === AI SETTINGS === */}
-                {tab === 'ai' && (
-                    <div className="max-w-xl">
-                        <div className="bg-white rounded-xl border border-gray-100 p-5 space-y-5">
-                            <div className="flex items-center gap-3">
-                                <div className="h-9 w-9 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
-                                    <Bot className="h-4.5 w-4.5" />
+                {tab === 'ai' && (() => {
+                    const SECTIONS = [
+                        { key: 'extra_rules',     label: 'Qo\'shimcha qoidalar', desc: 'Har doim qo\'shiladigan ko\'rsatmalar' },
+                        { key: 'prompt_role',     label: 'Rol va shaxsiyat',     desc: '🎓 AI kim — "Sen msert platformasi..."' },
+                        { key: 'prompt_teaching', label: 'O\'qitish metodikasi', desc: '📖 Avval tushuntir, dialog, diagnostika' },
+                        { key: 'prompt_format',   label: 'Formatlash qoidalari', desc: '📝 LaTeX, jadval, flashcard, test format' },
+                        { key: 'prompt_math',     label: 'Matematika bo\'limi',  desc: '🏆 Milliy Sertifikat Matematika' },
+                        { key: 'prompt_english',  label: 'Ingliz tili bo\'limi', desc: '🏆 Milliy Sertifikat Ingliz tili' },
+                        { key: 'prompt_file',     label: 'Fayl tahlili',         desc: '📎 PDF/rasm yuklanganda' },
+                        { key: 'prompt_donts',    label: 'Qilma qoidalar',       desc: '⚠️ AI qilmasligi kerak narsalar' },
+                    ]
+                    const activeSection = SECTIONS.find(s => s.key === promptSection)!
+                    const currentVal = (aiConfig as any)[promptSection] as string
+                    return (
+                        <div className="max-w-xl space-y-4">
+                            {/* Main AI settings card */}
+                            <div className="bg-white rounded-xl border border-gray-100 p-5 space-y-5">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-9 w-9 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+                                        <Bot className="h-4.5 w-4.5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-semibold text-gray-900 text-sm">AI Xulq-atvor sozlamalari</h3>
+                                        <p className="text-xs text-gray-400">AI ustozning javob berish uslubini sozlang</p>
+                                    </div>
+                                </div>
+                                {aiMsg && <div className={`text-sm px-4 py-2.5 rounded-xl ${aiMsg.includes('✓') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>{aiMsg}</div>}
+                                <div>
+                                    <label className="text-sm font-medium text-gray-700 block mb-1.5">Harorat (Temperature): {aiConfig.temperature}</label>
+                                    <input type="range" min="0" max="2" step="0.1" value={aiConfig.temperature}
+                                        onChange={e => setAiConfig({ ...aiConfig, temperature: e.target.value })}
+                                        className="w-full accent-blue-600" />
+                                    <div className="flex justify-between text-[11px] text-gray-400 mt-1"><span>0 — aniq</span><span>1 — kreativ</span><span>2 — juda kreativ</span></div>
                                 </div>
                                 <div>
-                                    <h3 className="font-semibold text-gray-900 text-sm">AI Xulq-atvor sozlamalari</h3>
-                                    <p className="text-xs text-gray-400">AI ustozning javob berish uslubini sozlang</p>
+                                    <label className="text-sm font-medium text-gray-700 block mb-1.5">Max tokenlar</label>
+                                    <input type="number" min="1000" max="8000" step="500" value={aiConfig.max_tokens}
+                                        onChange={e => setAiConfig({ ...aiConfig, max_tokens: e.target.value })}
+                                        className="w-full h-10 px-3.5 rounded-lg border border-gray-200 focus:border-blue-500 outline-none text-sm" />
+                                    <p className="text-[11px] text-gray-400 mt-1">AI javobining maksimal uzunligi (1000-8000)</p>
                                 </div>
+                                <button onClick={async () => {
+                                    setAiSaving(true); setAiMsg('')
+                                    try {
+                                        await fetchApi('/ai-settings', { method: 'PUT', body: JSON.stringify(aiConfig) })
+                                        setAiMsg('✓ Sozlamalar saqlandi!')
+                                    } catch (e: any) { setAiMsg(e.message) }
+                                    setAiSaving(false)
+                                }} disabled={aiSaving} className="w-full h-10 rounded-lg text-sm font-semibold text-white bg-gray-900 hover:bg-gray-800 transition disabled:opacity-50 flex items-center justify-center gap-2">
+                                    <Save className="h-4 w-4" /> {aiSaving ? 'Saqlanmoqda...' : 'Sozlamalarni saqlash'}
+                                </button>
                             </div>
-                            {aiMsg && <div className={`text-sm px-4 py-2.5 rounded-xl ${aiMsg.includes('✓') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>{aiMsg}</div>}
-                            <div>
-                                <label className="text-sm font-medium text-gray-700 block mb-1.5">Harorat (Temperature): {aiConfig.temperature}</label>
-                                <input type="range" min="0" max="2" step="0.1" value={aiConfig.temperature}
-                                    onChange={e => setAiConfig({ ...aiConfig, temperature: e.target.value })}
-                                    className="w-full accent-blue-600" />
-                                <div className="flex justify-between text-[11px] text-gray-400 mt-1"><span>0 — aniq</span><span>1 — kreativ</span><span>2 — juda kreativ</span></div>
+
+                            {/* Prompt sections editor card */}
+                            <div className="bg-white rounded-xl border border-gray-100 p-5 space-y-4">
+                                <div>
+                                    <h3 className="font-semibold text-gray-900 text-sm mb-0.5">Prompt bo'limlari (override)</h3>
+                                    <p className="text-[11px] text-gray-400">Bo'sh = standart kod ishlatiladi. Matn yozsangiz — AI o'sha matndan foydalanadi.</p>
+                                </div>
+
+                                {/* Section chip tabs */}
+                                <div className="flex flex-wrap gap-1.5">
+                                    {SECTIONS.map(s => (
+                                        <button key={s.key} onClick={() => { setPromptSection(s.key); setShowDefault(false) }}
+                                            className={`px-2.5 py-1 rounded-lg text-[12px] font-medium transition border ${promptSection === s.key ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}`}>
+                                            {s.label}
+                                            {(aiConfig as any)[s.key] ? <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-blue-500 align-middle" /> : null}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Active section info */}
+                                <div>
+                                    <p className="text-[11px] text-gray-400 mb-2">{activeSection.desc}</p>
+                                    <textarea
+                                        value={currentVal}
+                                        onChange={e => setAiConfig({ ...aiConfig, [promptSection]: e.target.value } as any)}
+                                        rows={10}
+                                        placeholder={`Bo'sh qoldirsangiz standart "${activeSection.label}" bo'limi ishlatiladi...`}
+                                        className="w-full px-3.5 py-2.5 rounded-lg border border-gray-200 focus:border-blue-500 outline-none text-[13px] font-mono resize-y"
+                                    />
+                                </div>
+
+                                {/* Default view + clear */}
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={() => setShowDefault(v => !v)}
+                                            className="text-[12px] text-blue-600 hover:text-blue-700 font-medium">
+                                            {showDefault ? 'Yopish ▲' : 'Standartni ko\'rish ▼'}
+                                        </button>
+                                        {currentVal && (
+                                            <button onClick={() => { setAiConfig({ ...aiConfig, [promptSection]: '' } as any); setShowDefault(false) }}
+                                                className="text-[12px] text-red-500 hover:text-red-600 font-medium">
+                                                Tozalash
+                                            </button>
+                                        )}
+                                    </div>
+                                    {showDefault && defaults[promptSection] && (
+                                        <textarea
+                                            readOnly
+                                            value={defaults[promptSection]}
+                                            rows={8}
+                                            className="w-full px-3.5 py-2.5 rounded-lg border border-gray-100 bg-gray-50 text-[12px] font-mono text-gray-500 resize-y"
+                                        />
+                                    )}
+                                </div>
+
+                                <button onClick={async () => {
+                                    setAiSaving(true); setAiMsg('')
+                                    try {
+                                        await fetchApi('/ai-settings', { method: 'PUT', body: JSON.stringify(aiConfig) })
+                                        setAiMsg('✓ Sozlamalar saqlandi!')
+                                    } catch (e: any) { setAiMsg(e.message) }
+                                    setAiSaving(false)
+                                }} disabled={aiSaving} className="w-full h-10 rounded-lg text-sm font-semibold text-white bg-gray-900 hover:bg-gray-800 transition disabled:opacity-50 flex items-center justify-center gap-2">
+                                    <Save className="h-4 w-4" /> {aiSaving ? 'Saqlanmoqda...' : 'Sozlamalarni saqlash'}
+                                </button>
                             </div>
-                            <div>
-                                <label className="text-sm font-medium text-gray-700 block mb-1.5">Max tokenlar</label>
-                                <input type="number" min="1000" max="8000" step="500" value={aiConfig.max_tokens}
-                                    onChange={e => setAiConfig({ ...aiConfig, max_tokens: e.target.value })}
-                                    className="w-full h-10 px-3.5 rounded-lg border border-gray-200 focus:border-blue-500 outline-none text-sm" />
-                                <p className="text-[11px] text-gray-400 mt-1">AI javobining maksimal uzunligi (1000-8000)</p>
-                            </div>
-                            <div>
-                                <label className="text-sm font-medium text-gray-700 block mb-1.5">Qo'shimcha qoidalar</label>
-                                <textarea value={aiConfig.extra_rules}
-                                    onChange={e => setAiConfig({ ...aiConfig, extra_rules: e.target.value })}
-                                    rows={5} placeholder="Masalan: O'quvchilarga doimo motivatsion gaplar ayt..."
-                                    className="w-full px-3.5 py-2.5 rounded-lg border border-gray-200 focus:border-blue-500 outline-none text-sm resize-none" />
-                                <p className="text-[11px] text-gray-400 mt-1">Bu qoidalar AI system promptga qo'shiladi</p>
-                            </div>
-                            <button onClick={async () => {
-                                setAiSaving(true); setAiMsg('')
-                                try {
-                                    await fetchApi('/ai-settings', { method: 'PUT', body: JSON.stringify(aiConfig) })
-                                    setAiMsg('✓ Sozlamalar saqlandi!')
-                                } catch (e: any) { setAiMsg(e.message) }
-                                setAiSaving(false)
-                            }} disabled={aiSaving} className="w-full h-10 rounded-lg text-sm font-semibold text-white bg-gray-900 hover:bg-gray-800 transition disabled:opacity-50 flex items-center justify-center gap-2">
-                                <Save className="h-4 w-4" /> {aiSaving ? 'Saqlanmoqda...' : 'Sozlamalarni saqlash'}
-                            </button>
                         </div>
-                    </div>
-                )}
+                    )
+                })()}
             </div>
         </div>
     )
