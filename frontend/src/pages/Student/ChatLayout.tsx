@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
+import remarkGfm from 'remark-gfm'
 import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
 import katex from 'katex'
@@ -33,7 +34,7 @@ const MdMessage = memo(({ content, onOpenTest, isStreaming, onProfileUpdate, onO
     onProfileUpdate?: (data: { weakTopics?: string[]; strongTopics?: string[] }) => void
     onOpenFlash?: (jsonStr: string) => void
 }) => (
-    <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]} components={{
+    <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} components={{
         p: ({ children }) => <p className="mb-2.5 last:mb-0 leading-relaxed">{children}</p>,
         strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
         em: ({ children }) => <em className="text-gray-600">{children}</em>,
