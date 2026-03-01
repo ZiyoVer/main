@@ -10,6 +10,9 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 
 
 const router = Router()
 
+// Rasmlar uchun vaqtinchalik xotira (chatId -> dataUrl)
+const pendingImages = new Map<string, string>()
+
 const openai = new OpenAI({
     baseURL: 'https://api.deepseek.com',
     apiKey: process.env.OPENAI_API_KEY || ''
@@ -457,9 +460,12 @@ Xulosa 3-5 ta qatordan oshmasin. Faqat mavzu tushuntirishdan keyin ber, oddiy sa
 - O'quvchining bilim darajasini tekshirmasdan murakkab mavzuga o'tMA
 - Rag materiallarini aynan nusxalaMA — o'z so'zlaring bilan qayta tushuntir
 - profile-update blokini o'quvchi rozilik bildirmagan holda yubORMA
-- **Fayl yuklanganda** — "yechishni xohlaysizmi?" DEMA, darhol yechimga o'tgin!`)
+- **Fayl yuklanganda** — "yechishni xohlaysizmi?" DEMA, darhol yechimga o'tgin!
+- **HECH QACHON inglizcha yoki boshqa tilda yozMA** — doimo O'zbek tilida javob ber`)
 
-    return `Sen "msert" platformasining AI pedagog-ustozisan. O'zbek tilida ishla.
+    return `Sen "msert" platformasining AI pedagog-ustozisan.
+
+⚠️ TIL QOIDASI (BUZIB BO'LMAYDI): DOIMO VA FAQAT O'ZBEK TILIDA javob ber. Hech qachon inglizcha, ruscha yoki boshqa tilda yozma — o'quvchi ingliz tili haqida savol bersa ham, grammatika misollarini inglizcha yozib tushuntirishlar O'ZBEK TILIDA bo'lishi shart.
 
 # 🎓 SENING ROLIN
 ${roleSection}
@@ -507,10 +513,18 @@ Hozirgi sana: ${now.toLocaleDateString('uz-UZ')}.
 ${extraRules ? '\n# 🔧 ADMIN QOIDALARI\n' + extraRules : ''} `
 }
 
-// Yangi chat ochish
+// Yangi chat ochish (yoki mavjud fan chatini qaytarish)
 router.post('/new', authenticate, async (req: AuthRequest, res) => {
     try {
         const { subject, title } = req.body
+        // Fan ko'rsatilgan bo'lsa — mavjud chatni qaytaramiz (bitta fan = bitta chat)
+        if (subject) {
+            const existing = await prisma.chat.findFirst({
+                where: { userId: req.user.id, subject },
+                orderBy: { updatedAt: 'desc' }
+            })
+            if (existing) return res.status(200).json(existing)
+        }
         const chat = await prisma.chat.create({
             data: {
                 userId: req.user.id,
@@ -620,7 +634,10 @@ router.post('/:chatId/upload-file', authenticate, upload.single('file'), async (
             extractedText = buffer.toString('utf-8').trim()
         } else if (mimetype.startsWith('image/')) {
             fileType = 'image'
-            extractedText = `[Rasm yuklandi: ${originalname}]`
+            // Rasmni base64 sifatida vaqtinchalik saqlaymiz — stream routeda AI ga yuboramiz
+            const dataUrl = `data:${mimetype};base64,${buffer.toString('base64')}`
+            pendingImages.set(chat.id, dataUrl)
+            extractedText = `[Rasm: ${originalname}] — AI rasmni ko'radi va tahlil qiladi`
         } else {
             extractedText = `[Fayl: ${originalname}]`
         }
@@ -673,9 +690,23 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
 
         const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, aiSettings.extraRules, aiSettings.promptOverrides) + ragContext
 
+        // Rasm bormi tekshir (upload-file dan saqlangan)
+        const pendingImg = pendingImages.get(chat.id)
+        if (pendingImg) pendingImages.delete(chat.id) // bir marta ishlatamiz
+
+        // History: oxirgi user xabar (hozir saqlanganini) alohida olamiz
+        const historyWithoutLast = history.slice(0, -1)
+        const currentUserContent: any = pendingImg
+            ? [
+                { type: 'image_url', image_url: { url: pendingImg } },
+                { type: 'text', text: content }
+              ]
+            : content
+
         const messages: any[] = [
             { role: 'system', content: systemPrompt },
-            ...history.map(m => ({ role: m.role, content: m.content }))
+            ...historyWithoutLast.map(m => ({ role: m.role, content: m.content })),
+            { role: 'user', content: currentUserContent }
         ]
 
         // Model tanlash: thinking=true -> deepseek-reasoner (R1), aks holda deepseek-chat (V3)
@@ -783,6 +814,9 @@ router.post('/:chatId/send', authenticate, async (req: AuthRequest, res) => {
         const aiSettings = await getAISettings()
         const ragContext = await searchRAGContext(content, chat.subject || undefined)
         const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, aiSettings.extraRules, aiSettings.promptOverrides) + ragContext
+
+        // Pending image ni tozalash (send route ishlatilsa)
+        pendingImages.delete(chat.id)
 
         const msgs: any[] = [
             { role: 'system', content: systemPrompt },
