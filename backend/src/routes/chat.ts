@@ -28,6 +28,105 @@ async function getAISettings(): Promise<{ temperature: number; maxTokens: number
     return defaults
 }
 
+function getExamSection(subject?: string): string {
+    if (subject === 'Ingliz tili') {
+        return `# 🏆 MILLIY SERTIFIKAT IMTIHONI (Ingliz tili)
+
+## Savol turlari:
+- **Y-1** (Yagona tanlov): To'g'ri bir javob tanlanadi. 1–3 ball.
+- **Y-2** (Moslashtirish): Ikkita ustunni moslashtirish. 2.2 ball.
+- **O** (Ochiq javob): a) va b) qismlar, 1.5–3.2 ball.
+
+## 6 ta mavzu bloki:
+1. **Grammar — Zamonlar (Tenses)**
+   - Present Simple / Continuous / Perfect / Perfect Continuous
+   - Past Simple / Continuous / Perfect / Perfect Continuous
+   - Future Simple / Continuous / Perfect
+   - Used to, Would (past habits)
+
+2. **Grammar — Murakkab strukturalar**
+   - Conditionals: Zero (if+present→present), First (if+present→will), Second (if+past→would), Third (if+had+pp→would have)
+   - Passive Voice: all tenses (is done / was done / has been done / will be done)
+   - Modal verbs: can/could, may/might, must/have to, should/ought to, need, dare
+   - Reported Speech: say→said, will→would, can→could, am/is→was
+   - Relative clauses: who/which/that/whose/where/when
+
+3. **Grammar — So'z yasalishi va qo'shimchalar**
+   - Suffixes: -tion/-sion, -ment, -ness, -ity, -er/-or, -ful/-less, -ly, -ous/-ious, -able/-ible, -al, -ic
+   - Prefixes: un-, dis-, im-/in-/ir-/il-, re-, over-, under-, mis-
+   - Word formation: verb→noun, adjective→noun, noun→adjective
+
+4. **Vocabulary**
+   - Phrasal verbs: look up/out/after/forward to, give up/in/away, take off/over/on, put off/on/away
+   - Collocations: make/do/have/take + noun (make a decision, do homework, have a meal, take notes)
+   - Confusing words: affect/effect, accept/except, advice/advise, rise/raise, lay/lie
+   - Idioms va fixed expressions
+
+5. **Reading Comprehension**
+   - True/False/Not Given
+   - Multiple choice (A/B/C/D)
+   - Matn ichidan ma'lumot topish
+   - Asosiy g'oya va tafsilotlarni ajratish
+
+6. **Translation va Sentence Transformation**
+   - O'zbek → Ingliz tarjima
+   - Sentence rewriting (same meaning, different structure)
+   - Error correction (grammatical mistakes in sentences)
+
+## Baholash (Rasch modeli → ball):
+- **A+** — 70.0 va undan yuqori
+- **A** — 65.0–69.9
+- **B+** — 60.0–64.9
+- **B** — 55.0–59.9
+- **C+** — 50.0–54.9
+- **C** — 46.0–49.9
+
+## O'qitish xususiyatlari (Ingliz tili uchun):
+- Grammatika qoidasini avval O'ZBEK TILIDA tushuntir, keyin inglizcha misol ber
+- Har bir qoidaga kamida 3 ta misol ber — oddiydan murakkabga
+- Xatoni DARHOL to'g'irla, lekin negative qilma — "To'g'risi: ..." de
+- O'quvchi inglizcha yozsa — xatolarini izohla, lekin ma'nosini ham tushuntir
+- Yangi so'zni o'rgatganda: tarjima + misol gap + antonim/sinonim
+
+## Mock test strategiyasi:
+- 6 blokdan aralashtir: har blokdan 2–3 ta savol
+- Y-1 formatida ber (A/B/C/D variantlar)
+- Gap to'ldirish (fill in the blank) va xato tuzatish (error correction) ko'p chiqadi
+- Test natijasida — qaysi grammar qoidasida xato ko'p ekanini aniqla`
+    }
+
+    // Default: Matematika
+    return `# 🏆 MILLIY SERTIFIKAT IMTIHONI (Matematika)
+
+## Savol turlari:
+- **Y-1** (Yagona tanlov): To'g'ri bir javob tanlanadi. 1–3 ball.
+- **Y-2** (Moslashtirish): Ikkita ustunni moslashtirish. 2.2 ball.
+- **O** (Ochiq javob): a) va b) qismlar, 1.5–3.2 ball.
+
+## 7 ta mavzu bloki (5–9-sinf dasturi asosida):
+1. **Sonlar va amallar** — natural, butun, ratsional, irratsional, haqiqiy sonlar; darajalar, ildizlar
+2. **Algebraik ifodalar** — ko'paytmalar formulalari, algebraik kasrlar, ko'phadlar
+3. **Tenglamalar va tengsizliklar** — chiziqli, kvadrat, tizimlar, modul, parametr
+4. **Funksiyalar** — grafik o'qish, xossalar, o'zgarish, kvadrat funksiya, darajali
+5. **Matematik analiz** — limitlar, hosilalar, integrallar (asosiy formulalar)
+6. **Geometriya** — planimetriya (uchburchak, to'rtburchak, aylana), stereometriya, trigonometriya
+7. **To'plamlar, mantiq, kombinatorika, ehtimollik** — kesishma, birlashma, permutatsiya, kombinatsiya
+
+## Baholash (Rasch modeli → ball):
+- **A+** — 70.0 va undan yuqori
+- **A** — 65.0–69.9
+- **B+** — 60.0–64.9
+- **B** — 55.0–59.9
+- **C+** — 50.0–54.9
+- **C** — 46.0–49.9
+
+## Mock test strategiyasi:
+- 7 blokdan aralashtir: har blokdan kamida 1–3 ta savol
+- Y-1 formatida ber (A/B/C/D variantlar)
+- Test natijalari kelganda — qaysi blokda xato ko'p ekanini aniqlat va o'sha blokdan qo'shimcha mashq ber
+- O'quvchi maqsad balliga yetishi uchun qaysi mavzular muhimroq ekanini doim hisobga ol`
+}
+
 function buildSystemPrompt(profile: any, subject?: string, extraRules?: string): string {
     const now = new Date()
     let daysLeft = ''
@@ -223,35 +322,7 @@ Yoki bullet shaklida:
 
 Xulosa 3-5 ta qatordan oshmasin. Faqat mavzu tushuntirishdan keyin ber, oddiy savol-javobdan keyin shart emas.
 
-# 🏆 MILLIY SERTIFIKAT IMTIHONI (Matematika)
-
-## Savol turlari:
-- **Y-1** (Yagona tanlov): To'g'ri bir javob tanlanadi. 1–3 ball.
-- **Y-2** (Moslashtirish): Ikkita ustunni moslashtirish. 2.2 ball.
-- **O** (Ochiq javob): a) va b) qismlar, 1.5–3.2 ball.
-
-## 7 ta mavzu bloki (5–9-sinf dasturi asosida):
-1. **Sonlar va amallar** — natural, butun, ratsional, irratsional, haqiqiy sonlar; darajalar, ildizlar
-2. **Algebraik ifodalar** — ko'paytmalar formulalari, algebraik kasrlar, ko'phadlar
-3. **Tenglamalar va tengsizliklar** — chiziqli, kvadrat, tizimlar, modul, parametr
-4. **Funksiyalar** — grafik o'qish, xossalar, o'zgarish, kvadrat funksiya, darajali
-5. **Matematik analiz** — limitlar, hosilalar, integrallar (asosiy formulalar)
-6. **Geometriya** — planimetriya (uchburchak, to'rtburchak, aylana), stereometriya, trigonometriya
-7. **To'plamlar, mantiq, kombinatorika, ehtimollik** — kesishma, birlashma, permutatsiya, kombinatsiya
-
-## Baholash (Rasch modeli → ball):
-- **A+** — 70.0 va undan yuqori
-- **A** — 65.0–69.9
-- **B+** — 60.0–64.9
-- **B** — 55.0–59.9
-- **C+** — 50.0–54.9
-- **C** — 46.0–49.9
-
-## Mock test strategiyasi:
-- 7 blokdan aralashtir: har blokdan kamida 1–3 ta savol
-- Y-1 formatida ber (A/B/C/D variantlar)
-- Test natijalari kelganda — qaysi blokda xato ko'p ekanini aniqlat va o'sha blokdan qo'shimcha mashq ber
-- O'quvchi maqsad balliga yetishi uchun qaysi mavzular muhimroq ekanini doim hisobga ol
+${getExamSection(subject)}
 
 # 🔄 PROFIL AVTOMATIK YANGILASH
 
