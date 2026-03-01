@@ -30,6 +30,7 @@ export default function TeacherPanel() {
     const [title, setTitle] = useState('')
     const [subject, setSubject] = useState('Matematika')
     const [isPublic, setIsPublic] = useState(false)
+    const [timeLimit, setTimeLimit] = useState<number>(0) // 0 = no limit, minutes otherwise
     const [questions, setQuestions] = useState<Question[]>([{ text: '', options: ['', '', '', ''], correctIdx: 0 }])
     const [loading, setLoading] = useState(false)
     const [msg, setMsg] = useState('')
@@ -113,9 +114,10 @@ export default function TeacherPanel() {
         }
         setLoading(true); setMsg('')
         try {
-            await fetchApi('/tests/create', { method: 'POST', body: JSON.stringify({ title, subject, isPublic, questions }) })
+            await fetchApi('/tests/create', { method: 'POST', body: JSON.stringify({ title, subject, isPublic, timeLimit: timeLimit || null, questions }) })
             setMsg(''); setTitle('')
             setQuestions([{ text: '', options: ['', '', '', ''], correctIdx: 0 }])
+            setTimeLimit(0)
             setAiFile(null); setAiDone(false); setShowAiSection(true)
             setTab('list'); loadTests()
         } catch (e: any) { setMsg(e.message) }
@@ -193,7 +195,7 @@ export default function TeacherPanel() {
                                             ? <span className="flex items-center gap-1 text-[11px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md"><Globe className="h-3 w-3" /> Public</span>
                                             : <span className="flex items-center gap-1 text-[11px] text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded-md"><Lock className="h-3 w-3" /> Private</span>}
                                     </div>
-                                    <p className="text-xs text-gray-400">{t._count?.questions || 0} savol · {t._count?.attempts || 0} urinish · {t.subject}</p>
+                                    <p className="text-xs text-gray-400">{t._count?.questions || 0} savol · {t._count?.attempts || 0} urinish · {t.subject}{t.timeLimit ? ` · ⏱ ${t.timeLimit} min` : ''}</p>
                                 </div>
                                 <button onClick={() => openAnalytics(t.id)} className="h-8 px-3 flex items-center gap-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 transition">
                                     <BarChart2 className="h-3 w-3" /> Statistika
@@ -227,6 +229,22 @@ export default function TeacherPanel() {
                                 <input type="checkbox" checked={isPublic} onChange={e => setIsPublic(e.target.checked)} className="w-4 h-4 rounded border-gray-300" />
                                 <span className="text-gray-600">Public — barcha o'quvchilarga ko'rinsin</span>
                             </label>
+                            {/* Time limit */}
+                            <div>
+                                <label className="text-xs font-medium text-gray-500 block mb-2">Vaqt chegarasi</label>
+                                <div className="flex flex-wrap gap-2">
+                                    {[0, 30, 45, 60, 90].map(min => (
+                                        <button key={min} type="button" onClick={() => setTimeLimit(min)}
+                                            className={`h-8 px-3 rounded-lg text-xs font-medium transition ${timeLimit === min ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                                            {min === 0 ? 'Cheksiz' : `${min} daqiqa`}
+                                        </button>
+                                    ))}
+                                    <input type="number" min="1" max="180" placeholder="Boshqa (min)"
+                                        value={timeLimit > 0 && ![30, 45, 60, 90].includes(timeLimit) ? timeLimit : ''}
+                                        onChange={e => setTimeLimit(parseInt(e.target.value) || 0)}
+                                        className="h-8 w-28 px-2 rounded-lg border border-gray-200 text-xs outline-none focus:border-blue-400" />
+                                </div>
+                            </div>
                         </div>
 
                         {/* AI yordamida yaratish */}

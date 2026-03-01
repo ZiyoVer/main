@@ -168,10 +168,22 @@ Agar o'quvchi "integrallar qiyin" desa — ehtimol muammo integralda emas, HOSIL
    Misol: integralning asosiy formulasini yozish:
    $$\\int x^n\\,dx = \\frac{x^{n+1}}{n+1} + C, \\quad n \\neq -1$$
 
-3. Ro'yxatlar — raqamli yoki bullet bilan
-4. Qadamlar: "**1-qadam:** ..., **2-qadam:** ..., **3-qadam:** ..."
-5. Misollar va yechimlar — aniq ajratilgan
-6. **FLASHCARD FORMATI** — O'quvchi "kartochka", "flashcard" so'rasa yoki formulalar/tushunchalarni eslab qolishda yordam kerak bo'lsa:
+3. **JADVAL FORMATI** — Jadval yaratganda, undan OLDIN va KEYIN ALBATTA bo'sh qator qo'y:
+   ✅ To'g'ri:
+   \`\`\`
+   (oldingi matn)
+
+   | Ustun1 | Ustun2 |
+   |--------|--------|
+   | ...    | ...    |
+
+   (keyingi matn)
+   \`\`\`
+   ❌ Xato: jadval oldidan yoki keyin bo'sh qator yo'q
+4. Ro'yxatlar — raqamli yoki bullet bilan
+5. Qadamlar: "**1-qadam:** ..., **2-qadam:** ..., **3-qadam:** ..."
+6. Misollar va yechimlar — aniq ajratilgan
+7. **FLASHCARD FORMATI** — O'quvchi "kartochka", "flashcard" so'rasa yoki formulalar/tushunchalarni eslab qolishda yordam kerak bo'lsa:
    \`\`\`flashcard
    [{"front":"$\\int x^n\\,dx = ?$","back":"$\\dfrac{x^{n+1}}{n+1} + C$, $n \\neq -1$"},{"front":"Savol/tushuncha","back":"Javob/izoh"}]
    \`\`\`
@@ -181,7 +193,7 @@ Agar o'quvchi "integrallar qiyin" desa — ehtimol muammo integralda emas, HOSIL
    - Kamida 5 ta, ko'pi 20 ta kartochka ber
    - Bitta blokda barcha kartochkalarni ber
 
-7. **TEST SAVOLLARI FORMATI** — JUDA MUHIM! Test berganda FAQAT quyidagi formatda ber:
+8. **TEST SAVOLLARI FORMATI** — JUDA MUHIM! Test berganda FAQAT quyidagi formatda ber:
    Avval qisqa gap yoz, keyin test savollarini \`\`\`test bilan ochib JSON array ber:
    \`\`\`test
    [{"q":"Savol matni?","a":"Javob A","b":"Javob B","c":"Javob C","d":"Javob D","correct":"a"}]
@@ -189,8 +201,8 @@ Agar o'quvchi "integrallar qiyin" desa — ehtimol muammo integralda emas, HOSIL
    correct maydoni — to'g'ri javob harfi (a, b, c yoki d).
    HECH QACHON oddiy A), B), C), D) formatda test berMA. DOIMO \`\`\`test JSON formatda ber.
    Test JSON dan keyin boshqa matn yozma — foydalanuvchi testni interaktiv yechadi.
-7. Javoblarni tahlil qilganda — ✅ to'g'ri, ❌ xato belgilar ishlat, har bir xato javobni tushuntir
-8. O'quv reja tuzsang — har kuni uchun aniq mavzu yoz
+9. Javoblarni tahlil qilganda — ✅ to'g'ri, ❌ xato belgilar ishlat, har bir xato javobni tushuntir
+10. O'quv reja tuzsang — har kuni uchun aniq mavzu yoz
 
 # 📌 XULOSA QOIDASI (Majburiy!)
 
@@ -388,8 +400,8 @@ router.post('/:chatId/upload-file', authenticate, upload.single('file'), async (
             extractedText = `[Fayl: ${originalname}]`
         }
 
-        if (extractedText.length > 6000) {
-            extractedText = extractedText.substring(0, 6000) + '\n...(fayl qisqartirildi)'
+        if (extractedText.length > 15000) {
+            extractedText = extractedText.substring(0, 15000) + '\n...(fayl qisqartirildi)'
         }
 
         res.json({ text: extractedText, fileName: originalname, fileType })

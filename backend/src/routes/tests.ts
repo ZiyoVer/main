@@ -89,7 +89,7 @@ correctIdx — to'g'ri javob indeksi (0=A, 1=B, 2=C, 3=D). Eng kamida 5 ta, eng 
 // O'qituvchi: Test yaratish
 router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, res) => {
     try {
-        const { title, description, subject, isPublic, questions } = req.body
+        const { title, description, subject, isPublic, questions, timeLimit } = req.body
         if (!title || !questions?.length) {
             return res.status(400).json({ error: 'Test nomi va savollar kerak' })
         }
@@ -100,6 +100,7 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), async (req
                 description: description || null,
                 subject: subject || null,
                 isPublic: isPublic || false,
+                timeLimit: timeLimit || null,
                 creatorId: req.user.id,
                 questions: {
                     create: questions.map((q: any, i: number) => ({
@@ -121,6 +122,38 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), async (req
     }
 })
 
+
+// AI test natijasi — faqat Rasch abilityLevel yangilash (test entity saqlanmaydi)
+router.post('/submit-ai', authenticate, async (req: AuthRequest, res) => {
+    try {
+        const { score, totalQuestions, results } = req.body
+        if (!results || !Array.isArray(results)) {
+            return res.status(400).json({ error: 'results kerak' })
+        }
+        const profile = await prisma.studentProfile.findUnique({ where: { userId: req.user.id } })
+        if (!profile) return res.status(404).json({ error: 'Profil topilmadi' })
+
+        const currentAbility = profile.abilityLevel
+        const newAbility = updateAbility(currentAbility, results.map((r: any) => ({
+            difficulty: r.difficulty || 0.0,
+            isCorrect: r.isCorrect
+        })))
+
+        await prisma.studentProfile.update({
+            where: { userId: req.user.id },
+            data: {
+                abilityLevel: newAbility,
+                totalTests: { increment: 1 },
+                avgScore: Math.round(((profile.avgScore * profile.totalTests + (score || 0)) / (profile.totalTests + 1)) * 100) / 100
+            }
+        })
+
+        res.json({ newAbility, prevAbility: currentAbility })
+    } catch (e) {
+        console.error(e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
 
 // Test olish (link bo'yicha ham)
 router.get('/by-link/:shareLink', authenticate, async (req: AuthRequest, res) => {

@@ -189,6 +189,10 @@ export default function ChatLayout() {
     const flashDragRef = useRef(false)
     const [testWidth, setTestWidth] = useState(384)
     const testDragRef = useRef(false)
+    const [pdfWidth, setPdfWidth] = useState(320)
+    const pdfDragRef = useRef(false)
+    const [testTimeLeft, setTestTimeLeft] = useState<number | null>(null)
+    const [raschFeedback, setRaschFeedback] = useState<{ prev: number; next: number } | null>(null)
 
     // Auto-close sidebar on mobile
     useEffect(() => {
@@ -201,14 +205,15 @@ export default function ChatLayout() {
     useEffect(() => { loadChats(); loadProfile(); loadPublicTests(); loadMyResults() }, [])
     useEffect(() => { if (chatId) loadMessages(chatId) }, [chatId])
 
-    // Panel drag-to-resize (flashcard + test)
+    // Panel drag-to-resize (flashcard + test + pdf)
     useEffect(() => {
         const onMove = (e: MouseEvent) => {
             const w = Math.max(280, Math.min(900, window.innerWidth - e.clientX))
             if (flashDragRef.current) setFlashWidth(w)
             if (testDragRef.current) setTestWidth(w)
+            if (pdfDragRef.current) setPdfWidth(Math.max(240, Math.min(700, window.innerWidth - e.clientX)))
         }
-        const onUp = () => { flashDragRef.current = false; testDragRef.current = false }
+        const onUp = () => { flashDragRef.current = false; testDragRef.current = false; pdfDragRef.current = false }
         window.addEventListener('mousemove', onMove)
         window.addEventListener('mouseup', onUp)
         return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
@@ -220,6 +225,27 @@ export default function ChatLayout() {
         const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 180
         if (isNearBottom) el.scrollTop = el.scrollHeight
     }, [messages, streaming])
+
+    // Test panel yopilganda timerni tozalash
+    useEffect(() => {
+        if (!testPanel) { setTestTimeLeft(null); setRaschFeedback(null) }
+    }, [testPanel])
+
+    // Timer countdown (chain effect — har sekund 1 ta kamayadi)
+    useEffect(() => {
+        if (testTimeLeft === null || testTimeLeft <= 0) return
+        const id = setTimeout(() => setTestTimeLeft(t => (t !== null && t > 0) ? t - 1 : null), 1000)
+        return () => clearTimeout(id)
+    }, [testTimeLeft])
+
+    // Vaqt tugaganda avtomatik topshirish
+    useEffect(() => {
+        if (testTimeLeft === 0 && testPanel && !testSubmitted && !testReadOnly) {
+            submitTestPanel()
+            setTestTimeLeft(null)
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [testTimeLeft])
 
     async function loadProfile() {
         try {
@@ -377,15 +403,19 @@ export default function ChatLayout() {
     async function sendMessage(e: React.FormEvent) {
         e.preventDefault()
         if ((!input.trim() && !attachedFile) || !chatId || loading) return
-        let text = input.trim()
-        if (attachedFile) {
-            const prefix = `📎 **${attachedFile.name}** faylidan:\n\n${attachedFile.text}`
-            text = text ? `${prefix}\n\n${text}` : prefix
-            setAttachedFile(null)
-        }
         setInput('')
-        setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: text, createdAt: new Date().toISOString() }])
-        await streamToChat(chatId, text)
+        if (attachedFile) {
+            const userInput = input.trim()
+            const promptText = `📎 **${attachedFile.name}** faylidan:\n\n${attachedFile.text}${userInput ? '\n\n' + userInput : ''}`
+            const displayText = `📎 **${attachedFile.name}** — AI tahlil qilmoqda...${userInput ? '\n\n' + userInput : ''}`
+            setAttachedFile(null)
+            setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: displayText, createdAt: new Date().toISOString() }])
+            await streamToChat(chatId, promptText, displayText)
+        } else {
+            const text = input.trim() || ''
+            setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: text, createdAt: new Date().toISOString() }])
+            await streamToChat(chatId, text)
+        }
     }
 
     async function quickAction(prompt: string) {
@@ -433,6 +463,8 @@ export default function ChatLayout() {
     // Open test in side panel
     const openTestPanel = useCallback((jsonStr: string) => {
         const aiKey = jsonStr.substring(0, 120)
+        setRaschFeedback(null)
+        setTestTimeLeft(null)
         if (completedAiTestsRef.current.has(aiKey)) {
             // Allaqachon yechilgan — saqlangan javoblar bilan ko'rish rejimi
             let savedAnswers: Record<number, string> = {}
@@ -486,8 +518,14 @@ export default function ChatLayout() {
                 setTestSubmitted(true)
                 setTestReadOnly(true)
                 setTestPanelMaximized(false)
+                setRaschFeedback(null)
+                setTestTimeLeft(null)
             } else {
                 openTestPanel(JSON.stringify(converted))
+                // Vaqt chegarasi bo'lsa timerni boshlash
+                if (data.timeLimit) {
+                    setTestTimeLeft(data.timeLimit * 60)
+                }
             }
         } catch { }
         setLoadingPublicTest(false)
@@ -542,13 +580,32 @@ export default function ChatLayout() {
                 questionId: q.id,
                 selectedIdx: ['a', 'b', 'c', 'd'].indexOf(testAnswers[i] || '')
             })).filter((a: any) => a.selectedIdx !== -1)
-            fetchApi(`/tests/${activeTestId}/submit`, { method: 'POST', body: JSON.stringify({ answers: backendAnswers }) }).catch(() => {})
+            fetchApi(`/tests/${activeTestId}/submit`, { method: 'POST', body: JSON.stringify({ answers: backendAnswers }) })
+                .then((res: any) => {
+                    if (res?.newAbility !== undefined) {
+                        const prevAbility = profile?.abilityLevel ?? 0
+                        setRaschFeedback({ prev: prevAbility, next: res.newAbility })
+                        loadProfile()
+                        loadMyResults()
+                    }
+                })
+                .catch(() => {})
             markTestCompleted(activeTestId)
         } else if (testPanel) {
             // AI tomonidan yaratilgan test — javoblarni va yechilgan holatni saqlash
             const aiKey = testPanel.substring(0, 120)
             markAiTestCompleted(aiKey)
             try { localStorage.setItem('msert_ans_' + aiKey, JSON.stringify(testAnswers)) } catch { }
+            // AI test natijasini Rasch ga yuborish
+            const scorePercent = (score / questions.length) * 100
+            const raschResults = questions.map((q: any, i: number) => ({
+                difficulty: 0.0,
+                isCorrect: testAnswers[i] === q.correct
+            }))
+            fetchApi('/tests/submit-ai', {
+                method: 'POST',
+                body: JSON.stringify({ score: scorePercent, totalQuestions: questions.length, results: raschResults })
+            }).then(() => { loadProfile(); loadMyResults() }).catch(() => {})
         }
     }
 
@@ -954,7 +1011,13 @@ export default function ChatLayout() {
 
             {/* PDF / Image Viewer Panel */}
             {pdfViewerUrl && (
-                <div className="w-80 bg-white border-l border-gray-200 flex flex-col flex-shrink-0">
+                <div className="relative bg-white border-l border-gray-200 flex flex-col flex-shrink-0" style={{ width: pdfWidth }}>
+                    {/* Drag handle (chap cheti) */}
+                    <div
+                        onMouseDown={e => { pdfDragRef.current = true; e.preventDefault() }}
+                        className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-blue-300/60 active:bg-blue-400/60 transition-colors z-10 group">
+                        <div className="absolute left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-8 bg-gray-300 group-hover:bg-blue-400 rounded-full transition-colors" />
+                    </div>
                     <div className="h-14 flex items-center gap-2 px-4 border-b border-gray-100 flex-shrink-0">
                         <div className="h-7 w-7 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
                             {pdfViewerIsImage ? <Image className="h-3.5 w-3.5 text-blue-600" /> : <FileText className="h-3.5 w-3.5 text-blue-600" />}
@@ -998,12 +1061,17 @@ export default function ChatLayout() {
                                 <div className="h-7 w-7 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-lg flex items-center justify-center"><ClipboardList className="h-3.5 w-3.5 text-white" /></div>
                                 <span className="text-sm font-semibold text-gray-900">Test — {questions.length} savol</span>
                                 {testReadOnly && <span className="text-[10px] bg-gray-100 text-gray-400 px-2 py-0.5 rounded-md font-medium">Ko'rish</span>}
+                                {testTimeLeft !== null && (
+                                    <span className={`text-sm font-mono tabular-nums ml-1 px-2 py-0.5 rounded-md ${testTimeLeft < 60 ? 'text-red-500 bg-red-50 animate-pulse' : 'text-gray-500 bg-gray-100'}`}>
+                                        ⏱ {Math.floor(testTimeLeft / 60)}:{String(testTimeLeft % 60).padStart(2, '0')}
+                                    </span>
+                                )}
                             </div>
                             <div className="flex items-center gap-1">
                                 <button onClick={() => setTestPanelMaximized(!testPanelMaximized)} className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition" title={testPanelMaximized ? 'Kichraytirish' : 'Kattalashtirish'}>
                                     {testPanelMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
                                 </button>
-                                <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setActiveTestId(null); setActiveTestQuestions([]) }} className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"><X className="h-4 w-4" /></button>
+                                <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setActiveTestId(null); setActiveTestQuestions([]); setTestTimeLeft(null); setRaschFeedback(null) }} className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"><X className="h-4 w-4" /></button>
                             </div>
                         </div>
 
@@ -1053,7 +1121,7 @@ export default function ChatLayout() {
                                 <div className="text-center space-y-1.5">
                                     <p className="text-[12px] text-gray-500">✓ Bu test avval yechilgan</p>
                                     <p className="text-[11px] text-gray-300">To'g'ri javoblar yashil bilan ko'rsatilmoqda</p>
-                                    <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setTestReadOnly(false); setActiveTestId(null); setActiveTestQuestions([]) }} className="text-sm text-blue-600 hover:underline mt-1">Yopish</button>
+                                    <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setTestReadOnly(false); setActiveTestId(null); setActiveTestQuestions([]); setTestTimeLeft(null); setRaschFeedback(null) }} className="text-sm text-blue-600 hover:underline mt-1">Yopish</button>
                                 </div>
                             ) : !testSubmitted ? (
                                 <button onClick={submitTestPanel} disabled={answered < questions.length}
@@ -1063,8 +1131,13 @@ export default function ChatLayout() {
                             ) : (
                                 <div className="text-center space-y-2">
                                     <p className="text-lg font-bold text-gray-900">{score}/{questions.length} <span className="text-sm font-normal text-gray-400">— {Math.round(score / questions.length * 100)}%</span></p>
+                                    {raschFeedback && (
+                                        <p className="text-xs text-blue-600 font-medium">
+                                            📈 Daraja: {raschFeedback.prev.toFixed(2)} → {raschFeedback.next.toFixed(2)}
+                                        </p>
+                                    )}
                                     <p className="text-xs text-gray-400">Natijalar chatga yuborildi</p>
-                                    <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setTestReadOnly(false); setActiveTestId(null); setActiveTestQuestions([]) }} className="text-sm text-blue-600 hover:underline">Panelni yopish</button>
+                                    <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setTestReadOnly(false); setActiveTestId(null); setActiveTestQuestions([]); setTestTimeLeft(null); setRaschFeedback(null) }} className="text-sm text-blue-600 hover:underline">Panelni yopish</button>
                                 </div>
                             )}
                             </div>
