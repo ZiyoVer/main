@@ -174,6 +174,8 @@ export default function ChatLayout() {
     const [flashMaximized, setFlashMaximized] = useState(false)
     const [flashWidth, setFlashWidth] = useState(384)
     const flashDragRef = useRef(false)
+    const [testWidth, setTestWidth] = useState(384)
+    const testDragRef = useRef(false)
 
     // Auto-close sidebar on mobile
     useEffect(() => {
@@ -186,13 +188,14 @@ export default function ChatLayout() {
     useEffect(() => { loadChats(); loadProfile(); loadPublicTests() }, [])
     useEffect(() => { if (chatId) loadMessages(chatId) }, [chatId])
 
-    // Flashcard panel drag-to-resize
+    // Panel drag-to-resize (flashcard + test)
     useEffect(() => {
         const onMove = (e: MouseEvent) => {
-            if (!flashDragRef.current) return
-            setFlashWidth(Math.max(280, Math.min(900, window.innerWidth - e.clientX)))
+            const w = Math.max(280, Math.min(900, window.innerWidth - e.clientX))
+            if (flashDragRef.current) setFlashWidth(w)
+            if (testDragRef.current) setTestWidth(w)
         }
-        const onUp = () => { flashDragRef.current = false }
+        const onUp = () => { flashDragRef.current = false; testDragRef.current = false }
         window.addEventListener('mousemove', onMove)
         window.addEventListener('mouseup', onUp)
         return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
@@ -890,7 +893,18 @@ export default function ChatLayout() {
                 const answered = Object.keys(testAnswers).length
                 const score = testSubmitted ? questions.filter((q: any, i: number) => testAnswers[i] === q.correct).length : 0
                 return (
-                    <div className={testPanelMaximized ? 'fixed inset-0 z-50 bg-white flex flex-col' : 'w-96 bg-white border-l border-gray-200 flex flex-col flex-shrink-0 animate-in'}>
+                    <div className={testPanelMaximized ? 'fixed inset-0 z-50 bg-white flex flex-col' : 'relative bg-white border-l border-gray-200 flex flex-col flex-shrink-0'}
+                        style={testPanelMaximized ? {} : { width: testWidth }}>
+
+                        {/* Drag handle (chap cheti) */}
+                        {!testPanelMaximized && (
+                            <div
+                                onMouseDown={e => { testDragRef.current = true; e.preventDefault() }}
+                                className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-blue-300/60 active:bg-blue-400/60 transition-colors z-10 group">
+                                <div className="absolute left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-8 bg-gray-300 group-hover:bg-blue-400 rounded-full transition-colors" />
+                            </div>
+                        )}
+
                         {/* Panel header */}
                         <div className="h-14 flex items-center justify-between px-4 border-b border-gray-100 flex-shrink-0">
                             <div className="flex items-center gap-2">
