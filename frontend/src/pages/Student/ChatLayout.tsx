@@ -328,7 +328,7 @@ export default function ChatLayout() {
             const res = await fetch(`/api/chat/${targetChatId}/stream`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ content: prompt, thinking: thinkingMode }),
+                body: JSON.stringify({ content: prompt, thinking: thinkingMode, ...(displayText !== undefined && { displayText }) }),
                 signal: controller.signal
             })
             if (!res.ok) throw new Error()

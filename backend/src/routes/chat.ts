@@ -625,7 +625,7 @@ router.post('/:chatId/upload-file', authenticate, upload.single('file'), async (
 // Streaming xabar yuborish (SSE)
 router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
     try {
-        const { content, thinking } = req.body
+        const { content, thinking, displayText } = req.body
         if (!content?.trim()) return res.status(400).json({ error: 'Xabar bo\'sh' })
 
         const chat = await prisma.chat.findFirst({
@@ -633,9 +633,10 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
         })
         if (!chat) return res.status(404).json({ error: 'Chat topilmadi' })
 
-        // Foydalanuvchi xabarini saqlash
+        // Foydalanuvchi xabarini saqlash (displayText — foydalanuvchiga ko'rinadigan matn)
+        const savedUserContent = displayText?.trim() || content
         await prisma.message.create({
-            data: { chatId: chat.id, role: 'user', content }
+            data: { chatId: chat.id, role: 'user', content: savedUserContent }
         })
 
         // Oldingi xabarlar (ko'proq kontekst)
@@ -722,7 +723,8 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
 
         // Chat title yangilash (birinchi xabar bo'lsa)
         if (history.length <= 2) {
-            const shortTitle = content.substring(0, 40) + (content.length > 40 ? '...' : '')
+            const titleSrc = displayText?.trim() || content
+            const shortTitle = titleSrc.substring(0, 40) + (titleSrc.length > 40 ? '...' : '')
             await prisma.chat.update({ where: { id: chat.id }, data: { title: shortTitle } })
         }
 
