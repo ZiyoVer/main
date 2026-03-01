@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Image, Layers, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
@@ -168,9 +168,6 @@ export default function ChatLayout() {
     const [loadingPublicTest, setLoadingPublicTest] = useState(false)
     const [activeTestId, setActiveTestId] = useState<string | null>(null)
     const [activeTestQuestions, setActiveTestQuestions] = useState<any[]>([])
-    const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null)
-    const [pdfViewerName, setPdfViewerName] = useState('')
-    const [pdfViewerIsImage, setPdfViewerIsImage] = useState(false)
     const [testReadOnly, setTestReadOnly] = useState(false)
     // Yechilgan testlar IDlarini localStorage da saqlaymiz
     const completedTestIdsRef = useRef<Set<string>>((() => {
@@ -189,8 +186,6 @@ export default function ChatLayout() {
     const flashDragRef = useRef(false)
     const [testWidth, setTestWidth] = useState(384)
     const testDragRef = useRef(false)
-    const [pdfWidth, setPdfWidth] = useState(320)
-    const pdfDragRef = useRef(false)
     const [testTimeLeft, setTestTimeLeft] = useState<number | null>(null)
     const [raschFeedback, setRaschFeedback] = useState<{ prev: number; next: number } | null>(null)
 
@@ -205,15 +200,14 @@ export default function ChatLayout() {
     useEffect(() => { loadChats(); loadProfile(); loadPublicTests(); loadMyResults() }, [])
     useEffect(() => { if (chatId) loadMessages(chatId) }, [chatId])
 
-    // Panel drag-to-resize (flashcard + test + pdf)
+    // Panel drag-to-resize (flashcard + test)
     useEffect(() => {
         const onMove = (e: MouseEvent) => {
             const w = Math.max(280, Math.min(900, window.innerWidth - e.clientX))
             if (flashDragRef.current) setFlashWidth(w)
             if (testDragRef.current) setTestWidth(w)
-            if (pdfDragRef.current) setPdfWidth(Math.max(240, Math.min(700, window.innerWidth - e.clientX)))
         }
-        const onUp = () => { flashDragRef.current = false; testDragRef.current = false; pdfDragRef.current = false }
+        const onUp = () => { flashDragRef.current = false; testDragRef.current = false }
         window.addEventListener('mousemove', onMove)
         window.addEventListener('mouseup', onUp)
         return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
@@ -534,13 +528,6 @@ export default function ChatLayout() {
     async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0]
         if (!file || !chatId) return
-        // PDF yoki rasm bo'lsa preview panel ochish
-        if (file.type === 'application/pdf' || file.type.startsWith('image/')) {
-            if (pdfViewerUrl) URL.revokeObjectURL(pdfViewerUrl)
-            setPdfViewerUrl(URL.createObjectURL(file))
-            setPdfViewerName(file.name)
-            setPdfViewerIsImage(file.type.startsWith('image/'))
-        }
         setUploadingFile(true)
         try {
             const formData = new FormData()
@@ -1009,32 +996,6 @@ export default function ChatLayout() {
                 )}
             </div>
 
-            {/* PDF / Image Viewer Panel */}
-            {pdfViewerUrl && (
-                <div className="relative bg-white border-l border-gray-200 flex flex-col flex-shrink-0" style={{ width: pdfWidth }}>
-                    {/* Drag handle (chap cheti) */}
-                    <div
-                        onMouseDown={e => { pdfDragRef.current = true; e.preventDefault() }}
-                        className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-blue-300/60 active:bg-blue-400/60 transition-colors z-10 group">
-                        <div className="absolute left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-8 bg-gray-300 group-hover:bg-blue-400 rounded-full transition-colors" />
-                    </div>
-                    <div className="h-14 flex items-center gap-2 px-4 border-b border-gray-100 flex-shrink-0">
-                        <div className="h-7 w-7 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                            {pdfViewerIsImage ? <Image className="h-3.5 w-3.5 text-blue-600" /> : <FileText className="h-3.5 w-3.5 text-blue-600" />}
-                        </div>
-                        <span className="text-[13px] font-medium text-gray-900 flex-1 truncate">{pdfViewerName}</span>
-                        <button onClick={() => { URL.revokeObjectURL(pdfViewerUrl); setPdfViewerUrl(null) }}
-                            className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition flex-shrink-0">
-                            <X className="h-4 w-4" />
-                        </button>
-                    </div>
-                    <div className="flex-1 overflow-hidden">
-                        {pdfViewerIsImage
-                            ? <img src={pdfViewerUrl} className="w-full h-full object-contain p-3" alt={pdfViewerName} />
-                            : <iframe src={pdfViewerUrl} className="w-full h-full border-0" title={pdfViewerName} />}
-                    </div>
-                </div>
-            )}
 
             {/* Test Side Panel */}
             {testPanel && (() => {
