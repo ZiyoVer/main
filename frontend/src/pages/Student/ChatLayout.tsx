@@ -526,9 +526,8 @@ export default function ChatLayout() {
         setLoadingPublicTest(false)
     }
 
-    async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-        const file = e.target.files?.[0]
-        if (!file || !chatId) return
+    async function uploadFile(file: File) {
+        if (!chatId) return
         setUploadingFile(true)
         try {
             const formData = new FormData()
@@ -543,7 +542,25 @@ export default function ChatLayout() {
             setAttachedFile({ name: file.name, text: data.text, type: data.fileType })
         } catch { }
         setUploadingFile(false)
+    }
+
+    async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0]
+        if (!file) return
+        await uploadFile(file)
         if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+
+    async function handlePaste(e: React.ClipboardEvent) {
+        if (!chatId || loading || uploadingFile) return
+        const items = Array.from(e.clipboardData.items)
+        const imageItem = items.find(item => item.type.startsWith('image/'))
+        if (!imageItem) return
+        e.preventDefault()
+        const file = imageItem.getAsFile()
+        if (!file) return
+        const named = new File([file], `screenshot-${Date.now()}.png`, { type: file.type })
+        await uploadFile(named)
     }
 
     function submitTestPanel() {
@@ -989,7 +1006,7 @@ export default function ChatLayout() {
                                         ? <div className="h-4 w-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
                                         : <Paperclip className="h-3.5 w-3.5" />}
                                 </button>
-                                <input value={input} onChange={e => setInput(e.target.value)} placeholder="Xabar yozing..." disabled={loading}
+                                <input value={input} onChange={e => setInput(e.target.value)} onPaste={handlePaste} placeholder="Xabar yozing..." disabled={loading}
                                     className="flex-1 h-12 bg-transparent outline-none text-sm text-gray-900 placeholder:text-gray-400" />
                                 {/* Thinking mode toggle */}
                                 <button type="button" onClick={() => setThinkingMode(!thinkingMode)} title={thinkingMode ? 'Chuqur fikrlash yoqilgan' : 'Chuqur fikrlash'}
