@@ -254,6 +254,72 @@ router.get('/my-results', authenticate, async (req: AuthRequest, res) => {
     }
 })
 
+// Test statistikasi (o'qituvchi/admin)
+router.get('/:testId/analytics', authenticate, requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, res) => {
+    try {
+        const where = req.user.role === 'ADMIN'
+            ? { id: req.params.testId as string }
+            : { id: req.params.testId as string, creatorId: req.user.id }
+
+        const test = await prisma.test.findFirst({
+            where,
+            include: {
+                questions: { orderBy: { orderIdx: 'asc' } },
+                attempts: {
+                    include: { user: { select: { name: true, email: true } } },
+                    orderBy: { createdAt: 'desc' }
+                }
+            }
+        })
+        if (!test) return res.status(404).json({ error: 'Test topilmadi yoki ruxsat yo\'q' })
+
+        // Har bir savol bo'yicha statistika
+        const questionStats = test.questions.map(q => {
+            const opts = typeof q.options === 'string' ? JSON.parse(q.options) : q.options
+            let totalAnswered = 0
+            let correctCount = 0
+            const optionCounts = [0, 0, 0, 0]
+
+            for (const attempt of test.attempts) {
+                let answers: any[] = []
+                try { answers = JSON.parse(attempt.answers as string) } catch { }
+                const ans = answers.find((a: any) => a.questionId === q.id)
+                if (ans != null) {
+                    totalAnswered++
+                    if (ans.isCorrect) correctCount++
+                    const idx = ans.selectedIdx
+                    if (idx >= 0 && idx < 4) optionCounts[idx]++
+                }
+            }
+            return {
+                id: q.id, text: q.text, correctIdx: q.correctIdx, options: opts,
+                totalAnswered, correctCount,
+                errorRate: totalAnswered > 0 ? Math.round((1 - correctCount / totalAnswered) * 100) : 0,
+                optionCounts
+            }
+        })
+
+        const totalAttempts = test.attempts.length
+        const avgScore = totalAttempts > 0
+            ? Math.round(test.attempts.reduce((s: number, a: any) => s + a.score, 0) / totalAttempts * 10) / 10
+            : 0
+
+        res.json({
+            test: { id: test.id, title: test.title, subject: test.subject },
+            totalAttempts, avgScore,
+            students: test.attempts.map((a: any) => ({
+                name: a.user?.name || 'Noma\'lum',
+                score: a.score,
+                createdAt: a.createdAt
+            })),
+            questionStats
+        })
+    } catch (e) {
+        console.error(e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
 // Test o'chirish (o'qituvchi/admin)
 router.delete('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, res) => {
     try {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Copy, Check, Globe, Lock, ClipboardList, Upload, Sparkles, FileText, Image, ChevronDown, ChevronUp } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Copy, Check, Globe, Lock, ClipboardList, Upload, Sparkles, FileText, Image, ChevronDown, ChevronUp, BarChart2, X, Users } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 
@@ -22,6 +22,9 @@ export default function TeacherPanel() {
     const [loading, setLoading] = useState(false)
     const [msg, setMsg] = useState('')
     const [copied, setCopied] = useState<string | null>(null)
+    const [analyticsId, setAnalyticsId] = useState<string | null>(null)
+    const [analytics, setAnalytics] = useState<any>(null)
+    const [loadingAnalytics, setLoadingAnalytics] = useState(false)
 
     // AI generate state
     const [aiFile, setAiFile] = useState<File | null>(null)
@@ -118,6 +121,14 @@ export default function TeacherPanel() {
         setTimeout(() => setCopied(null), 2000)
     }
 
+    async function openAnalytics(testId: string) {
+        setAnalyticsId(testId)
+        setAnalytics(null)
+        setLoadingAnalytics(true)
+        try { setAnalytics(await fetchApi(`/tests/${testId}/analytics`)) } catch { }
+        setLoadingAnalytics(false)
+    }
+
     return (
         <div className="h-screen bg-[#fafafa] overflow-y-auto">
             <header className="bg-white/80 backdrop-blur-xl border-b border-gray-100 sticky top-0 z-40">
@@ -171,6 +182,9 @@ export default function TeacherPanel() {
                                     </div>
                                     <p className="text-xs text-gray-400">{t._count?.questions || 0} savol · {t._count?.attempts || 0} urinish · {t.subject}</p>
                                 </div>
+                                <button onClick={() => openAnalytics(t.id)} className="h-8 px-3 flex items-center gap-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 transition">
+                                    <BarChart2 className="h-3 w-3" /> Statistika
+                                </button>
                                 <button onClick={() => copyLink(t.shareLink)} className="h-8 px-3 flex items-center gap-1.5 rounded-lg text-xs font-medium bg-gray-50 text-gray-600 hover:bg-gray-100 transition">
                                     {copied === t.shareLink ? <><Check className="h-3 w-3 text-emerald-500" /> Nusxalandi</> : <><Copy className="h-3 w-3" /> Link</>}
                                 </button>
@@ -299,5 +313,122 @@ export default function TeacherPanel() {
                 )}
             </div>
         </div>
+
+        {/* Analytics Modal */}
+        {analyticsId && (
+            <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setAnalyticsId(null)}>
+                <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+                        <div className="flex items-center gap-3">
+                            <div className="h-9 w-9 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-xl flex items-center justify-center">
+                                <BarChart2 className="h-4.5 w-4.5 text-white" />
+                            </div>
+                            <div>
+                                <h2 className="text-sm font-semibold text-gray-900">{analytics?.test?.title || 'Yuklanmoqda...'}</h2>
+                                {analytics && <p className="text-xs text-gray-400">{analytics.totalAttempts} urinish · O'rtacha ball: {analytics.avgScore}%</p>}
+                            </div>
+                        </div>
+                        <button onClick={() => setAnalyticsId(null)} className="h-8 w-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 transition">
+                            <X className="h-4 w-4" />
+                        </button>
+                    </div>
+
+                    {loadingAnalytics ? (
+                        <div className="flex-1 flex items-center justify-center p-12">
+                            <div className="h-6 w-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                        </div>
+                    ) : analytics?.totalAttempts === 0 ? (
+                        <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
+                            <Users className="h-10 w-10 text-gray-200 mb-3" />
+                            <p className="text-gray-400 text-sm">Bu testni hali hech kim yechmagan</p>
+                        </div>
+                    ) : (
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6 min-h-0">
+                            {/* Summary cards */}
+                            <div className="grid grid-cols-3 gap-3">
+                                <div className="bg-blue-50 rounded-xl p-3 text-center">
+                                    <p className="text-2xl font-bold text-blue-600">{analytics?.totalAttempts}</p>
+                                    <p className="text-xs text-gray-500 mt-0.5">Jami urinish</p>
+                                </div>
+                                <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                                    <p className="text-2xl font-bold text-emerald-600">{analytics?.avgScore}%</p>
+                                    <p className="text-xs text-gray-500 mt-0.5">O'rtacha ball</p>
+                                </div>
+                                <div className="bg-amber-50 rounded-xl p-3 text-center">
+                                    <p className="text-2xl font-bold text-amber-600">
+                                        {analytics?.questionStats ? Math.round(analytics.questionStats.reduce((s: number, q: any) => s + q.errorRate, 0) / (analytics.questionStats.length || 1)) : 0}%
+                                    </p>
+                                    <p className="text-xs text-gray-500 mt-0.5">O'rtacha xato</p>
+                                </div>
+                            </div>
+
+                            {/* Students list */}
+                            {analytics?.students?.length > 0 && (
+                                <div>
+                                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">O'quvchilar natijalari</h3>
+                                    <div className="space-y-1.5">
+                                        {analytics.students.map((s: any, i: number) => (
+                                            <div key={i} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-2.5">
+                                                <div>
+                                                    <p className="text-sm font-medium text-gray-900">{s.name}</p>
+                                                    <p className="text-[11px] text-gray-400">{new Date(s.createdAt).toLocaleDateString('uz')}</p>
+                                                </div>
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                                        <div className="h-full rounded-full transition-all"
+                                                            style={{ width: `${s.score}%`, background: s.score >= 70 ? '#10b981' : s.score >= 50 ? '#f59e0b' : '#ef4444' }} />
+                                                    </div>
+                                                    <span className="text-sm font-bold text-gray-900 w-10 text-right">{s.score}%</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Per-question breakdown */}
+                            {analytics?.questionStats?.length > 0 && (
+                                <div>
+                                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Savollar tahlili</h3>
+                                    <div className="space-y-3">
+                                        {analytics.questionStats.map((q: any, i: number) => (
+                                            <div key={q.id} className="bg-gray-50 rounded-xl p-4">
+                                                <div className="flex items-start justify-between gap-3 mb-3">
+                                                    <p className="text-[13px] text-gray-800 flex-1 leading-relaxed">{i + 1}. {q.text}</p>
+                                                    <span className={`text-xs font-bold px-2 py-0.5 rounded-lg flex-shrink-0 ${q.errorRate >= 60 ? 'bg-red-100 text-red-600' : q.errorRate >= 30 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                                        {q.errorRate}% xato
+                                                    </span>
+                                                </div>
+                                                {q.totalAnswered > 0 ? (
+                                                    <div className="grid grid-cols-4 gap-2">
+                                                        {q.options.map((opt: string, oi: number) => {
+                                                            const count = q.optionCounts[oi] || 0
+                                                            const pct = Math.round((count / q.totalAnswered) * 100)
+                                                            const isCorrect = q.correctIdx === oi
+                                                            return (
+                                                                <div key={oi} className={`rounded-lg p-2.5 text-center border ${isCorrect ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 bg-white'}`}>
+                                                                    <p className={`text-[11px] font-bold mb-1 ${isCorrect ? 'text-emerald-600' : 'text-gray-400'}`}>
+                                                                        {String.fromCharCode(65 + oi)}{isCorrect ? ' ✓' : ''}
+                                                                    </p>
+                                                                    <p className={`text-base font-bold ${isCorrect ? 'text-emerald-700' : pct > 0 ? 'text-gray-800' : 'text-gray-300'}`}>{pct}%</p>
+                                                                    <p className="text-[10px] text-gray-400 mt-0.5">{count} kishi</p>
+                                                                </div>
+                                                            )
+                                                        })}
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-[12px] text-gray-400">Hali javob berilmagan</p>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+        )}
     )
 }
