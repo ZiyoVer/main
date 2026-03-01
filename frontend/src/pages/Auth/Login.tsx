@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { BrainCircuit } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 
 export default function Login() {
     const nav = useNavigate()
+    const location = useLocation()
+    const from = (location.state as any)?.from
     const login = useAuthStore(s => s.login)
     const { token, user } = useAuthStore()
     const [email, setEmail] = useState('')
@@ -13,7 +15,8 @@ export default function Login() {
     // Already logged in — redirect
     useEffect(() => {
         if (token && user) {
-            if (user.role === 'ADMIN') nav('/admin', { replace: true })
+            if (from) nav(from, { replace: true })
+            else if (user.role === 'ADMIN') nav('/admin', { replace: true })
             else if (user.role === 'TEACHER') nav('/teacher', { replace: true })
             else nav('/chat', { replace: true })
         }
@@ -27,7 +30,8 @@ export default function Login() {
         try {
             const data = await fetchApi('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
             login(data.token, data.user)
-            if (data.user.role === 'ADMIN') nav('/admin')
+            if (from) nav(from, { replace: true })
+            else if (data.user.role === 'ADMIN') nav('/admin')
             else if (data.user.role === 'TEACHER') nav('/teacher')
             else nav('/chat')
         } catch (e: any) { setErr(e.message) }

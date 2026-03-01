@@ -123,9 +123,10 @@ export default function TeacherPanel() {
         try { await fetchApi(`/tests/${id}`, { method: 'DELETE' }); loadTests() } catch { }
     }
 
-    function copyLink(link: string) {
-        navigator.clipboard.writeText(link)
-        setCopied(link)
+    function copyLink(shareLink: string) {
+        const url = `${window.location.origin}/test/${shareLink}`
+        navigator.clipboard.writeText(url)
+        setCopied(shareLink)
         setTimeout(() => setCopied(null), 2000)
     }
 
