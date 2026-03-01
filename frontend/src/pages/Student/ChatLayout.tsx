@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Image } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Image, Layers, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
@@ -14,11 +14,12 @@ interface Profile { onboardingDone: boolean; subject?: string; examDate?: string
 
 // MdMessage komponentni tashqarida va memo bilan ta'riflaymiz —
 // shunda har keystrokeda re-render bo'lmaydi (ReactMarkdown+KaTeX qimmat!)
-const MdMessage = memo(({ content, onOpenTest, isStreaming, onProfileUpdate }: {
+const MdMessage = memo(({ content, onOpenTest, isStreaming, onProfileUpdate, onOpenFlash }: {
     content: string
     onOpenTest: (s: string) => void
     isStreaming?: boolean
     onProfileUpdate?: (data: { weakTopics?: string[]; strongTopics?: string[] }) => void
+    onOpenFlash?: (jsonStr: string) => void
 }) => (
     <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]} components={{
         p: ({ children }) => <p className="mb-2.5 last:mb-0 leading-relaxed">{children}</p>,
@@ -85,6 +86,29 @@ const MdMessage = memo(({ content, onOpenTest, isStreaming, onProfileUpdate }: {
                     </div>
                 )
             }
+            if (className?.includes('language-flashcard')) {
+                const jsonStr = String(children).trim()
+                let count = 0
+                try { count = JSON.parse(jsonStr).length } catch { }
+                return (
+                    <div className="my-3 bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200 rounded-xl p-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 bg-gradient-to-br from-violet-500 to-purple-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                                <Layers className="h-5 w-5 text-white" />
+                            </div>
+                            <div>
+                                <p className="text-sm font-semibold text-gray-900">🃏 {count} ta kartochka tayyor</p>
+                                <p className="text-xs text-gray-500">Bosib aylantiring — formula/javob ko'ring</p>
+                            </div>
+                        </div>
+                        {!isStreaming && onOpenFlash && (
+                            <button onClick={() => onOpenFlash(jsonStr)} className="h-9 px-4 rounded-xl text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 transition flex items-center gap-2">
+                                <Layers className="h-4 w-4" /> Ochish
+                            </button>
+                        )}
+                    </div>
+                )
+            }
             const isBlock = className?.includes('language-')
             return isBlock
                 ? <pre className="bg-blue-50/60 border border-blue-100 rounded-xl p-4 text-[13px] overflow-x-auto my-3 font-mono leading-relaxed"><code>{children}</code></pre>
@@ -143,6 +167,10 @@ export default function ChatLayout() {
     const completedAiTestsRef = useRef<Set<string>>((() => {
         try { return new Set(JSON.parse(localStorage.getItem('msert_done_ai_tests') || '[]')) } catch { return new Set() }
     })())
+    // Flashcard panel state
+    const [flashPanel, setFlashPanel] = useState<Array<{front:string;back:string}> | null>(null)
+    const [flashIdx, setFlashIdx] = useState(0)
+    const [flashFlipped, setFlashFlipped] = useState(false)
 
     // Auto-close sidebar on mobile
     useEffect(() => {
@@ -386,6 +414,18 @@ export default function ChatLayout() {
         setTestSubmitted(false)
         setTestPanelMaximized(false)
         setTestReadOnly(false)
+    }, [])
+
+    // Flashcard panelni ochish
+    const openFlashPanel = useCallback((jsonStr: string) => {
+        try {
+            const cards = JSON.parse(jsonStr)
+            if (!Array.isArray(cards) || cards.length === 0) return
+            setTestPanel(null) // testni yopamiz
+            setFlashPanel(cards)
+            setFlashIdx(0)
+            setFlashFlipped(false)
+        } catch { }
     }, [])
 
     // Public test ochish (sidebar dan)
@@ -697,7 +737,7 @@ export default function ChatLayout() {
                                     {m.role === 'user' ? (
                                         <div className="max-w-[90%] text-[14px] leading-relaxed bg-gray-100 text-gray-900 rounded-2xl rounded-br-md px-4 py-3 whitespace-pre-wrap">{m.content}</div>
                                     ) : (
-                                        <div className="flex-1 text-[14px] leading-relaxed text-gray-800 py-1"><MdMessage content={m.content} onOpenTest={openTestPanel} onProfileUpdate={handleProfileUpdate} /></div>
+                                        <div className="flex-1 text-[14px] leading-relaxed text-gray-800 py-1"><MdMessage content={m.content} onOpenTest={openTestPanel} onProfileUpdate={handleProfileUpdate} onOpenFlash={openFlashPanel} /></div>
                                     )}
                                 </div>
                             ))}
@@ -717,7 +757,7 @@ export default function ChatLayout() {
                                 <div className="flex gap-3">
                                     <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 flex-shrink-0 flex items-center justify-center mt-0.5"><BrainCircuit className="h-3.5 w-3.5 text-white" /></div>
                                     <div className="flex-1 text-[14px] leading-relaxed text-gray-800 py-1">
-                                        <MdMessage content={streaming} onOpenTest={openTestPanel} isStreaming={true} onProfileUpdate={handleProfileUpdate} />
+                                        <MdMessage content={streaming} onOpenTest={openTestPanel} isStreaming={true} onProfileUpdate={handleProfileUpdate} onOpenFlash={openFlashPanel} />
                                         {/```test/.test(streaming) && !/```test[\s\S]*?```/.test(streaming) && (
                                             <div className="mt-3 flex items-center gap-2 text-[13px] text-blue-600 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5">
                                                 <div className="h-4 w-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
@@ -755,6 +795,7 @@ export default function ChatLayout() {
                                     { l: '🔄 Qayta tushuntir', p: 'Bu mavzuni boshqa usulda, oddiyroq tushuntiring' },
                                     { l: '📋 Reja tuz', p: 'Imtihongacha qolgan vaqtga mos o\'quv reja tuzing' },
                                     { l: '💡 Formulalar', p: 'Shu mavzuning barcha muhim formulalarini yozing' },
+                                    { l: '🃏 Kartochkalar', p: 'Shu mavzuning eng muhim formulalari va tushunchalarini kartochka formatida bering (```flashcard JSON format).' },
                                 ].map((a, i) => (
                                     <button key={i} onClick={() => quickAction(a.p)} className="h-7 px-3 text-[12px] font-medium text-gray-500 bg-white border border-gray-200 rounded-full hover:border-gray-400 hover:text-gray-700 transition whitespace-nowrap">{a.l}</button>
                                 ))}
@@ -911,6 +952,66 @@ export default function ChatLayout() {
                                 </div>
                             )}
                             </div>
+                        </div>
+                    </div>
+                )
+            })()}
+
+            {/* Flashcard Panel */}
+            {flashPanel && (() => {
+                const card = flashPanel[flashIdx]
+                return (
+                    <div className="w-96 bg-white border-l border-gray-200 flex flex-col flex-shrink-0">
+                        {/* Header */}
+                        <div className="h-14 flex items-center justify-between px-4 border-b border-gray-100 flex-shrink-0">
+                            <div className="flex items-center gap-2">
+                                <div className="h-7 w-7 bg-gradient-to-br from-violet-500 to-purple-500 rounded-lg flex items-center justify-center">
+                                    <Layers className="h-3.5 w-3.5 text-white" />
+                                </div>
+                                <span className="text-sm font-semibold text-gray-900">Kartochkalar</span>
+                                <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-md">{flashIdx + 1}/{flashPanel.length}</span>
+                            </div>
+                            <button onClick={() => setFlashPanel(null)} className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 transition">
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+
+                        {/* Progress bar */}
+                        <div className="h-1 bg-gray-100 flex-shrink-0">
+                            <div className="h-full bg-gradient-to-r from-violet-500 to-purple-500 transition-all duration-300" style={{ width: `${((flashIdx + 1) / flashPanel.length) * 100}%` }} />
+                        </div>
+
+                        {/* Card flip area */}
+                        <div className="flex-1 flex flex-col items-center justify-center p-5 min-h-0">
+                            <div onClick={() => setFlashFlipped(!flashFlipped)}
+                                className={`w-full cursor-pointer rounded-2xl border-2 p-6 text-center min-h-[200px] flex flex-col items-center justify-center transition-all duration-200 select-none ${flashFlipped ? 'border-emerald-300 bg-emerald-50' : 'border-violet-200 bg-gradient-to-br from-violet-50 to-purple-50'}`}>
+                                <p className={`text-[10px] font-bold uppercase tracking-widest mb-4 ${flashFlipped ? 'text-emerald-500' : 'text-violet-400'}`}>
+                                    {flashFlipped ? '✅ Javob' : '❓ Savol'}
+                                </p>
+                                <div className="text-[14px] text-gray-800 leading-relaxed w-full">
+                                    <MdMessage content={flashFlipped ? card.back : card.front} onOpenTest={() => {}} onProfileUpdate={() => {}} onOpenFlash={() => {}} />
+                                </div>
+                                {!flashFlipped && (
+                                    <p className="text-[11px] text-gray-400 mt-5 flex items-center gap-1">
+                                        <RotateCcw className="h-3 w-3" /> Bosib javobni ko'ring
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Navigation */}
+                        <div className="p-4 border-t border-gray-100 flex gap-2 flex-shrink-0">
+                            <button disabled={flashIdx === 0}
+                                onClick={() => { setFlashIdx(flashIdx - 1); setFlashFlipped(false) }}
+                                className="flex-1 h-10 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 disabled:opacity-30 hover:bg-gray-50 transition flex items-center justify-center gap-1">
+                                <ChevronLeft className="h-4 w-4" /> Oldingi
+                            </button>
+                            <button onClick={() => {
+                                if (flashIdx < flashPanel.length - 1) { setFlashIdx(flashIdx + 1); setFlashFlipped(false) }
+                                else setFlashPanel(null)
+                            }} className="flex-1 h-10 rounded-xl bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 transition flex items-center justify-center gap-1">
+                                {flashIdx < flashPanel.length - 1 ? <><span>Keyingi</span><ChevronRight className="h-4 w-4" /></> : '✅ Tugallash'}
+                            </button>
                         </div>
                     </div>
                 )

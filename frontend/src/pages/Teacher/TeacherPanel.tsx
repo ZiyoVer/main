@@ -3,6 +3,18 @@ import { useNavigate } from 'react-router-dom'
 import { BrainCircuit, Plus, Trash2, LogOut, Copy, Check, Globe, Lock, ClipboardList, Upload, Sparkles, FileText, Image, ChevronDown, ChevronUp, BarChart2, X, Users } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
+import katex from 'katex'
+import 'katex/dist/katex.min.css'
+
+function MathPreview({ text }: { text: string }) {
+    if (!text?.includes('$')) return null
+    try {
+        const html = text
+            .replace(/\$\$([^$]+)\$\$/g, (_, m) => katex.renderToString(m.trim(), { displayMode: true, throwOnError: false }))
+            .replace(/\$([^$\n]+)\$/g, (_, m) => katex.renderToString(m.trim(), { throwOnError: false }))
+        return <div className="mt-1.5 px-3 py-2 bg-blue-50/70 border border-blue-100 rounded-lg text-sm text-gray-800 overflow-x-auto" dangerouslySetInnerHTML={{ __html: html }} />
+    } catch { return null }
+}
 
 interface Question { text: string; options: string[]; correctIdx: number }
 
@@ -289,18 +301,22 @@ export default function TeacherPanel() {
                                         </button>
                                     )}
                                 </div>
-                                <textarea placeholder="Savol matni" required value={q.text} onChange={e => updateQ(qi, 'text', e.target.value)} rows={2}
+                                <textarea placeholder="Savol matni ($formula$ yozsa preview chiqadi)" required value={q.text} onChange={e => updateQ(qi, 'text', e.target.value)} rows={2}
                                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 outline-none text-sm transition resize-none" />
+                                <MathPreview text={q.text} />
                                 <div className="grid grid-cols-2 gap-2">
                                     {q.options.map((o, oi) => (
-                                        <label key={oi} className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border cursor-pointer transition ${q.correctIdx === oi ? 'border-emerald-300 bg-emerald-50/60' : 'border-gray-200 hover:border-gray-300'}`}>
-                                            <input type="radio" name={`correct-${qi}`} checked={q.correctIdx === oi} onChange={() => updateQ(qi, 'correctIdx', oi)} className="w-3.5 h-3.5 accent-emerald-600 flex-shrink-0" />
-                                            <input placeholder={`Variant ${String.fromCharCode(65 + oi)}`} required value={o} onChange={e => updateQ(qi, `opt${oi}`, e.target.value)}
-                                                className="flex-1 bg-transparent outline-none text-sm min-w-0" />
-                                        </label>
+                                        <div key={oi}>
+                                            <label className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border cursor-pointer transition ${q.correctIdx === oi ? 'border-emerald-300 bg-emerald-50/60' : 'border-gray-200 hover:border-gray-300'}`}>
+                                                <input type="radio" name={`correct-${qi}`} checked={q.correctIdx === oi} onChange={() => updateQ(qi, 'correctIdx', oi)} className="w-3.5 h-3.5 accent-emerald-600 flex-shrink-0" />
+                                                <input placeholder={`Variant ${String.fromCharCode(65 + oi)}`} required value={o} onChange={e => updateQ(qi, `opt${oi}`, e.target.value)}
+                                                    className="flex-1 bg-transparent outline-none text-sm min-w-0" />
+                                            </label>
+                                            <MathPreview text={o} />
+                                        </div>
                                     ))}
                                 </div>
-                                <p className="text-[11px] text-gray-400">To'g'ri javobni tanlash uchun yashil doirani bosing</p>
+                                <p className="text-[11px] text-gray-400">To'g'ri javobni tanlash uchun yashil doirani bosing · $formula$ yozsa KaTeX preview chiqadi</p>
                             </div>
                         ))}
 

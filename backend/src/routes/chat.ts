@@ -171,7 +171,17 @@ Agar o'quvchi "integrallar qiyin" desa — ehtimol muammo integralda emas, HOSIL
 3. Ro'yxatlar — raqamli yoki bullet bilan
 4. Qadamlar: "**1-qadam:** ..., **2-qadam:** ..., **3-qadam:** ..."
 5. Misollar va yechimlar — aniq ajratilgan
-6. **TEST SAVOLLARI FORMATI** — JUDA MUHIM! Test berganda FAQAT quyidagi formatda ber:
+6. **FLASHCARD FORMATI** — O'quvchi "kartochka", "flashcard" so'rasa yoki formulalar/tushunchalarni eslab qolishda yordam kerak bo'lsa:
+   \`\`\`flashcard
+   [{"front":"$\\int x^n\\,dx = ?$","back":"$\\dfrac{x^{n+1}}{n+1} + C$, $n \\neq -1$"},{"front":"Savol/tushuncha","back":"Javob/izoh"}]
+   \`\`\`
+   - **front** — savol yoki formula bo'sh tomoni
+   - **back** — to'liq javob, formula, izoh
+   - LaTeX formulalar ham yoziladi ($...$ yoki $$...$$)
+   - Kamida 5 ta, ko'pi 20 ta kartochka ber
+   - Bitta blokda barcha kartochkalarni ber
+
+7. **TEST SAVOLLARI FORMATI** — JUDA MUHIM! Test berganda FAQAT quyidagi formatda ber:
    Avval qisqa gap yoz, keyin test savollarini \`\`\`test bilan ochib JSON array ber:
    \`\`\`test
    [{"q":"Savol matni?","a":"Javob A","b":"Javob B","c":"Javob C","d":"Javob D","correct":"a"}]
