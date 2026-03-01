@@ -171,6 +171,9 @@ export default function ChatLayout() {
     const [flashPanel, setFlashPanel] = useState<Array<{front:string;back:string}> | null>(null)
     const [flashIdx, setFlashIdx] = useState(0)
     const [flashFlipped, setFlashFlipped] = useState(false)
+    const [flashMaximized, setFlashMaximized] = useState(false)
+    const [flashWidth, setFlashWidth] = useState(384)
+    const flashDragRef = useRef(false)
 
     // Auto-close sidebar on mobile
     useEffect(() => {
@@ -182,6 +185,18 @@ export default function ChatLayout() {
 
     useEffect(() => { loadChats(); loadProfile(); loadPublicTests() }, [])
     useEffect(() => { if (chatId) loadMessages(chatId) }, [chatId])
+
+    // Flashcard panel drag-to-resize
+    useEffect(() => {
+        const onMove = (e: MouseEvent) => {
+            if (!flashDragRef.current) return
+            setFlashWidth(Math.max(280, Math.min(900, window.innerWidth - e.clientX)))
+        }
+        const onUp = () => { flashDragRef.current = false }
+        window.addEventListener('mousemove', onMove)
+        window.addEventListener('mouseup', onUp)
+        return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+    }, [])
     useEffect(() => {
         const el = scrollRef.current
         if (!el) return
@@ -961,19 +976,38 @@ export default function ChatLayout() {
             {flashPanel && (() => {
                 const card = flashPanel[flashIdx]
                 return (
-                    <div className="w-96 bg-white border-l border-gray-200 flex flex-col flex-shrink-0">
+                    <div
+                        className={flashMaximized
+                            ? 'fixed inset-0 z-50 bg-white flex flex-col'
+                            : 'relative bg-white border-l border-gray-200 flex flex-col flex-shrink-0'}
+                        style={flashMaximized ? {} : { width: flashWidth }}>
+
+                        {/* Drag handle (chap cheti) */}
+                        {!flashMaximized && (
+                            <div
+                                onMouseDown={e => { flashDragRef.current = true; e.preventDefault() }}
+                                className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-violet-300/60 active:bg-violet-400/60 transition-colors z-10 group">
+                                <div className="absolute left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-8 bg-gray-300 group-hover:bg-violet-400 rounded-full transition-colors" />
+                            </div>
+                        )}
+
                         {/* Header */}
                         <div className="h-14 flex items-center justify-between px-4 border-b border-gray-100 flex-shrink-0">
                             <div className="flex items-center gap-2">
-                                <div className="h-7 w-7 bg-gradient-to-br from-violet-500 to-purple-500 rounded-lg flex items-center justify-center">
-                                    <Layers className="h-3.5 w-3.5 text-white" />
-                                </div>
-                                <span className="text-sm font-semibold text-gray-900">Kartochkalar</span>
+                                <span className="text-sm font-semibold text-gray-900">🃏 Kartochkalar</span>
                                 <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-md">{flashIdx + 1}/{flashPanel.length}</span>
                             </div>
-                            <button onClick={() => setFlashPanel(null)} className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 transition">
-                                <X className="h-4 w-4" />
-                            </button>
+                            <div className="flex items-center gap-1">
+                                <button onClick={() => setFlashMaximized(!flashMaximized)}
+                                    className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"
+                                    title={flashMaximized ? 'Kichraytirish' : 'Kattalashtirish'}>
+                                    {flashMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                                </button>
+                                <button onClick={() => { setFlashPanel(null); setFlashMaximized(false) }}
+                                    className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition">
+                                    <X className="h-4 w-4" />
+                                </button>
+                            </div>
                         </div>
 
                         {/* Progress bar */}
@@ -982,25 +1016,27 @@ export default function ChatLayout() {
                         </div>
 
                         {/* Card flip area */}
-                        <div className="flex-1 flex flex-col items-center justify-center p-5 min-h-0">
-                            <div onClick={() => setFlashFlipped(!flashFlipped)}
-                                className={`w-full cursor-pointer rounded-2xl border-2 p-6 text-center min-h-[200px] flex flex-col items-center justify-center transition-all duration-200 select-none ${flashFlipped ? 'border-emerald-300 bg-emerald-50' : 'border-violet-200 bg-gradient-to-br from-violet-50 to-purple-50'}`}>
-                                <p className={`text-[10px] font-bold uppercase tracking-widest mb-4 ${flashFlipped ? 'text-emerald-500' : 'text-violet-400'}`}>
-                                    {flashFlipped ? '✅ Javob' : '❓ Savol'}
-                                </p>
-                                <div className="text-[14px] text-gray-800 leading-relaxed w-full">
-                                    <MdMessage content={flashFlipped ? card.back : card.front} onOpenTest={() => {}} onProfileUpdate={() => {}} onOpenFlash={() => {}} />
-                                </div>
-                                {!flashFlipped && (
-                                    <p className="text-[11px] text-gray-400 mt-5 flex items-center gap-1">
-                                        <RotateCcw className="h-3 w-3" /> Bosib javobni ko'ring
+                        <div className="flex-1 flex flex-col items-center justify-center p-5 min-h-0 overflow-y-auto">
+                            <div className={flashMaximized ? 'w-full max-w-2xl' : 'w-full'}>
+                                <div onClick={() => setFlashFlipped(!flashFlipped)}
+                                    className={`cursor-pointer rounded-2xl border-2 p-6 text-center min-h-[200px] flex flex-col items-center justify-center transition-all duration-200 select-none ${flashFlipped ? 'border-emerald-300 bg-emerald-50' : 'border-violet-200 bg-gradient-to-br from-violet-50 to-purple-50'}`}>
+                                    <p className={`text-[10px] font-bold uppercase tracking-widest mb-4 ${flashFlipped ? 'text-emerald-500' : 'text-violet-400'}`}>
+                                        {flashFlipped ? '✅ Javob' : '❓ Savol'}
                                     </p>
-                                )}
+                                    <div className="text-[14px] text-gray-800 leading-relaxed w-full">
+                                        <MdMessage content={flashFlipped ? card.back : card.front} onOpenTest={() => {}} onProfileUpdate={() => {}} onOpenFlash={() => {}} />
+                                    </div>
+                                    {!flashFlipped && (
+                                        <p className="text-[11px] text-gray-400 mt-5 flex items-center gap-1">
+                                            <RotateCcw className="h-3 w-3" /> Bosib javobni ko'ring
+                                        </p>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
                         {/* Navigation */}
-                        <div className="p-4 border-t border-gray-100 flex gap-2 flex-shrink-0">
+                        <div className={`p-4 border-t border-gray-100 flex gap-2 flex-shrink-0 ${flashMaximized ? 'max-w-2xl w-full mx-auto' : ''}`}>
                             <button disabled={flashIdx === 0}
                                 onClick={() => { setFlashIdx(flashIdx - 1); setFlashFlipped(false) }}
                                 className="flex-1 h-10 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 disabled:opacity-30 hover:bg-gray-50 transition flex items-center justify-center gap-1">
@@ -1008,7 +1044,7 @@ export default function ChatLayout() {
                             </button>
                             <button onClick={() => {
                                 if (flashIdx < flashPanel.length - 1) { setFlashIdx(flashIdx + 1); setFlashFlipped(false) }
-                                else setFlashPanel(null)
+                                else { setFlashPanel(null); setFlashMaximized(false) }
                             }} className="flex-1 h-10 rounded-xl bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 transition flex items-center justify-center gap-1">
                                 {flashIdx < flashPanel.length - 1 ? <><span>Keyingi</span><ChevronRight className="h-4 w-4" /></> : '✅ Tugallash'}
                             </button>
