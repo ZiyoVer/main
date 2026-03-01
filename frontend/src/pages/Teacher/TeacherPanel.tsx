@@ -130,6 +130,7 @@ export default function TeacherPanel() {
     }
 
     return (
+        <>
         <div className="h-screen bg-[#fafafa] overflow-y-auto">
             <header className="bg-white/80 backdrop-blur-xl border-b border-gray-100 sticky top-0 z-40">
                 <div className="max-w-6xl mx-auto flex items-center justify-between py-3 px-6">
@@ -430,5 +431,6 @@ export default function TeacherPanel() {
                 </div>
             </div>
         )}
+        </>
     )
 }
