@@ -4,6 +4,7 @@ import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import dotenv from 'dotenv'
 import path from 'path'
+import fs from 'fs'
 import prisma from './utils/db'
 import bcrypt from 'bcryptjs'
 
@@ -101,9 +102,9 @@ app.use('/api', (_req, res) => {
     res.status(404).json({ error: 'Endpoint topilmadi' })
 })
 
-// Static frontend (production)
-if (process.env.NODE_ENV === 'production') {
-    const frontendDist = path.join(__dirname, '../../frontend/dist')
+// Static frontend — NODE_ENV ga bog'liq emas, dist mavjud bo'lsa serve qiladi
+const frontendDist = path.join(__dirname, '../../frontend/dist')
+if (fs.existsSync(frontendDist)) {
     app.use(express.static(frontendDist))
     app.get(/.*/, (_req, res) => {
         res.sendFile(path.join(frontendDist, 'index.html'))
