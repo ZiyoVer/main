@@ -12,9 +12,10 @@ const router = Router()
 
 
 // DeepSeek client — matn/chat uchun (V3 + R1 Reasoner)
+// DEEPSEEK_API_KEY yo'q bo'lsa OPENAI_API_KEY ga fallback (eski Railway config uchun)
 const openai = new OpenAI({
     baseURL: 'https://api.deepseek.com',
-    apiKey: process.env.DEEPSEEK_API_KEY || ''
+    apiKey: process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY || ''
 })
 
 // OpenAI client — rasm tahlili uchun (GPT-4o Vision)

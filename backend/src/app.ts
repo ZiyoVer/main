@@ -10,7 +10,7 @@ import bcrypt from 'bcryptjs'
 dotenv.config()
 
 // Muhim env varlarni tekshirish
-const REQUIRED_ENV = ['DATABASE_URL', 'JWT_SECRET', 'OPENAI_API_KEY', 'DEEPSEEK_API_KEY', 'ADMIN_PASSWORD']
+const REQUIRED_ENV = ['DATABASE_URL', 'JWT_SECRET', 'ADMIN_PASSWORD']
 for (const key of REQUIRED_ENV) {
     if (!process.env[key]) {
         console.error(`❌ Muhim env var topilmadi: ${key}`)
