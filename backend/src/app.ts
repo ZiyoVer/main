@@ -10,7 +10,7 @@ import bcrypt from 'bcryptjs'
 dotenv.config()
 
 // Muhim env varlarni tekshirish
-const REQUIRED_ENV = ['DATABASE_URL', 'JWT_SECRET', 'OPENAI_API_KEY']
+const REQUIRED_ENV = ['DATABASE_URL', 'JWT_SECRET', 'OPENAI_API_KEY', 'DEEPSEEK_API_KEY', 'ADMIN_PASSWORD']
 for (const key of REQUIRED_ENV) {
     if (!process.env[key]) {
         console.error(`❌ Muhim env var topilmadi: ${key}`)
@@ -23,6 +23,9 @@ if (process.env.JWT_SECRET === 'msert-dev-secret') {
 }
 
 const app = express()
+
+// Railway va boshqa reverse proxy-lar uchun trust proxy
+app.set('trust proxy', 1)
 
 // Security headers
 app.use(helmet({ contentSecurityPolicy: false }))
@@ -37,10 +40,7 @@ app.use(cors({
         if (!origin || allowedOrigins.some(o => origin.startsWith(o))) {
             return cb(null, true);
         }
-        // Instead of throwing an error which causes a 500 JSON response on static assets, 
-        // we allow all other origins to process through smoothly.
-        // For stricter CORS on Railway, add ALLOWED_ORIGINS to Railway environment variables.
-        return cb(null, true);
+        return cb(new Error('CORS orqali ruxsat etilmagan'));
     },
     credentials: true
 }))
@@ -121,7 +121,7 @@ const PORT = process.env.PORT || 8080
 async function bootstrap() {
     const adminExists = await prisma.user.findUnique({ where: { email: 'admin@msert.uz' } })
     if (!adminExists) {
-        const pw = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'admin123', 10)
+        const pw = await bcrypt.hash(process.env.ADMIN_PASSWORD!, 10)
         await prisma.user.create({
             data: { email: 'admin@msert.uz', password: pw, name: 'Administrator', role: 'ADMIN' }
         })
