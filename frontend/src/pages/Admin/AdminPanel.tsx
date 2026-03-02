@@ -25,7 +25,9 @@ export default function AdminPanel() {
     const [aiMsg, setAiMsg] = useState('')
     const [loading, setLoading] = useState(true)
 
-    useEffect(() => { loadAll() }, [])
+    useEffect(() => {
+        loadAll()
+    }, [tab])
     async function loadAll() {
         setLoading(true)
         try { setStats(await fetchApi('/analytics/stats')) } catch { setStats({}) }
@@ -59,7 +61,9 @@ export default function AdminPanel() {
             fd.append('subject', docSubject)
             await uploadFile('/documents/upload', fd)
             loadAll()
-        } catch { }
+        } catch (e: any) {
+            alert('Hujjat yuklashda xato: ' + (e?.message || 'Qayta urinib ko\'ring'))
+        }
         setUploading(false)
         e.target.value = ''
     }
@@ -345,14 +349,14 @@ export default function AdminPanel() {
                 {/* === AI SETTINGS === */}
                 {tab === 'ai' && (() => {
                     const SECTIONS = [
-                        { key: 'extra_rules',     label: 'Qo\'shimcha qoidalar', desc: 'Har doim qo\'shiladigan ko\'rsatmalar' },
-                        { key: 'prompt_role',     label: 'Rol va shaxsiyat',     desc: '🎓 AI kim — "Sen msert platformasi..."' },
+                        { key: 'extra_rules', label: 'Qo\'shimcha qoidalar', desc: 'Har doim qo\'shiladigan ko\'rsatmalar' },
+                        { key: 'prompt_role', label: 'Rol va shaxsiyat', desc: '🎓 AI kim — "Sen msert platformasi..."' },
                         { key: 'prompt_teaching', label: 'O\'qitish metodikasi', desc: '📖 Avval tushuntir, dialog, diagnostika' },
-                        { key: 'prompt_format',   label: 'Formatlash qoidalari', desc: '📝 LaTeX, jadval, flashcard, test format' },
-                        { key: 'prompt_math',     label: 'Matematika bo\'limi',  desc: '🏆 Milliy Sertifikat Matematika' },
-                        { key: 'prompt_english',  label: 'Ingliz tili bo\'limi', desc: '🏆 Milliy Sertifikat Ingliz tili' },
-                        { key: 'prompt_file',     label: 'Fayl tahlili',         desc: '📎 PDF/rasm yuklanganda' },
-                        { key: 'prompt_donts',    label: 'Qilma qoidalar',       desc: '⚠️ AI qilmasligi kerak narsalar' },
+                        { key: 'prompt_format', label: 'Formatlash qoidalari', desc: '📝 LaTeX, jadval, flashcard, test format' },
+                        { key: 'prompt_math', label: 'Matematika bo\'limi', desc: '🏆 Milliy Sertifikat Matematika' },
+                        { key: 'prompt_english', label: 'Ingliz tili bo\'limi', desc: '🏆 Milliy Sertifikat Ingliz tili' },
+                        { key: 'prompt_file', label: 'Fayl tahlili', desc: '📎 PDF/rasm yuklanganda' },
+                        { key: 'prompt_donts', label: 'Qilma qoidalar', desc: '⚠️ AI qilmasligi kerak narsalar' },
                     ]
                     const activeSection = SECTIONS.find(s => s.key === promptSection)!
                     const currentVal = (aiConfig as any)[promptSection] as string

@@ -87,6 +87,43 @@ correctIdx — to'g'ri javob indeksi (0=A, 1=B, 2=C, 3=D). Eng kamida 5 ta, eng 
 })
 
 // O'qituvchi: Test yaratish
+router.post('/:testId/questions', authenticate, requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, res) => {
+    try {
+        const testId = req.params.testId as string
+        const test = await prisma.test.findUnique({ where: { id: testId } })
+        if (!test) return res.status(404).json({ error: 'Test topilmadi' })
+        if (req.user.role !== 'ADMIN' && test.creatorId !== req.user.id) {
+            return res.status(403).json({ error: 'Ruxsat yo\'q' })
+        }
+
+        const { text, options, correctIdx, orderIdx, difficulty } = req.body
+
+        // Validatsiya
+        if (!Array.isArray(options) || options.length < 2) {
+            return res.status(400).json({ error: 'Kamida 2 ta variant bo\'lishi kerak' })
+        }
+        if (typeof correctIdx !== 'number' || correctIdx < 0 || correctIdx >= options.length) {
+            return res.status(400).json({ error: 'To\'g\'ri javob indeksi xato' })
+        }
+
+        const q = await prisma.testQuestion.create({
+            data: {
+                testId: test.id,
+                text,
+                options: JSON.stringify(options),
+                correctIdx,
+                orderIdx: orderIdx || 0,
+                difficulty: difficulty || 0.0
+            }
+        })
+        res.status(201).json(q)
+    } catch (e) {
+        console.error(e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+// O'qituvchi: Test yaratish
 router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, res) => {
     try {
         const { title, description, subject, isPublic, questions, timeLimit } = req.body
@@ -158,8 +195,13 @@ router.post('/submit-ai', authenticate, async (req: AuthRequest, res) => {
 // Test olish (link bo'yicha ham)
 router.get('/by-link/:shareLink', authenticate, async (req: AuthRequest, res) => {
     try {
+        const shareLink = req.params.shareLink as string
+        // UUID formatini tekshirish
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(shareLink)) return res.status(400).json({ error: 'Noto\'g\'ri link formati' })
+
         const test = await prisma.test.findUnique({
-            where: { shareLink: req.params.shareLink as string },
+            where: { shareLink },
             include: {
                 questions: { orderBy: { orderIdx: 'asc' }, select: { id: true, text: true, options: true, orderIdx: true, correctIdx: true } },
                 creator: { select: { name: true } }
@@ -206,28 +248,33 @@ router.post('/:testId/submit', authenticate, async (req: AuthRequest, res) => {
             isCorrect: r.isCorrect
         })))
 
-        // Natijani saqlash
-        const attempt = await prisma.testAttempt.create({
-            data: {
-                testId: test.id,
-                userId: req.user.id,
-                answers: JSON.stringify(results),
-                score: Math.round(score * 100) / 100,
-                raschAbility: newAbility
-            }
-        })
+        // $transaction yordamida ACID ta'minlash
+        const finalScore = Math.round(score * 100) / 100
 
-        // Profilni yangilash
-        if (profile) {
-            await prisma.studentProfile.update({
-                where: { userId: req.user.id },
+        const attempt = await prisma.$transaction(async (tx) => {
+            const att = await tx.testAttempt.create({
                 data: {
-                    abilityLevel: newAbility,
-                    totalTests: { increment: 1 },
-                    avgScore: Math.round(((profile.avgScore * profile.totalTests + score) / (profile.totalTests + 1)) * 100) / 100
+                    testId: test.id,
+                    userId: req.user.id,
+                    answers: JSON.stringify(results),
+                    score: finalScore,
+                    raschAbility: newAbility
                 }
             })
-        }
+
+            if (profile) {
+                await tx.studentProfile.update({
+                    where: { userId: req.user.id },
+                    data: {
+                        abilityLevel: newAbility,
+                        totalTests: { increment: 1 },
+                        avgScore: Math.round(((profile.avgScore * profile.totalTests + score) / (profile.totalTests + 1)) * 100) / 100
+                    }
+                })
+            }
+
+            return att;
+        })
 
         res.json({
             attempt,
@@ -308,14 +355,24 @@ router.get('/:testId/analytics', authenticate, requireRole('TEACHER', 'ADMIN'), 
 
         // Har bir savol bo'yicha statistika
         const questionStats = test.questions.map(q => {
-            const opts = typeof q.options === 'string' ? JSON.parse(q.options) : q.options
+            let opts: any[]
+            try {
+                opts = typeof q.options === 'string' ? JSON.parse(q.options) : q.options
+            } catch {
+                opts = []
+            }
             let totalAnswered = 0
             let correctCount = 0
             const optionCounts = [0, 0, 0, 0]
 
             for (const attempt of test.attempts) {
                 let answers: any[] = []
-                try { answers = JSON.parse(attempt.answers as string) } catch { }
+                try {
+                    answers = JSON.parse(attempt.answers as string)
+                } catch (e) {
+                    console.error("Noto'g'ri JSON format saqlangan:", e)
+                    continue
+                }
                 const ans = answers.find((a: any) => a.questionId === q.id)
                 if (ans != null) {
                     totalAnswered++

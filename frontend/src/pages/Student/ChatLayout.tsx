@@ -228,7 +228,7 @@ export default function ChatLayout() {
         // Foydalanuvchi yuqoriga scroll qilmagan bo'lsa avtomatik pastga tush
         const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 180
         if (isNearBottom) el.scrollTop = el.scrollHeight
-    }, [messages, streaming])
+    }, [messages, streaming, attachedFiles.length])
 
     // Test panel yopilganda timerni tozalash
     useEffect(() => {
@@ -572,7 +572,9 @@ export default function ChatLayout() {
                 newAttachments.push({ id: Math.random().toString(), name: file.name, text: data.text, type: data.fileType, previewUrl })
             }
             setAttachedFiles(prev => [...prev, ...newAttachments])
-        } catch { }
+        } catch (e: any) {
+            alert('Fayl yuklashda xato: ' + (e?.message || 'Qayta urinib ko\'ring'))
+        }
         setUploadingFile(false)
     }
 
