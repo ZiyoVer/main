@@ -11,6 +11,11 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
     rel="stylesheet" />
   <title>msert — Aqlli Ta'lim Platformasi</title>
+  <script>
+    window.addEventListener('error', function (e) {
+      document.body.innerHTML += '<div style="color:red;z-index:9999;position:fixed;top:0;left:0;background:white;padding:20px;width:100%;font-size:14px;overflow:auto;height:100vh;"><b>Critical JS Error:</b><br>' + e.message + '<br>' + e.filename + ':' + e.lineno + '<br><pre>' + (e.error ? e.error.stack : '') + '</pre></div>';
+    });
+  </script>
 </head>
 
 <body>
