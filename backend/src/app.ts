@@ -36,7 +36,7 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
     : ['http://localhost:5173', 'http://localhost:3000']
 
-app.use(cors({
+app.use('/api', cors({
     origin: (origin, cb) => {
         if (!origin || allowedOrigins.some(o => origin.startsWith(o))) {
             return cb(null, true);

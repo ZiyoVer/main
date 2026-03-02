@@ -2,9 +2,14 @@ import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } fro
 import { v4 as uuid } from 'uuid'
 import path from 'path'
 
+if (!process.env.S3_ACCESS_KEY || !process.env.S3_SECRET_KEY) {
+    console.warn('⚠️ S3 credentials topilmadi, yuklashlar ishlamasligi mumkin')
+}
+
+const s3Endpoint = process.env.S3_ENDPOINT || 'https://s3.eu-central-2.wasabisys.com'
 const s3 = new S3Client({
     region: process.env.S3_REGION || 'eu-central-2',
-    endpoint: process.env.S3_ENDPOINT || 'https://s3.eu-central-2.wasabisys.com',
+    endpoint: s3Endpoint,
     credentials: {
         accessKeyId: process.env.S3_ACCESS_KEY || '',
         secretAccessKey: process.env.S3_SECRET_KEY || ''
@@ -35,7 +40,9 @@ export async function uploadToS3(
         ACL: 'public-read'
     }))
 
-    const url = `https://s3.eu-central-2.wasabisys.com/${BUCKET}/${key}`
+    // Use dynamic endpoint depending on if it has trailing slash
+    const baseUrl = s3Endpoint.endsWith('/') ? s3Endpoint.slice(0, -1) : s3Endpoint
+    const url = `${baseUrl}/${BUCKET}/${key}`
     return { key, url }
 }
 

@@ -4,7 +4,11 @@
       "WebSearch",
       "WebFetch(domain:oliygoh.uz)",
       "WebFetch(domain:uzbmb.uz)",
-      "WebFetch(domain:zachwills.net)"
+      "WebFetch(domain:zachwills.net)",
+      "WebFetch(domain:support.claude.com)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run:*)",
+      "Bash(curl:*)"
     ]
   }
 }

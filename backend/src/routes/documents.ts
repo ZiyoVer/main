@@ -13,8 +13,19 @@ const upload = multer({
     limits: { fileSize: 50 * 1024 * 1024 } // 50MB
 })
 
+const uploadSingle = (req: any, res: any, next: any) => {
+    upload.single('file')(req, res, (err) => {
+        if (err instanceof multer.MulterError) {
+            return res.status(400).json({ error: `Fayl yuklashda xato: ${err.message}` });
+        } else if (err) {
+            return res.status(500).json({ error: err.message || 'Noma\'lum yuklash xatosi' });
+        }
+        next();
+    });
+};
+
 // Admin: Fayl yuklash va chunklarga ajratish
-router.post('/upload', authenticate, requireRole('ADMIN'), upload.single('file'), async (req: AuthRequest, res) => {
+router.post('/upload', authenticate, requireRole('ADMIN'), uploadSingle, async (req: AuthRequest, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'Fayl topilmadi' })
 
@@ -102,7 +113,7 @@ router.post('/upload', authenticate, requireRole('ADMIN'), upload.single('file')
 })
 
 // Chat uchun fayl/rasm yuklash
-router.post('/chat-upload', authenticate, upload.single('file'), async (req: AuthRequest, res) => {
+router.post('/chat-upload', authenticate, uploadSingle, async (req: AuthRequest, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'Fayl topilmadi' })
 
