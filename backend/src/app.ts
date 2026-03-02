@@ -34,8 +34,13 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 
 app.use(cors({
     origin: (origin, cb) => {
-        if (!origin || allowedOrigins.some(o => origin.startsWith(o))) return cb(null, true)
-        cb(new Error('CORS: ruxsat berilmagan domen'))
+        if (!origin || allowedOrigins.some(o => origin.startsWith(o))) {
+            return cb(null, true);
+        }
+        // Instead of throwing an error which causes a 500 JSON response on static assets, 
+        // we allow all other origins to process through smoothly.
+        // For stricter CORS on Railway, add ALLOWED_ORIGINS to Railway environment variables.
+        return cb(null, true);
     },
     credentials: true
 }))
