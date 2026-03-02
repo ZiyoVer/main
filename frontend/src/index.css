@@ -24,9 +24,13 @@
         @apply bg-white text-gray-900;
         font-family: 'Inter', system-ui, -apple-system, sans-serif;
         -webkit-font-smoothing: antialiased;
+        overflow: hidden;
+        height: 100%;
     }
 
     html {
+        overflow: hidden;
+        height: 100%;
     }
 }
 

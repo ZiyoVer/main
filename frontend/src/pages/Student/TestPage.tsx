@@ -64,7 +64,7 @@ export default function TestPage() {
     const total = test?.questions?.length || 0
 
     return (
-        <div className="min-h-screen bg-[#fafafa]">
+        <div className="h-screen bg-[#fafafa] overflow-y-auto w-full">
             {/* Header */}
             <header className="bg-white/90 backdrop-blur-xl border-b border-gray-100 sticky top-0 z-40">
                 <div className="max-w-2xl mx-auto flex items-center justify-between py-3 px-5">
@@ -126,7 +126,7 @@ export default function TestPage() {
                                             className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border text-left text-[13px] transition ${cls}`}
                                         >
                                             <span className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 text-[10px] font-bold border-current">
-                                                {['A','B','C','D'][oi]}
+                                                {['A', 'B', 'C', 'D'][oi]}
                                             </span>
                                             <span className="flex-1">{opt}</span>
                                             {submitted && oi === q.correctIdx && <CheckCircle className="h-4 w-4 text-emerald-500 flex-shrink-0" />}

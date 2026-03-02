@@ -16,7 +16,7 @@ export default function Landing() {
     }, [])
 
     return (
-        <div className="min-h-screen bg-[#fafafa]">
+        <div className="h-screen bg-[#fafafa] overflow-y-auto w-full">
             {/* Nav */}
             <nav className="fixed top-0 inset-x-0 z-50">
                 <div className="max-w-6xl mx-auto px-6 py-4">

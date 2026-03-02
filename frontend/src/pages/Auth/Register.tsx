@@ -27,7 +27,7 @@ export default function Register() {
     }
 
     return (
-        <div className="min-h-screen bg-[#fafafa] flex">
+        <div className="h-screen bg-[#fafafa] flex overflow-y-auto w-full">
             <div className="hidden lg:flex flex-1 bg-mesh-dark items-center justify-center relative overflow-hidden">
                 <div className="absolute bottom-20 right-10 w-96 h-96 bg-emerald-500/8 rounded-full blur-3xl anim-float d2" />
                 <div className="text-center z-10 anim-up">

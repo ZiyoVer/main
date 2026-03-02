@@ -3,7 +3,8 @@
     "allow": [
       "WebSearch",
       "WebFetch(domain:oliygoh.uz)",
-      "WebFetch(domain:uzbmb.uz)"
+      "WebFetch(domain:uzbmb.uz)",
+      "WebFetch(domain:zachwills.net)"
     ]
   }
 }

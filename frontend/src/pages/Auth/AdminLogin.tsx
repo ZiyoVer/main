@@ -26,7 +26,7 @@ export default function AdminLogin() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-950 flex items-center justify-center p-6 relative overflow-hidden">
+        <div className="h-screen bg-gray-950 flex items-center justify-center p-6 relative overflow-y-auto w-full">
             <div className="absolute top-10 left-20 w-72 h-72 bg-red-500/10 rounded-full blur-3xl" />
             <div className="w-full max-w-sm glass rounded-3xl p-8 anim-up">
                 <div className="text-center mb-7">
