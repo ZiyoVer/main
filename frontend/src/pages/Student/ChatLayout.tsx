@@ -164,7 +164,7 @@ export default function ChatLayout() {
     const [testAnswers, setTestAnswers] = useState<Record<number, string>>({})
     const [testSubmitted, setTestSubmitted] = useState(false)
     const [testPanelMaximized, setTestPanelMaximized] = useState(false)
-    const [attachedFile, setAttachedFile] = useState<{ name: string; text: string; type: string } | null>(null)
+    const [attachedFile, setAttachedFile] = useState<{ name: string; text: string; type: string; previewUrl?: string } | null>(null)
     const [uploadingFile, setUploadingFile] = useState(false)
     const [loadingPublicTest, setLoadingPublicTest] = useState(false)
     const [activeTestId, setActiveTestId] = useState<string | null>(null)
@@ -179,7 +179,7 @@ export default function ChatLayout() {
         try { return new Set(JSON.parse(localStorage.getItem('msert_done_ai_tests') || '[]')) } catch { return new Set() }
     })())
     // Flashcard panel state
-    const [flashPanel, setFlashPanel] = useState<Array<{front:string;back:string}> | null>(null)
+    const [flashPanel, setFlashPanel] = useState<Array<{ front: string; back: string }> | null>(null)
     const [flashIdx, setFlashIdx] = useState(0)
     const [flashFlipped, setFlashFlipped] = useState(false)
     const [flashMaximized, setFlashMaximized] = useState(false)
@@ -239,7 +239,7 @@ export default function ChatLayout() {
             submitTestPanel()
             setTestTimeLeft(null)
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [testTimeLeft])
 
     async function loadProfile() {
@@ -402,7 +402,9 @@ export default function ChatLayout() {
         if (attachedFile) {
             const userInput = input.trim()
             const promptText = `📎 **${attachedFile.name}** faylidan:\n\n${attachedFile.text}${userInput ? '\n\n' + userInput : ''}`
-            const displayText = `📎 **${attachedFile.name}** — AI tahlil qilmoqda...${userInput ? '\n\n' + userInput : ''}`
+            const displayText = attachedFile.previewUrl
+                ? `![${attachedFile.name}](${attachedFile.previewUrl})${userInput ? '\n\n' + userInput : ''}`
+                : `📎 **${attachedFile.name}**${userInput ? '\n\n' + userInput : ''}`
             setAttachedFile(null)
             setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: displayText, createdAt: new Date().toISOString() }])
             await streamToChat(chatId, promptText, displayText)
@@ -539,7 +541,12 @@ export default function ChatLayout() {
                 body: formData
             })
             const data = await res.json()
-            setAttachedFile({ name: file.name, text: data.text, type: data.fileType })
+            // Rasm bo'lsa preview URL yaratamiz
+            let previewUrl: string | undefined
+            if (file.type.startsWith('image/')) {
+                previewUrl = URL.createObjectURL(file)
+            }
+            setAttachedFile({ name: file.name, text: data.text, type: data.fileType, previewUrl })
         } catch { }
         setUploadingFile(false)
     }
@@ -611,7 +618,7 @@ export default function ChatLayout() {
                         loadMyResults()
                     }
                 })
-                .catch(() => {})
+                .catch(() => { })
             markTestCompleted(activeTestId)
         } else if (testPanel) {
             // AI tomonidan yaratilgan test — javoblarni va yechilgan holatni saqlash
@@ -627,7 +634,7 @@ export default function ChatLayout() {
             fetchApi('/tests/submit-ai', {
                 method: 'POST',
                 body: JSON.stringify({ score: scorePercent, totalQuestions: questions.length, results: raschResults })
-            }).then(() => { loadProfile(); loadMyResults() }).catch(() => {})
+            }).then(() => { loadProfile(); loadMyResults() }).catch(() => { })
         }
     }
 
@@ -781,65 +788,65 @@ export default function ChatLayout() {
                             const abilityColor = abilityLevel >= 1.5 ? 'from-emerald-500 to-teal-400' : abilityLevel >= 0 ? 'from-blue-500 to-cyan-400' : abilityLevel >= -1.5 ? 'from-amber-400 to-orange-400' : 'from-red-400 to-rose-400'
                             return (
                                 <>
-                                {/* Bilim darajasi (Rasch) */}
-                                <div className="bg-white rounded-xl p-3 border border-gray-100">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <p className="text-[11px] font-semibold text-gray-400 uppercase">Bilim darajasi</p>
-                                        <span className="text-[11px] font-semibold text-gray-600">{abilityLabel}</span>
-                                    </div>
-                                    <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden mb-1">
-                                        <div className={`h-full rounded-full bg-gradient-to-r ${abilityColor} transition-all duration-500`} style={{ width: `${abilityPct}%` }} />
-                                    </div>
-                                    <p className="text-[10px] text-gray-300 text-right">{abilityPct}% · Rasch modeli</p>
-                                </div>
-                                {/* Testlar statistikasi */}
-                                {(profile?.totalTests || 0) > 0 && (
+                                    {/* Bilim darajasi (Rasch) */}
                                     <div className="bg-white rounded-xl p-3 border border-gray-100">
-                                        <p className="text-[11px] font-semibold text-gray-400 uppercase mb-2">Testlar natijasi</p>
-                                        <div className="grid grid-cols-2 gap-2 mb-3">
-                                            <div className="bg-gray-50 rounded-lg p-2 text-center">
-                                                <p className="text-base font-bold text-gray-900 tabular-nums">{profile?.totalTests || 0}</p>
-                                                <p className="text-[10px] text-gray-400">Jami testlar</p>
-                                            </div>
-                                            <div className="bg-gray-50 rounded-lg p-2 text-center">
-                                                <p className={`text-base font-bold tabular-nums ${(profile?.avgScore || 0) >= 70 ? 'text-emerald-600' : (profile?.avgScore || 0) >= 50 ? 'text-amber-600' : 'text-red-500'}`}>{Math.round(profile?.avgScore || 0)}%</p>
-                                                <p className="text-[10px] text-gray-400">O'rtacha ball</p>
-                                            </div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <p className="text-[11px] font-semibold text-gray-400 uppercase">Bilim darajasi</p>
+                                            <span className="text-[11px] font-semibold text-gray-600">{abilityLabel}</span>
                                         </div>
-                                        {/* Score trend mini bar chart */}
-                                        {myResults.length > 1 && (
-                                            <div>
-                                                <p className="text-[10px] text-gray-400 mb-1.5">So'nggi {Math.min(myResults.length, 8)} ta test trendi</p>
-                                                <div className="flex items-end gap-1 h-10">
-                                                    {myResults.slice(0, 8).reverse().map((r: any, i: number) => {
-                                                        const barH = Math.max(3, Math.round(r.score * 0.38))
-                                                        const barColor = r.score >= 70 ? 'bg-emerald-400' : r.score >= 50 ? 'bg-amber-400' : 'bg-red-400'
-                                                        return (
-                                                            <div key={i} className="flex-1 flex items-end" title={`${r.test?.title || 'Test'}: ${Math.round(r.score)}%`}>
-                                                                <div className={`w-full rounded-sm ${barColor}`} style={{ height: `${barH}px` }} />
-                                                            </div>
-                                                        )
-                                                    })}
+                                        <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden mb-1">
+                                            <div className={`h-full rounded-full bg-gradient-to-r ${abilityColor} transition-all duration-500`} style={{ width: `${abilityPct}%` }} />
+                                        </div>
+                                        <p className="text-[10px] text-gray-300 text-right">{abilityPct}% · Rasch modeli</p>
+                                    </div>
+                                    {/* Testlar statistikasi */}
+                                    {(profile?.totalTests || 0) > 0 && (
+                                        <div className="bg-white rounded-xl p-3 border border-gray-100">
+                                            <p className="text-[11px] font-semibold text-gray-400 uppercase mb-2">Testlar natijasi</p>
+                                            <div className="grid grid-cols-2 gap-2 mb-3">
+                                                <div className="bg-gray-50 rounded-lg p-2 text-center">
+                                                    <p className="text-base font-bold text-gray-900 tabular-nums">{profile?.totalTests || 0}</p>
+                                                    <p className="text-[10px] text-gray-400">Jami testlar</p>
+                                                </div>
+                                                <div className="bg-gray-50 rounded-lg p-2 text-center">
+                                                    <p className={`text-base font-bold tabular-nums ${(profile?.avgScore || 0) >= 70 ? 'text-emerald-600' : (profile?.avgScore || 0) >= 50 ? 'text-amber-600' : 'text-red-500'}`}>{Math.round(profile?.avgScore || 0)}%</p>
+                                                    <p className="text-[10px] text-gray-400">O'rtacha ball</p>
                                                 </div>
                                             </div>
-                                        )}
-                                    </div>
-                                )}
-                                {/* So'nggi testlar ro'yxati */}
-                                {myResults.length > 0 && (
-                                    <div className="bg-white rounded-xl p-3 border border-gray-100">
-                                        <p className="text-[11px] font-semibold text-gray-400 uppercase mb-2">So'nggi testlar</p>
-                                        <div className="space-y-2">
-                                            {myResults.slice(0, 5).map((r: any) => (
-                                                <div key={r.id} className="flex items-center gap-2">
-                                                    <div className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${r.score >= 70 ? 'bg-emerald-400' : r.score >= 50 ? 'bg-amber-400' : 'bg-red-400'}`} />
-                                                    <span className="text-[12px] text-gray-700 flex-1 truncate">{r.test?.title || 'Test'}</span>
-                                                    <span className={`text-[11px] font-semibold tabular-nums flex-shrink-0 ${r.score >= 70 ? 'text-emerald-600' : r.score >= 50 ? 'text-amber-600' : 'text-red-500'}`}>{Math.round(r.score)}%</span>
+                                            {/* Score trend mini bar chart */}
+                                            {myResults.length > 1 && (
+                                                <div>
+                                                    <p className="text-[10px] text-gray-400 mb-1.5">So'nggi {Math.min(myResults.length, 8)} ta test trendi</p>
+                                                    <div className="flex items-end gap-1 h-10">
+                                                        {myResults.slice(0, 8).reverse().map((r: any, i: number) => {
+                                                            const barH = Math.max(3, Math.round(r.score * 0.38))
+                                                            const barColor = r.score >= 70 ? 'bg-emerald-400' : r.score >= 50 ? 'bg-amber-400' : 'bg-red-400'
+                                                            return (
+                                                                <div key={i} className="flex-1 flex items-end" title={`${r.test?.title || 'Test'}: ${Math.round(r.score)}%`}>
+                                                                    <div className={`w-full rounded-sm ${barColor}`} style={{ height: `${barH}px` }} />
+                                                                </div>
+                                                            )
+                                                        })}
+                                                    </div>
                                                 </div>
-                                            ))}
+                                            )}
                                         </div>
-                                    </div>
-                                )}
+                                    )}
+                                    {/* So'nggi testlar ro'yxati */}
+                                    {myResults.length > 0 && (
+                                        <div className="bg-white rounded-xl p-3 border border-gray-100">
+                                            <p className="text-[11px] font-semibold text-gray-400 uppercase mb-2">So'nggi testlar</p>
+                                            <div className="space-y-2">
+                                                {myResults.slice(0, 5).map((r: any) => (
+                                                    <div key={r.id} className="flex items-center gap-2">
+                                                        <div className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${r.score >= 70 ? 'bg-emerald-400' : r.score >= 50 ? 'bg-amber-400' : 'bg-red-400'}`} />
+                                                        <span className="text-[12px] text-gray-700 flex-1 truncate">{r.test?.title || 'Test'}</span>
+                                                        <span className={`text-[11px] font-semibold tabular-nums flex-shrink-0 ${r.score >= 70 ? 'text-emerald-600' : r.score >= 50 ? 'text-amber-600' : 'text-red-500'}`}>{Math.round(r.score)}%</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </>
                             )
                         })()}
@@ -919,7 +926,14 @@ export default function ChatLayout() {
                                         <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 flex-shrink-0 flex items-center justify-center mt-0.5"><BrainCircuit className="h-3.5 w-3.5 text-white" /></div>
                                     )}
                                     {m.role === 'user' ? (
-                                        <div className="max-w-[90%] text-[14px] leading-relaxed bg-gray-100 text-gray-900 rounded-2xl rounded-br-md px-4 py-3 whitespace-pre-wrap">{m.content}</div>
+                                        <div className="max-w-[90%] text-[14px] leading-relaxed bg-gray-100 text-gray-900 rounded-2xl rounded-br-md px-4 py-3 whitespace-pre-wrap">
+                                            {m.content.startsWith('![') && m.content.includes('blob:') ? (
+                                                <>
+                                                    <img src={m.content.match(/\(([^)]+)\)/)?.[1]} alt="" className="max-h-48 rounded-lg mb-2" />
+                                                    {m.content.includes('\n\n') && <p>{m.content.split('\n\n').slice(1).join('\n\n')}</p>}
+                                                </>
+                                            ) : m.content}
+                                        </div>
                                     ) : (
                                         <div className="flex-1 text-[14px] leading-relaxed text-gray-800 py-1"><MdMessage content={m.content} onOpenTest={openTestPanel} onProfileUpdate={handleProfileUpdate} onOpenFlash={openFlashPanel} /></div>
                                     )}
@@ -988,12 +1002,17 @@ export default function ChatLayout() {
                         <form onSubmit={sendMessage} className="max-w-5xl mx-auto">
                             {/* Attached file preview */}
                             {attachedFile && (
-                                <div className="mb-2 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2">
-                                    <FileText className="h-4 w-4 text-blue-500 flex-shrink-0" />
-                                    <span className="text-[13px] text-blue-700 flex-1 truncate">{attachedFile.name}</span>
-                                    <button type="button" onClick={() => setAttachedFile(null)} className="text-blue-400 hover:text-blue-600 transition">
-                                        <X className="h-3.5 w-3.5" />
-                                    </button>
+                                <div className="mb-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2">
+                                    <div className="flex items-center gap-2">
+                                        <FileText className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                                        <span className="text-[13px] text-blue-700 flex-1 truncate">{attachedFile.name}</span>
+                                        <button type="button" onClick={() => { if (attachedFile.previewUrl) URL.revokeObjectURL(attachedFile.previewUrl); setAttachedFile(null) }} className="text-blue-400 hover:text-blue-600 transition">
+                                            <X className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
+                                    {attachedFile.previewUrl && (
+                                        <img src={attachedFile.previewUrl} alt={attachedFile.name} className="mt-2 max-h-32 rounded-lg object-contain" />
+                                    )}
                                 </div>
                             )}
                             <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-2xl px-4 shadow-sm focus-within:border-gray-300 focus-within:shadow-md transition-all">
@@ -1079,63 +1098,63 @@ export default function ChatLayout() {
                         {/* Questions */}
                         <div className="flex-1 overflow-y-auto min-h-0 p-4 space-y-4">
                             <div className={testPanelMaximized ? 'max-w-3xl mx-auto space-y-4' : 'space-y-4'}>
-                            {questions.map((q: any, i: number) => (
-                                <div key={i} className="bg-gray-50 rounded-xl p-4">
-                                    <p className="text-[13px] font-medium text-gray-900 mb-3">{i + 1}. <MathText text={q.q} /></p>
-                                    <div className="space-y-2">
-                                        {(['a', 'b', 'c', 'd'] as const).map(opt => {
-                                            const isSelected = testAnswers[i] === opt
-                                            const isCorrect = q.correct === opt
-                                            let cls = 'w-full text-left px-3.5 py-2.5 rounded-xl text-[13px] border transition-all '
-                                            if (testSubmitted) {
-                                                if (isCorrect) cls += 'border-emerald-300 bg-emerald-50 text-emerald-800 font-medium'
-                                                else if (isSelected && !isCorrect) cls += 'border-red-300 bg-red-50 text-red-700'
-                                                else cls += 'border-transparent bg-white text-gray-400'
-                                            } else {
-                                                cls += isSelected
-                                                    ? 'border-blue-400 bg-blue-50 text-blue-800 font-medium shadow-sm'
-                                                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-400'
-                                            }
-                                            return (
-                                                <button key={opt} disabled={testSubmitted} onClick={() => setTestAnswers({ ...testAnswers, [i]: opt })} className={cls}>
-                                                    <span className="font-semibold mr-1.5">{opt.toUpperCase()})</span> <MathText text={q[opt]} />
-                                                    {testSubmitted && isCorrect && <span className="ml-1">✅</span>}
-                                                    {testSubmitted && isSelected && !isCorrect && <span className="ml-1">❌</span>}
-                                                </button>
-                                            )
-                                        })}
+                                {questions.map((q: any, i: number) => (
+                                    <div key={i} className="bg-gray-50 rounded-xl p-4">
+                                        <p className="text-[13px] font-medium text-gray-900 mb-3">{i + 1}. <MathText text={q.q} /></p>
+                                        <div className="space-y-2">
+                                            {(['a', 'b', 'c', 'd'] as const).map(opt => {
+                                                const isSelected = testAnswers[i] === opt
+                                                const isCorrect = q.correct === opt
+                                                let cls = 'w-full text-left px-3.5 py-2.5 rounded-xl text-[13px] border transition-all '
+                                                if (testSubmitted) {
+                                                    if (isCorrect) cls += 'border-emerald-300 bg-emerald-50 text-emerald-800 font-medium'
+                                                    else if (isSelected && !isCorrect) cls += 'border-red-300 bg-red-50 text-red-700'
+                                                    else cls += 'border-transparent bg-white text-gray-400'
+                                                } else {
+                                                    cls += isSelected
+                                                        ? 'border-blue-400 bg-blue-50 text-blue-800 font-medium shadow-sm'
+                                                        : 'border-gray-200 bg-white text-gray-700 hover:border-gray-400'
+                                                }
+                                                return (
+                                                    <button key={opt} disabled={testSubmitted} onClick={() => setTestAnswers({ ...testAnswers, [i]: opt })} className={cls}>
+                                                        <span className="font-semibold mr-1.5">{opt.toUpperCase()})</span> <MathText text={q[opt]} />
+                                                        {testSubmitted && isCorrect && <span className="ml-1">✅</span>}
+                                                        {testSubmitted && isSelected && !isCorrect && <span className="ml-1">❌</span>}
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                ))}
                             </div>
                         </div>
 
                         {/* Submit / Results */}
                         <div className="p-4 border-t border-gray-100 flex-shrink-0">
                             <div className={testPanelMaximized ? 'max-w-3xl mx-auto' : ''}>
-                            {testReadOnly ? (
-                                <div className="text-center space-y-1.5">
-                                    <p className="text-[12px] text-gray-500">✓ Bu test avval yechilgan</p>
-                                    <p className="text-[11px] text-gray-300">To'g'ri javoblar yashil bilan ko'rsatilmoqda</p>
-                                    <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setTestReadOnly(false); setActiveTestId(null); setActiveTestQuestions([]); setTestTimeLeft(null); setRaschFeedback(null) }} className="text-sm text-blue-600 hover:underline mt-1">Yopish</button>
-                                </div>
-                            ) : !testSubmitted ? (
-                                <button onClick={submitTestPanel} disabled={answered < questions.length}
-                                    className="w-full h-11 rounded-xl text-sm font-semibold text-white bg-gray-900 hover:bg-gray-800 disabled:bg-gray-200 disabled:text-gray-400 transition flex items-center justify-center gap-2">
-                                    <Target className="h-4 w-4" /> Tugatish ({answered}/{questions.length})
-                                </button>
-                            ) : (
-                                <div className="text-center space-y-2">
-                                    <p className="text-lg font-bold text-gray-900">{score}/{questions.length} <span className="text-sm font-normal text-gray-400">— {Math.round(score / questions.length * 100)}%</span></p>
-                                    {raschFeedback && (
-                                        <p className="text-xs text-blue-600 font-medium">
-                                            📈 Daraja: {raschFeedback.prev.toFixed(2)} → {raschFeedback.next.toFixed(2)}
-                                        </p>
-                                    )}
-                                    <p className="text-xs text-gray-400">Natijalar chatga yuborildi</p>
-                                    <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setTestReadOnly(false); setActiveTestId(null); setActiveTestQuestions([]); setTestTimeLeft(null); setRaschFeedback(null) }} className="text-sm text-blue-600 hover:underline">Panelni yopish</button>
-                                </div>
-                            )}
+                                {testReadOnly ? (
+                                    <div className="text-center space-y-1.5">
+                                        <p className="text-[12px] text-gray-500">✓ Bu test avval yechilgan</p>
+                                        <p className="text-[11px] text-gray-300">To'g'ri javoblar yashil bilan ko'rsatilmoqda</p>
+                                        <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setTestReadOnly(false); setActiveTestId(null); setActiveTestQuestions([]); setTestTimeLeft(null); setRaschFeedback(null) }} className="text-sm text-blue-600 hover:underline mt-1">Yopish</button>
+                                    </div>
+                                ) : !testSubmitted ? (
+                                    <button onClick={submitTestPanel} disabled={answered < questions.length}
+                                        className="w-full h-11 rounded-xl text-sm font-semibold text-white bg-gray-900 hover:bg-gray-800 disabled:bg-gray-200 disabled:text-gray-400 transition flex items-center justify-center gap-2">
+                                        <Target className="h-4 w-4" /> Tugatish ({answered}/{questions.length})
+                                    </button>
+                                ) : (
+                                    <div className="text-center space-y-2">
+                                        <p className="text-lg font-bold text-gray-900">{score}/{questions.length} <span className="text-sm font-normal text-gray-400">— {Math.round(score / questions.length * 100)}%</span></p>
+                                        {raschFeedback && (
+                                            <p className="text-xs text-blue-600 font-medium">
+                                                📈 Daraja: {raschFeedback.prev.toFixed(2)} → {raschFeedback.next.toFixed(2)}
+                                            </p>
+                                        )}
+                                        <p className="text-xs text-gray-400">Natijalar chatga yuborildi</p>
+                                        <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setTestReadOnly(false); setActiveTestId(null); setActiveTestQuestions([]); setTestTimeLeft(null); setRaschFeedback(null) }} className="text-sm text-blue-600 hover:underline">Panelni yopish</button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -1194,7 +1213,7 @@ export default function ChatLayout() {
                                         {flashFlipped ? '✅ Javob' : '❓ Savol'}
                                     </p>
                                     <div className="text-[14px] text-gray-800 leading-relaxed w-full">
-                                        <MdMessage content={flashFlipped ? card.back : card.front} onOpenTest={() => {}} onProfileUpdate={() => {}} onOpenFlash={() => {}} />
+                                        <MdMessage content={flashFlipped ? card.back : card.front} onOpenTest={() => { }} onProfileUpdate={() => { }} onOpenFlash={() => { }} />
                                     </div>
                                     {!flashFlipped && (
                                         <p className="text-[11px] text-gray-400 mt-5 flex items-center gap-1">
