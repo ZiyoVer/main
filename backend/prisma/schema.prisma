@@ -77,7 +77,7 @@ model Message {
   id        String   @id @default(uuid())
   chatId    String
   chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
-  role      MessageRole
+  role      String
   content   String
   fileUrl   String?  // Agar fayl yuklangan bo'lsa
   fileType  String?  // "image", "pdf", "word"
@@ -85,12 +85,6 @@ model Message {
 
   @@index([chatId])
   @@index([chatId, createdAt])
-}
-
-enum MessageRole {
-  user
-  assistant
-  system
 }
 
 // ============ TESTS ============
