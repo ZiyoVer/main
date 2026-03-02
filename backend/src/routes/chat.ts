@@ -5,6 +5,7 @@ import mammoth from 'mammoth'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest } from '../middleware/auth'
 import OpenAI from 'openai'
+import Tesseract from 'tesseract.js'
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } })
 
@@ -558,10 +559,27 @@ router.post('/:chatId/upload-file', authenticate, upload.single('file'), async (
             extractedText = buffer.toString('utf-8').trim()
         } else if (mimetype.startsWith('image/')) {
             fileType = 'image'
-            // Rasmni base64 sifatida vaqtinchalik saqlaymiz — stream routeda AI ga yuboramiz
+
+            try {
+                // Rasmdan matnni o'qib olish (OCR) - rus va ingliz tillari asosida
+                const result = await Tesseract.recognize(buffer, 'eng+rus', {
+                    logger: m => console.log(m)
+                })
+
+                if (result.data.text && result.data.text.trim().length > 0) {
+                    extractedText = `[Rasm: ${originalname}] - OCR orqali o'qilgan matn:\n\n${result.data.text.trim()}`
+                } else {
+                    extractedText = `[Rasm: ${originalname}] - Tahlil uchun yuborildi (matn topilmadi)`
+                }
+            } catch (err) {
+                console.error("OCR Xatoligi:", err)
+                extractedText = `[Rasm: ${originalname}] - Tahlil uchun yuborildi (lekin optik o'qish imkoni bo'lmadi)`
+            }
+
+            // Xabarlarga rasm qoshish (kerak bo'lsa)
             const dataUrl = `data:${mimetype};base64,${buffer.toString('base64')}`
             pendingImages.set(chat.id, dataUrl)
-            extractedText = `[Rasm: ${originalname}] — AI rasmni ko'radi va tahlil qiladi`
+
         } else {
             extractedText = `[Fayl: ${originalname}]`
         }
