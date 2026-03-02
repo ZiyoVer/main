@@ -164,7 +164,7 @@ export default function ChatLayout() {
     const [testAnswers, setTestAnswers] = useState<Record<number, string>>({})
     const [testSubmitted, setTestSubmitted] = useState(false)
     const [testPanelMaximized, setTestPanelMaximized] = useState(false)
-    const [attachedFile, setAttachedFile] = useState<{ name: string; text: string; type: string; previewUrl?: string } | null>(null)
+    const [attachedFiles, setAttachedFiles] = useState<{ id: string; name: string; text: string; type: string; previewUrl?: string }[]>([])
     const [uploadingFile, setUploadingFile] = useState(false)
     const [loadingPublicTest, setLoadingPublicTest] = useState(false)
     const [activeTestId, setActiveTestId] = useState<string | null>(null)
@@ -397,17 +397,30 @@ export default function ChatLayout() {
 
     async function sendMessage(e: React.FormEvent) {
         e.preventDefault()
-        if ((!input.trim() && !attachedFile) || !chatId || loading) return
+        if ((!input.trim() && attachedFiles.length === 0) || !chatId || loading) return
         setInput('')
-        if (attachedFile) {
+        if (attachedFiles.length > 0) {
             const userInput = input.trim()
-            const promptText = `📎 **${attachedFile.name}** faylidan:\n\n${attachedFile.text}${userInput ? '\n\n' + userInput : ''}`
-            const displayText = attachedFile.previewUrl
-                ? `![${attachedFile.name}](${attachedFile.previewUrl})${userInput ? '\n\n' + userInput : ''}`
-                : `📎 **${attachedFile.name}**${userInput ? '\n\n' + userInput : ''}`
-            setAttachedFile(null)
-            setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: displayText, createdAt: new Date().toISOString() }])
-            await streamToChat(chatId, promptText, displayText)
+            let promptText = ''
+            let displayText = ''
+
+            attachedFiles.forEach(file => {
+                promptText += `📎 **${file.name}** faylidan:\n\n${file.text}\n\n`
+                if (file.previewUrl) {
+                    displayText += `![${file.name}](${file.previewUrl}) `
+                } else {
+                    displayText += `📎 **${file.name}** `
+                }
+            })
+
+            if (userInput) {
+                promptText += `\n\n${userInput}`
+                displayText += `\n\n${userInput}`
+            }
+
+            setAttachedFiles([])
+            setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: displayText.trim(), createdAt: new Date().toISOString() }])
+            await streamToChat(chatId, promptText.trim(), displayText.trim())
         } else {
             const text = input.trim() || ''
             setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: text, createdAt: new Date().toISOString() }])
@@ -528,46 +541,65 @@ export default function ChatLayout() {
         setLoadingPublicTest(false)
     }
 
-    async function uploadFile(file: File) {
+    async function uploadFiles(filesToUpload: File[]) {
         if (!chatId) return
         setUploadingFile(true)
         try {
-            const formData = new FormData()
-            formData.append('file', file)
             const token = localStorage.getItem('token')
-            const res = await fetch(`/api/chat/${chatId}/upload-file`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` },
-                body: formData
-            })
-            const data = await res.json()
-            // Rasm bo'lsa preview URL yaratamiz
-            let previewUrl: string | undefined
-            if (file.type.startsWith('image/')) {
-                previewUrl = URL.createObjectURL(file)
+            const newAttachments: { id: string; name: string; text: string; type: string; previewUrl?: string }[] = []
+            for (const file of filesToUpload) {
+                const formData = new FormData()
+                formData.append('file', file)
+                const res = await fetch(`/api/chat/${chatId}/upload-file`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${token}` },
+                    body: formData
+                })
+                const data = await res.json()
+                let previewUrl: string | undefined
+                if (file.type.startsWith('image/')) {
+                    previewUrl = URL.createObjectURL(file)
+                }
+                newAttachments.push({ id: Math.random().toString(), name: file.name, text: data.text, type: data.fileType, previewUrl })
             }
-            setAttachedFile({ name: file.name, text: data.text, type: data.fileType, previewUrl })
+            setAttachedFiles(prev => [...prev, ...newAttachments])
         } catch { }
         setUploadingFile(false)
     }
 
     async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-        const file = e.target.files?.[0]
-        if (!file) return
-        await uploadFile(file)
+        const files = Array.from(e.target.files || [])
+        if (!files.length) return
+        if (attachedFiles.length + files.length > 5) {
+            alert("Kechirasiz, birdaniga eng ko'pi bilan 5 ta rasm/fayl yuborishingiz mumkin!")
+            if (fileInputRef.current) fileInputRef.current.value = ''
+            return
+        }
+        await uploadFiles(files)
         if (fileInputRef.current) fileInputRef.current.value = ''
     }
 
     async function handlePaste(e: React.ClipboardEvent) {
         if (!chatId || loading || uploadingFile) return
         const items = Array.from(e.clipboardData.items)
-        const imageItem = items.find(item => item.type.startsWith('image/'))
-        if (!imageItem) return
+        const imageItems = items.filter(item => item.type.startsWith('image/'))
+        if (!imageItems.length) return
         e.preventDefault()
-        const file = imageItem.getAsFile()
-        if (!file) return
-        const named = new File([file], `screenshot-${Date.now()}.png`, { type: file.type })
-        await uploadFile(named)
+
+        const filesToUpload: File[] = []
+        for (const item of imageItems) {
+            const file = item.getAsFile()
+            if (file) {
+                filesToUpload.push(new File([file], `screenshot-${Date.now()}-${Math.floor(Math.random() * 1000)}.png`, { type: file.type }))
+            }
+        }
+
+        if (attachedFiles.length + filesToUpload.length > 5) {
+            alert("Kechirasiz, birdaniga eng ko'pi bilan 5 ta rasm/fayl yuborishingiz mumkin!")
+            return
+        }
+
+        await uploadFiles(filesToUpload)
     }
 
     function submitTestPanel() {
@@ -927,11 +959,17 @@ export default function ChatLayout() {
                                     )}
                                     {m.role === 'user' ? (
                                         <div className="max-w-[85%] text-[14px] leading-relaxed bg-slate-800 text-white rounded-2xl rounded-tr-sm px-5 py-3.5 whitespace-pre-wrap shadow-md shadow-slate-900/5">
-                                            {m.content.startsWith('![') && m.content.includes('blob:') ? (
-                                                <>
-                                                    <img src={m.content.match(/\(([^)]+)\)/)?.[1]} alt="" className="max-h-64 rounded-xl mb-3 shadow-sm border border-slate-700" />
-                                                    {m.content.includes('\n\n') && <p className="opacity-90">{m.content.split('\n\n').slice(1).join('\n\n')}</p>}
-                                                </>
+                                            {m.content.includes('![') ? (
+                                                <div className="flex flex-col gap-2">
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {Array.from(m.content.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)).map((match, idx) => (
+                                                            <img key={idx} src={match[1]} alt="" className="max-h-48 rounded-xl object-contain shadow-sm border border-slate-700 bg-slate-100" />
+                                                        ))}
+                                                    </div>
+                                                    {m.content.replace(/!\[[^\]]*\]\([^)]+\)/g, '').trim() && (
+                                                        <p className="opacity-90">{m.content.replace(/!\[[^\]]*\]\([^)]+\)/g, '').trim()}</p>
+                                                    )}
+                                                </div>
                                             ) : m.content}
                                         </div>
                                     ) : (
@@ -1000,24 +1038,33 @@ export default function ChatLayout() {
                             </div>
                         )}
                         <form onSubmit={sendMessage} className="max-w-5xl mx-auto">
-                            {/* Attached file preview */}
-                            {attachedFile && (
-                                <div className="mb-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2">
-                                    <div className="flex items-center gap-2">
-                                        <FileText className="h-4 w-4 text-blue-500 flex-shrink-0" />
-                                        <span className="text-[13px] text-blue-700 flex-1 truncate">{attachedFile.name}</span>
-                                        <button type="button" onClick={() => { if (attachedFile.previewUrl) URL.revokeObjectURL(attachedFile.previewUrl); setAttachedFile(null) }} className="text-blue-400 hover:text-blue-600 transition">
-                                            <X className="h-3.5 w-3.5" />
-                                        </button>
-                                    </div>
-                                    {attachedFile.previewUrl && (
-                                        <img src={attachedFile.previewUrl} alt={attachedFile.name} className="mt-2 max-h-32 rounded-lg object-contain" />
-                                    )}
+                            {/* Attached files preview */}
+                            {attachedFiles.length > 0 && (
+                                <div className="mb-2 flex flex-wrap gap-2 z-10 px-2 pb-1 relative">
+                                    {attachedFiles.map(file => (
+                                        <div key={file.id} className="relative bg-white border border-gray-200 rounded-xl p-1.5 w-[72px] h-[72px] flex flex-col items-center justify-center shadow-sm">
+                                            <button type="button" onClick={() => {
+                                                if (file.previewUrl) URL.revokeObjectURL(file.previewUrl);
+                                                setAttachedFiles(prev => prev.filter(f => f.id !== file.id));
+                                            }} className="absolute -top-1.5 -right-1.5 bg-gray-100 border border-gray-200 text-gray-500 hover:text-red-500 rounded-full h-[22px] w-[22px] flex items-center justify-center shadow-sm z-10 hover:bg-white transition-colors">
+                                                <X className="h-3 w-3" />
+                                            </button>
+
+                                            {file.previewUrl ? (
+                                                <img src={file.previewUrl} alt={file.name} title={file.name} className="w-full h-full object-cover rounded-[8px]" />
+                                            ) : (
+                                                <>
+                                                    <FileText className="h-5 w-5 text-blue-500 mb-1" />
+                                                    <span className="text-[9px] text-gray-600 w-full truncate text-center px-0.5" title={file.name}>{file.name}</span>
+                                                </>
+                                            )}
+                                        </div>
+                                    ))}
                                 </div>
                             )}
                             <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-2xl px-4 shadow-sm focus-within:border-gray-300 focus-within:shadow-md transition-all">
                                 {/* Hidden file input */}
-                                <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.txt,image/*" className="hidden" onChange={handleFileSelect} />
+                                <input ref={fileInputRef} type="file" multiple accept=".pdf,.doc,.docx,.txt,image/*" className="hidden" onChange={handleFileSelect} />
                                 {/* File attach button */}
                                 <button type="button" onClick={() => fileInputRef.current?.click()} disabled={loading || uploadingFile} title="Fayl biriktirish"
                                     className="h-8 w-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition disabled:opacity-40">
@@ -1038,7 +1085,7 @@ export default function ChatLayout() {
                                         <Square className="h-3 w-3" />
                                     </button>
                                 ) : (
-                                    <button type="submit" disabled={!input.trim() && !attachedFile}
+                                    <button type="submit" disabled={!input.trim() && attachedFiles.length === 0}
                                         className="h-8 w-8 flex items-center justify-center rounded-lg bg-gray-900 text-white disabled:bg-gray-200 disabled:text-gray-400 transition">
                                         <Send className="h-3.5 w-3.5" />
                                     </button>
