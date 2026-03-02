@@ -11,8 +11,6 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 
 
 const router = Router()
 
-// Rasmlar uchun vaqtinchalik xotira (chatId -> dataUrl)
-const pendingImages = new Map<string, string>()
 
 const openai = new OpenAI({
     baseURL: 'https://api.deepseek.com',
@@ -535,8 +533,20 @@ async function searchRAGContext(query: string, subject?: string): Promise<string
     }
 }
 
+// Multer wrapper for error boundary
+const uploadSingle = (req: any, res: any, next: any) => {
+    upload.single('file')(req, res, (err) => {
+        if (err instanceof multer.MulterError) {
+            return res.status(400).json({ error: `Yuklashda xato: ${err.message}` });
+        } else if (err) {
+            return res.status(500).json({ error: err.message || 'Xatolik' });
+        }
+        next();
+    });
+};
+
 // Chat uchun fayl yuklash va matn extraction
-router.post('/:chatId/upload-file', authenticate, upload.single('file'), async (req: AuthRequest, res) => {
+router.post('/:chatId/upload-file', authenticate, uploadSingle, async (req: AuthRequest, res) => {
     try {
         const chat = await prisma.chat.findFirst({ where: { id: req.params.chatId as string, userId: req.user.id } })
         if (!chat) return res.status(404).json({ error: 'Chat topilmadi' })
@@ -576,9 +586,11 @@ router.post('/:chatId/upload-file', authenticate, upload.single('file'), async (
                 extractedText = `[Rasm: ${originalname}] - Tahlil uchun yuborildi (lekin optik o'qish imkoni bo'lmadi)`
             }
 
-            // Xabarlarga rasm qoshish (kerak bo'lsa)
-            const dataUrl = `data:${mimetype};base64,${buffer.toString('base64')}`
-            pendingImages.set(chat.id, dataUrl)
+            // Check max 10MB limits to avoid large allocations
+            if (buffer.length > 10 * 1024 * 1024) {
+                return res.status(400).json({ error: 'Rasm hajmi juda katta (10MB dan oshmasligi kerak)' })
+            }
+            // DeepSeek API image_url ni qabul qilmaydi — faqat OCR matni ishlatiladi
 
         } else {
             extractedText = `[Fayl: ${originalname}]`
@@ -632,18 +644,10 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
 
         const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, aiSettings.extraRules, aiSettings.promptOverrides) + ragContext
 
-        // Rasm bormi tekshir (upload-file dan saqlangan)
-        const pendingImg = pendingImages.get(chat.id)
-        if (pendingImg) pendingImages.delete(chat.id) // bir marta ishlatamiz
-
         // History: oxirgi user xabar (hozir saqlanganini) alohida olamiz
+        // DeepSeek image_url qabul qilmaydi — OCR matni content ichida keladi
         const historyWithoutLast = history.slice(0, -1)
-        const currentUserContent: any = pendingImg
-            ? [
-                { type: 'image_url', image_url: { url: pendingImg } },
-                { type: 'text', text: content }
-            ]
-            : content
+        const currentUserContent: any = content
 
         const messages: any[] = [
             { role: 'system', content: systemPrompt },
@@ -757,8 +761,6 @@ router.post('/:chatId/send', authenticate, async (req: AuthRequest, res) => {
         const ragContext = await searchRAGContext(content, chat.subject || undefined)
         const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, aiSettings.extraRules, aiSettings.promptOverrides) + ragContext
 
-        // Pending image ni tozalash (send route ishlatilsa)
-        pendingImages.delete(chat.id)
 
         const msgs: any[] = [
             { role: 'system', content: systemPrompt },
