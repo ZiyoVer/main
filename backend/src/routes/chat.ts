@@ -5,15 +5,20 @@ import mammoth from 'mammoth'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest } from '../middleware/auth'
 import OpenAI from 'openai'
-import Tesseract from 'tesseract.js'
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } })
 
 const router = Router()
 
 
+// DeepSeek client — matn/chat uchun (V3 + R1 Reasoner)
 const openai = new OpenAI({
     baseURL: 'https://api.deepseek.com',
+    apiKey: process.env.DEEPSEEK_API_KEY || ''
+})
+
+// OpenAI client — rasm tahlili uchun (GPT-4o Vision)
+const gptClient = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY || ''
 })
 
@@ -570,27 +575,41 @@ router.post('/:chatId/upload-file', authenticate, uploadSingle, async (req: Auth
         } else if (mimetype.startsWith('image/')) {
             fileType = 'image'
 
-            try {
-                // Rasmdan matnni o'qib olish (OCR) - rus va ingliz tillari asosida
-                const result = await Tesseract.recognize(buffer, 'eng+rus', {
-                    logger: m => console.log(m)
-                })
-
-                if (result.data.text && result.data.text.trim().length > 0) {
-                    extractedText = `[Rasm: ${originalname}] - OCR orqali o'qilgan matn:\n\n${result.data.text.trim()}`
-                } else {
-                    extractedText = `[Rasm: ${originalname}] - Tahlil uchun yuborildi (matn topilmadi)`
-                }
-            } catch (err) {
-                console.error("OCR Xatoligi:", err)
-                extractedText = `[Rasm: ${originalname}] - Tahlil uchun yuborildi (lekin optik o'qish imkoni bo'lmadi)`
-            }
-
-            // Check max 10MB limits to avoid large allocations
+            // Check max 10MB limits
             if (buffer.length > 10 * 1024 * 1024) {
                 return res.status(400).json({ error: 'Rasm hajmi juda katta (10MB dan oshmasligi kerak)' })
             }
-            // DeepSeek API image_url ni qabul qilmaydi — faqat OCR matni ishlatiladi
+
+            try {
+                // GPT-4o Vision orqali rasmni to'liq tahlil qilish
+                const base64Image = buffer.toString('base64')
+                const visionResponse = await gptClient.chat.completions.create({
+                    model: 'gpt-4o-mini',
+                    messages: [{
+                        role: 'user',
+                        content: [
+                            {
+                                type: 'image_url',
+                                image_url: { url: `data:${mimetype};base64,${base64Image}`, detail: 'high' }
+                            },
+                            {
+                                type: 'text',
+                                text: `Bu rasmdagi BARCHA matnni, savollarni, formulalar va ma'lumotlarni to'liq o'qi va qaytarib ber. Hech narsani o'tkazib ketma. Agar savol bo'lsa — har bir savolni raqami bilan yoz. Agar formula bo'lsa — LaTeX formatida yoz.`
+                            }
+                        ]
+                    }],
+                    max_tokens: 4096
+                })
+                const visionText = visionResponse.choices[0]?.message?.content?.trim() || ''
+                if (visionText) {
+                    extractedText = `[Rasm: ${originalname}]\n\n${visionText}`
+                } else {
+                    extractedText = `[Rasm: ${originalname}] - Tahlil uchun yuborildi (matn topilmadi)`
+                }
+            } catch (err: any) {
+                console.error("GPT-4o Vision xatoligi:", err.message)
+                extractedText = `[Rasm: ${originalname}] - Rasm tahlil qilib bo'lmadi (${err.message})`
+            }
 
         } else {
             extractedText = `[Fayl: ${originalname}]`
