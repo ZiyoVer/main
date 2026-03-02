@@ -10,10 +10,12 @@ const router = Router()
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } })
 
-const openai = new OpenAI({
-    baseURL: 'https://api.deepseek.com',
-    apiKey: process.env.OPENAI_API_KEY || ''
+const hasDeepseek = !!process.env.DEEPSEEK_API_KEY
+const aiClient = new OpenAI({
+    baseURL: hasDeepseek ? 'https://api.deepseek.com' : undefined,
+    apiKey: process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY || ''
 })
+const aiModel = hasDeepseek ? 'deepseek-chat' : 'gpt-4o-mini'
 
 // Public testlar ro'yxati (barcha o'quvchilar uchun)
 router.get('/public', authenticate, async (req: AuthRequest, res) => {
@@ -61,8 +63,8 @@ correctIdx — to'g'ri javob indeksi (0=A, 1=B, 2=C, 3=D). Eng kamida 5 ta, eng 
             return res.status(400).json({ error: 'Faqat PDF va rasm fayllari qo\'llab-quvvatlanadi' })
         }
 
-        const completion = await openai.chat.completions.create({
-            model: 'deepseek-chat',
+        const completion = await aiClient.chat.completions.create({
+            model: aiModel,
             messages: [
                 { role: 'system', content: 'Siz test savollari generatorisiz. FAQAT JSON formatda javob bering.' },
                 ...messages

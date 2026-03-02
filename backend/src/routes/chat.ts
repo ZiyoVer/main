@@ -11,12 +11,13 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 
 const router = Router()
 
 
-// DeepSeek client — matn/chat uchun (V3 + R1 Reasoner)
-// DEEPSEEK_API_KEY yo'q bo'lsa OPENAI_API_KEY ga fallback (eski Railway config uchun)
-const openai = new OpenAI({
-    baseURL: 'https://api.deepseek.com',
+// DeepSeek yoki OpenAI orqali text/chat qismini boshqarish
+const hasDeepseek = !!process.env.DEEPSEEK_API_KEY
+const chatClient = new OpenAI({
+    baseURL: hasDeepseek ? 'https://api.deepseek.com' : undefined,
     apiKey: process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY || ''
 })
+const chatModel = hasDeepseek ? 'deepseek-chat' : 'gpt-4o-mini'
 
 // OpenAI client — rasm tahlili uchun (GPT-4o Vision)
 const gptClient = new OpenAI({
@@ -691,7 +692,7 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
         req.on('close', () => { aborted = true })
 
         const streamOptions: any = {
-            model,
+            model: chatModel,
             messages,
             max_tokens: thinking ? 8192 : aiSettings.maxTokens,
             stream: true
@@ -701,7 +702,7 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
             streamOptions.temperature = aiSettings.temperature
         }
 
-        const stream = await openai.chat.completions.create(streamOptions) as any
+        const stream = await chatClient.chat.completions.create(streamOptions) as any
 
         for await (const chunk of stream) {
             if (aborted) break
@@ -787,8 +788,8 @@ router.post('/:chatId/send', authenticate, async (req: AuthRequest, res) => {
             ...history.map(m => ({ role: m.role, content: m.content }))
         ]
 
-        const completion = await openai.chat.completions.create({
-            model: 'deepseek-chat',
+        const completion = await chatClient.chat.completions.create({
+            model: chatModel,
             messages: msgs,
             max_tokens: aiSettings.maxTokens,
             temperature: aiSettings.temperature
