@@ -555,8 +555,8 @@ export default function ChatLayout() {
         setUploadingFile(true)
         try {
             const token = localStorage.getItem('token')
-            const newAttachments: { id: string; name: string; text: string; type: string; previewUrl?: string }[] = []
-            for (const file of filesToUpload) {
+            // Barcha fayllarni bir vaqtda (parallel) yuklaymiz
+            const newAttachments = await Promise.all(filesToUpload.map(async (file) => {
                 const formData = new FormData()
                 formData.append('file', file)
                 const res = await fetch(`/api/chat/${chatId}/upload-file`, {
@@ -565,12 +565,9 @@ export default function ChatLayout() {
                     body: formData
                 })
                 const data = await res.json()
-                let previewUrl: string | undefined
-                if (file.type.startsWith('image/')) {
-                    previewUrl = URL.createObjectURL(file)
-                }
-                newAttachments.push({ id: Math.random().toString(), name: file.name, text: data.text, type: data.fileType, previewUrl })
-            }
+                const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined
+                return { id: Math.random().toString(), name: file.name, text: data.text, type: data.fileType, previewUrl }
+            }))
             setAttachedFiles(prev => [...prev, ...newAttachments])
         } catch (e: any) {
             alert('Fayl yuklashda xato: ' + (e?.message || 'Qayta urinib ko\'ring'))
