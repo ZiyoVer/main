@@ -35,6 +35,7 @@ const MdMessage = memo(({ content, onOpenTest, isStreaming, onProfileUpdate, onO
     onOpenFlash?: (jsonStr: string) => void
 }) => (
     <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} components={{
+        img: ({ src, alt }) => <img src={src} alt={alt || ''} className="max-h-48 max-w-xs rounded-xl object-contain my-1 border border-gray-100" />,
         p: ({ children }) => <p className="mb-2.5 last:mb-0 leading-relaxed">{children}</p>,
         strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
         em: ({ children }) => <em className="text-gray-600">{children}</em>,
