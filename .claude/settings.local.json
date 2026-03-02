@@ -1,20 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(wc:*)",
-      "Bash(find \"/Users/abc/Desktop/main platforma/backend/src\" -name \"*.ts\" -type f -exec wc -l {} ;)",
-      "Bash(read f:*)",
-      "Bash(do tail:*)",
-      "Bash(ls -lh \"/Users/abc/Desktop/main platforma/backend/src/app.ts\" \"/Users/abc/Desktop/main platforma/backend/src/routes/\"*.ts \"/Users/abc/Desktop/main platforma/backend/src/middleware/\"*.ts \"/Users/abc/Desktop/main platforma/backend/src/utils/\"*.ts \"/Users/abc/Desktop/main platforma/frontend/src/App.tsx\" \"/Users/abc/Desktop/main platforma/frontend/src/pages/\"*/*.tsx)",
-      "Bash(git:*)",
       "WebSearch",
       "WebFetch(domain:oliygoh.uz)",
-      "WebFetch(domain:uzbmb.uz)",
-      "Bash(npx tsc:*)",
-      "Bash(npx prisma:*)",
-      "Bash(echo:*)",
-      "Bash(npm install:*)",
-      "Bash(npm run:*)"
+      "WebFetch(domain:uzbmb.uz)"
     ]
   }
 }
