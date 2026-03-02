@@ -187,6 +187,9 @@ export default function ChatLayout() {
     const flashDragRef = useRef(false)
     const [testWidth, setTestWidth] = useState(384)
     const testDragRef = useRef(false)
+    const [sidebarWidth, setSidebarWidth] = useState(288)
+    const sidebarDragRef = useRef(false)
+    const [isSidebarDragging, setIsSidebarDragging] = useState(false)
     const [testTimeLeft, setTestTimeLeft] = useState<number | null>(null)
     const [raschFeedback, setRaschFeedback] = useState<{ prev: number; next: number } | null>(null)
 
@@ -204,11 +207,17 @@ export default function ChatLayout() {
     // Panel drag-to-resize (flashcard + test)
     useEffect(() => {
         const onMove = (e: MouseEvent) => {
-            const w = Math.max(280, Math.min(900, window.innerWidth - e.clientX))
-            if (flashDragRef.current) setFlashWidth(w)
-            if (testDragRef.current) setTestWidth(w)
+            if (flashDragRef.current) setFlashWidth(Math.max(280, Math.min(900, window.innerWidth - e.clientX)))
+            if (testDragRef.current) setTestWidth(Math.max(280, Math.min(900, window.innerWidth - e.clientX)))
+            if (sidebarDragRef.current) setSidebarWidth(Math.max(240, Math.min(600, e.clientX)))
         }
-        const onUp = () => { flashDragRef.current = false; testDragRef.current = false }
+        const onUp = () => {
+            flashDragRef.current = false; testDragRef.current = false;
+            if (sidebarDragRef.current) {
+                sidebarDragRef.current = false;
+                setIsSidebarDragging(false);
+            }
+        }
         window.addEventListener('mousemove', onMove)
         window.addEventListener('mouseup', onUp)
         return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
@@ -710,7 +719,10 @@ export default function ChatLayout() {
     return (
         <div className="h-screen flex bg-[#fafafa] overflow-hidden">
             {/* Sidebar */}
-            <div className={`${sideOpen ? 'w-72 min-w-[288px]' : 'w-0 min-w-0'} bg-[#f5f5f5] flex flex-col transition-all duration-200 overflow-hidden border-r border-gray-200/80 flex-shrink-0`}>
+            <div
+                style={{ width: sideOpen ? `${sidebarWidth}px` : '0px', minWidth: sideOpen ? `${sidebarWidth}px` : '0px' }}
+                className={`bg-[#f5f5f5] flex flex-col ${isSidebarDragging ? '' : 'transition-all duration-200'} overflow-hidden border-r border-gray-200/80 flex-shrink-0 relative`}
+            >
                 <div className="p-3 flex items-center justify-between h-14 flex-shrink-0">
                     <div className="flex items-center gap-2">
                         <div className="h-7 w-7 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-lg flex items-center justify-center">
@@ -896,6 +908,14 @@ export default function ChatLayout() {
                 </div>
             </div>
 
+            {/* Sidebar Resize Handle */}
+            {sideOpen && (
+                <div
+                    onMouseDown={(e: React.MouseEvent) => { e.preventDefault(); sidebarDragRef.current = true; setIsSidebarDragging(true); document.body.style.cursor = 'col-resize' }}
+                    className="w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-500 transition-colors z-50 flex-shrink-0"
+                />
+            )}
+
             {/* Main */}
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
                 <div className="h-14 flex items-center px-4 gap-3 flex-shrink-0">
@@ -1054,8 +1074,10 @@ export default function ChatLayout() {
                                                 <img src={file.previewUrl} alt={file.name} title={file.name} className="w-full h-full object-cover rounded-[8px]" />
                                             ) : (
                                                 <>
-                                                    <FileText className="h-5 w-5 text-blue-500 mb-1" />
-                                                    <span className="text-[9px] text-gray-600 w-full truncate text-center px-0.5" title={file.name}>{file.name}</span>
+                                                    <FileText className="h-6 w-6 text-blue-500 mb-1" />
+                                                    <span className="text-[10px] text-gray-600 w-full truncate text-center px-1" title={file.name}>
+                                                        {file.name.substring(0, 8)}...
+                                                    </span>
                                                 </>
                                             )}
                                         </div>
@@ -1099,211 +1121,215 @@ export default function ChatLayout() {
 
 
             {/* Test Side Panel */}
-            {testPanel && (() => {
-                let questions: any[] = []
-                try { questions = JSON.parse(testPanel) } catch { return null }
-                const answered = Object.keys(testAnswers).length
-                const score = testSubmitted ? questions.filter((q: any, i: number) => testAnswers[i] === q.correct).length : 0
-                return (
-                    <div className={testPanelMaximized ? 'fixed inset-0 z-50 bg-white flex flex-col' : 'relative bg-white border-l border-gray-200 flex flex-col flex-shrink-0'}
-                        style={testPanelMaximized ? {} : { width: testWidth }}>
+            {
+                testPanel && (() => {
+                    let questions: any[] = []
+                    try { questions = JSON.parse(testPanel) } catch { return null }
+                    const answered = Object.keys(testAnswers).length
+                    const score = testSubmitted ? questions.filter((q: any, i: number) => testAnswers[i] === q.correct).length : 0
+                    return (
+                        <div className={testPanelMaximized ? 'fixed inset-0 z-50 bg-white flex flex-col' : 'relative bg-white border-l border-gray-200 flex flex-col flex-shrink-0'}
+                            style={testPanelMaximized ? {} : { width: testWidth }}>
 
-                        {/* Drag handle (chap cheti) */}
-                        {!testPanelMaximized && (
-                            <div
-                                onMouseDown={e => { testDragRef.current = true; e.preventDefault() }}
-                                className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-blue-300/60 active:bg-blue-400/60 transition-colors z-10 group">
-                                <div className="absolute left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-8 bg-gray-300 group-hover:bg-blue-400 rounded-full transition-colors" />
-                            </div>
-                        )}
+                            {/* Drag handle (chap cheti) */}
+                            {!testPanelMaximized && (
+                                <div
+                                    onMouseDown={e => { testDragRef.current = true; e.preventDefault() }}
+                                    className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-blue-300/60 active:bg-blue-400/60 transition-colors z-10 group">
+                                    <div className="absolute left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-8 bg-gray-300 group-hover:bg-blue-400 rounded-full transition-colors" />
+                                </div>
+                            )}
 
-                        {/* Panel header */}
-                        <div className="h-14 flex items-center justify-between px-4 border-b border-gray-100 flex-shrink-0">
-                            <div className="flex items-center gap-2">
-                                <div className="h-7 w-7 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-lg flex items-center justify-center"><ClipboardList className="h-3.5 w-3.5 text-white" /></div>
-                                <span className="text-sm font-semibold text-gray-900">Test — {questions.length} savol</span>
-                                {testReadOnly && <span className="text-[10px] bg-gray-100 text-gray-400 px-2 py-0.5 rounded-md font-medium">Ko'rish</span>}
-                                {testTimeLeft !== null && (
-                                    <span className={`text-sm font-mono tabular-nums ml-1 px-2 py-0.5 rounded-md ${testTimeLeft < 60 ? 'text-red-500 bg-red-50 animate-pulse' : 'text-gray-500 bg-gray-100'}`}>
-                                        ⏱ {Math.floor(testTimeLeft / 60)}:{String(testTimeLeft % 60).padStart(2, '0')}
-                                    </span>
-                                )}
-                            </div>
-                            <div className="flex items-center gap-1">
-                                <button onClick={() => setTestPanelMaximized(!testPanelMaximized)} className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition" title={testPanelMaximized ? 'Kichraytirish' : 'Kattalashtirish'}>
-                                    {testPanelMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-                                </button>
-                                <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setActiveTestId(null); setActiveTestQuestions([]); setTestTimeLeft(null); setRaschFeedback(null) }} className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"><X className="h-4 w-4" /></button>
-                            </div>
-                        </div>
-
-                        {/* Progress bar */}
-                        <div className="h-1 bg-slate-100">
-                            <div className="h-full bg-gradient-to-r from-blue-600 via-indigo-500 to-purple-500 transition-all duration-500" style={{ width: testReadOnly ? '100%' : `${(answered / questions.length) * 100}%` }} />
-                        </div>
-
-                        {/* Questions */}
-                        <div className="flex-1 overflow-y-auto min-h-0 p-5 space-y-5 bg-slate-50/50">
-                            <div className={testPanelMaximized ? 'max-w-3xl mx-auto space-y-5' : 'space-y-5'}>
-                                {questions.map((q: any, i: number) => (
-                                    <div key={i} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow duration-300">
-                                        <p className="text-[14px] font-semibold text-slate-800 mb-4 leading-relaxed">{i + 1}. <MathText text={q.q} /></p>
-                                        <div className="space-y-2.5">
-                                            {(['a', 'b', 'c', 'd'] as const).map(opt => {
-                                                const isSelected = testAnswers[i] === opt
-                                                const isCorrect = q.correct === opt
-                                                let cls = 'w-full text-left px-4 py-3 rounded-xl text-[13px] border transition-all duration-200 outline-none '
-                                                if (testSubmitted) {
-                                                    if (isCorrect) cls += 'border-emerald-300 bg-emerald-50 text-emerald-900 font-semibold shadow-sm ring-1 ring-emerald-500/10'
-                                                    else if (isSelected && !isCorrect) cls += 'border-red-300 bg-red-50 text-red-900 shadow-sm ring-1 ring-red-500/10'
-                                                    else cls += 'border-slate-100 bg-slate-50 opacity-60 text-slate-500'
-                                                } else {
-                                                    cls += isSelected
-                                                        ? 'border-blue-500 bg-blue-50/80 text-blue-900 font-semibold shadow-md shadow-blue-500/10 ring-1 ring-blue-500/20 scale-[1.01]'
-                                                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
-                                                }
-                                                return (
-                                                    <button key={opt} disabled={testSubmitted} onClick={() => setTestAnswers({ ...testAnswers, [i]: opt })} className={cls}>
-                                                        <span className="font-bold mr-2 text-slate-400 opacity-80">{opt.toUpperCase()})</span> <MathText text={q[opt]} />
-                                                        {testSubmitted && isCorrect && <span className="ml-2 inline-flex items-center justify-center h-5 w-5 bg-emerald-100 text-emerald-600 rounded-full text-xs">✓</span>}
-                                                        {testSubmitted && isSelected && !isCorrect && <span className="ml-2 inline-flex items-center justify-center h-5 w-5 bg-red-100 text-red-600 rounded-full text-xs">✕</span>}
-                                                    </button>
-                                                )
-                                            })}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Submit / Results */}
-                        <div className="p-5 border-t border-slate-100 bg-white flex-shrink-0">
-                            <div className={testPanelMaximized ? 'max-w-3xl mx-auto' : ''}>
-                                {testReadOnly ? (
-                                    <div className="text-center space-y-2">
-                                        <div className="inline-flex items-center justify-center h-8 px-3 bg-emerald-50 text-emerald-700 rounded-full text-[12px] font-semibold mb-1">
-                                            ✓ Bu test avval yechilgan
-                                        </div>
-                                        <p className="text-[12px] text-slate-400">To'g'ri javoblar yashil bilan ko'rsatilmoqda</p>
-                                        <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setTestReadOnly(false); setActiveTestId(null); setActiveTestQuestions([]); setTestTimeLeft(null); setRaschFeedback(null) }} className="text-sm font-medium text-blue-600 hover:text-blue-700 transition">Panelni yopish</button>
-                                    </div>
-                                ) : !testSubmitted ? (
-                                    <button onClick={submitTestPanel} disabled={answered < questions.length}
-                                        className="w-full h-12 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-slate-900 to-slate-800 hover:from-slate-800 hover:to-slate-700 disabled:from-slate-200 disabled:to-slate-200 disabled:text-slate-400 shadow-lg shadow-slate-900/10 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 flex items-center justify-center gap-2">
-                                        <Target className="h-4 w-4" /> Natijani ko'rish ({answered}/{questions.length})
+                            {/* Panel header */}
+                            <div className="h-14 flex items-center justify-between px-4 border-b border-gray-100 flex-shrink-0">
+                                <div className="flex items-center gap-2">
+                                    <div className="h-7 w-7 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-lg flex items-center justify-center"><ClipboardList className="h-3.5 w-3.5 text-white" /></div>
+                                    <span className="text-sm font-semibold text-gray-900">Test — {questions.length} savol</span>
+                                    {testReadOnly && <span className="text-[10px] bg-gray-100 text-gray-400 px-2 py-0.5 rounded-md font-medium">Ko'rish</span>}
+                                    {testTimeLeft !== null && (
+                                        <span className={`text-sm font-mono tabular-nums ml-1 px-2 py-0.5 rounded-md ${testTimeLeft < 60 ? 'text-red-500 bg-red-50 animate-pulse' : 'text-gray-500 bg-gray-100'}`}>
+                                            ⏱ {Math.floor(testTimeLeft / 60)}:{String(testTimeLeft % 60).padStart(2, '0')}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <button onClick={() => setTestPanelMaximized(!testPanelMaximized)} className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition" title={testPanelMaximized ? 'Kichraytirish' : 'Kattalashtirish'}>
+                                        {testPanelMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
                                     </button>
-                                ) : (
-                                    <div className="text-center space-y-2">
-                                        <p className="text-lg font-bold text-gray-900">{score}/{questions.length} <span className="text-sm font-normal text-gray-400">— {Math.round(score / questions.length * 100)}%</span></p>
-                                        {raschFeedback && (
-                                            <p className="text-xs text-blue-600 font-medium">
-                                                📈 Daraja: {raschFeedback.prev.toFixed(2)} → {raschFeedback.next.toFixed(2)}
-                                            </p>
-                                        )}
-                                        <p className="text-xs text-gray-400">Natijalar chatga yuborildi</p>
-                                        <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setTestReadOnly(false); setActiveTestId(null); setActiveTestQuestions([]); setTestTimeLeft(null); setRaschFeedback(null) }} className="text-sm text-blue-600 hover:underline">Panelni yopish</button>
-                                    </div>
-                                )}
+                                    <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setActiveTestId(null); setActiveTestQuestions([]); setTestTimeLeft(null); setRaschFeedback(null) }} className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"><X className="h-4 w-4" /></button>
+                                </div>
+                            </div>
+
+                            {/* Progress bar */}
+                            <div className="h-1 bg-slate-100">
+                                <div className="h-full bg-gradient-to-r from-blue-600 via-indigo-500 to-purple-500 transition-all duration-500" style={{ width: testReadOnly ? '100%' : `${(answered / questions.length) * 100}%` }} />
+                            </div>
+
+                            {/* Questions */}
+                            <div className="flex-1 overflow-y-auto min-h-0 p-5 space-y-5 bg-slate-50/50">
+                                <div className={testPanelMaximized ? 'max-w-3xl mx-auto space-y-5' : 'space-y-5'}>
+                                    {questions.map((q: any, i: number) => (
+                                        <div key={i} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow duration-300">
+                                            <p className="text-[14px] font-semibold text-slate-800 mb-4 leading-relaxed">{i + 1}. <MathText text={q.q} /></p>
+                                            <div className="space-y-2.5">
+                                                {(['a', 'b', 'c', 'd'] as const).map(opt => {
+                                                    const isSelected = testAnswers[i] === opt
+                                                    const isCorrect = q.correct === opt
+                                                    let cls = 'w-full text-left px-4 py-3 rounded-xl text-[13px] border transition-all duration-200 outline-none '
+                                                    if (testSubmitted) {
+                                                        if (isCorrect) cls += 'border-emerald-300 bg-emerald-50 text-emerald-900 font-semibold shadow-sm ring-1 ring-emerald-500/10'
+                                                        else if (isSelected && !isCorrect) cls += 'border-red-300 bg-red-50 text-red-900 shadow-sm ring-1 ring-red-500/10'
+                                                        else cls += 'border-slate-100 bg-slate-50 opacity-60 text-slate-500'
+                                                    } else {
+                                                        cls += isSelected
+                                                            ? 'border-blue-500 bg-blue-50/80 text-blue-900 font-semibold shadow-md shadow-blue-500/10 ring-1 ring-blue-500/20 scale-[1.01]'
+                                                            : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                                                    }
+                                                    return (
+                                                        <button key={opt} disabled={testSubmitted} onClick={() => setTestAnswers({ ...testAnswers, [i]: opt })} className={cls}>
+                                                            <span className="font-bold mr-2 text-slate-400 opacity-80">{opt.toUpperCase()})</span> <MathText text={q[opt]} />
+                                                            {testSubmitted && isCorrect && <span className="ml-2 inline-flex items-center justify-center h-5 w-5 bg-emerald-100 text-emerald-600 rounded-full text-xs">✓</span>}
+                                                            {testSubmitted && isSelected && !isCorrect && <span className="ml-2 inline-flex items-center justify-center h-5 w-5 bg-red-100 text-red-600 rounded-full text-xs">✕</span>}
+                                                        </button>
+                                                    )
+                                                })}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Submit / Results */}
+                            <div className="p-5 border-t border-slate-100 bg-white flex-shrink-0">
+                                <div className={testPanelMaximized ? 'max-w-3xl mx-auto' : ''}>
+                                    {testReadOnly ? (
+                                        <div className="text-center space-y-2">
+                                            <div className="inline-flex items-center justify-center h-8 px-3 bg-emerald-50 text-emerald-700 rounded-full text-[12px] font-semibold mb-1">
+                                                ✓ Bu test avval yechilgan
+                                            </div>
+                                            <p className="text-[12px] text-slate-400">To'g'ri javoblar yashil bilan ko'rsatilmoqda</p>
+                                            <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setTestReadOnly(false); setActiveTestId(null); setActiveTestQuestions([]); setTestTimeLeft(null); setRaschFeedback(null) }} className="text-sm font-medium text-blue-600 hover:text-blue-700 transition">Panelni yopish</button>
+                                        </div>
+                                    ) : !testSubmitted ? (
+                                        <button onClick={submitTestPanel} disabled={answered < questions.length}
+                                            className="w-full h-12 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-slate-900 to-slate-800 hover:from-slate-800 hover:to-slate-700 disabled:from-slate-200 disabled:to-slate-200 disabled:text-slate-400 shadow-lg shadow-slate-900/10 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 flex items-center justify-center gap-2">
+                                            <Target className="h-4 w-4" /> Natijani ko'rish ({answered}/{questions.length})
+                                        </button>
+                                    ) : (
+                                        <div className="text-center space-y-2">
+                                            <p className="text-lg font-bold text-gray-900">{score}/{questions.length} <span className="text-sm font-normal text-gray-400">— {Math.round(score / questions.length * 100)}%</span></p>
+                                            {raschFeedback && (
+                                                <p className="text-xs text-blue-600 font-medium">
+                                                    📈 Daraja: {raschFeedback.prev.toFixed(2)} → {raschFeedback.next.toFixed(2)}
+                                                </p>
+                                            )}
+                                            <p className="text-xs text-gray-400">Natijalar chatga yuborildi</p>
+                                            <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setTestReadOnly(false); setActiveTestId(null); setActiveTestQuestions([]); setTestTimeLeft(null); setRaschFeedback(null) }} className="text-sm text-blue-600 hover:underline">Panelni yopish</button>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )
-            })()}
+                    )
+                })()
+            }
 
             {/* Flashcard Panel */}
-            {flashPanel && (() => {
-                const card = flashPanel[flashIdx]
-                return (
-                    <div
-                        className={flashMaximized
-                            ? 'fixed inset-0 z-50 bg-white flex flex-col'
-                            : 'relative bg-white border-l border-gray-200 flex flex-col flex-shrink-0'}
-                        style={flashMaximized ? {} : { width: flashWidth }}>
+            {
+                flashPanel && (() => {
+                    const card = flashPanel[flashIdx]
+                    return (
+                        <div
+                            className={flashMaximized
+                                ? 'fixed inset-0 z-50 bg-white flex flex-col'
+                                : 'relative bg-white border-l border-gray-200 flex flex-col flex-shrink-0'}
+                            style={flashMaximized ? {} : { width: flashWidth }}>
 
-                        {/* Drag handle (chap cheti) */}
-                        {!flashMaximized && (
-                            <div
-                                onMouseDown={e => { flashDragRef.current = true; e.preventDefault() }}
-                                className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-violet-300/60 active:bg-violet-400/60 transition-colors z-10 group">
-                                <div className="absolute left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-8 bg-gray-300 group-hover:bg-violet-400 rounded-full transition-colors" />
+                            {/* Drag handle (chap cheti) */}
+                            {!flashMaximized && (
+                                <div
+                                    onMouseDown={e => { flashDragRef.current = true; e.preventDefault() }}
+                                    className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-violet-300/60 active:bg-violet-400/60 transition-colors z-10 group">
+                                    <div className="absolute left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-8 bg-gray-300 group-hover:bg-violet-400 rounded-full transition-colors" />
+                                </div>
+                            )}
+
+                            {/* Header */}
+                            <div className="h-14 flex items-center justify-between px-4 border-b border-gray-100 flex-shrink-0">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm font-semibold text-gray-900">🃏 Kartochkalar</span>
+                                    <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-md">{flashIdx + 1}/{flashPanel.length}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <button onClick={() => setFlashMaximized(!flashMaximized)}
+                                        className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"
+                                        title={flashMaximized ? 'Kichraytirish' : 'Kattalashtirish'}>
+                                        {flashMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                                    </button>
+                                    <button onClick={() => { setFlashPanel(null); setFlashMaximized(false) }}
+                                        className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition">
+                                        <X className="h-4 w-4" />
+                                    </button>
+                                </div>
                             </div>
-                        )}
 
-                        {/* Header */}
-                        <div className="h-14 flex items-center justify-between px-4 border-b border-gray-100 flex-shrink-0">
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm font-semibold text-gray-900">🃏 Kartochkalar</span>
-                                <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-md">{flashIdx + 1}/{flashPanel.length}</span>
+                            {/* Progress bar */}
+                            <div className="h-1 bg-gray-100 flex-shrink-0">
+                                <div className="h-full bg-gradient-to-r from-violet-500 to-purple-500 transition-all duration-300" style={{ width: `${((flashIdx + 1) / flashPanel.length) * 100}%` }} />
                             </div>
-                            <div className="flex items-center gap-1">
-                                <button onClick={() => setFlashMaximized(!flashMaximized)}
-                                    className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"
-                                    title={flashMaximized ? 'Kichraytirish' : 'Kattalashtirish'}>
-                                    {flashMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-                                </button>
-                                <button onClick={() => { setFlashPanel(null); setFlashMaximized(false) }}
-                                    className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition">
-                                    <X className="h-4 w-4" />
-                                </button>
-                            </div>
-                        </div>
 
-                        {/* Progress bar */}
-                        <div className="h-1 bg-gray-100 flex-shrink-0">
-                            <div className="h-full bg-gradient-to-r from-violet-500 to-purple-500 transition-all duration-300" style={{ width: `${((flashIdx + 1) / flashPanel.length) * 100}%` }} />
-                        </div>
+                            {/* Card flip area */}
+                            <div className="flex-1 flex flex-col items-center justify-center p-6 min-h-0 overflow-y-auto [perspective:1000px] bg-slate-50/50">
+                                <div className={flashMaximized ? 'w-full max-w-2xl' : 'w-full'}>
+                                    <div onClick={() => setFlashFlipped(!flashFlipped)}
+                                        className="relative cursor-pointer min-h-[250px] w-full [transform-style:preserve-3d] transition-transform duration-700"
+                                        style={{ transform: flashFlipped ? 'rotateY(180deg)' : 'rotateY(0)' }}>
 
-                        {/* Card flip area */}
-                        <div className="flex-1 flex flex-col items-center justify-center p-6 min-h-0 overflow-y-auto [perspective:1000px] bg-slate-50/50">
-                            <div className={flashMaximized ? 'w-full max-w-2xl' : 'w-full'}>
-                                <div onClick={() => setFlashFlipped(!flashFlipped)}
-                                    className="relative cursor-pointer min-h-[250px] w-full [transform-style:preserve-3d] transition-transform duration-700"
-                                    style={{ transform: flashFlipped ? 'rotateY(180deg)' : 'rotateY(0)' }}>
-
-                                    {/* Front (Question) */}
-                                    <div className="absolute inset-0 [backface-visibility:hidden] bg-gradient-to-br from-violet-50 to-indigo-50 border-2 border-white rounded-3xl p-8 flex flex-col items-center justify-center text-center shadow-xl shadow-indigo-500/10">
-                                        <div className="absolute top-4 left-0 right-0 flex justify-center">
-                                            <span className="bg-indigo-100 text-indigo-600 text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full">❓ Savol</span>
+                                        {/* Front (Question) */}
+                                        <div className="absolute inset-0 [backface-visibility:hidden] bg-gradient-to-br from-violet-50 to-indigo-50 border-2 border-white rounded-3xl p-8 flex flex-col items-center justify-center text-center shadow-xl shadow-indigo-500/10">
+                                            <div className="absolute top-4 left-0 right-0 flex justify-center">
+                                                <span className="bg-indigo-100 text-indigo-600 text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full">❓ Savol</span>
+                                            </div>
+                                            <div className="text-[15px] font-medium text-slate-800 leading-relaxed w-full mt-2">
+                                                <MdMessage content={card.front} onOpenTest={() => { }} onProfileUpdate={() => { }} onOpenFlash={() => { }} />
+                                            </div>
+                                            <p className="absolute bottom-5 text-[11px] font-semibold text-indigo-400 flex items-center gap-1 opacity-70">
+                                                <RotateCcw className="h-3 w-3" /> Bosib javobni ko'ring
+                                            </p>
                                         </div>
-                                        <div className="text-[15px] font-medium text-slate-800 leading-relaxed w-full mt-2">
-                                            <MdMessage content={card.front} onOpenTest={() => { }} onProfileUpdate={() => { }} onOpenFlash={() => { }} />
-                                        </div>
-                                        <p className="absolute bottom-5 text-[11px] font-semibold text-indigo-400 flex items-center gap-1 opacity-70">
-                                            <RotateCcw className="h-3 w-3" /> Bosib javobni ko'ring
-                                        </p>
-                                    </div>
 
-                                    {/* Back (Answer) */}
-                                    <div className="absolute inset-0 [backface-visibility:hidden] bg-white border border-emerald-100 rounded-3xl p-8 flex flex-col items-center justify-center text-center shadow-xl shadow-emerald-500/10"
-                                        style={{ transform: 'rotateY(180deg)' }}>
-                                        <div className="absolute top-4 left-0 right-0 flex justify-center">
-                                            <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full">✅ Javob</span>
-                                        </div>
-                                        <div className="text-[15px] text-slate-700 leading-relaxed w-full mt-2">
-                                            <MdMessage content={card.back} onOpenTest={() => { }} onProfileUpdate={() => { }} onOpenFlash={() => { }} />
+                                        {/* Back (Answer) */}
+                                        <div className="absolute inset-0 [backface-visibility:hidden] bg-white border border-emerald-100 rounded-3xl p-8 flex flex-col items-center justify-center text-center shadow-xl shadow-emerald-500/10"
+                                            style={{ transform: 'rotateY(180deg)' }}>
+                                            <div className="absolute top-4 left-0 right-0 flex justify-center">
+                                                <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full">✅ Javob</span>
+                                            </div>
+                                            <div className="text-[15px] text-slate-700 leading-relaxed w-full mt-2">
+                                                <MdMessage content={card.back} onOpenTest={() => { }} onProfileUpdate={() => { }} onOpenFlash={() => { }} />
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Navigation */}
-                        <div className={`p-5 border-t border-slate-100 bg-white flex gap-3 flex-shrink-0 ${flashMaximized ? 'max-w-2xl w-full mx-auto' : ''}`}>
-                            <button disabled={flashIdx === 0}
-                                onClick={() => { setFlashIdx(flashIdx - 1); setFlashFlipped(false) }}
-                                className="flex-1 h-12 rounded-2xl border border-slate-200 text-sm font-semibold text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition-all flex items-center justify-center gap-1.5 focus:ring-2 focus:ring-slate-200">
-                                <ChevronLeft className="h-4.5 w-4.5" /> Oldingi
-                            </button>
-                            <button onClick={() => {
-                                if (flashIdx < flashPanel.length - 1) { setFlashIdx(flashIdx + 1); setFlashFlipped(false) }
-                                else { setFlashPanel(null); setFlashMaximized(false) }
-                            }} className="flex-1 h-12 rounded-2xl bg-indigo-600 shadow-lg shadow-indigo-500/20 text-white text-sm font-bold hover:bg-indigo-700 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-1.5 focus:ring-2 focus:ring-indigo-500">
-                                {flashIdx < flashPanel.length - 1 ? <><span>Keyingi</span><ChevronRight className="h-4.5 w-4.5" /></> : 'Tugallash'}
-                            </button>
+                            {/* Navigation */}
+                            <div className={`p-5 border-t border-slate-100 bg-white flex gap-3 flex-shrink-0 ${flashMaximized ? 'max-w-2xl w-full mx-auto' : ''}`}>
+                                <button disabled={flashIdx === 0}
+                                    onClick={() => { setFlashIdx(flashIdx - 1); setFlashFlipped(false) }}
+                                    className="flex-1 h-12 rounded-2xl border border-slate-200 text-sm font-semibold text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition-all flex items-center justify-center gap-1.5 focus:ring-2 focus:ring-slate-200">
+                                    <ChevronLeft className="h-4.5 w-4.5" /> Oldingi
+                                </button>
+                                <button onClick={() => {
+                                    if (flashIdx < flashPanel.length - 1) { setFlashIdx(flashIdx + 1); setFlashFlipped(false) }
+                                    else { setFlashPanel(null); setFlashMaximized(false) }
+                                }} className="flex-1 h-12 rounded-2xl bg-indigo-600 shadow-lg shadow-indigo-500/20 text-white text-sm font-bold hover:bg-indigo-700 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-1.5 focus:ring-2 focus:ring-indigo-500">
+                                    {flashIdx < flashPanel.length - 1 ? <><span>Keyingi</span><ChevronRight className="h-4.5 w-4.5" /></> : 'Tugallash'}
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                )
-            })()}
-        </div>
+                    )
+                })()
+            }
+        </div >
     )
 }

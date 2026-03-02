@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
-import { BrainCircuit } from 'lucide-react'
+import { BrainCircuit, Eye, EyeOff } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 
@@ -22,11 +22,16 @@ export default function Login() {
         }
     }, [])
     const [password, setPassword] = useState('')
+    const [showPassword, setShowPassword] = useState(false)
     const [err, setErr] = useState('')
     const [loading, setLoading] = useState(false)
 
     const submit = async (e: React.FormEvent) => {
-        e.preventDefault(); setLoading(true); setErr('')
+        e.preventDefault(); setLoading(true); setErr('');
+
+        // Ensure stale tokens are cleared before initiating new login
+        localStorage.removeItem('token')
+
         try {
             const data = await fetchApi('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
             login(data.token, data.user)
@@ -60,7 +65,12 @@ export default function Login() {
                             <input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full h-11 px-4 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition text-sm" />
                         </div>
                         <div><label className="text-sm font-medium text-gray-700 block mb-1">Parol</label>
-                            <input type="password" required value={password} onChange={e => setPassword(e.target.value)} className="w-full h-11 px-4 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition text-sm" />
+                            <div className="relative">
+                                <input type={showPassword ? "text" : "password"} required value={password} onChange={e => setPassword(e.target.value)} className="w-full h-11 px-4 pr-10 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition text-sm" />
+                                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition">
+                                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </button>
+                            </div>
                         </div>
                         <button type="submit" disabled={loading} className="w-full h-11 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-cyan-500 shadow-lg shadow-blue-500/25 disabled:opacity-50 transition">
                             {loading ? 'Tekshirilmoqda...' : 'Kirish'}

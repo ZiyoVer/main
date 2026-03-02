@@ -14,8 +14,11 @@ router.post('/register', async (req, res) => {
         if (!email || !password || !name) {
             return res.status(400).json({ error: 'Barcha maydonlarni to\'ldiring' })
         }
-        if (password.length < 6) {
-            return res.status(400).json({ error: 'Parol kamida 6 ta belgi bo\'lishi kerak' })
+        if (password.length < 8) {
+            return res.status(400).json({ error: 'Parol kamida 8 ta belgi bo\'lishi kerak' })
+        }
+        if (!/(?=.*[a-zA-Z])(?=.*\\d)/.test(password)) {
+            return res.status(400).json({ error: 'Parolda kamida bitta harf va bitta raqam bo\'lishi shart' })
         }
         const existing = await prisma.user.findUnique({ where: { email } })
         if (existing) return res.status(400).json({ error: 'Bu email allaqachon band' })
@@ -83,6 +86,12 @@ router.post('/create-teacher', authenticate, requireRole('ADMIN'), async (req: A
         const { email, password, name } = req.body
         if (!email || !password || !name) {
             return res.status(400).json({ error: 'Barcha maydonlarni to\'ldiring' })
+        }
+        if (password.length < 8) {
+            return res.status(400).json({ error: 'Parol kamida 8 ta belgi bo\'lishi kerak' })
+        }
+        if (!/(?=.*[a-zA-Z])(?=.*\\d)/.test(password)) {
+            return res.status(400).json({ error: 'Parolda kamida bitta harf va bitta raqam bo\'lishi shart' })
         }
         const existing = await prisma.user.findUnique({ where: { email } })
         if (existing) return res.status(400).json({ error: 'Bu email allaqachon band' })
