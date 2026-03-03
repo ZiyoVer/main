@@ -55,7 +55,7 @@ export default function TestPage() {
         <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-page)' }}>
             <div className="text-center">
                 <p className="text-sm mb-3" style={{ color: 'var(--danger)' }}>{err}</p>
-                <button onClick={() => nav('/chat')} className="text-sm" style={{ color: 'var(--brand)' }}>Bosh sahifaga qaytish</button>
+                <button onClick={() => nav('/suhbat')} className="text-sm" style={{ color: 'var(--brand)' }}>Bosh sahifaga qaytish</button>
             </div>
         </div>
     )
@@ -69,7 +69,7 @@ export default function TestPage() {
             <header className="sticky top-0 z-40" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', backdropFilter: 'blur(12px)' }}>
                 <div className="max-w-2xl mx-auto flex items-center justify-between py-3 px-5">
                     <div className="flex items-center gap-2">
-                        <button onClick={() => nav('/chat')} className="h-7 w-7 flex items-center justify-center rounded-lg transition"
+                        <button onClick={() => nav('/suhbat')} className="h-7 w-7 flex items-center justify-center rounded-lg transition"
                             style={{ color: 'var(--text-muted)' }}
                             onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
@@ -166,7 +166,7 @@ export default function TestPage() {
                 )}
 
                 {submitted && (
-                    <button onClick={() => nav('/chat')}
+                    <button onClick={() => nav('/suhbat')}
                         className="w-full h-11 rounded-xl text-sm font-semibold transition"
                         style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
                         Chatga qaytish
