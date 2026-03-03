@@ -355,6 +355,17 @@ export default function ChatLayout() {
                         if (line.startsWith('data: ')) {
                             try {
                                 const d = JSON.parse(line.slice(6))
+                                if (d.error) {
+                                    setMessages(prev => {
+                                        const filtered = prev.filter(m => m.id !== 'temp-u')
+                                        return [...filtered,
+                                            { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() },
+                                            { id: 'err-' + Date.now(), role: 'assistant', content: `⚠️ ${d.error}`, createdAt: new Date().toISOString() }
+                                        ]
+                                    })
+                                    setStreaming(''); setThinkingText('')
+                                    break
+                                }
                                 if (d.thinking) { thinkBuf += d.thinking; setThinkingText(thinkBuf) }
                                 if (d.content) { fullText += d.content; setStreaming(fullText) }
                                 if (d.done) {
@@ -393,7 +404,19 @@ export default function ChatLayout() {
                     })
                 }
             } else {
-                setMessages(prev => [...prev, { id: 'err', role: 'assistant', content: 'Xatolik yuz berdi.', createdAt: new Date().toISOString() }])
+                let errText = '⚠️ AI javob bera olmadi. Qayta urinib ko\'ring.'
+                try {
+                    // Server 500 JSON error bo'lsa, ichidagi xabarni ko'rsatamiz
+                    const res2 = err?.response
+                    if (res2) { const j = await res2.json(); if (j?.error) errText = `⚠️ ${j.error}` }
+                } catch { }
+                setMessages(prev => {
+                    const filtered = prev.filter(m => m.id !== 'temp-u')
+                    return [...filtered,
+                        { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() },
+                        { id: 'err-' + Date.now(), role: 'assistant', content: errText, createdAt: new Date().toISOString() }
+                    ]
+                })
             }
             setStreaming(''); setThinkingText('')
         }

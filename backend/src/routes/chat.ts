@@ -747,11 +747,20 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
         res.write(`data: ${JSON.stringify({ done: true, id: saved.id })}\n\n`)
         res.end()
     } catch (e: any) {
-        console.error('AI stream error:', e.message)
+        const errMsg = e?.message || 'Noma\'lum xato'
+        console.error('AI stream error:', errMsg)
+        // Rate limit yoki auth xatolari uchun aniq xabar
+        const isRateLimit = errMsg.includes('429') || errMsg.toLowerCase().includes('rate limit')
+        const isAuth = errMsg.includes('401') || errMsg.toLowerCase().includes('auth')
+        const userMsg = isRateLimit
+            ? 'AI yuklanmoqda, biroz kuting va qayta urinib ko\'ring.'
+            : isAuth
+                ? 'AI kaliti noto\'g\'ri. Admin bilan bog\'laning.'
+                : 'AI javob bera olmadi. Qayta urinib ko\'ring.'
         if (!res.headersSent) {
-            res.status(500).json({ error: 'AI javob bera olmadi' })
+            res.status(500).json({ error: userMsg })
         } else {
-            res.write(`data: ${JSON.stringify({ error: 'AI xatoligi' })}\n\n`)
+            res.write(`data: ${JSON.stringify({ error: userMsg })}\n\n`)
             res.end()
         }
     }
