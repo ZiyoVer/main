@@ -11,7 +11,7 @@ export default function Register() {
     const { token, user, login } = useAuthStore()
 
     useEffect(() => {
-        if (token && user) nav('/chat', { replace: true })
+        if (token && user) nav('/suhbat', { replace: true })
     }, [])
 
     const [step, setStep] = useState(1)
@@ -48,7 +48,7 @@ export default function Register() {
             // Ro'yxatdan so'ng avtomatik tizimga kirish va chatga yo'naltirish
             const loginData = await fetchApi('/auth/login', { method: 'POST', body: JSON.stringify({ email: form.email, password: form.password }) })
             login(loginData.token, loginData.user)
-            nav('/chat', { replace: true })
+            nav('/suhbat', { replace: true })
         } catch (e: any) {
             setErr(e.message)
         }

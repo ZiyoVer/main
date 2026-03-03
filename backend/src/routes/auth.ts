@@ -10,15 +10,12 @@ const JWT_SECRET = process.env.JWT_SECRET || 'msert-dev-secret'
 // Register — faqat STUDENT
 router.post('/register', async (req, res) => {
     try {
-        const { email, password, name } = req.body
+        const { email, password, name, subject, subject2, examDate, targetScore, examType } = req.body
         if (!email || !password || !name) {
             return res.status(400).json({ error: 'Barcha maydonlarni to\'ldiring' })
         }
-        if (password.length < 8) {
-            return res.status(400).json({ error: 'Parol kamida 8 ta belgi bo\'lishi kerak' })
-        }
-        if (!/(?=.*[a-zA-Z])(?=.*\\d)/.test(password)) {
-            return res.status(400).json({ error: 'Parolda kamida bitta harf va bitta raqam bo\'lishi shart' })
+        if (password.length < 6) {
+            return res.status(400).json({ error: 'Parol kamida 6 ta belgi bo\'lishi kerak' })
         }
         const existing = await prisma.user.findUnique({ where: { email } })
         if (existing) return res.status(400).json({ error: 'Bu email allaqachon band' })
@@ -28,8 +25,16 @@ router.post('/register', async (req, res) => {
             data: { email, password: hashed, name, role: 'STUDENT' }
         })
 
-        // Toza profil yaratish
-        await prisma.studentProfile.create({ data: { userId: user.id } })
+        // Profil yaratish — ro'yxatdan o'tishda to'ldirilgan ma'lumotlar bilan
+        await prisma.studentProfile.create({
+            data: {
+                userId: user.id,
+                subject: subject || null,
+                examDate: examDate ? new Date(examDate) : null,
+                targetScore: targetScore ? parseInt(targetScore) : null,
+                onboardingDone: !!(subject && examDate),
+            }
+        })
 
         // Visit log
         await prisma.visitLog.create({ data: { userId: user.id, action: 'register' } })

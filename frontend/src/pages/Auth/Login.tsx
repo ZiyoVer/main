@@ -14,9 +14,9 @@ export default function Login() {
     useEffect(() => {
         if (token && user) {
             if (from) nav(from, { replace: true })
-            else if (user.role === 'ADMIN') nav('/admin', { replace: true })
-            else if (user.role === 'TEACHER') nav('/teacher', { replace: true })
-            else nav('/chat', { replace: true })
+            else if (user.role === 'ADMIN') nav('/boshqaruv', { replace: true })
+            else if (user.role === 'TEACHER') nav('/oqituvchi', { replace: true })
+            else nav('/suhbat', { replace: true })
         }
     }, [])
 
@@ -35,9 +35,9 @@ export default function Login() {
             const data = await fetchApi('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
             login(data.token, data.user)
             if (from) nav(from, { replace: true })
-            else if (data.user.role === 'ADMIN') nav('/admin')
-            else if (data.user.role === 'TEACHER') nav('/teacher')
-            else nav('/chat')
+            else if (data.user.role === 'ADMIN') nav('/boshqaruv')
+            else if (data.user.role === 'TEACHER') nav('/oqituvchi')
+            else nav('/suhbat')
         } catch (e: any) {
             setErr(e.message)
         }

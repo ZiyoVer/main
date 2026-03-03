@@ -333,10 +333,24 @@ export default function ChatLayout() {
                 ...onboardingForm,
                 weakTopics: onboardingForm.weakTopics ? onboardingForm.weakTopics.split(',').map(s => s.trim()).filter(Boolean) : [],
                 strongTopics: onboardingForm.strongTopics ? onboardingForm.strongTopics.split(',').map(s => s.trim()).filter(Boolean) : [],
+                onboardingDone: true,
             }
             await fetchApi('/profile', { method: 'PUT', body: JSON.stringify(data) })
             setShowOnboarding(false)
             await loadProfile()
+            // Birinchi marta onboarding — avtomatik chat ochib AI tabriklash xabari
+            if (!profile?.onboardingDone) {
+                const firstChat = await fetchApi('/chat/new', {
+                    method: 'POST',
+                    body: JSON.stringify({ title: 'Salom!', subject: onboardingForm.subject })
+                })
+                await loadChats()
+                nav(`/suhbat/${firstChat.id}`)
+                setTimeout(() => {
+                    const welcomePrompt = `O'quvchi ${user?.name?.split(' ')[0]} platformaga yangi ro'yxatdan o'tdi. Fan: ${onboardingForm.subject}. Imtihon sanasi: ${onboardingForm.examDate || "belgilanmagan"}. Maqsad ball: ${onboardingForm.targetScore || 80}. Ularni shaxsiy, qisqa va samimiy tabriklang. Fan bo'yicha birinchi darsni taklif qiling. 3-4 jumladan oshirmang.`
+                    streamToChat(firstChat.id, welcomePrompt, 'Salom! 👋')
+                }, 300)
+            }
         } catch { }
         setSavingProfile(false)
     }
