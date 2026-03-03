@@ -36,12 +36,17 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
     : ['http://localhost:5173', 'http://localhost:3000']
 
-app.use('/api', cors({
+app.use(cors({
     origin: (origin, cb) => {
+        // Same-origin (origin yo'q) yoki ruxsat berilgan originlar — o'tkazib yuborish
         if (!origin || allowedOrigins.some(o => origin.startsWith(o))) {
-            return cb(null, true);
+            return cb(null, true)
         }
-        return cb(new Error('CORS orqali ruxsat etilmagan'));
+        // Railway ichki URL lari ham ruxsat — *.up.railway.app
+        if (origin.endsWith('.up.railway.app')) {
+            return cb(null, true)
+        }
+        return cb(null, false)
     },
     credentials: true
 }))
