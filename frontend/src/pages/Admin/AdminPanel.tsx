@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BrainCircuit, Users, UserCheck, GraduationCap, Clock, CalendarDays, CalendarRange, BarChart3, MessageSquare, FileText, Layers, Target, LogOut, Upload, Trash2, Activity, Bot, Save, Globe, Lock } from 'lucide-react'
+import { BrainCircuit, Users, UserCheck, GraduationCap, Clock, CalendarDays, CalendarRange, BarChart3, MessageSquare, FileText, Layers, Target, LogOut, Upload, Trash2, Activity, Bot, Save, Globe, Lock, TrendingUp, UserPlus } from 'lucide-react'
+import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { fetchApi, uploadFile } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 
@@ -24,6 +25,10 @@ export default function AdminPanel() {
     const [aiSaving, setAiSaving] = useState(false)
     const [aiMsg, setAiMsg] = useState('')
     const [loading, setLoading] = useState(true)
+    const [loginTrend, setLoginTrend] = useState<any[]>([])
+    const [registerTrend, setRegisterTrend] = useState<any[]>([])
+    const [newUsers24h, setNewUsers24h] = useState<any[]>([])
+    const [recentRegs, setRecentRegs] = useState<any[]>([])
 
     useEffect(() => {
         loadAll()
@@ -36,6 +41,10 @@ export default function AdminPanel() {
         try { setTests(await fetchApi('/tests/all')) } catch { setTests([]) }
         try { const ai = await fetchApi('/ai-settings'); setAiConfig(ai) } catch { }
         try { const d = await fetchApi('/ai-settings/defaults'); setDefaults(d) } catch { }
+        try { setLoginTrend(await fetchApi('/analytics/login-trend')) } catch { setLoginTrend([]) }
+        try { setRegisterTrend(await fetchApi('/analytics/register-trend')) } catch { setRegisterTrend([]) }
+        try { setNewUsers24h(await fetchApi('/analytics/new-users-24h')) } catch { setNewUsers24h([]) }
+        try { setRecentRegs(await fetchApi('/analytics/recent-registrations')) } catch { setRecentRegs([]) }
         setLoading(false)
     }
 
@@ -212,6 +221,128 @@ export default function AdminPanel() {
                                                 style={u.role === 'TEACHER' ? { background: 'color-mix(in srgb, var(--brand) 12%, transparent)', color: 'var(--brand)' } : { background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>{u.role}</span>
                                         </div>
                                     ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ═══════════════ CHARTS ═══════════════ */}
+                        <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-wider mb-3" style={mutedText}>Grafik tahlil</p>
+
+                            {/* Row 1: Login trend + Register trend */}
+                            <div className="grid md:grid-cols-2 gap-3 mb-3">
+                                {/* 7-day Login Trend */}
+                                <div className="rounded-xl p-4" style={cardStyle}>
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--brand) 12%, transparent)', color: 'var(--brand)' }}>
+                                            <TrendingUp className="h-3.5 w-3.5" />
+                                        </div>
+                                        <div>
+                                            <p className="text-[13px] font-semibold">7 kunlik kirishlar</p>
+                                            <p className="text-[11px]" style={mutedText}>Oxirgi 7 kun davomida tizimga kirganlar</p>
+                                        </div>
+                                    </div>
+                                    <ResponsiveContainer width="100%" height={180}>
+                                        <AreaChart data={loginTrend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                                            <defs>
+                                                <linearGradient id="loginGrad" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="var(--brand)" stopOpacity={0.25} />
+                                                    <stop offset="95%" stopColor="var(--brand)" stopOpacity={0} />
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                                            <XAxis dataKey="day" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
+                                            <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} allowDecimals={false} />
+                                            <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
+                                            <Area type="monotone" dataKey="count" name="Kirishlar" stroke="var(--brand)" fill="url(#loginGrad)" strokeWidth={2} dot={{ r: 3, fill: 'var(--brand)' }} />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                </div>
+
+                                {/* 7-day Register Trend */}
+                                <div className="rounded-xl p-4" style={cardStyle}>
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)' }}>
+                                            <UserPlus className="h-3.5 w-3.5" />
+                                        </div>
+                                        <div>
+                                            <p className="text-[13px] font-semibold">7 kunlik ro'yxatdan o'tishlar</p>
+                                            <p className="text-[11px]" style={mutedText}>Har kunda yangi foydalanuvchilar</p>
+                                        </div>
+                                    </div>
+                                    <ResponsiveContainer width="100%" height={180}>
+                                        <BarChart data={registerTrend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                                            <XAxis dataKey="day" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
+                                            <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} allowDecimals={false} />
+                                            <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
+                                            <Bar dataKey="count" name="Yangi foydalanuvchi" fill="var(--success)" radius={[4, 4, 0, 0]} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+
+                            {/* Row 2: 24h activity chart + 24h new users list */}
+                            <div className="grid md:grid-cols-2 gap-3">
+                                {/* 24h new users hourly */}
+                                <div className="rounded-xl p-4" style={cardStyle}>
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: 'color-mix(in srgb, #6366f1 12%, transparent)', color: '#6366f1' }}>
+                                            <Activity className="h-3.5 w-3.5" />
+                                        </div>
+                                        <div>
+                                            <p className="text-[13px] font-semibold">24 soatlik faollik</p>
+                                            <p className="text-[11px]" style={mutedText}>Soat bo'yicha yangi a'zolar</p>
+                                        </div>
+                                    </div>
+                                    <ResponsiveContainer width="100%" height={180}>
+                                        <LineChart data={newUsers24h} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                                            <defs>
+                                                <linearGradient id="actGrad" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2} />
+                                                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                                            <XAxis dataKey="hour" tick={{ fontSize: 9, fill: 'var(--text-muted)' }} interval={3} />
+                                            <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} allowDecimals={false} />
+                                            <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
+                                            <Line type="monotone" dataKey="count" name="Yangi a'zo" stroke="#6366f1" strokeWidth={2} dot={false} />
+                                        </LineChart>
+                                    </ResponsiveContainer>
+                                </div>
+
+                                {/* 24h registrations list */}
+                                <div className="rounded-xl p-4" style={cardStyle}>
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: 'color-mix(in srgb, #f59e0b 12%, transparent)', color: '#f59e0b' }}>
+                                            <Users className="h-3.5 w-3.5" />
+                                        </div>
+                                        <div>
+                                            <p className="text-[13px] font-semibold">24 soatda ro'yxatdan o'tganlar</p>
+                                            <p className="text-[11px]" style={mutedText}>{recentRegs.length} ta yangi foydalanuvchi</p>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2 overflow-y-auto" style={{ maxHeight: 160 }}>
+                                        {recentRegs.length === 0 ? (
+                                            <p className="text-[12px] text-center py-6" style={mutedText}>24 soatda yangi foydalanuvchi yo'q</p>
+                                        ) : recentRegs.map((u: any) => (
+                                            <div key={u.id} className="flex items-center gap-2.5 py-1">
+                                                <div className="h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0"
+                                                    style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>
+                                                    {u.name?.[0]?.toUpperCase() || '?'}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-[12px] font-medium truncate">{u.name}</p>
+                                                    <p className="text-[10px] truncate" style={mutedText}>{u.email}</p>
+                                                </div>
+                                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0"
+                                                    style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
+                                                    {new Date(u.createdAt).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
                         </div>
