@@ -322,8 +322,8 @@ export default function ChatLayout() {
         } catch { }
     }
 
-    async function logActivity() {
-        try { await fetchApi('/progress/activity', { method: 'POST', body: JSON.stringify({ xpGained: 5 }) }) } catch { }
+    async function logActivity(xpGained = 5) {
+        try { await fetchApi('/progress/activity', { method: 'POST', body: JSON.stringify({ xpGained }) }) } catch { }
     }
 
     async function saveOnboarding(e: React.FormEvent) {
@@ -491,6 +491,7 @@ export default function ChatLayout() {
         e.preventDefault()
         if ((!input.trim() && attachedFiles.length === 0) || !chatId || loading) return
         setInput('')
+        logActivity(5) // Har xabar uchun +5 XP
         if (attachedFiles.length > 0) {
             const userInput = input.trim()
             let promptText = ''
@@ -710,6 +711,19 @@ export default function ChatLayout() {
             return `${i + 1}. ${q.q} — Javob: ${(testAnswers[i] || '?').toUpperCase()}) ${correct ? '✅ to\'g\'ri' : '❌ xato (to\'g\'ri: ' + q.correct.toUpperCase() + ')'}`
         }).join('\n')
         const score = questions.filter((q: any, i: number) => testAnswers[i] === q.correct).length
+
+        // Mavzu statistikasini yangilash + XP qo'shish
+        const testSubject = currentChat?.subject || profile?.subject || 'Umumiy'
+        fetchApi('/progress/topic', {
+            method: 'POST',
+            body: JSON.stringify({
+                subject: testSubject,
+                topic: currentChat?.title?.split(' ').slice(0, 4).join(' ') || 'Umumiy',
+                correct: score,
+                total: questions.length
+            })
+        }).then(() => loadProgress()).catch(() => { })
+        logActivity(20) // Test uchun +20 XP
         const summary = `--- YANGI TEST NATIJASI (bu mustaqil test) ---\nJami savol: ${questions.length}\nTo'g'ri javoblar: ${score}/${questions.length}\n\n${results}\n\nFaqat shu ${questions.length} ta savol bo'yicha tahlil qil va qaysi mavzularni qayta o'rganishim kerakligini ayt. Oldingi testlar bilan aralashma.`
         const displayMsg = `📊 Test natijasi: ${score}/${questions.length} — AI tahlil qilmoqda...`
 
@@ -1653,6 +1667,7 @@ export default function ChatLayout() {
                                     <>
                                         <button onClick={() => {
                                             fetchApi(`/flashcards/${card.id}/review`, { method: 'POST', body: JSON.stringify({ quality: 1 }) }).catch(() => { })
+                                            logActivity(3) // Flashcard ko'rish +3 XP
                                             if (flashIdx < flashPanel.length - 1) { setFlashIdx(flashIdx + 1); setFlashFlipped(false) }
                                             else { setFlashPanel(null); setFlashMaximized(false); setFlashIsReview(false); loadDueFlashcards(); loadProgress() }
                                         }} className="btn flex-1 h-12 flex items-center justify-center gap-1.5 font-semibold"
@@ -1663,6 +1678,7 @@ export default function ChatLayout() {
                                         </button>
                                         <button onClick={() => {
                                             fetchApi(`/flashcards/${card.id}/review`, { method: 'POST', body: JSON.stringify({ quality: 4 }) }).catch(() => { })
+                                            logActivity(5) // Flashcard bildi +5 XP
                                             if (flashIdx < flashPanel.length - 1) { setFlashIdx(flashIdx + 1); setFlashFlipped(false) }
                                             else { setFlashPanel(null); setFlashMaximized(false); setFlashIsReview(false); loadDueFlashcards(); loadProgress() }
                                         }} className="btn btn-primary flex-1 h-12 flex items-center justify-center gap-1.5">
