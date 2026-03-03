@@ -11,4 +11,4 @@ cmds = [
 ]
 
 [start]
-cmd = "cd backend && node dist/app.js"
+cmd = "cd backend && npx prisma db push --accept-data-loss && node dist/app.js"

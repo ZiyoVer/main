@@ -1218,7 +1218,8 @@ export default function ChatLayout() {
             {/* Main */}
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
                 <div className="h-14 flex items-center px-4 gap-2 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
-                    {!sideOpen && <button onClick={() => setSideOpen(true)} className="h-8 w-8 flex items-center justify-center rounded-lg transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><Menu className="h-4 w-4" /></button>}
+                    {/* ☰ doim ko'rinadi — sidebar toggle */}
+                    <button onClick={() => setSideOpen(v => !v)} className="h-8 w-8 flex items-center justify-center rounded-lg transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} title="Yonpanel"><Menu className="h-4 w-4" /></button>
                     <span className="text-sm font-medium truncate flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>{currentChat?.title || ''}</span>
                     {/* Fan tanlash dropdown */}
                     {profile?.subject && (
@@ -1238,11 +1239,13 @@ export default function ChatLayout() {
                             ))}
                         </select>
                     )}
-                    <button onClick={() => {
-                        if (document.fullscreenElement) document.exitFullscreen()
-                        else document.documentElement.requestFullscreen()
-                    }} className="h-8 w-8 flex items-center justify-center rounded-lg transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} title="To'liq ekran" onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                        {document.fullscreenElement ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                    {/* 🌙 Dark mode toggle */}
+                    <button onClick={() => setDarkMode(!darkMode)} className="h-8 w-8 flex items-center justify-center rounded-lg transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} title={darkMode ? 'Yorug\' rejim' : 'Qorong\'i rejim'} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        <span className="text-base leading-none">{darkMode ? '☀️' : '🌙'}</span>
+                    </button>
+                    {/* 👤 Profile avatar — settings tabini ochadi */}
+                    <button onClick={() => { setSideOpen(true); setSideTab('settings') }} className="h-8 w-8 rounded-full flex items-center justify-center text-[12px] font-semibold text-white flex-shrink-0 transition" style={{ background: 'var(--brand)' }} title={user?.name || 'Profil'}>
+                        {user?.name?.[0]?.toUpperCase() || '?'}
                     </button>
                 </div>
 

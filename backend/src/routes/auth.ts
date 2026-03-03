@@ -30,6 +30,7 @@ router.post('/register', async (req, res) => {
             data: {
                 userId: user.id,
                 subject: subject || null,
+                examType: examType || null,
                 examDate: examDate ? new Date(examDate) : null,
                 targetScore: targetScore ? parseInt(targetScore) : null,
                 onboardingDone: !!(subject && examDate),

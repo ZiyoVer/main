@@ -43,6 +43,7 @@ model StudentProfile {
 
   // Onboarding data
   subject      String?
+  examType     String?  // "DTM" | "MS"
   targetScore  Int?
   weakTopics   String?  // JSON string array
   strongTopics String?  // JSON string array

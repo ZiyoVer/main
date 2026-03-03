@@ -108,9 +108,9 @@ export default function Landing() {
 
     useEffect(() => {
         if (token && user) {
-            if (user.role === 'ADMIN') nav('/admin', { replace: true })
-            else if (user.role === 'TEACHER') nav('/teacher', { replace: true })
-            else nav('/chat', { replace: true })
+            if (user.role === 'ADMIN') nav('/boshqaruv', { replace: true })
+            else if (user.role === 'TEACHER') nav('/oqituvchi', { replace: true })
+            else nav('/suhbat', { replace: true })
         }
     }, [])
 
