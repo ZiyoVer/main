@@ -939,8 +939,8 @@ export default function ChatLayout() {
                         )}
                         {/* Haftalik faollik grafik */}
                         {progressData?.weeklyActivity && (
-                            <div className="bg-white rounded-xl p-3 border border-gray-100">
-                                <p className="text-[11px] font-semibold text-gray-400 uppercase mb-2">Haftalik faollik</p>
+                            <div className="rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                <p className="text-[11px] font-semibold uppercase mb-2" style={{ color: 'var(--text-muted)' }}>Haftalik faollik</p>
                                 <div className="flex items-end gap-1 h-12">
                                     {progressData.weeklyActivity.map((d, i) => {
                                         const maxCount = Math.max(...progressData.weeklyActivity.map(x => x.count), 1)
@@ -949,7 +949,7 @@ export default function ChatLayout() {
                                             <div key={i} className="flex-1 flex flex-col items-center gap-1">
                                                 <div className="w-full rounded-t-sm transition-all duration-300"
                                                     style={{ height: `${h}px`, background: d.count > 0 ? 'var(--brand)' : 'var(--bg-muted)' }} />
-                                                <span className="text-[9px] text-gray-300">{d.day}</span>
+                                                <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>{d.day}</span>
                                             </div>
                                         )
                                     })}
@@ -958,11 +958,11 @@ export default function ChatLayout() {
                         )}
                         {/* Ball prognozi */}
                         {progressData && progressData.avgScore > 0 && (
-                            <div className="bg-white rounded-xl p-3 border border-gray-100">
-                                <p className="text-[11px] font-semibold text-gray-400 uppercase mb-2">Ball prognozi</p>
+                            <div className="rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                <p className="text-[11px] font-semibold uppercase mb-2" style={{ color: 'var(--text-muted)' }}>Ball prognozi</p>
                                 <div className="flex items-center gap-3">
                                     <div className="flex-1">
-                                        <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                        <div className="h-2.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-muted)' }}>
                                             <div className="h-full rounded-full transition-all duration-500"
                                                 style={{ width: `${progressData.avgScore}%`, background: progressData.avgScore >= 70 ? '#10B981' : progressData.avgScore >= 50 ? '#F59E0B' : '#EF4444' }} />
                                         </div>
@@ -971,7 +971,7 @@ export default function ChatLayout() {
                                         ~{progressData.avgScore}%
                                     </span>
                                 </div>
-                                <p className="text-[10px] text-gray-300 mt-1">So'nggi testlar o'rtachasi asosida</p>
+                                <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>So'nggi testlar o'rtachasi asosida</p>
                             </div>
                         )}
                         {/* Exam countdown */}
@@ -984,34 +984,34 @@ export default function ChatLayout() {
                         )}
                         {/* Stats */}
                         <div className="grid grid-cols-2 gap-2">
-                            <div className="bg-white rounded-xl p-3 border border-gray-100 text-center">
+                            <div className="rounded-xl p-3 text-center" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
                                 <MessageSquare className="h-4 w-4 text-blue-500 mx-auto mb-1" />
-                                <p className="text-lg font-bold text-gray-900 tabular-nums">{chats.length}</p>
-                                <p className="text-[10px] text-gray-400">Suhbatlar</p>
+                                <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>{chats.length}</p>
+                                <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Suhbatlar</p>
                             </div>
-                            <div className="bg-white rounded-xl p-3 border border-gray-100 text-center">
+                            <div className="rounded-xl p-3 text-center" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
                                 <Target className="h-4 w-4 text-emerald-500 mx-auto mb-1" />
-                                <p className="text-lg font-bold text-gray-900 tabular-nums">{profile?.targetScore || 0}</p>
-                                <p className="text-[10px] text-gray-400">Maqsad ball</p>
+                                <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>{profile?.targetScore || 0}</p>
+                                <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Maqsad ball</p>
                             </div>
                         </div>
                         {/* Weak/Strong topics */}
                         {profile?.weakTopics && (
-                            <div className="bg-white rounded-xl p-3 border border-gray-100">
-                                <p className="text-[11px] font-semibold text-gray-400 uppercase mb-2">Qiyin mavzular</p>
+                            <div className="rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                <p className="text-[11px] font-semibold uppercase mb-2" style={{ color: 'var(--text-muted)' }}>Qiyin mavzular</p>
                                 <div className="flex flex-wrap gap-1">
                                     {JSON.parse(profile.weakTopics).map((t: string, i: number) => (
-                                        <span key={i} className="text-[11px] bg-red-50 text-red-600 px-2 py-0.5 rounded-md">{t}</span>
+                                        <span key={i} className="text-[11px] px-2 py-0.5 rounded-md" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>{t}</span>
                                     ))}
                                 </div>
                             </div>
                         )}
                         {profile?.strongTopics && (
-                            <div className="bg-white rounded-xl p-3 border border-gray-100">
-                                <p className="text-[11px] font-semibold text-gray-400 uppercase mb-2">Kuchli mavzular</p>
+                            <div className="rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                <p className="text-[11px] font-semibold uppercase mb-2" style={{ color: 'var(--text-muted)' }}>Kuchli mavzular</p>
                                 <div className="flex flex-wrap gap-1">
                                     {JSON.parse(profile.strongTopics).map((t: string, i: number) => (
-                                        <span key={i} className="text-[11px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-md">{t}</span>
+                                        <span key={i} className="text-[11px] px-2 py-0.5 rounded-md" style={{ background: 'var(--success-light)', color: 'var(--success)' }}>{t}</span>
                                     ))}
                                 </div>
                             </div>
@@ -1025,34 +1025,34 @@ export default function ChatLayout() {
                             return (
                                 <>
                                     {/* Bilim darajasi (Rasch) */}
-                                    <div className="bg-white rounded-xl p-3 border border-gray-100">
+                                    <div className="rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
                                         <div className="flex items-center justify-between mb-2">
-                                            <p className="text-[11px] font-semibold text-gray-400 uppercase">Bilim darajasi</p>
-                                            <span className="text-[11px] font-semibold text-gray-600">{abilityLabel}</span>
+                                            <p className="text-[11px] font-semibold uppercase" style={{ color: 'var(--text-muted)' }}>Bilim darajasi</p>
+                                            <span className="text-[11px] font-semibold" style={{ color: 'var(--text-secondary)' }}>{abilityLabel}</span>
                                         </div>
-                                        <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden mb-1">
+                                        <div className="h-2.5 rounded-full overflow-hidden mb-1" style={{ background: 'var(--bg-muted)' }}>
                                             <div className={`h-full rounded-full bg-gradient-to-r ${abilityColor} transition-all duration-500`} style={{ width: `${abilityPct}%` }} />
                                         </div>
-                                        <p className="text-[10px] text-gray-300 text-right">{abilityPct}% · Rasch modeli</p>
+                                        <p className="text-[10px] text-right" style={{ color: 'var(--text-muted)' }}>{abilityPct}% · Rasch modeli</p>
                                     </div>
                                     {/* Testlar statistikasi */}
                                     {(profile?.totalTests || 0) > 0 && (
-                                        <div className="bg-white rounded-xl p-3 border border-gray-100">
-                                            <p className="text-[11px] font-semibold text-gray-400 uppercase mb-2">Testlar natijasi</p>
+                                        <div className="rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                            <p className="text-[11px] font-semibold uppercase mb-2" style={{ color: 'var(--text-muted)' }}>Testlar natijasi</p>
                                             <div className="grid grid-cols-2 gap-2 mb-3">
-                                                <div className="bg-gray-50 rounded-lg p-2 text-center">
-                                                    <p className="text-base font-bold text-gray-900 tabular-nums">{profile?.totalTests || 0}</p>
-                                                    <p className="text-[10px] text-gray-400">Jami testlar</p>
+                                                <div className="rounded-lg p-2 text-center" style={{ background: 'var(--bg-surface)' }}>
+                                                    <p className="text-base font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>{profile?.totalTests || 0}</p>
+                                                    <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Jami testlar</p>
                                                 </div>
-                                                <div className="bg-gray-50 rounded-lg p-2 text-center">
+                                                <div className="rounded-lg p-2 text-center" style={{ background: 'var(--bg-surface)' }}>
                                                     <p className={`text-base font-bold tabular-nums ${(profile?.avgScore || 0) >= 70 ? 'text-emerald-600' : (profile?.avgScore || 0) >= 50 ? 'text-amber-600' : 'text-red-500'}`}>{Math.round(profile?.avgScore || 0)}%</p>
-                                                    <p className="text-[10px] text-gray-400">O'rtacha ball</p>
+                                                    <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>O'rtacha ball</p>
                                                 </div>
                                             </div>
                                             {/* Score trend mini bar chart */}
                                             {myResults.length > 1 && (
                                                 <div>
-                                                    <p className="text-[10px] text-gray-400 mb-1.5">So'nggi {Math.min(myResults.length, 8)} ta test trendi</p>
+                                                    <p className="text-[10px] mb-1.5" style={{ color: 'var(--text-muted)' }}>So'nggi {Math.min(myResults.length, 8)} ta test trendi</p>
                                                     <div className="flex items-end gap-1 h-10">
                                                         {myResults.slice(0, 8).reverse().map((r: any, i: number) => {
                                                             const barH = Math.max(3, Math.round(r.score * 0.38))
@@ -1070,13 +1070,13 @@ export default function ChatLayout() {
                                     )}
                                     {/* So'nggi testlar ro'yxati */}
                                     {myResults.length > 0 && (
-                                        <div className="bg-white rounded-xl p-3 border border-gray-100">
-                                            <p className="text-[11px] font-semibold text-gray-400 uppercase mb-2">So'nggi testlar</p>
+                                        <div className="rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                            <p className="text-[11px] font-semibold uppercase mb-2" style={{ color: 'var(--text-muted)' }}>So'nggi testlar</p>
                                             <div className="space-y-2">
                                                 {myResults.slice(0, 5).map((r: any) => (
                                                     <div key={r.id} className="flex items-center gap-2">
                                                         <div className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${r.score >= 70 ? 'bg-emerald-400' : r.score >= 50 ? 'bg-amber-400' : 'bg-red-400'}`} />
-                                                        <span className="text-[12px] text-gray-700 flex-1 truncate">{r.test?.title || 'Test'}</span>
+                                                        <span className="text-[12px] flex-1 truncate" style={{ color: 'var(--text-secondary)' }}>{r.test?.title || 'Test'}</span>
                                                         <span className={`text-[11px] font-semibold tabular-nums flex-shrink-0 ${r.score >= 70 ? 'text-emerald-600' : r.score >= 50 ? 'text-amber-600' : 'text-red-500'}`}>{Math.round(r.score)}%</span>
                                                     </div>
                                                 ))}
