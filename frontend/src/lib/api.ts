@@ -6,18 +6,29 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
     headers.set('Content-Type', 'application/json')
     if (token) headers.set('Authorization', `Bearer ${token}`)
 
-    const res = await fetch(`${API}${endpoint}`, { ...options, headers })
-    const text = await res.text()
-    let data: any
-    try { data = text ? JSON.parse(text) : {} } catch { data = text }
-    if (res.status === 401) {
-        localStorage.removeItem('token')
-        localStorage.removeItem('user')
-        window.location.href = '/login'
-        throw new Error('Sessiya muddati tugadi. Qayta kiring.')
+    try {
+        const res = await fetch(`${API}${endpoint}`, { ...options, headers })
+        const text = await res.text()
+        let data: any
+        try { data = text ? JSON.parse(text) : {} } catch { data = text }
+        if (res.status === 401) {
+            localStorage.removeItem('token')
+            localStorage.removeItem('user')
+            window.location.href = '/kirish'
+            return Promise.reject(new Error('Sessiya muddati tugadi. Qayta kiring.'))
+        }
+        if (!res.ok) {
+            const err = new Error(data?.error || 'Server xatoligi')
+            alert(`Xatolik: ${err.message}`)
+            throw err
+        }
+        return data
+    } catch (e: any) {
+        if (e.message !== 'Sessiya muddati tugadi. Qayta kiring.') {
+            console.error('API Error:', e)
+        }
+        throw e
     }
-    if (!res.ok) throw new Error(data?.error || 'Server xatoligi')
-    return data
 }
 
 export async function uploadFile(endpoint: string, formData: FormData) {

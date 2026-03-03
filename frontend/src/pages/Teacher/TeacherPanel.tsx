@@ -12,7 +12,7 @@ function MathPreview({ text }: { text: string }) {
         const html = text
             .replace(/\$\$([^$]+)\$\$/g, (_, m) => katex.renderToString(m.trim(), { displayMode: true, throwOnError: false }))
             .replace(/\$([^$\n]+)\$/g, (_, m) => katex.renderToString(m.trim(), { throwOnError: false }))
-        return <div className="mt-1 px-2.5 py-1.5 bg-blue-50/70 border border-blue-100 rounded-lg text-sm text-gray-800 overflow-x-auto" dangerouslySetInnerHTML={{ __html: html }} />
+        return <div className="mt-1 px-2.5 py-1.5 rounded-lg text-sm overflow-x-auto" style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)', color: 'var(--text-primary)' }} dangerouslySetInnerHTML={{ __html: html }} />
     } catch { return null }
 }
 
@@ -136,6 +136,11 @@ export default function TeacherPanel() {
         setLoadingAnalytics(false)
     }
 
+    // Helpers
+    const cardStyle = { background: 'var(--bg-card)', border: '1px solid var(--border)' }
+    const mutedText = { color: 'var(--text-muted)' }
+    const secondaryText = { color: 'var(--text-secondary)' }
+
     return (
         <>
             <div className="h-screen overflow-y-auto w-full" style={{ background: 'var(--bg-page)' }}>
@@ -176,11 +181,11 @@ export default function TeacherPanel() {
                     {/* Test List */}
                     {tab === 'list' && (
                         <div className="space-y-1.5 anim-up">
-                            {tests.length > 0 && <p className="text-[11px] mb-1.5" style={{ color: 'var(--text-muted)' }}>{tests.length} ta test</p>}
+                            {tests.length > 0 && <p className="text-[11px] mb-1.5" style={mutedText}>{tests.length} ta test</p>}
                             {tests.length === 0 && (
                                 <div className="card rounded-xl p-12 text-center">
                                     <ClipboardList className="h-8 w-8 mx-auto mb-2" style={{ color: 'var(--border-strong)' }} />
-                                    <p className="text-sm mb-2" style={{ color: 'var(--text-muted)' }}>Hozircha testlar yo'q</p>
+                                    <p className="text-sm mb-2" style={mutedText}>Hozircha testlar yo'q</p>
                                     <button onClick={() => setTab('create')} className="text-[13px] font-medium px-3 py-1.5 rounded-lg transition"
                                         style={{ background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
                                         onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
@@ -198,7 +203,7 @@ export default function TeacherPanel() {
                                                 ? <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded flex-shrink-0" style={{ color: 'var(--success)', background: 'var(--success-light)' }}><Globe className="h-2.5 w-2.5" /> Public</span>
                                                 : <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded flex-shrink-0" style={{ color: 'var(--text-muted)', background: 'var(--bg-surface)' }}><Lock className="h-2.5 w-2.5" /> Private</span>}
                                         </div>
-                                        <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{t._count?.questions || 0} savol · {t._count?.attempts || 0} urinish · {t.subject}{t.timeLimit ? ` · ⏱ ${t.timeLimit} min` : ''}</p>
+                                        <p className="text-[11px]" style={mutedText}>{t._count?.questions || 0} savol · {t._count?.attempts || 0} urinish · {t.subject}{t.timeLimit ? ` · ⏱ ${t.timeLimit} min` : ''}</p>
                                     </div>
                                     <button onClick={() => openAnalytics(t.id)} className="h-7 px-2.5 flex items-center gap-1 rounded-lg text-[11px] font-medium transition flex-shrink-0"
                                         style={{ color: 'var(--info)', background: 'var(--info-light)' }}>
@@ -222,79 +227,84 @@ export default function TeacherPanel() {
                     {/* Create Test */}
                     {tab === 'create' && (
                         <form onSubmit={submit} className="space-y-3 anim-up max-w-2xl">
-                            {msg && <div className="bg-red-50 text-red-600 text-[13px] px-3 py-2 rounded-lg">{msg}</div>}
+                            {msg && <div className="text-[13px] px-3 py-2 rounded-lg" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>{msg}</div>}
 
                             {/* Umumiy ma'lumot */}
-                            <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-2.5">
-                                <h3 className="text-[13px] font-semibold text-gray-700">Umumiy ma'lumot</h3>
+                            <div className="rounded-xl p-4 space-y-2.5" style={cardStyle}>
+                                <h3 className="text-[13px] font-semibold" style={secondaryText}>Umumiy ma'lumot</h3>
                                 <input placeholder="Test nomi" required value={title} onChange={e => setTitle(e.target.value)}
-                                    className="w-full h-9 px-3 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 outline-none text-sm transition" />
+                                    className="input" />
                                 <div className="flex gap-2">
                                     <select value={subject} onChange={e => setSubject(e.target.value)}
-                                        className="flex-1 h-9 px-3 rounded-lg border border-gray-200 bg-white focus:border-blue-500 outline-none text-sm">
+                                        className="input" style={{ flex: 1, cursor: 'pointer' }}>
                                         {SUBJECTS.map(f => <option key={f} value={f}>{f}</option>)}
                                     </select>
-                                    <label className="flex items-center gap-2 text-[13px] cursor-pointer select-none h-9 px-3 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition">
-                                        <input type="checkbox" checked={isPublic} onChange={e => setIsPublic(e.target.checked)} className="w-3.5 h-3.5 rounded border-gray-300 accent-blue-600" />
-                                        <span className="text-gray-600">Public</span>
+                                    <label className="flex items-center gap-2 text-[13px] cursor-pointer select-none h-9 px-3 rounded-lg transition"
+                                        style={{ border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)' }}>
+                                        <input type="checkbox" checked={isPublic} onChange={e => setIsPublic(e.target.checked)} className="w-3.5 h-3.5 rounded" style={{ accentColor: 'var(--brand)' }} />
+                                        <span>Public</span>
                                     </label>
                                 </div>
                                 {/* Vaqt chegarasi */}
                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span className="text-[11px] text-gray-400 mr-1">⏱ Vaqt:</span>
+                                    <span className="text-[11px] mr-1" style={mutedText}>⏱ Vaqt:</span>
                                     {[0, 30, 45, 60, 90].map(min => (
                                         <button key={min} type="button" onClick={() => setTimeLimit(min)}
-                                            className={`h-7 px-2.5 rounded-md text-[11px] font-medium transition ${timeLimit === min ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                                            className="h-7 px-2.5 rounded-md text-[11px] font-medium transition"
+                                            style={timeLimit === min ? { background: 'var(--brand)', color: '#fff' } : { background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>
                                             {min === 0 ? 'Cheksiz' : `${min} min`}
                                         </button>
                                     ))}
                                     <input type="number" min="1" max="180" placeholder="boshqa"
                                         value={timeLimit > 0 && ![30, 45, 60, 90].includes(timeLimit) ? timeLimit : ''}
                                         onChange={e => setTimeLimit(parseInt(e.target.value) || 0)}
-                                        className="h-7 w-20 px-2 rounded-md border border-gray-200 text-[11px] outline-none focus:border-blue-400" />
+                                        className="input" style={{ height: '1.75rem', width: '5rem', fontSize: '11px', padding: '0 0.5rem' }} />
                                 </div>
                             </div>
 
                             {/* AI yordamida yaratish */}
-                            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                            <div className="rounded-xl overflow-hidden" style={cardStyle}>
                                 <button type="button" onClick={() => setShowAiSection(!showAiSection)}
-                                    className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-gray-50 transition">
+                                    className="w-full flex items-center justify-between px-4 py-2.5 text-left transition"
+                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                     <div className="flex items-center gap-2">
                                         <div className="h-6 w-6 bg-gradient-to-br from-violet-500 to-blue-500 rounded-md flex items-center justify-center flex-shrink-0">
                                             <Sparkles className="h-3 w-3 text-white" />
                                         </div>
                                         <div>
-                                            <p className="text-[13px] font-semibold text-gray-900">AI bilan yaratish</p>
-                                            {aiDone && <p className="text-[11px] text-violet-600">✨ {questions.length} ta savol yaratildi</p>}
-                                            {!aiDone && <p className="text-[11px] text-gray-400">PDF yoki screenshot yuklang</p>}
+                                            <p className="text-[13px] font-semibold">AI bilan yaratish</p>
+                                            {aiDone && <p className="text-[11px]" style={{ color: '#8b5cf6' }}>✨ {questions.length} ta savol yaratildi</p>}
+                                            {!aiDone && <p className="text-[11px]" style={mutedText}>PDF yoki screenshot yuklang</p>}
                                         </div>
                                     </div>
-                                    {showAiSection ? <ChevronUp className="h-3.5 w-3.5 text-gray-400" /> : <ChevronDown className="h-3.5 w-3.5 text-gray-400" />}
+                                    {showAiSection ? <ChevronUp className="h-3.5 w-3.5" style={mutedText} /> : <ChevronDown className="h-3.5 w-3.5" style={mutedText} />}
                                 </button>
 
                                 {showAiSection && (
-                                    <div className="px-4 pb-4 space-y-2 border-t border-gray-50">
+                                    <div className="px-4 pb-4 space-y-2" style={{ borderTop: '1px solid var(--border)' }}>
                                         <input ref={fileInputRef} type="file" accept=".pdf,image/*" className="hidden"
                                             onChange={e => { setAiFile(e.target.files?.[0] || null); setAiError(''); setAiDone(false) }} />
                                         <div onClick={() => fileInputRef.current?.click()}
-                                            className={`mt-2 border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${aiFile ? 'border-blue-300 bg-blue-50/50' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}>
+                                            className="mt-2 border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors"
+                                            style={aiFile ? { borderColor: 'color-mix(in srgb, var(--brand) 40%, transparent)', background: 'color-mix(in srgb, var(--brand) 5%, transparent)' } : { borderColor: 'var(--border)', background: 'transparent' }}>
                                             {aiFile ? (
                                                 <div className="flex items-center justify-center gap-2">
-                                                    {aiFile.type.startsWith('image/') ? <Image className="h-4 w-4 text-blue-500" /> : <FileText className="h-4 w-4 text-blue-500" />}
+                                                    {aiFile.type.startsWith('image/') ? <Image className="h-4 w-4" style={{ color: 'var(--brand)' }} /> : <FileText className="h-4 w-4" style={{ color: 'var(--brand)' }} />}
                                                     <div className="text-left">
-                                                        <p className="text-[13px] font-medium text-gray-900 truncate max-w-[260px]">{aiFile.name}</p>
-                                                        <p className="text-[11px] text-gray-400">{(aiFile.size / 1024).toFixed(0)} KB · O'zgartirish uchun bosing</p>
+                                                        <p className="text-[13px] font-medium truncate max-w-[260px]">{aiFile.name}</p>
+                                                        <p className="text-[11px]" style={mutedText}>{(aiFile.size / 1024).toFixed(0)} KB · O'zgartirish uchun bosing</p>
                                                     </div>
                                                 </div>
                                             ) : (
                                                 <div>
-                                                    <Upload className="h-6 w-6 text-gray-300 mx-auto mb-1" />
-                                                    <p className="text-[13px] text-gray-500">Screenshot yoki PDF yuklash uchun bosing</p>
-                                                    <p className="text-[11px] text-gray-400 mt-0.5">PNG, JPG, PDF · max 20MB</p>
+                                                    <Upload className="h-6 w-6 mx-auto mb-1" style={{ color: 'var(--border-strong)' }} />
+                                                    <p className="text-[13px]" style={secondaryText}>Screenshot yoki PDF yuklash uchun bosing</p>
+                                                    <p className="text-[11px] mt-0.5" style={mutedText}>PNG, JPG, PDF · max 20MB</p>
                                                 </div>
                                             )}
                                         </div>
-                                        {aiError && <div className="text-[13px] text-red-600 bg-red-50 px-3 py-2 rounded-lg">{aiError}</div>}
+                                        {aiError && <div className="text-[13px] px-3 py-2 rounded-lg" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>{aiError}</div>}
                                         <button type="button" onClick={generateFromFile} disabled={!aiFile || aiGenerating}
                                             className="w-full h-9 rounded-lg text-[13px] font-semibold flex items-center justify-center gap-2 transition bg-gradient-to-r from-violet-600 to-blue-600 text-white hover:from-violet-700 hover:to-blue-700 disabled:opacity-40 disabled:cursor-not-allowed">
                                             {aiGenerating
@@ -307,29 +317,33 @@ export default function TeacherPanel() {
 
                             {/* Savollar */}
                             <div className="flex items-center justify-between">
-                                <p className="text-[12px] font-semibold text-gray-500">{questions.length} ta savol</p>
-                                {aiDone && <span className="text-[11px] text-violet-600 bg-violet-50 px-2 py-0.5 rounded">✨ AI yaratgan</span>}
+                                <p className="text-[12px] font-semibold" style={secondaryText}>{questions.length} ta savol</p>
+                                {aiDone && <span className="text-[11px] px-2 py-0.5 rounded" style={{ color: '#8b5cf6', background: 'color-mix(in srgb, #8b5cf6 10%, transparent)' }}>✨ AI yaratgan</span>}
                             </div>
 
                             {questions.map((q, qi) => (
-                                <div key={qi} className={`bg-white rounded-xl border p-3.5 space-y-2 transition ${aiDone ? 'border-violet-100' : 'border-gray-100'}`}>
+                                <div key={qi} className="rounded-xl p-3.5 space-y-2 transition" style={{ ...cardStyle, borderColor: aiDone ? 'color-mix(in srgb, #8b5cf6 20%, transparent)' : 'var(--border)' }}>
                                     {/* Savol header */}
                                     <div className="flex items-center justify-between">
-                                        <span className="text-[12px] font-semibold text-gray-500">Savol {qi + 1}</span>
+                                        <span className="text-[12px] font-semibold" style={secondaryText}>Savol {qi + 1}</span>
                                         {questions.length > 1 && (
-                                            <button type="button" onClick={() => removeQ(qi)} className="h-6 w-6 flex items-center justify-center rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 transition">
+                                            <button type="button" onClick={() => removeQ(qi)} className="h-6 w-6 flex items-center justify-center rounded-md transition"
+                                                style={{ color: 'var(--border-strong)' }}
+                                                onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.background = 'var(--danger-light)' }}
+                                                onMouseLeave={e => { e.currentTarget.style.color = 'var(--border-strong)'; e.currentTarget.style.background = 'transparent' }}>
                                                 <Trash2 className="h-3 w-3" />
                                             </button>
                                         )}
                                     </div>
                                     <textarea placeholder="Savol matni ($formula$ yozsa preview chiqadi)" required value={q.text} onChange={e => updateQ(qi, 'text', e.target.value)} rows={2}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 outline-none text-[13px] transition resize-none" />
+                                        className="input resize-none" style={{ height: 'auto', padding: '0.5rem 0.75rem', fontSize: '13px' }} />
                                     <MathPreview text={q.text} />
                                     <div className="grid grid-cols-2 gap-1.5">
                                         {q.options.map((o, oi) => (
                                             <div key={oi}>
-                                                <label className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border cursor-pointer transition ${q.correctIdx === oi ? 'border-emerald-300 bg-emerald-50/60' : 'border-gray-200 hover:border-gray-300'}`}>
-                                                    <input type="radio" name={`correct-${qi}`} checked={q.correctIdx === oi} onChange={() => updateQ(qi, 'correctIdx', oi)} className="w-3 h-3 accent-emerald-600 flex-shrink-0" />
+                                                <label className="flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition"
+                                                    style={q.correctIdx === oi ? { border: '1px solid color-mix(in srgb, var(--success) 40%, transparent)', background: 'color-mix(in srgb, var(--success) 6%, transparent)' } : { border: '1px solid var(--border)' }}>
+                                                    <input type="radio" name={`correct-${qi}`} checked={q.correctIdx === oi} onChange={() => updateQ(qi, 'correctIdx', oi)} className="w-3 h-3 flex-shrink-0" style={{ accentColor: 'var(--success)' }} />
                                                     <input placeholder={`Variant ${String.fromCharCode(65 + oi)}`} required value={o} onChange={e => updateQ(qi, `opt${oi}`, e.target.value)}
                                                         className="flex-1 bg-transparent outline-none text-[13px] min-w-0" />
                                                 </label>
@@ -337,16 +351,19 @@ export default function TeacherPanel() {
                                             </div>
                                         ))}
                                     </div>
-                                    <p className="text-[10px] text-gray-300">Yashil doira = to'g'ri javob · $formula$ yozsa KaTeX preview</p>
+                                    <p className="text-[10px]" style={{ color: 'var(--border-strong)' }}>Yashil doira = to'g'ri javob · $formula$ yozsa KaTeX preview</p>
                                 </div>
                             ))}
 
                             <button type="button" onClick={addQuestion}
-                                className="w-full h-9 rounded-xl border-2 border-dashed border-gray-200 text-[13px] text-gray-400 hover:border-gray-400 hover:text-gray-600 transition flex items-center justify-center gap-1.5">
+                                className="w-full h-9 rounded-xl border-2 border-dashed text-[13px] transition flex items-center justify-center gap-1.5"
+                                style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+                                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)' }}>
                                 <Plus className="h-3.5 w-3.5" /> Savol qo'shish
                             </button>
                             <button type="submit" disabled={loading}
-                                className="w-full h-10 rounded-xl text-[13px] font-semibold text-white bg-gray-900 hover:bg-gray-800 transition disabled:opacity-50">
+                                className="btn btn-primary" style={{ width: '100%', height: '2.5rem' }}>
                                 {loading ? 'Saqlanmoqda...' : `Testni Saqlash (${questions.length} savol)`}
                             </button>
                         </form>
@@ -357,66 +374,69 @@ export default function TeacherPanel() {
             {/* Analytics Modal */}
             {analyticsId && (
                 <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setAnalyticsId(null)}>
-                    <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
+                    <div className="rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl" style={{ background: 'var(--bg-card)' }} onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between px-5 py-3.5 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                             <div className="flex items-center gap-2.5">
                                 <div className="h-8 w-8 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-lg flex items-center justify-center">
                                     <BarChart2 className="h-4 w-4 text-white" />
                                 </div>
                                 <div>
-                                    <h2 className="text-[13px] font-semibold text-gray-900">{analytics?.test?.title || 'Yuklanmoqda...'}</h2>
-                                    {analytics && <p className="text-[11px] text-gray-400">{analytics.totalAttempts} urinish · O'rtacha: {analytics.avgScore}%</p>}
+                                    <h2 className="text-[13px] font-semibold">{analytics?.test?.title || 'Yuklanmoqda...'}</h2>
+                                    {analytics && <p className="text-[11px]" style={mutedText}>{analytics.totalAttempts} urinish · O'rtacha: {analytics.avgScore}%</p>}
                                 </div>
                             </div>
-                            <button onClick={() => setAnalyticsId(null)} className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 transition">
+                            <button onClick={() => setAnalyticsId(null)} className="h-7 w-7 flex items-center justify-center rounded-lg transition"
+                                style={mutedText}
+                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                 <X className="h-4 w-4" />
                             </button>
                         </div>
 
                         {loadingAnalytics ? (
                             <div className="flex-1 flex items-center justify-center p-12">
-                                <div className="h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                                <div className="h-5 w-5 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--brand)', borderTopColor: 'transparent' }} />
                             </div>
                         ) : analytics?.totalAttempts === 0 ? (
                             <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
-                                <Users className="h-8 w-8 text-gray-200 mb-2" />
-                                <p className="text-gray-400 text-sm">Bu testni hali hech kim yechmagan</p>
+                                <Users className="h-8 w-8 mb-2" style={{ color: 'var(--border)' }} />
+                                <p className="text-sm" style={mutedText}>Bu testni hali hech kim yechmagan</p>
                             </div>
                         ) : (
                             <div className="flex-1 overflow-y-auto p-5 space-y-5 min-h-0">
                                 <div className="grid grid-cols-3 gap-2.5">
-                                    <div className="bg-blue-50 rounded-xl p-3 text-center">
-                                        <p className="text-xl font-bold text-blue-600">{analytics?.totalAttempts}</p>
-                                        <p className="text-[11px] text-gray-500 mt-0.5">Jami urinish</p>
+                                    <div className="rounded-xl p-3 text-center" style={{ background: 'color-mix(in srgb, var(--brand) 10%, transparent)' }}>
+                                        <p className="text-xl font-bold" style={{ color: 'var(--brand)' }}>{analytics?.totalAttempts}</p>
+                                        <p className="text-[11px] mt-0.5" style={secondaryText}>Jami urinish</p>
                                     </div>
-                                    <div className="bg-emerald-50 rounded-xl p-3 text-center">
-                                        <p className="text-xl font-bold text-emerald-600">{analytics?.avgScore}%</p>
-                                        <p className="text-[11px] text-gray-500 mt-0.5">O'rtacha ball</p>
+                                    <div className="rounded-xl p-3 text-center" style={{ background: 'color-mix(in srgb, var(--success) 10%, transparent)' }}>
+                                        <p className="text-xl font-bold" style={{ color: 'var(--success)' }}>{analytics?.avgScore}%</p>
+                                        <p className="text-[11px] mt-0.5" style={secondaryText}>O'rtacha ball</p>
                                     </div>
-                                    <div className="bg-amber-50 rounded-xl p-3 text-center">
-                                        <p className="text-xl font-bold text-amber-600">
+                                    <div className="rounded-xl p-3 text-center" style={{ background: 'color-mix(in srgb, #f59e0b 10%, transparent)' }}>
+                                        <p className="text-xl font-bold" style={{ color: '#f59e0b' }}>
                                             {analytics?.questionStats ? Math.round(analytics.questionStats.reduce((s: number, q: any) => s + q.errorRate, 0) / (analytics.questionStats.length || 1)) : 0}%
                                         </p>
-                                        <p className="text-[11px] text-gray-500 mt-0.5">O'rtacha xato</p>
+                                        <p className="text-[11px] mt-0.5" style={secondaryText}>O'rtacha xato</p>
                                     </div>
                                 </div>
 
                                 {analytics?.students?.length > 0 && (
                                     <div>
-                                        <h3 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">O'quvchilar natijalari</h3>
+                                        <h3 className="text-[11px] font-semibold uppercase tracking-wide mb-2" style={mutedText}>O'quvchilar natijalari</h3>
                                         <div className="space-y-1">
                                             {analytics.students.map((s: any, i: number) => (
-                                                <div key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                                                <div key={i} className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: 'var(--bg-surface)' }}>
                                                     <div>
-                                                        <p className="text-[13px] font-medium text-gray-900">{s.name}</p>
-                                                        <p className="text-[10px] text-gray-400">{new Date(s.createdAt).toLocaleDateString('uz')}</p>
+                                                        <p className="text-[13px] font-medium">{s.name}</p>
+                                                        <p className="text-[10px]" style={mutedText}>{new Date(s.createdAt).toLocaleDateString('uz')}</p>
                                                     </div>
                                                     <div className="flex items-center gap-2">
-                                                        <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                                        <div className="w-20 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
                                                             <div className="h-full rounded-full transition-all"
-                                                                style={{ width: `${s.score}%`, background: s.score >= 70 ? '#10b981' : s.score >= 50 ? '#f59e0b' : '#ef4444' }} />
+                                                                style={{ width: `${s.score}%`, background: s.score >= 70 ? 'var(--success)' : s.score >= 50 ? '#f59e0b' : 'var(--danger)' }} />
                                                         </div>
-                                                        <span className="text-[13px] font-bold text-gray-900 w-9 text-right">{s.score}%</span>
+                                                        <span className="text-[13px] font-bold w-9 text-right">{s.score}%</span>
                                                     </div>
                                                 </div>
                                             ))}
@@ -426,13 +446,14 @@ export default function TeacherPanel() {
 
                                 {analytics?.questionStats?.length > 0 && (
                                     <div>
-                                        <h3 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Savollar tahlili</h3>
+                                        <h3 className="text-[11px] font-semibold uppercase tracking-wide mb-2" style={mutedText}>Savollar tahlili</h3>
                                         <div className="space-y-2">
                                             {analytics.questionStats.map((q: any, i: number) => (
-                                                <div key={q.id} className="bg-gray-50 rounded-xl p-3">
+                                                <div key={q.id} className="rounded-xl p-3" style={{ background: 'var(--bg-surface)' }}>
                                                     <div className="flex items-start justify-between gap-2 mb-2.5">
-                                                        <p className="text-[12px] text-gray-800 flex-1 leading-relaxed">{i + 1}. {q.text}</p>
-                                                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md flex-shrink-0 ${q.errorRate >= 60 ? 'bg-red-100 text-red-600' : q.errorRate >= 30 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                                        <p className="text-[12px] flex-1 leading-relaxed">{i + 1}. {q.text}</p>
+                                                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-md flex-shrink-0"
+                                                            style={q.errorRate >= 60 ? { background: 'color-mix(in srgb, var(--danger) 15%, transparent)', color: 'var(--danger)' } : q.errorRate >= 30 ? { background: 'color-mix(in srgb, #f59e0b 15%, transparent)', color: '#f59e0b' } : { background: 'color-mix(in srgb, var(--success) 15%, transparent)', color: 'var(--success)' }}>
                                                             {q.errorRate}% xato
                                                         </span>
                                                     </div>
@@ -443,18 +464,19 @@ export default function TeacherPanel() {
                                                                 const pct = Math.round((count / q.totalAnswered) * 100)
                                                                 const isCorrect = q.correctIdx === oi
                                                                 return (
-                                                                    <div key={oi} className={`rounded-lg p-2 text-center border ${isCorrect ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 bg-white'}`}>
-                                                                        <p className={`text-[10px] font-bold mb-0.5 ${isCorrect ? 'text-emerald-600' : 'text-gray-400'}`}>
+                                                                    <div key={oi} className="rounded-lg p-2 text-center"
+                                                                        style={isCorrect ? { border: '1px solid color-mix(in srgb, var(--success) 30%, transparent)', background: 'color-mix(in srgb, var(--success) 6%, transparent)' } : { border: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+                                                                        <p className="text-[10px] font-bold mb-0.5" style={isCorrect ? { color: 'var(--success)' } : mutedText}>
                                                                             {String.fromCharCode(65 + oi)}{isCorrect ? ' ✓' : ''}
                                                                         </p>
-                                                                        <p className={`text-[15px] font-bold ${isCorrect ? 'text-emerald-700' : pct > 0 ? 'text-gray-800' : 'text-gray-300'}`}>{pct}%</p>
-                                                                        <p className="text-[10px] text-gray-400">{count} kishi</p>
+                                                                        <p className="text-[15px] font-bold" style={isCorrect ? { color: 'var(--success)' } : pct > 0 ? {} : mutedText}>{pct}%</p>
+                                                                        <p className="text-[10px]" style={mutedText}>{count} kishi</p>
                                                                     </div>
                                                                 )
                                                             })}
                                                         </div>
                                                     ) : (
-                                                        <p className="text-[11px] text-gray-400">Hali javob berilmagan</p>
+                                                        <p className="text-[11px]" style={mutedText}>Hali javob berilmagan</p>
                                                     )}
                                                 </div>
                                             ))}

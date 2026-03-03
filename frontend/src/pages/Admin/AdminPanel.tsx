@@ -45,10 +45,10 @@ export default function AdminPanel() {
         setCreating(true); setMsg('')
         try {
             await fetchApi('/auth/create-teacher', { method: 'POST', body: JSON.stringify(tf) })
-            setMsg('✓ O\'qituvchi muvaffaqiyatli yaratildi!')
+            setMsg('\u2713 O\'qituvchi muvaffaqiyatli yaratildi!')
             setTf({ name: '', email: '', password: '' })
             loadAll()
-        } catch (e: any) { setMsg('✗ ' + e.message) }
+        } catch (e: any) { setMsg('\u2717 ' + e.message) }
         setCreating(false)
     }
 
@@ -87,6 +87,11 @@ export default function AdminPanel() {
         { k: 'ai' as const, l: 'AI Sozlamalar', icon: Bot },
     ]
 
+    // Helper: card style
+    const cardStyle = { background: 'var(--bg-card)', border: '1px solid var(--border)' }
+    const mutedText = { color: 'var(--text-muted)' }
+    const secondaryText = { color: 'var(--text-secondary)' }
+
     return (
         <div className="h-screen overflow-y-auto w-full" style={{ background: 'var(--bg-page)' }}>
             {/* Header */}
@@ -124,29 +129,29 @@ export default function AdminPanel() {
                 {tab === 'stats' && loading && (
                     <div className="flex items-center justify-center py-20">
                         <div className="text-center">
-                            <div className="w-7 h-7 border-2 border-gray-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-2" />
-                            <p className="text-sm text-gray-400">Yuklanmoqda...</p>
+                            <div className="w-7 h-7 border-2 rounded-full animate-spin mx-auto mb-2" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--brand)' }} />
+                            <p className="text-sm" style={mutedText}>Yuklanmoqda...</p>
                         </div>
                     </div>
                 )}
                 {tab === 'stats' && !loading && stats && (
                     <div className="space-y-4">
                         <div>
-                            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Kirish statistikasi</p>
+                            <p className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={mutedText}>Kirish statistikasi</p>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                                 {[
-                                    { n: stats.logins24h, l: 'Oxirgi 24 soat', icon: Clock, color: 'text-blue-600 bg-blue-50' },
-                                    { n: stats.loginsWeek, l: '7 kun', icon: CalendarDays, color: 'text-emerald-600 bg-emerald-50' },
-                                    { n: stats.loginsMonth, l: '30 kun', icon: CalendarRange, color: 'text-cyan-600 bg-cyan-50' },
-                                    { n: stats.totalVisits, l: 'Jami tashriflar', icon: Activity, color: 'text-amber-600 bg-amber-50' },
+                                    { n: stats.logins24h, l: 'Oxirgi 24 soat', icon: Clock, color: 'var(--brand)' },
+                                    { n: stats.loginsWeek, l: '7 kun', icon: CalendarDays, color: 'var(--success)' },
+                                    { n: stats.loginsMonth, l: '30 kun', icon: CalendarRange, color: '#06b6d4' },
+                                    { n: stats.totalVisits, l: 'Jami tashriflar', icon: Activity, color: '#f59e0b' },
                                 ].map((s, i) => (
-                                    <div key={i} className="bg-white rounded-xl p-4 border border-gray-100 flex items-center gap-3">
-                                        <div className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${s.color}`}>
+                                    <div key={i} className="rounded-xl p-4 flex items-center gap-3" style={cardStyle}>
+                                        <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ color: s.color, background: `color-mix(in srgb, ${s.color} 12%, transparent)` }}>
                                             <s.icon className="h-3.5 w-3.5" />
                                         </div>
                                         <div>
-                                            <p className="text-xl font-bold text-gray-900 tabular-nums leading-none">{s.n ?? 0}</p>
-                                            <p className="text-[11px] text-gray-400 mt-0.5">{s.l}</p>
+                                            <p className="text-xl font-bold tabular-nums leading-none">{s.n ?? 0}</p>
+                                            <p className="text-[11px] mt-0.5" style={mutedText}>{s.l}</p>
                                         </div>
                                     </div>
                                 ))}
@@ -154,56 +159,57 @@ export default function AdminPanel() {
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                             {[
-                                { n: stats.totalUsers, l: 'Jami foydalanuvchi', icon: Users, color: 'text-gray-600 bg-gray-50' },
-                                { n: stats.students, l: 'O\'quvchilar', icon: GraduationCap, color: 'text-blue-600 bg-blue-50' },
-                                { n: stats.teachers, l: 'O\'qituvchilar', icon: UserCheck, color: 'text-emerald-600 bg-emerald-50' },
-                                { n: stats.totalChats, l: 'AI suhbatlar', icon: MessageSquare, color: 'text-cyan-600 bg-cyan-50' },
+                                { n: stats.totalUsers, l: 'Jami foydalanuvchi', icon: Users, color: 'var(--text-secondary)' },
+                                { n: stats.students, l: 'O\'quvchilar', icon: GraduationCap, color: 'var(--brand)' },
+                                { n: stats.teachers, l: 'O\'qituvchilar', icon: UserCheck, color: 'var(--success)' },
+                                { n: stats.totalChats, l: 'AI suhbatlar', icon: MessageSquare, color: '#06b6d4' },
                             ].map((s, i) => (
-                                <div key={i} className="bg-white rounded-xl p-4 border border-gray-100 flex items-center gap-3">
-                                    <div className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${s.color}`}>
+                                <div key={i} className="rounded-xl p-4 flex items-center gap-3" style={cardStyle}>
+                                    <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ color: s.color, background: `color-mix(in srgb, ${s.color} 12%, transparent)` }}>
                                         <s.icon className="h-3.5 w-3.5" />
                                     </div>
                                     <div>
-                                        <p className="text-xl font-bold text-gray-900 tabular-nums leading-none">{s.n ?? 0}</p>
-                                        <p className="text-[11px] text-gray-400 mt-0.5">{s.l}</p>
+                                        <p className="text-xl font-bold tabular-nums leading-none">{s.n ?? 0}</p>
+                                        <p className="text-[11px] mt-0.5" style={mutedText}>{s.l}</p>
                                     </div>
                                 </div>
                             ))}
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                             {[
-                                { n: stats.totalMessages, l: 'Xabarlar', icon: MessageSquare, color: 'text-blue-600 bg-blue-50' },
-                                { n: stats.totalTests, l: 'Testlar', icon: Target, color: 'text-indigo-600 bg-indigo-50' },
-                                { n: stats.totalAttempts, l: 'Test urinishlar', icon: BarChart3, color: 'text-amber-600 bg-amber-50' },
-                                { n: `${stats.avgScore ?? 0}%`, l: 'O\'rtacha ball', icon: Target, color: 'text-emerald-600 bg-emerald-50' },
+                                { n: stats.totalMessages, l: 'Xabarlar', icon: MessageSquare, color: 'var(--brand)' },
+                                { n: stats.totalTests, l: 'Testlar', icon: Target, color: '#6366f1' },
+                                { n: stats.totalAttempts, l: 'Test urinishlar', icon: BarChart3, color: '#f59e0b' },
+                                { n: `${stats.avgScore ?? 0}%`, l: 'O\'rtacha ball', icon: Target, color: 'var(--success)' },
                             ].map((s, i) => (
-                                <div key={i} className="bg-white rounded-xl p-4 border border-gray-100 flex items-center gap-3">
-                                    <div className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${s.color}`}>
+                                <div key={i} className="rounded-xl p-4 flex items-center gap-3" style={cardStyle}>
+                                    <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ color: s.color, background: `color-mix(in srgb, ${s.color} 12%, transparent)` }}>
                                         <s.icon className="h-3.5 w-3.5" />
                                     </div>
                                     <div>
-                                        <p className="text-xl font-bold text-gray-900 tabular-nums leading-none">{s.n ?? 0}</p>
-                                        <p className="text-[11px] text-gray-400 mt-0.5">{s.l}</p>
+                                        <p className="text-xl font-bold tabular-nums leading-none">{s.n ?? 0}</p>
+                                        <p className="text-[11px] mt-0.5" style={mutedText}>{s.l}</p>
                                     </div>
                                 </div>
                             ))}
                         </div>
                         <div className="grid md:grid-cols-2 gap-2.5">
-                            <div className="bg-white rounded-xl p-4 border border-gray-100 flex items-center gap-3">
-                                <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 text-emerald-600 bg-emerald-50"><FileText className="h-3.5 w-3.5" /></div>
+                            <div className="rounded-xl p-4 flex items-center gap-3" style={cardStyle}>
+                                <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ color: 'var(--success)', background: 'color-mix(in srgb, var(--success) 12%, transparent)' }}><FileText className="h-3.5 w-3.5" /></div>
                                 <div>
-                                    <p className="text-xl font-bold text-gray-900 tabular-nums leading-none">{stats.totalDocuments ?? 0}</p>
-                                    <p className="text-[11px] text-gray-400 mt-0.5">RAG hujjatlar · {stats.totalChunks ?? 0} chunk</p>
+                                    <p className="text-xl font-bold tabular-nums leading-none">{stats.totalDocuments ?? 0}</p>
+                                    <p className="text-[11px] mt-0.5" style={mutedText}>RAG hujjatlar · {stats.totalChunks ?? 0} chunk</p>
                                 </div>
                             </div>
-                            <div className="bg-white rounded-xl p-4 border border-gray-100">
-                                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Oxirgi ro'yxatdan o'tganlar</p>
+                            <div className="rounded-xl p-4" style={cardStyle}>
+                                <p className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={mutedText}>Oxirgi ro'yxatdan o'tganlar</p>
                                 <div className="space-y-1.5">
                                     {(stats.recentUsers || []).slice(0, 3).map((u: any) => (
                                         <div key={u.id} className="flex items-center gap-2">
-                                            <div className="h-6 w-6 bg-gray-100 rounded-full flex items-center justify-center text-[10px] font-semibold text-gray-500 flex-shrink-0">{u.name?.[0]?.toUpperCase()}</div>
-                                            <span className="text-[12px] text-gray-700 flex-1 truncate">{u.name}</span>
-                                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${u.role === 'TEACHER' ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-500'}`}>{u.role}</span>
+                                            <div className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-semibold flex-shrink-0" style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>{u.name?.[0]?.toUpperCase()}</div>
+                                            <span className="text-[12px] flex-1 truncate" style={secondaryText}>{u.name}</span>
+                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium"
+                                                style={u.role === 'TEACHER' ? { background: 'color-mix(in srgb, var(--brand) 12%, transparent)', color: 'var(--brand)' } : { background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>{u.role}</span>
                                         </div>
                                     ))}
                                 </div>
@@ -215,31 +221,34 @@ export default function AdminPanel() {
                 {/* === USERS === */}
                 {tab === 'users' && (
                     <div>
-                        <p className="text-[11px] text-gray-400 mb-3">{users.length} ta foydalanuvchi</p>
-                        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                        <p className="text-[11px] mb-3" style={mutedText}>{users.length} ta foydalanuvchi</p>
+                        <div className="rounded-xl overflow-hidden" style={cardStyle}>
                             <table className="w-full text-sm">
                                 <thead>
-                                    <tr className="border-b border-gray-50 bg-gray-50/50">
-                                        <th className="text-left py-2.5 px-4 font-medium text-gray-400 text-[11px] uppercase">Ism</th>
-                                        <th className="text-left py-2.5 px-4 font-medium text-gray-400 text-[11px] uppercase">Email</th>
-                                        <th className="text-left py-2.5 px-4 font-medium text-gray-400 text-[11px] uppercase">Rol</th>
-                                        <th className="text-left py-2.5 px-4 font-medium text-gray-400 text-[11px] uppercase">Sana</th>
+                                    <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+                                        <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Ism</th>
+                                        <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Email</th>
+                                        <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Rol</th>
+                                        <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Sana</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {users.map(u => (
-                                        <tr key={u.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition">
+                                        <tr key={u.id} className="transition" style={{ borderBottom: '1px solid var(--border)' }}
+                                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
+                                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                             <td className="py-2.5 px-4">
                                                 <div className="flex items-center gap-2">
-                                                    <div className="h-6 w-6 bg-gray-100 rounded-full flex items-center justify-center text-[10px] font-semibold text-gray-500">{u.name?.[0]?.toUpperCase()}</div>
-                                                    <span className="text-[13px] font-medium text-gray-900">{u.name}</span>
+                                                    <div className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-semibold" style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>{u.name?.[0]?.toUpperCase()}</div>
+                                                    <span className="text-[13px] font-medium">{u.name}</span>
                                                 </div>
                                             </td>
-                                            <td className="py-2.5 px-4 text-[13px] text-gray-500">{u.email}</td>
+                                            <td className="py-2.5 px-4 text-[13px]" style={secondaryText}>{u.email}</td>
                                             <td className="py-2.5 px-4">
-                                                <span className={`px-2 py-0.5 rounded text-[11px] font-medium ${u.role === 'ADMIN' ? 'bg-red-50 text-red-600' : u.role === 'TEACHER' ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-500'}`}>{u.role}</span>
+                                                <span className="px-2 py-0.5 rounded text-[11px] font-medium"
+                                                    style={u.role === 'ADMIN' ? { background: 'color-mix(in srgb, var(--danger) 12%, transparent)', color: 'var(--danger)' } : u.role === 'TEACHER' ? { background: 'color-mix(in srgb, var(--brand) 12%, transparent)', color: 'var(--brand)' } : { background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>{u.role}</span>
                                             </td>
-                                            <td className="py-2.5 px-4 text-[12px] text-gray-400 tabular-nums">{new Date(u.createdAt).toLocaleDateString('uz')}</td>
+                                            <td className="py-2.5 px-4 text-[12px] tabular-nums" style={mutedText}>{new Date(u.createdAt).toLocaleDateString('uz')}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -251,22 +260,22 @@ export default function AdminPanel() {
                 {/* === CREATE TEACHER === */}
                 {tab === 'teachers' && (
                     <div className="max-w-md">
-                        <div className="bg-white rounded-xl border border-gray-100 p-5">
+                        <div className="rounded-xl p-5" style={cardStyle}>
                             <div className="flex items-center gap-3 mb-4">
-                                <div className="h-9 w-9 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+                                <div className="h-9 w-9 rounded-xl flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--brand) 12%, transparent)', color: 'var(--brand)' }}>
                                     <UserCheck className="h-4.5 w-4.5" />
                                 </div>
                                 <div>
-                                    <h3 className="font-semibold text-gray-900 text-sm">Yangi O'qituvchi</h3>
-                                    <p className="text-xs text-gray-400">Login/parol yaratib berasiz</p>
+                                    <h3 className="font-semibold text-sm">Yangi O'qituvchi</h3>
+                                    <p className="text-xs" style={mutedText}>Login/parol yaratib berasiz</p>
                                 </div>
                             </div>
-                            {msg && <div className={`text-sm px-4 py-2.5 rounded-xl mb-3 ${msg.startsWith('✓') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>{msg}</div>}
+                            {msg && <div className="text-sm px-4 py-2.5 rounded-xl mb-3" style={msg.startsWith('\u2713') ? { background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)' } : { background: 'var(--danger-light)', color: 'var(--danger)' }}>{msg}</div>}
                             <form onSubmit={createTeacher} className="space-y-2.5">
-                                <input placeholder="Ism" required value={tf.name} onChange={e => setTf({ ...tf, name: e.target.value })} className="w-full h-10 px-3.5 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 outline-none text-sm transition" />
-                                <input type="email" placeholder="Email" required value={tf.email} onChange={e => setTf({ ...tf, email: e.target.value })} className="w-full h-10 px-3.5 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 outline-none text-sm transition" />
-                                <input type="password" placeholder="Parol (kamida 6 ta belgi)" required minLength={6} value={tf.password} onChange={e => setTf({ ...tf, password: e.target.value })} className="w-full h-10 px-3.5 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 outline-none text-sm transition" />
-                                <button type="submit" disabled={creating} className="w-full h-10 rounded-lg text-sm font-semibold text-white bg-gray-900 hover:bg-gray-800 transition disabled:opacity-50">
+                                <input placeholder="Ism" required value={tf.name} onChange={e => setTf({ ...tf, name: e.target.value })} className="input" />
+                                <input type="email" placeholder="Email" required value={tf.email} onChange={e => setTf({ ...tf, email: e.target.value })} className="input" />
+                                <input type="password" placeholder="Parol (kamida 6 ta belgi)" required minLength={6} value={tf.password} onChange={e => setTf({ ...tf, password: e.target.value })} className="input" />
+                                <button type="submit" disabled={creating} className="btn btn-primary" style={{ width: '100%' }}>
                                     {creating ? 'Yaratilmoqda...' : 'O\'qituvchi yaratish'}
                                 </button>
                             </form>
@@ -277,22 +286,29 @@ export default function AdminPanel() {
                 {/* === TESTS === */}
                 {tab === 'tests' && (
                     <div>
-                        <p className="text-[11px] text-gray-400 mb-3">{tests.length} ta test</p>
-                        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-                            {tests.length === 0 && <p className="text-sm text-gray-400 text-center py-10">Hozircha testlar yo'q</p>}
+                        <p className="text-[11px] mb-3" style={mutedText}>{tests.length} ta test</p>
+                        <div className="rounded-xl overflow-hidden" style={cardStyle}>
+                            {tests.length === 0 && <p className="text-sm text-center py-10" style={mutedText}>Hozircha testlar yo'q</p>}
                             {tests.map(t => (
-                                <div key={t.id} className="flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition">
+                                <div key={t.id} className="flex items-center gap-3 px-4 py-3 transition"
+                                    style={{ borderBottom: '1px solid var(--border)' }}
+                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2">
-                                            <p className="text-[13px] font-medium text-gray-900 truncate">{t.title}</p>
-                                            <span className={`flex-shrink-0 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium ${t.isPublic ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-50 text-gray-400'}`}>
+                                            <p className="text-[13px] font-medium truncate">{t.title}</p>
+                                            <span className="flex-shrink-0 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium"
+                                                style={t.isPublic ? { background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)' } : { background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
                                                 {t.isPublic ? <Globe className="h-2.5 w-2.5" /> : <Lock className="h-2.5 w-2.5" />}
                                                 {t.isPublic ? 'Ochiq' : 'Yopiq'}
                                             </span>
                                         </div>
-                                        <p className="text-[11px] text-gray-400 mt-0.5">{t.subject} · {t._count?.questions || 0} savol · {t._count?.attempts || 0} urinish · {t.creator?.name}</p>
+                                        <p className="text-[11px] mt-0.5" style={mutedText}>{t.subject} · {t._count?.questions || 0} savol · {t._count?.attempts || 0} urinish · {t.creator?.name}</p>
                                     </div>
-                                    <button onClick={() => deleteTest(t.id)} className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition flex-shrink-0">
+                                    <button onClick={() => deleteTest(t.id)} className="h-7 w-7 flex items-center justify-center rounded-lg transition flex-shrink-0"
+                                        style={{ color: 'var(--text-muted)' }}
+                                        onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.background = 'var(--danger-light)' }}
+                                        onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' }}>
                                         <Trash2 className="h-3.5 w-3.5" />
                                     </button>
                                 </div>
@@ -304,26 +320,26 @@ export default function AdminPanel() {
                 {/* === RAG DOCS === */}
                 {tab === 'docs' && (
                     <div className="space-y-3">
-                        <div className="bg-white rounded-xl border border-gray-100 p-5">
+                        <div className="rounded-xl p-5" style={cardStyle}>
                             <div className="flex items-center gap-3 mb-4">
-                                <div className="h-9 w-9 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
+                                <div className="h-9 w-9 rounded-xl flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)' }}>
                                     <Upload className="h-4.5 w-4.5" />
                                 </div>
                                 <div>
-                                    <h3 className="font-semibold text-gray-900 text-sm">Material Yuklash</h3>
-                                    <p className="text-xs text-gray-400">PDF, Word yoki TXT — RAG tizimiga qo'shiladi</p>
+                                    <h3 className="font-semibold text-sm">Material Yuklash</h3>
+                                    <p className="text-xs" style={mutedText}>PDF, Word yoki TXT — RAG tizimiga qo'shiladi</p>
                                 </div>
                             </div>
                             <div className="flex gap-2.5 items-end">
                                 <div className="flex-1">
-                                    <label className="text-xs font-medium text-gray-500 block mb-1">Fan</label>
-                                    <select value={docSubject} onChange={e => setDocSubject(e.target.value)} className="w-full h-9 px-3 rounded-lg border border-gray-200 bg-white text-sm">
+                                    <label className="text-xs font-medium block mb-1" style={secondaryText}>Fan</label>
+                                    <select value={docSubject} onChange={e => setDocSubject(e.target.value)} className="input" style={{ cursor: 'pointer' }}>
                                         {['Matematika', 'Fizika', 'Kimyo', 'Biologiya', 'Ona tili', 'Ingliz tili', 'Tarix', 'Geografiya', 'Umumiy'].map(f =>
                                             <option key={f} value={f}>{f}</option>
                                         )}
                                     </select>
                                 </div>
-                                <label className="h-9 px-4 inline-flex items-center gap-2 rounded-lg text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 cursor-pointer transition">
+                                <label className="btn btn-primary cursor-pointer flex items-center gap-2" style={{ height: '2.25rem', fontSize: '0.875rem' }}>
                                     <Upload className="h-3.5 w-3.5" />
                                     {uploading ? 'Yuklanmoqda...' : 'Fayl tanlash'}
                                     <input type="file" accept=".pdf,.docx,.doc,.txt" onChange={uploadDoc} className="hidden" disabled={uploading} />
@@ -331,18 +347,21 @@ export default function AdminPanel() {
                             </div>
                         </div>
                         {docs.length === 0 && (
-                            <div className="text-center py-10 text-sm text-gray-400">Hozircha hech qanday material yuklanmagan</div>
+                            <div className="text-center py-10 text-sm" style={mutedText}>Hozircha hech qanday material yuklanmagan</div>
                         )}
                         {docs.map(d => (
-                            <div key={d.id} className="bg-white rounded-xl border border-gray-100 p-3.5 flex items-center gap-3">
-                                <div className="h-9 w-9 bg-gray-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                                    <FileText className="h-4 w-4 text-gray-400" />
+                            <div key={d.id} className="rounded-xl p-3.5 flex items-center gap-3" style={cardStyle}>
+                                <div className="h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--bg-surface)' }}>
+                                    <FileText className="h-4 w-4" style={mutedText} />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-[13px] font-medium text-gray-900 truncate">{d.fileName}</p>
-                                    <p className="text-[11px] text-gray-400 mt-0.5">{d._count?.chunks || 0} chunk · {d.fileType} · {new Date(d.createdAt).toLocaleDateString('uz')}</p>
+                                    <p className="text-[13px] font-medium truncate">{d.fileName}</p>
+                                    <p className="text-[11px] mt-0.5" style={mutedText}>{d._count?.chunks || 0} chunk · {d.fileType} · {new Date(d.createdAt).toLocaleDateString('uz')}</p>
                                 </div>
-                                <button onClick={() => deleteDoc(d.id)} className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition">
+                                <button onClick={() => deleteDoc(d.id)} className="h-7 w-7 flex items-center justify-center rounded-lg transition"
+                                    style={{ color: 'var(--text-muted)' }}
+                                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.background = 'var(--danger-light)' }}
+                                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' }}>
                                     <Trash2 className="h-3.5 w-3.5" />
                                 </button>
                             </div>
@@ -354,83 +373,85 @@ export default function AdminPanel() {
                 {tab === 'ai' && (() => {
                     const SECTIONS = [
                         { key: 'extra_rules', label: 'Qo\'shimcha qoidalar', desc: 'Har doim qo\'shiladigan ko\'rsatmalar' },
-                        { key: 'prompt_role', label: 'Rol va shaxsiyat', desc: '🎓 AI kim — "Sen msert platformasi..."' },
-                        { key: 'prompt_teaching', label: 'O\'qitish metodikasi', desc: '📖 Avval tushuntir, dialog, diagnostika' },
-                        { key: 'prompt_format', label: 'Formatlash qoidalari', desc: '📝 LaTeX, jadval, flashcard, test format' },
-                        { key: 'prompt_math', label: 'Matematika bo\'limi', desc: '🏆 Milliy Sertifikat Matematika' },
-                        { key: 'prompt_english', label: 'Ingliz tili bo\'limi', desc: '🏆 Milliy Sertifikat Ingliz tili' },
-                        { key: 'prompt_file', label: 'Fayl tahlili', desc: '📎 PDF/rasm yuklanganda' },
-                        { key: 'prompt_donts', label: 'Qilma qoidalar', desc: '⚠️ AI qilmasligi kerak narsalar' },
+                        { key: 'prompt_role', label: 'Rol va shaxsiyat', desc: '\uD83C\uDF93 AI kim — "Sen msert platformasi..."' },
+                        { key: 'prompt_teaching', label: 'O\'qitish metodikasi', desc: '\uD83D\uDCD6 Avval tushuntir, dialog, diagnostika' },
+                        { key: 'prompt_format', label: 'Formatlash qoidalari', desc: '\uD83D\uDCDD LaTeX, jadval, flashcard, test format' },
+                        { key: 'prompt_math', label: 'Matematika bo\'limi', desc: '\uD83C\uDFC6 Milliy Sertifikat Matematika' },
+                        { key: 'prompt_english', label: 'Ingliz tili bo\'limi', desc: '\uD83C\uDFC6 Milliy Sertifikat Ingliz tili' },
+                        { key: 'prompt_file', label: 'Fayl tahlili', desc: '\uD83D\uDCCE PDF/rasm yuklanganda' },
+                        { key: 'prompt_donts', label: 'Qilma qoidalar', desc: '\u26A0\uFE0F AI qilmasligi kerak narsalar' },
                     ]
                     const activeSection = SECTIONS.find(s => s.key === promptSection)!
                     const currentVal = (aiConfig as any)[promptSection] as string
                     return (
                         <div className="max-w-xl space-y-4">
                             {/* Main AI settings card */}
-                            <div className="bg-white rounded-xl border border-gray-100 p-5 space-y-5">
+                            <div className="rounded-xl p-5 space-y-5" style={cardStyle}>
                                 <div className="flex items-center gap-3">
-                                    <div className="h-9 w-9 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+                                    <div className="h-9 w-9 rounded-xl flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--brand) 12%, transparent)', color: 'var(--brand)' }}>
                                         <Bot className="h-4.5 w-4.5" />
                                     </div>
                                     <div>
-                                        <h3 className="font-semibold text-gray-900 text-sm">AI Xulq-atvor sozlamalari</h3>
-                                        <p className="text-xs text-gray-400">AI ustozning javob berish uslubini sozlang</p>
+                                        <h3 className="font-semibold text-sm">AI Xulq-atvor sozlamalari</h3>
+                                        <p className="text-xs" style={mutedText}>AI ustozning javob berish uslubini sozlang</p>
                                     </div>
                                 </div>
-                                {aiMsg && <div className={`text-sm px-4 py-2.5 rounded-xl ${aiMsg.includes('✓') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>{aiMsg}</div>}
+                                {aiMsg && <div className="text-sm px-4 py-2.5 rounded-xl" style={aiMsg.includes('\u2713') ? { background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)' } : { background: 'var(--danger-light)', color: 'var(--danger)' }}>{aiMsg}</div>}
                                 <div>
-                                    <label className="text-sm font-medium text-gray-700 block mb-1.5">Harorat (Temperature): {aiConfig.temperature}</label>
+                                    <label className="text-sm font-medium block mb-1.5" style={secondaryText}>Harorat (Temperature): {aiConfig.temperature}</label>
                                     <input type="range" min="0" max="2" step="0.1" value={aiConfig.temperature}
                                         onChange={e => setAiConfig({ ...aiConfig, temperature: e.target.value })}
-                                        className="w-full accent-blue-600" />
-                                    <div className="flex justify-between text-[11px] text-gray-400 mt-1"><span>0 — aniq</span><span>1 — kreativ</span><span>2 — juda kreativ</span></div>
+                                        className="w-full" style={{ accentColor: 'var(--brand)' }} />
+                                    <div className="flex justify-between text-[11px] mt-1" style={mutedText}><span>0 — aniq</span><span>1 — kreativ</span><span>2 — juda kreativ</span></div>
                                 </div>
                                 <div>
-                                    <label className="text-sm font-medium text-gray-700 block mb-1.5">Max tokenlar</label>
+                                    <label className="text-sm font-medium block mb-1.5" style={secondaryText}>Max tokenlar</label>
                                     <input type="number" min="1000" max="8000" step="500" value={aiConfig.max_tokens}
                                         onChange={e => setAiConfig({ ...aiConfig, max_tokens: e.target.value })}
-                                        className="w-full h-10 px-3.5 rounded-lg border border-gray-200 focus:border-blue-500 outline-none text-sm" />
-                                    <p className="text-[11px] text-gray-400 mt-1">AI javobining maksimal uzunligi (1000-8000)</p>
+                                        className="input" />
+                                    <p className="text-[11px] mt-1" style={mutedText}>AI javobining maksimal uzunligi (1000-8000)</p>
                                 </div>
                                 <button onClick={async () => {
                                     setAiSaving(true); setAiMsg('')
                                     try {
                                         await fetchApi('/ai-settings', { method: 'PUT', body: JSON.stringify(aiConfig) })
-                                        setAiMsg('✓ Sozlamalar saqlandi!')
+                                        setAiMsg('\u2713 Sozlamalar saqlandi!')
                                     } catch (e: any) { setAiMsg(e.message) }
                                     setAiSaving(false)
-                                }} disabled={aiSaving} className="w-full h-10 rounded-lg text-sm font-semibold text-white bg-gray-900 hover:bg-gray-800 transition disabled:opacity-50 flex items-center justify-center gap-2">
+                                }} disabled={aiSaving} className="btn btn-primary flex items-center justify-center gap-2" style={{ width: '100%' }}>
                                     <Save className="h-4 w-4" /> {aiSaving ? 'Saqlanmoqda...' : 'Sozlamalarni saqlash'}
                                 </button>
                             </div>
 
                             {/* Prompt sections editor card */}
-                            <div className="bg-white rounded-xl border border-gray-100 p-5 space-y-4">
+                            <div className="rounded-xl p-5 space-y-4" style={cardStyle}>
                                 <div>
-                                    <h3 className="font-semibold text-gray-900 text-sm mb-0.5">Prompt bo'limlari (override)</h3>
-                                    <p className="text-[11px] text-gray-400">Bo'sh = standart kod ishlatiladi. Matn yozsangiz — AI o'sha matndan foydalanadi.</p>
+                                    <h3 className="font-semibold text-sm mb-0.5">Prompt bo'limlari (override)</h3>
+                                    <p className="text-[11px]" style={mutedText}>Bo'sh = standart kod ishlatiladi. Matn yozsangiz — AI o'sha matndan foydalanadi.</p>
                                 </div>
 
                                 {/* Section chip tabs */}
                                 <div className="flex flex-wrap gap-1.5">
                                     {SECTIONS.map(s => (
                                         <button key={s.key} onClick={() => { setPromptSection(s.key); setShowDefault(false) }}
-                                            className={`px-2.5 py-1 rounded-lg text-[12px] font-medium transition border ${promptSection === s.key ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}`}>
+                                            className="px-2.5 py-1 rounded-lg text-[12px] font-medium transition"
+                                            style={promptSection === s.key ? { background: 'var(--text-primary)', color: 'var(--bg-card)', border: '1px solid var(--text-primary)' } : { background: 'var(--bg-card)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>
                                             {s.label}
-                                            {(aiConfig as any)[s.key] ? <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-blue-500 align-middle" /> : null}
+                                            {(aiConfig as any)[s.key] ? <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full align-middle" style={{ background: 'var(--brand)' }} /> : null}
                                         </button>
                                     ))}
                                 </div>
 
                                 {/* Active section info */}
                                 <div>
-                                    <p className="text-[11px] text-gray-400 mb-2">{activeSection.desc}</p>
+                                    <p className="text-[11px] mb-2" style={mutedText}>{activeSection.desc}</p>
                                     <textarea
                                         value={currentVal}
                                         onChange={e => setAiConfig({ ...aiConfig, [promptSection]: e.target.value } as any)}
                                         rows={10}
                                         placeholder={`Bo'sh qoldirsangiz standart "${activeSection.label}" bo'limi ishlatiladi...`}
-                                        className="w-full px-3.5 py-2.5 rounded-lg border border-gray-200 focus:border-blue-500 outline-none text-[13px] font-mono resize-y"
+                                        className="input font-mono resize-y"
+                                        style={{ height: 'auto', padding: '0.625rem 0.875rem', fontSize: '13px' }}
                                     />
                                 </div>
 
@@ -438,12 +459,12 @@ export default function AdminPanel() {
                                 <div className="space-y-2">
                                     <div className="flex items-center gap-2">
                                         <button onClick={() => setShowDefault(v => !v)}
-                                            className="text-[12px] text-blue-600 hover:text-blue-700 font-medium">
-                                            {showDefault ? 'Yopish ▲' : 'Standartni ko\'rish ▼'}
+                                            className="text-[12px] font-medium" style={{ color: 'var(--brand)' }}>
+                                            {showDefault ? 'Yopish \u25B2' : 'Standartni ko\'rish \u25BC'}
                                         </button>
                                         {currentVal && (
                                             <button onClick={() => { setAiConfig({ ...aiConfig, [promptSection]: '' } as any); setShowDefault(false) }}
-                                                className="text-[12px] text-red-500 hover:text-red-600 font-medium">
+                                                className="text-[12px] font-medium" style={{ color: 'var(--danger)' }}>
                                                 Tozalash
                                             </button>
                                         )}
@@ -453,7 +474,8 @@ export default function AdminPanel() {
                                             readOnly
                                             value={defaults[promptSection]}
                                             rows={8}
-                                            className="w-full px-3.5 py-2.5 rounded-lg border border-gray-100 bg-gray-50 text-[12px] font-mono text-gray-500 resize-y"
+                                            className="input font-mono resize-y"
+                                            style={{ height: 'auto', padding: '0.625rem 0.875rem', fontSize: '12px', background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}
                                         />
                                     )}
                                 </div>
@@ -462,10 +484,10 @@ export default function AdminPanel() {
                                     setAiSaving(true); setAiMsg('')
                                     try {
                                         await fetchApi('/ai-settings', { method: 'PUT', body: JSON.stringify(aiConfig) })
-                                        setAiMsg('✓ Sozlamalar saqlandi!')
+                                        setAiMsg('\u2713 Sozlamalar saqlandi!')
                                     } catch (e: any) { setAiMsg(e.message) }
                                     setAiSaving(false)
-                                }} disabled={aiSaving} className="w-full h-10 rounded-lg text-sm font-semibold text-white bg-gray-900 hover:bg-gray-800 transition disabled:opacity-50 flex items-center justify-center gap-2">
+                                }} disabled={aiSaving} className="btn btn-primary flex items-center justify-center gap-2" style={{ width: '100%' }}>
                                     <Save className="h-4 w-4" /> {aiSaving ? 'Saqlanmoqda...' : 'Sozlamalarni saqlash'}
                                 </button>
                             </div>

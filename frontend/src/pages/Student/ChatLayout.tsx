@@ -380,7 +380,10 @@ export default function ChatLayout() {
         if (creating) return
         setCreating(true)
         try {
-            const data = await fetchApi('/chat/new', { method: 'POST', body: JSON.stringify({ title: 'Yangi suhbat', subject: profile?.subject }) })
+            const data = await fetchApi('/chat/new', {
+                method: 'POST',
+                body: JSON.stringify({ title: 'Yangi suhbat', subject: profile?.subject, forceNew: true })
+            })
             await loadChats()
             nav(`/suhbat/${data.id}`)
         } catch { }
@@ -811,7 +814,7 @@ export default function ChatLayout() {
                             <input placeholder="masalan: formulalarni eslab qolish" value={onboardingForm.concerns} onChange={e => setOnboardingForm({ ...onboardingForm, concerns: e.target.value })} className="input" /></div>
                         <div className="flex gap-3 pt-1">
                             <button type="submit" disabled={savingProfile} className="btn btn-primary" style={{ flex: 1 }}>{savingProfile ? 'Saqlanmoqda...' : 'Saqlash'}</button>
-                            {profile?.onboardingDone && <button type="button" onClick={() => setShowOnboarding(false)} className="btn btn-outline">Bekor</button>}
+                            <button type="button" onClick={() => setShowOnboarding(false)} className="btn btn-outline">Bekor</button>
                         </div>
                     </form>
                 </div>
@@ -1294,7 +1297,10 @@ export default function ChatLayout() {
                                         <button key={i} onClick={async () => {
                                             if (creating) return; setCreating(true)
                                             try {
-                                                const data = await fetchApi('/chat/new', { method: 'POST', body: JSON.stringify({ title: s.title, subject: profile?.subject }) })
+                                                const data = await fetchApi('/chat/new', {
+                                                    method: 'POST',
+                                                    body: JSON.stringify({ title: s.title, subject: profile?.subject, forceNew: true })
+                                                })
                                                 await loadChats()
                                                 nav(`/suhbat/${data.id}`)
                                                 setTimeout(() => {

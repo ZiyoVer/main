@@ -446,9 +446,9 @@ Sana: ${now.toLocaleDateString('uz-UZ')}.${extraRules ? '\n\n## Admin qo\'shimch
 // Yangi chat ochish (yoki mavjud fan chatini qaytarish)
 router.post('/new', authenticate, async (req: AuthRequest, res) => {
     try {
-        const { subject, title } = req.body
-        // Fan ko'rsatilgan bo'lsa — mavjud chatni qaytaramiz (bitta fan = bitta chat)
-        if (subject) {
+        const { subject, title, forceNew } = req.body
+        // Fan ko'rsatilgan bo'lsa va forceNew bo'lmasa — mavjud chatni qaytaramiz (bitta fan = bitta chat)
+        if (subject && !forceNew) {
             const existing = await prisma.chat.findFirst({
                 where: { userId: req.user.id, subject },
                 orderBy: { updatedAt: 'desc' }

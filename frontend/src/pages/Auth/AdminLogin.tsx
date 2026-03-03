@@ -26,7 +26,7 @@ export default function AdminLogin() {
                 return
             }
             login(data.token, data.user)
-            nav(data.user.role === 'ADMIN' ? '/admin' : '/teacher')
+            nav(data.user.role === 'ADMIN' ? '/boshqaruv' : '/oqituvchi')
         } catch (e: any) {
             setErr(e.message)
         }
