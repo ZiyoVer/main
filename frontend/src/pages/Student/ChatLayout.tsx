@@ -382,7 +382,7 @@ export default function ChatLayout() {
         try {
             const data = await fetchApi('/chat/new', { method: 'POST', body: JSON.stringify({ title: 'Yangi suhbat', subject: profile?.subject }) })
             await loadChats()
-            nav(`/chat/${data.id}`)
+            nav(`/suhbat/${data.id}`)
         } catch { }
         setCreating(false)
     }, [creating, profile])
@@ -725,7 +725,7 @@ export default function ChatLayout() {
                 try {
                     const data = await fetchApi('/chat/new', { method: 'POST', body: JSON.stringify({ title: 'Test tahlili', subject: profile?.subject }) })
                     await loadChats()
-                    nav(`/chat/${data.id}`)
+                    nav(`/suhbat/${data.id}`)
                     setTimeout(() => {
                         setMessages([{ id: 'temp-u', role: 'user', content: displayMsg, createdAt: new Date().toISOString() }])
                         streamToChat(data.id, summary, displayMsg)
@@ -871,7 +871,7 @@ export default function ChatLayout() {
                                     style={chatId === c.id ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' } : { color: 'var(--text-secondary)' }}
                                     onMouseEnter={e => { if (chatId !== c.id) e.currentTarget.style.background = 'var(--bg-muted)' }}
                                     onMouseLeave={e => { if (chatId !== c.id) e.currentTarget.style.background = 'transparent' }}
-                                    onClick={() => nav(`/chat/${c.id}`)}>
+                                    onClick={() => nav(`/suhbat/${c.id}`)}>
                                     <span className="flex-1 truncate">{c.title}</span>
                                     <button onClick={(e) => deleteChat(c.id, e)} className="opacity-0 group-hover:opacity-100 h-5 w-5 flex items-center justify-center rounded transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)' }} onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)' }}><Trash2 className="h-3 w-3" /></button>
                                 </div>
@@ -1270,7 +1270,7 @@ export default function ChatLayout() {
                                             try {
                                                 const data = await fetchApi('/chat/new', { method: 'POST', body: JSON.stringify({ title: s.title, subject: profile?.subject }) })
                                                 await loadChats()
-                                                nav(`/chat/${data.id}`)
+                                                nav(`/suhbat/${data.id}`)
                                                 setTimeout(() => {
                                                     setMessages([{ id: 'temp-u', role: 'user', content: s.prompt, createdAt: new Date().toISOString() }])
                                                     streamToChat(data.id, s.prompt)
