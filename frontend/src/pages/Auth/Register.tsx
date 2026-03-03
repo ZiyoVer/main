@@ -25,7 +25,7 @@ export default function Register() {
     const [err, setErr] = useState('')
     const [loading, setLoading] = useState(false)
 
-    const step1Valid = form.name.trim() && form.email.trim() && form.password.length >= 6
+    const step1Valid = form.name.trim() && form.email.trim() && form.password.length >= 8 && /[a-zA-Z]/.test(form.password)
 
     const submit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -123,7 +123,7 @@ export default function Register() {
                                             required
                                             value={form.password}
                                             onChange={e => setForm({ ...form, password: e.target.value })}
-                                            placeholder="Kamida 6 belgi"
+                                            placeholder="Kamida 8 belgi (harf + raqam)"
                                             className="input"
                                             style={{ paddingRight: '2.75rem' }}
                                         />

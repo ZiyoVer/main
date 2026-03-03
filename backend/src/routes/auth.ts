@@ -14,15 +14,20 @@ router.post('/register', async (req, res) => {
         if (!email || !password || !name) {
             return res.status(400).json({ error: 'Barcha maydonlarni to\'ldiring' })
         }
-        if (password.length < 6) {
-            return res.status(400).json({ error: 'Parol kamida 6 ta belgi bo\'lishi kerak' })
+        if (password.length < 8) {
+            return res.status(400).json({ error: 'Parol kamida 8 ta belgi bo\'lishi kerak' })
         }
-        const existing = await prisma.user.findUnique({ where: { email } })
-        if (existing) return res.status(400).json({ error: 'Bu email allaqachon band' })
+        if (!/[a-zA-Z]/.test(password)) {
+            return res.status(400).json({ error: 'Parolda kamida bitta harf bo\'lishi kerak' })
+        }
+        // Email ni kichik harfga normallashtirish
+        const normalizedEmail = email.trim().toLowerCase()
+        const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } })
+        if (existing) return res.status(400).json({ error: 'Bu email allaqachon ro\'yxatdan o\'tilgan' })
 
-        const hashed = await bcrypt.hash(password, 10)
+        const hashed = await bcrypt.hash(password, 12)
         const user = await prisma.user.create({
-            data: { email, password: hashed, name, role: 'STUDENT' }
+            data: { email: normalizedEmail, password: hashed, name: name.trim(), role: 'STUDENT' }
         })
 
         // Profil yaratish — ro'yxatdan o'tishda to'ldirilgan ma'lumotlar bilan
@@ -51,7 +56,7 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
     try {
         const { email, password } = req.body
-        const user = await prisma.user.findUnique({ where: { email } })
+        const user = await prisma.user.findUnique({ where: { email: email?.trim().toLowerCase() } })
         if (!user) return res.status(400).json({ error: 'Email yoki parol xato' })
 
         const valid = await bcrypt.compare(password, user.password)
@@ -96,15 +101,16 @@ router.post('/create-teacher', authenticate, requireRole('ADMIN'), async (req: A
         if (password.length < 8) {
             return res.status(400).json({ error: 'Parol kamida 8 ta belgi bo\'lishi kerak' })
         }
-        if (!/(?=.*[a-zA-Z])(?=.*\\d)/.test(password)) {
+        if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
             return res.status(400).json({ error: 'Parolda kamida bitta harf va bitta raqam bo\'lishi shart' })
         }
-        const existing = await prisma.user.findUnique({ where: { email } })
+        const teacherEmail = email?.trim().toLowerCase()
+        const existing = await prisma.user.findUnique({ where: { email: teacherEmail } })
         if (existing) return res.status(400).json({ error: 'Bu email allaqachon band' })
 
-        const hashed = await bcrypt.hash(password, 10)
+        const hashed = await bcrypt.hash(password, 12)
         await prisma.user.create({
-            data: { email, password: hashed, name, role: 'TEACHER' }
+            data: { email: teacherEmail, password: hashed, name: name.trim(), role: 'TEACHER' }
         })
         res.status(201).json({ message: 'O\'qituvchi yaratildi' })
     } catch (e) {
