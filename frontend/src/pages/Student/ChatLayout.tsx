@@ -1277,7 +1277,7 @@ export default function ChatLayout() {
 
                 {/* Messages */}
                 <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-0">
-                    {!chatId ? (
+                    {(!chatId || (messages.length === 0 && !loading && !streaming)) ? (
                         <div className="h-full flex items-center justify-center" style={{ background: 'var(--bg-page)' }}>
                             <div className="max-w-2xl w-full px-6 anim-up">
                                 <div className="text-center mb-10">
@@ -1347,7 +1347,7 @@ export default function ChatLayout() {
                                         <div className="bubble-ai"><MdMessage content={m.content} onOpenTest={openTestPanel} onProfileUpdate={handleProfileUpdate} onOpenFlash={openFlashPanel} /></div>
                                     )}
                                     {m.role === 'user' && (
-                                        <div className="h-8 w-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold" style={{ background: '#6366F1' }}>{user?.name?.[0]?.toUpperCase() || 'S'}</div>
+                                        <div className="h-8 w-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ background: 'var(--brand)' }}>{user?.name?.[0]?.toUpperCase() || 'S'}</div>
                                     )}
                                 </div>
                             ))}

@@ -1,3 +1,5 @@
+import toast from 'react-hot-toast'
+
 export const API = '/api'
 
 export async function fetchApi(endpoint: string, options: RequestInit = {}) {

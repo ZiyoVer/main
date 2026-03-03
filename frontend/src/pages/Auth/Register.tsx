@@ -24,8 +24,25 @@ export default function Register() {
     const [showPw, setShowPw] = useState(false)
     const [err, setErr] = useState('')
     const [loading, setLoading] = useState(false)
+    const [checkingEmail, setCheckingEmail] = useState(false)
 
     const step1Valid = form.name.trim() && form.email.trim() && form.password.length >= 8 && /[a-zA-Z]/.test(form.password)
+
+    const goToStep2 = async () => {
+        setErr('')
+        setCheckingEmail(true)
+        try {
+            const data = await fetchApi(`/auth/check-email?email=${encodeURIComponent(form.email.trim())}`)
+            if (!data.available) {
+                setErr('Bu email allaqachon ro\'yxatdan o\'tilgan. Kirish sahifasiga o\'ting.')
+            } else {
+                setStep(2)
+            }
+        } catch {
+            setStep(2)
+        }
+        setCheckingEmail(false)
+    }
 
     const submit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -143,12 +160,12 @@ export default function Register() {
 
                                 <button
                                     type="button"
-                                    disabled={!step1Valid}
-                                    onClick={() => setStep(2)}
+                                    disabled={!step1Valid || checkingEmail}
+                                    onClick={goToStep2}
                                     className="btn btn-primary"
                                     style={{ width: '100%' }}
                                 >
-                                    Davom etish →
+                                    {checkingEmail ? 'Tekshirilmoqda...' : 'Davom etish →'}
                                 </button>
                             </div>
                         </>

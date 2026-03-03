@@ -371,24 +371,21 @@ html.dark {
 /* ---- Chat Bubbles ---- */
 
 .bubble-ai {
-    background-color: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 1.25rem 1.25rem 1.25rem 0.25rem;
-    padding: 0.75rem 1rem;
-    max-width: 72%;
+    max-width: 78%;
     font-size: 0.9375rem;
-    line-height: 1.65;
+    line-height: 1.7;
     color: var(--text-primary);
 }
 
 .bubble-user {
-    background: linear-gradient(135deg, #4F46E5, #6366F1);
-    border-radius: 1.25rem 1.25rem 0.25rem 1.25rem;
-    padding: 0.75rem 1rem;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 1rem 1rem 0.25rem 1rem;
+    padding: 0.625rem 0.875rem;
     max-width: 72%;
     font-size: 0.9375rem;
-    line-height: 1.65;
-    color: #FFFFFF;
+    line-height: 1.6;
+    color: var(--text-primary);
 }
 
 /* Chat image thumbnail */
@@ -964,11 +961,11 @@ html.dark .md-content pre {
 
 /* bubble-user md colors */
 .bubble-user .md-content code {
-    background: rgba(255, 255, 255, 0.2);
-    color: #fff;
+    background: var(--bg-muted);
+    color: var(--text-primary);
 }
 
 .bubble-user .md-content a {
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--brand);
     text-decoration: underline;
 }

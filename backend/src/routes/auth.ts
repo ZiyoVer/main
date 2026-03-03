@@ -73,6 +73,18 @@ router.post('/register', async (req, res) => {
     }
 })
 
+// Email mavjudligini tekshirish (register step 1 uchun)
+router.get('/check-email', async (req, res) => {
+    try {
+        const email = (req.query.email as string)?.trim().toLowerCase()
+        if (!email) return res.json({ available: true })
+        const existing = await prisma.user.findUnique({ where: { email } })
+        res.json({ available: !existing })
+    } catch {
+        res.json({ available: true })
+    }
+})
+
 // Login
 router.post('/login', async (req, res) => {
     try {

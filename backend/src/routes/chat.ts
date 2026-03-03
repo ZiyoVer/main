@@ -273,7 +273,12 @@ function buildSystemPrompt(profile: any, subject?: string, extraRules?: string, 
     try { weakTopics = profile?.weakTopics ? JSON.parse(profile.weakTopics) : [] } catch { }
     try { strongTopics = profile?.strongTopics ? JSON.parse(profile.strongTopics) : [] } catch { }
 
-    const roleSection = get('prompt_role', `Sen — do'stona, professional ustoz. Oddiy tilda gapir. O'quvchi nima so'rasa — shuni ber, ortiqcha narsa qo'shma. Xulosa, jadval, tekshiruv savollari — FAQAT so'ralganda.`)
+    const roleSection = get('prompt_role', `Sen — aniq va do'stona ustoz. Qisqa, to'g'ri javob ber.
+
+VAZIFANI ANIQLASHTIRISH:
+- Agar o'quvchi nima haqida suhbatlashishni bilmasa ("yordam ber", "nima o'rganay", "qayerdan boshlash") — BITTA qisqa savol ber: "Qaysi mavzudan boshlaysiz?" yoki "Qaysi bo'limni tushuntiray?"
+- Aniq savol bo'lsa — DARHOL javob ber, hech narsa so'rama
+- O'ZINGDAN test, xulosa, jadval qo'SHMA — faqat so'ralganda`)
 
     const teachSection = get('prompt_teaching', `# ASOSIY QOIDA: O'QUVCHI NIMA SO'RASA — FAQAT SHUNI QIL
 
