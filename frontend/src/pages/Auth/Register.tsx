@@ -32,22 +32,21 @@ export default function Register() {
         setLoading(true)
         setErr('')
         try {
-            await fetchApi('/auth/register', {
+            const data = await fetchApi('/auth/register', {
                 method: 'POST',
                 body: JSON.stringify({
                     name: form.name,
                     email: form.email,
                     password: form.password,
-                    examType,
+                    examType: examType || undefined,
                     subject: subject1 || undefined,
                     subject2: subject2 || undefined,
                     examDate: examDate || undefined,
                     targetScore: targetScore ? parseInt(targetScore) : undefined
                 })
             })
-            // Ro'yxatdan so'ng avtomatik tizimga kirish va chatga yo'naltirish
-            const loginData = await fetchApi('/auth/login', { method: 'POST', body: JSON.stringify({ email: form.email, password: form.password }) })
-            login(loginData.token, loginData.user)
+            // Register javobidan to'g'ridan-to'g'ri token — alohida login shart emas
+            login(data.token, data.user)
             nav('/suhbat', { replace: true })
         } catch (e: any) {
             setErr(e.message)
@@ -158,22 +157,22 @@ export default function Register() {
                     {step === 2 && (
                         <form onSubmit={submit}>
                             <h1 className="text-xl font-bold mb-1">Imtihon ma'lumotlari</h1>
-                            <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
+                            <p className="text-sm mb-5" style={{ color: 'var(--text-secondary)' }}>
                                 Ixtiyoriy — keyinroq ham o'zgartirishingiz mumkin
                             </p>
 
                             {/* Exam type */}
                             <div className="mb-4">
-                                <label className="text-sm font-medium block mb-2">Imtihon turi</label>
+                                <label className="text-sm font-medium block mb-2">Imtihon turi <span style={{ color: 'var(--text-muted)' }}>(ixtiyoriy)</span></label>
                                 <div className="grid grid-cols-2 gap-2">
                                     {(['DTM', 'MS'] as const).map(t => (
                                         <button
                                             key={t}
                                             type="button"
-                                            onClick={() => setExamType(t)}
+                                            onClick={() => setExamType(examType === t ? '' : t)}
                                             className="btn btn-outline"
                                             style={{
-                                                height: '3rem',
+                                                height: '2.75rem',
                                                 background: examType === t ? 'var(--brand-light)' : '',
                                                 borderColor: examType === t ? 'var(--brand)' : '',
                                                 color: examType === t ? 'var(--brand-hover)' : '',
@@ -189,39 +188,12 @@ export default function Register() {
                                 </div>
                             </div>
 
-                            {/* Subject selection */}
-                            {examType === 'DTM' && (
-                                <div className="space-y-3 mb-4">
-                                    <div>
-                                        <label className="text-sm font-medium block mb-1.5">1-ixtisoslik fani</label>
-                                        <select
-                                            value={subject1}
-                                            onChange={e => setSubject1(e.target.value)}
-                                            className="input"
-                                            style={{ cursor: 'pointer' }}
-                                        >
-                                            <option value="">— Tanlang —</option>
-                                            {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-medium block mb-1.5">2-ixtisoslik fani</label>
-                                        <select
-                                            value={subject2}
-                                            onChange={e => setSubject2(e.target.value)}
-                                            className="input"
-                                            style={{ cursor: 'pointer' }}
-                                        >
-                                            <option value="">— Tanlang —</option>
-                                            {SUBJECTS.filter(s => s !== subject1).map(s => <option key={s} value={s}>{s}</option>)}
-                                        </select>
-                                    </div>
-                                </div>
-                            )}
-
-                            {examType === 'MS' && (
-                                <div className="mb-4">
-                                    <label className="text-sm font-medium block mb-1.5">Fan</label>
+                            {/* Subject — DTM: 2 ta, MS: 1 ta, bo'lmasa: 1 ta */}
+                            <div className="space-y-3 mb-4">
+                                <div>
+                                    <label className="text-sm font-medium block mb-1.5">
+                                        {examType === 'DTM' ? '1-ixtisoslik fani' : 'Fan'} <span style={{ color: 'var(--text-muted)' }}>(ixtiyoriy)</span>
+                                    </label>
                                     <select
                                         value={subject1}
                                         onChange={e => setSubject1(e.target.value)}
@@ -232,12 +204,26 @@ export default function Register() {
                                         {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
                                     </select>
                                 </div>
-                            )}
+                                {examType === 'DTM' && (
+                                    <div>
+                                        <label className="text-sm font-medium block mb-1.5">2-ixtisoslik fani <span style={{ color: 'var(--text-muted)' }}>(ixtiyoriy)</span></label>
+                                        <select
+                                            value={subject2}
+                                            onChange={e => setSubject2(e.target.value)}
+                                            className="input"
+                                            style={{ cursor: 'pointer' }}
+                                        >
+                                            <option value="">— Tanlang —</option>
+                                            {SUBJECTS.filter(s => s !== subject1).map(s => <option key={s} value={s}>{s}</option>)}
+                                        </select>
+                                    </div>
+                                )}
+                            </div>
 
                             {/* Exam date + target */}
-                            <div className="space-y-3 mb-5">
+                            <div className="grid grid-cols-2 gap-3 mb-5">
                                 <div>
-                                    <label className="text-sm font-medium block mb-1.5">Imtihon sanasi <span style={{ color: 'var(--text-muted)' }}>(ixtiyoriy)</span></label>
+                                    <label className="text-sm font-medium block mb-1.5">Imtihon sanasi</label>
                                     <input
                                         type="date"
                                         value={examDate}
@@ -246,12 +232,12 @@ export default function Register() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-sm font-medium block mb-1.5">Maqsad ball <span style={{ color: 'var(--text-muted)' }}>(ixtiyoriy)</span></label>
+                                    <label className="text-sm font-medium block mb-1.5">Maqsad ball</label>
                                     <input
                                         type="number"
                                         min="0"
                                         max="189"
-                                        placeholder="Masalan: 150"
+                                        placeholder="150"
                                         value={targetScore}
                                         onChange={e => setTargetScore(e.target.value)}
                                         className="input"

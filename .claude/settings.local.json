@@ -9,7 +9,9 @@
       "Bash(npx tsc:*)",
       "Bash(npm run:*)",
       "Bash(curl:*)",
-      "Bash(./node_modules/.bin/tsc:*)"
+      "Bash(./node_modules/.bin/tsc:*)",
+      "Bash(npx prisma:*)",
+      "WebFetch(domain:)"
     ]
   }
 }
