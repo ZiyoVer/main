@@ -17,6 +17,10 @@ const aiClient = new OpenAI({
 })
 const aiModel = hasDeepseek ? 'deepseek-chat' : 'gpt-4o-mini'
 
+const gptClient = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY || ''
+})
+
 // Public testlar ro'yxati (barcha o'quvchilar uchun)
 router.get('/public', authenticate, async (req: AuthRequest, res) => {
     try {
@@ -63,8 +67,13 @@ correctIdx — to'g'ri javob indeksi (0=A, 1=B, 2=C, 3=D). Eng kamida 5 ta, eng 
             return res.status(400).json({ error: 'Faqat PDF va rasm fayllari qo\'llab-quvvatlanadi' })
         }
 
-        const completion = await aiClient.chat.completions.create({
-            model: aiModel,
+        // Rasm tahlili doim OpenAI ga yuboriladi (deepseek vision qabul qilmaydi)
+        const isVision = messages.some(m => Array.isArray(m.content));
+        const client = isVision ? gptClient : aiClient;
+        const model = isVision ? 'gpt-4o-mini' : aiModel;
+
+        const completion = await client.chat.completions.create({
+            model: model,
             messages: [
                 { role: 'system', content: 'Siz test savollari generatorisiz. FAQAT JSON formatda javob bering.' },
                 ...messages
