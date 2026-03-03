@@ -706,12 +706,35 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
             streamOptions.temperature = aiSettings.temperature
         }
 
-        const stream = await chatClient.chat.completions.create(streamOptions) as any
+        // DeepSeek ishlamasa OpenAI ga fallback qilamiz
+        let activeClient = chatClient
+        let activeModel = model
+        let stream: any
+        try {
+            stream = await chatClient.chat.completions.create(streamOptions) as any
+        } catch (firstErr: any) {
+            const status = firstErr?.status ?? 0
+            const msg = (firstErr?.message || '').toLowerCase()
+            // Auth xatosi bo'lsa fallback qilmaymiz
+            const isAuthErr = status === 401 || msg.includes('auth') || msg.includes('invalid api key')
+            if (!isAuthErr && hasDeepseek && process.env.OPENAI_API_KEY) {
+                // DeepSeek ishlamadi → GPT-4o-mini ga fallback
+                console.warn('DeepSeek xatosi, GPT-4o-mini ga fallback:', firstErr.message)
+                activeClient = gptClient
+                activeModel = 'gpt-4o-mini'
+                const fallbackOpts = { ...streamOptions, model: activeModel }
+                delete fallbackOpts.temperature // OpenAI uchun ham qo'llaymiz
+                fallbackOpts.temperature = 0.7
+                stream = await gptClient.chat.completions.create(fallbackOpts) as any
+            } else {
+                throw firstErr
+            }
+        }
 
         for await (const chunk of stream) {
             if (aborted) break
             const delta = chunk.choices[0]?.delta?.content || ''
-            // Reasoning tokens (thinking process)
+            // Reasoning tokens (thinking process — faqat deepseek-reasoner da bo'ladi)
             const reasoning = (chunk.choices[0]?.delta as any)?.reasoning_content || ''
             if (reasoning) {
                 res.write(`data: ${JSON.stringify({ thinking: reasoning })}\n\n`)
@@ -723,7 +746,6 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
         }
 
         if (aborted) {
-            // Save partial response
             if (fullReply.trim()) {
                 await prisma.message.create({
                     data: { chatId: chat.id, role: 'assistant', content: fullReply }
@@ -747,16 +769,16 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
         res.write(`data: ${JSON.stringify({ done: true, id: saved.id })}\n\n`)
         res.end()
     } catch (e: any) {
+        const status = e?.status ?? 0
         const errMsg = e?.message || 'Noma\'lum xato'
-        console.error('AI stream error:', errMsg)
-        // Rate limit yoki auth xatolari uchun aniq xabar
-        const isRateLimit = errMsg.includes('429') || errMsg.toLowerCase().includes('rate limit')
-        const isAuth = errMsg.includes('401') || errMsg.toLowerCase().includes('auth')
+        console.error('AI stream error | status:', status, '| msg:', errMsg)
+        const isRateLimit = status === 429 || errMsg.includes('429') || errMsg.toLowerCase().includes('rate limit')
+        const isAuth = status === 401 || errMsg.includes('401') || errMsg.toLowerCase().includes('auth') || errMsg.toLowerCase().includes('invalid api key')
         const userMsg = isRateLimit
             ? 'AI yuklanmoqda, biroz kuting va qayta urinib ko\'ring.'
             : isAuth
                 ? 'AI kaliti noto\'g\'ri. Admin bilan bog\'laning.'
-                : 'AI javob bera olmadi. Qayta urinib ko\'ring.'
+                : `AI javob bera olmadi (${status || 'network'}). Qayta urinib ko\'ring.`
         if (!res.headersSent) {
             res.status(500).json({ error: userMsg })
         } else {
