@@ -18,8 +18,12 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
             return Promise.reject(new Error('Sessiya muddati tugadi. Qayta kiring.'))
         }
         if (!res.ok) {
-            const err = new Error(data?.error || 'Server xatoligi')
-            alert(`Xatolik: ${err.message}`)
+            const errName = data?.error || 'Server xatoligi'
+            const err = new Error(errName)
+            toast.error(err.message, {
+                duration: 4000,
+                id: 'api-error' // To prevent duplicate toasts
+            })
             throw err
         }
         return data
