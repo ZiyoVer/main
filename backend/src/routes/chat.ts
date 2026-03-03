@@ -771,7 +771,8 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
     } catch (e: any) {
         const status = e?.status ?? 0
         const errMsg = e?.message || 'Noma\'lum xato'
-        console.error('AI stream error | status:', status, '| msg:', errMsg)
+        // To'liq xato ma'lumotini loglaymiz (Railway dashboard da ko'rinadi)
+        console.error('STREAM ERROR | status:', status, '| type:', e?.constructor?.name, '| msg:', errMsg)
         const isRateLimit = status === 429 || errMsg.includes('429') || errMsg.toLowerCase().includes('rate limit')
         const isAuth = status === 401 || errMsg.includes('401') || errMsg.toLowerCase().includes('auth') || errMsg.toLowerCase().includes('invalid api key')
         const userMsg = isRateLimit

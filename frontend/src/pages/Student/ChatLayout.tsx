@@ -341,7 +341,11 @@ export default function ChatLayout() {
                 body: JSON.stringify({ content: prompt, thinking: thinkingMode, ...(displayText !== undefined && { displayText }) }),
                 signal: controller.signal
             })
-            if (!res.ok) throw new Error()
+            if (!res.ok) {
+                let msg = 'AI javob bera olmadi. Qayta urinib ko\'ring.'
+                try { const j = await res.json(); if (j?.error) msg = j.error } catch {}
+                throw new Error(msg)
+            }
             const reader = res.body?.getReader()
             const decoder = new TextDecoder()
             let fullText = ''
@@ -404,12 +408,7 @@ export default function ChatLayout() {
                     })
                 }
             } else {
-                let errText = '⚠️ AI javob bera olmadi. Qayta urinib ko\'ring.'
-                try {
-                    // Server 500 JSON error bo'lsa, ichidagi xabarni ko'rsatamiz
-                    const res2 = err?.response
-                    if (res2) { const j = await res2.json(); if (j?.error) errText = `⚠️ ${j.error}` }
-                } catch { }
+                const errText = `⚠️ ${err?.message || 'AI javob bera olmadi. Qayta urinib ko\'ring.'}`
                 setMessages(prev => {
                     const filtered = prev.filter(m => m.id !== 'temp-u')
                     return [...filtered,
