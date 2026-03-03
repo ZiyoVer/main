@@ -14,12 +14,21 @@ router.get('/me', async (req: any, res) => {
     try {
         const userId = req.user.id
 
-        // UserProgress mavjud bo'lmasa yaratamiz (upsert)
-        const progress = await prisma.userProgress.upsert({
-            where: { userId },
-            create: { userId },
-            update: {},
+        // UserProgress mavjud bo'lmasa yaratamiz
+        let progress = await prisma.userProgress.findUnique({
+            where: { userId }
         })
+
+        if (!progress) {
+            progress = await prisma.userProgress.create({
+                data: {
+                    userId,
+                    xp: 0,
+                    streak: 0,
+                    longestStreak: 0
+                }
+            })
+        }
 
         // Zaif mavzular
         const weakTopics = await prisma.topicStat.findMany({
@@ -102,41 +111,50 @@ router.post('/activity', async (req: any, res) => {
         const now = new Date()
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
 
-        const progress = await prisma.userProgress.upsert({
-            where: { userId },
-            create: { userId, xp: xpGained, streak: 1, longestStreak: 1, lastActiveDate: now },
-            update: {},
+        // Mavjud progressni olamiz
+        const existing = await prisma.userProgress.findUnique({
+            where: { userId }
         })
 
-        // Streak mantiq
-        let streak = progress.streak
-        let longestStreak = progress.longestStreak
-        let xp = progress.xp + xpGained
+        let xp = (existing?.xp || 0) + xpGained
+        let streak = existing ? existing.streak : 1
+        let longestStreak = existing ? existing.longestStreak : 1
+        let lastActiveDate = existing?.lastActiveDate || now
 
-        if (progress.lastActiveDate) {
-            const lastDate = new Date(progress.lastActiveDate)
+        if (existing?.lastActiveDate) {
+            const lastDate = new Date(existing.lastActiveDate)
             const lastDay = new Date(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate())
             const diffDays = Math.floor((today.getTime() - lastDay.getTime()) / (1000 * 60 * 60 * 24))
 
-            if (diffDays === 0) {
-                // Bugun allaqachon faol — faqat XP qo'shamiz, streak o'zgarmaydi
-                xp = progress.xp + xpGained
-            } else if (diffDays === 1) {
-                // Ketma-ket kun — streak o'sadi
-                streak = progress.streak + 1
-                longestStreak = Math.max(streak, progress.longestStreak)
-                // Streak bonus XP
-                if (streak % 7 === 0) xp += 50  // Haftalik bonus
-                else if (streak % 3 === 0) xp += 15  // 3 kunlik bonus
-            } else {
-                // Gap — streak sıfırlanadi
+            if (diffDays === 1) {
+                // Ketma-ket kun
+                streak += 1
+                longestStreak = Math.max(streak, longestStreak)
+                if (streak % 7 === 0) xp += 50
+                else if (streak % 3 === 0) xp += 15
+            } else if (diffDays > 1) {
+                // Uzilish bo'ldi
                 streak = 1
             }
+            // Agar diffDays === 0 bo'lsa (bugun oldin ham kirgan), faqat xp qo'shiladi va streak o'zgarmaydi
         }
 
-        const updated = await prisma.userProgress.update({
+        // Bitta UPSERT orqali saqlaymiz
+        const updated = await prisma.userProgress.upsert({
             where: { userId },
-            data: { xp, streak, longestStreak, lastActiveDate: now },
+            create: {
+                userId,
+                xp,
+                streak,
+                longestStreak,
+                lastActiveDate: now
+            },
+            update: {
+                xp,
+                streak,
+                longestStreak,
+                lastActiveDate: now
+            }
         })
 
         res.json({
@@ -146,7 +164,7 @@ router.post('/activity', async (req: any, res) => {
             xpGained: xpGained,
         })
     } catch (e) {
-        console.error(e)
+        console.error('Progress activity error:', e)
         res.status(500).json({ error: 'Server xatoligi' })
     }
 })
@@ -164,22 +182,31 @@ router.post('/topic', async (req: any, res) => {
             return res.status(400).json({ error: 'subject, topic, total majburiy' })
         }
 
-        const stat = await prisma.topicStat.upsert({
-            where: { userId_subject_topic: { userId, subject, topic } },
-            create: {
-                userId,
-                subject,
-                topic,
-                correct: correct || 0,
-                total,
-                lastPracticed: new Date(),
-            },
-            update: {
-                correct: { increment: correct || 0 },
-                total: { increment: total },
-                lastPracticed: new Date(),
-            },
+        let stat = await prisma.topicStat.findUnique({
+            where: { userId_subject_topic: { userId, subject, topic } }
         })
+
+        if (!stat) {
+            stat = await prisma.topicStat.create({
+                data: {
+                    userId,
+                    subject,
+                    topic,
+                    correct: correct || 0,
+                    total,
+                    lastPracticed: new Date(),
+                }
+            })
+        } else {
+            stat = await prisma.topicStat.update({
+                where: { userId_subject_topic: { userId, subject, topic } },
+                data: {
+                    correct: { increment: correct || 0 },
+                    total: { increment: total },
+                    lastPracticed: new Date(),
+                }
+            })
+        }
 
         res.json(stat)
     } catch (e) {

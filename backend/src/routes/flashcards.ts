@@ -131,11 +131,26 @@ router.post('/:id/review', async (req: any, res) => {
         })
 
         // XP qo'shish
-        await prisma.userProgress.upsert({
-            where: { userId },
-            create: { userId, xp: 5 },
-            update: { xp: { increment: 5 } },
+        let progress = await prisma.userProgress.findUnique({
+            where: { userId }
         })
+
+        if (!progress) {
+            await prisma.userProgress.create({
+                data: {
+                    userId,
+                    xp: 5,
+                    streak: 0,
+                    longestStreak: 0,
+                    lastActiveDate: new Date()
+                }
+            })
+        } else {
+            await prisma.userProgress.update({
+                where: { userId },
+                data: { xp: progress.xp + 5, lastActiveDate: new Date() }
+            })
+        }
 
         res.json({
             interval,

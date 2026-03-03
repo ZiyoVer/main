@@ -200,11 +200,20 @@ router.put('/', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res
         ]
 
         for (const u of updates) {
-            await prisma.aISetting.upsert({
-                where: { key: u.key },
-                update: { value: u.value },
-                create: { key: u.key, value: u.value }
+            const existing = await prisma.aISetting.findUnique({
+                where: { key: u.key }
             })
+
+            if (!existing) {
+                await prisma.aISetting.create({
+                    data: { key: u.key, value: u.value }
+                })
+            } else {
+                await prisma.aISetting.update({
+                    where: { key: u.key },
+                    data: { value: u.value }
+                })
+            }
         }
 
         res.json({ message: 'Sozlamalar saqlandi' })
