@@ -24,6 +24,11 @@ export default function App() {
             <Route path="/" element={<Landing />} />
             <Route path="/kirish" element={<Login />} />
             <Route path="/royxat" element={<Register />} />
+            {/* O'zbek tilidagi asosiy routelar */}
+            <Route path="/suhbat" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
+            <Route path="/suhbat/:chatId" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
+            <Route path="/oqituvchi" element={<ProtectedRoute roles={['TEACHER', 'ADMIN']}><TeacherPanel /></ProtectedRoute>} />
+            <Route path="/boshqaruv" element={<ProtectedRoute roles={['ADMIN']}><AdminPanel /></ProtectedRoute>} />
             {/* Legacy routes — backward compat */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />

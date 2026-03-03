@@ -147,7 +147,7 @@ export default function ChatLayout() {
     const [currentChat, setCurrentChat] = useState<Chat | null>(null)
     const [profile, setProfile] = useState<Profile | null>(null)
     const [showOnboarding, setShowOnboarding] = useState(false)
-    const [sideTab, setSideTab] = useState<'chats' | 'tests' | 'progress' | 'settings'>('chats')
+    const [sideTab, setSideTab] = useState<'chats' | 'tests' | 'progress' | 'flashcards' | 'settings'>('chats')
     const [darkMode, setDarkMode] = useState<boolean>(() => {
         const saved = localStorage.getItem('darkMode')
         return saved === 'true'
@@ -155,6 +155,12 @@ export default function ChatLayout() {
     const [publicTests, setPublicTests] = useState<any[]>([])
     const [myResults, setMyResults] = useState<any[]>([])
     const [stats, setStats] = useState({ chats: 0, messages: 0, streak: 0 })
+    const [progressData, setProgressData] = useState<{ xp: number; streak: number; longestStreak: number } | null>(null)
+    const [dueFlashcards, setDueFlashcards] = useState<Array<{ id: string; front: string; back: string; subject: string }>>([])
+    const [dueCount, setDueCount] = useState(0)
+    const [totalFlashcards, setTotalFlashcards] = useState(0)
+    const [flashIsReview, setFlashIsReview] = useState(false)
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
     const [onboardingForm, setOnboardingForm] = useState({
         subject: 'Matematika', targetScore: 80, examDate: '',
         weakTopics: '', strongTopics: '', concerns: ''
@@ -184,7 +190,7 @@ export default function ChatLayout() {
         try { return new Set(JSON.parse(localStorage.getItem('msert_done_ai_tests') || '[]')) } catch { return new Set() }
     })())
     // Flashcard panel state
-    const [flashPanel, setFlashPanel] = useState<Array<{ front: string; back: string }> | null>(null)
+    const [flashPanel, setFlashPanel] = useState<Array<{ id?: string; front: string; back: string; subject?: string }> | null>(null)
     const [flashIdx, setFlashIdx] = useState(0)
     const [flashFlipped, setFlashFlipped] = useState(false)
     const [flashMaximized, setFlashMaximized] = useState(false)
@@ -198,9 +204,13 @@ export default function ChatLayout() {
     const [testTimeLeft, setTestTimeLeft] = useState<number | null>(null)
     const [raschFeedback, setRaschFeedback] = useState<{ prev: number; next: number } | null>(null)
 
-    // Auto-close sidebar on mobile
+    // Auto-close sidebar on mobile + isMobile track
     useEffect(() => {
-        const checkWidth = () => { if (window.innerWidth < 768) setSideOpen(false) }
+        const checkWidth = () => {
+            const mobile = window.innerWidth < 768
+            setIsMobile(mobile)
+            if (mobile) setSideOpen(false)
+        }
         checkWidth()
         window.addEventListener('resize', checkWidth)
         return () => window.removeEventListener('resize', checkWidth)
@@ -216,7 +226,7 @@ export default function ChatLayout() {
         localStorage.setItem('darkMode', String(darkMode))
     }, [darkMode])
 
-    useEffect(() => { loadChats(); loadProfile(); loadPublicTests(); loadMyResults() }, [])
+    useEffect(() => { loadChats(); loadProfile(); loadPublicTests(); loadMyResults(); loadProgress(); loadDueFlashcards(); logActivity() }, [])
     useEffect(() => { if (chatId) loadMessages(chatId) }, [chatId])
 
     // Panel drag-to-resize (flashcard + test)
@@ -292,6 +302,26 @@ export default function ChatLayout() {
 
     async function loadMyResults() {
         try { setMyResults(await fetchApi('/tests/my-results')) } catch { }
+    }
+
+    async function loadProgress() {
+        try {
+            const data = await fetchApi('/progress/me')
+            setProgressData(data)
+        } catch { }
+    }
+
+    async function loadDueFlashcards() {
+        try {
+            const data = await fetchApi('/flashcards/due')
+            setDueFlashcards(data.cards || [])
+            setDueCount(data.dueCount || 0)
+            setTotalFlashcards(data.total || 0)
+        } catch { }
+    }
+
+    async function logActivity() {
+        try { await fetchApi('/progress/activity', { method: 'POST', body: JSON.stringify({ xpGained: 5 }) }) } catch { }
     }
 
     async function saveOnboarding(e: React.FormEvent) {
@@ -548,6 +578,7 @@ export default function ChatLayout() {
             setFlashPanel(cards)
             setFlashIdx(0)
             setFlashFlipped(false)
+            setFlashIsReview(false) // AI chatdan kelgan — review rejimi emas
         } catch { }
     }, [])
 
@@ -754,9 +785,19 @@ export default function ChatLayout() {
 
     return (
         <div className="h-screen flex overflow-hidden" style={{ background: 'var(--bg-page)' }}>
+            {/* Mobile backdrop */}
+            {sideOpen && isMobile && (
+                <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setSideOpen(false)} />
+            )}
             {/* Sidebar */}
             <div
-                style={{ width: sideOpen ? `${sidebarWidth}px` : '0px', minWidth: sideOpen ? `${sidebarWidth}px` : '0px', background: 'var(--bg-surface)', borderRight: '1px solid var(--border)' }}
+                style={{
+                    width: sideOpen ? (isMobile ? '280px' : `${sidebarWidth}px`) : '0px',
+                    minWidth: sideOpen ? (isMobile ? '280px' : `${sidebarWidth}px`) : '0px',
+                    background: 'var(--bg-surface)',
+                    borderRight: '1px solid var(--border)',
+                    ...(isMobile && sideOpen ? { position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 50 } : {})
+                }}
                 className={`flex flex-col ${isSidebarDragging ? '' : 'transition-all duration-200'} overflow-hidden flex-shrink-0 relative`}
             >
                 <div className="p-3 flex items-center justify-between h-14 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
@@ -769,13 +810,14 @@ export default function ChatLayout() {
                     <button onClick={() => setSideOpen(false)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-muted)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}><X className="h-4 w-4" /></button>
                 </div>
 
-                {/* Side tabs — 4 ta ikonka qator */}
+                {/* Side tabs — 5 ta ikonka qator */}
                 <div className="flex mx-3 mb-2 mt-2 p-0.5 rounded-lg flex-shrink-0" style={{ background: 'var(--bg-muted)' }}>
                     {[
                         { k: 'chats' as const, l: 'Suhbat', icon: '💬' },
                         { k: 'tests' as const, l: 'Testlar', icon: '📝' },
-                        { k: 'progress' as const, l: 'Natijalar', icon: '📊' },
-                        { k: 'settings' as const, l: 'Sozlamalar', icon: '⚙️' },
+                        { k: 'progress' as const, l: 'Natija', icon: '📊' },
+                        { k: 'flashcards' as const, l: 'Karta', icon: '🧠' },
+                        { k: 'settings' as const, l: 'Sozlama', icon: '⚙️' },
                     ].map(t => (
                         <button key={t.k} onClick={() => setSideTab(t.k)}
                             className="flex-1 py-1.5 text-xs font-medium rounded-md transition flex flex-col items-center gap-0.5"
@@ -818,7 +860,11 @@ export default function ChatLayout() {
 
                 {sideTab === 'tests' && (
                     <div className="flex-1 overflow-y-auto px-2 space-y-1">
-                        {publicTests.length === 0 && <p className="text-xs text-center py-8" style={{ color: 'var(--text-muted)' }}>Hozircha testlar yo'q</p>}
+                        {/* O'qituvchi testlari */}
+                        {publicTests.length > 0 && (
+                            <p className="text-[11px] font-semibold uppercase px-1 mb-2 mt-1" style={{ color: 'var(--text-muted)' }}>O'qituvchi testlari</p>
+                        )}
+                        {publicTests.length === 0 && <p className="text-xs text-center py-6" style={{ color: 'var(--text-muted)' }}>Hozircha testlar yo'q</p>}
                         {loadingPublicTest && (
                             <div className="flex justify-center py-4">
                                 <div className="h-4 w-4 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--brand)', borderTopColor: 'transparent' }} />
@@ -831,11 +877,44 @@ export default function ChatLayout() {
                                 <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{t._count?.questions || 0} savol · {t.creator?.name} · {t.subject}</p>
                             </div>
                         ))}
+                        {/* AI testlarim tarixi (localStorage dan) */}
+                        {(() => {
+                            let aiKeys: string[] = []
+                            try { aiKeys = JSON.parse(localStorage.getItem('msert_done_ai_tests') || '[]') } catch { }
+                            if (aiKeys.length === 0) return null
+                            return (
+                                <div className="mt-3">
+                                    <p className="text-[11px] font-semibold uppercase px-1 mb-2" style={{ color: 'var(--text-muted)' }}>AI testlarim ({aiKeys.length})</p>
+                                    {aiKeys.map((_key, i) => (
+                                        <div key={i} className="card p-3 mb-1.5" style={{ opacity: 0.7 }}>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-green-500 text-sm">✅</span>
+                                                <p className="text-[12px] font-medium truncate">AI test #{i + 1}</p>
+                                            </div>
+                                            <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Yechilgan · natija saqlangan</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )
+                        })()}
                     </div>
                 )}
 
                 {sideTab === 'progress' && (
                     <div className="flex-1 overflow-y-auto px-3 space-y-3">
+                        {/* Streak va XP (API dan) */}
+                        {progressData && (
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="rounded-xl p-3 text-center text-white" style={{ background: 'linear-gradient(135deg, #F59E0B, #F97316)' }}>
+                                    <p className="text-2xl font-bold leading-none">🔥 {progressData.streak}</p>
+                                    <p className="text-[10px] opacity-80 mt-1">kun ketma-ket</p>
+                                </div>
+                                <div className="rounded-xl p-3 text-center text-white" style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6)' }}>
+                                    <p className="text-2xl font-bold leading-none">⚡ {progressData.xp}</p>
+                                    <p className="text-[10px] opacity-80 mt-1">XP ball</p>
+                                </div>
+                            </div>
+                        )}
                         {/* Exam countdown */}
                         {daysLeft !== null && (
                             <div className="bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl p-4 text-white">
@@ -948,6 +1027,56 @@ export default function ChatLayout() {
                                 </>
                             )
                         })()}
+                    </div>
+                )}
+
+                {/* Kartochkalar tab */}
+                {sideTab === 'flashcards' && (
+                    <div className="flex-1 overflow-y-auto px-3 space-y-3">
+                        {/* Due count header */}
+                        <div className="rounded-xl p-4 text-white" style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6)' }}>
+                            <p className="text-[11px] opacity-80 mb-1">Bugun takrorlash kerak</p>
+                            <p className="text-3xl font-bold tabular-nums leading-none">{dueCount} <span className="text-sm font-normal opacity-80">ta</span></p>
+                            <p className="text-[11px] opacity-70 mt-1">Jami: {totalFlashcards} ta kartochka</p>
+                        </div>
+                        {dueCount > 0 && (
+                            <button onClick={() => {
+                                setFlashPanel(dueFlashcards)
+                                setFlashIdx(0)
+                                setFlashFlipped(false)
+                                setFlashIsReview(true)
+                            }} className="btn btn-primary w-full h-10 text-sm flex items-center justify-center gap-2">
+                                <Layers className="h-4 w-4" /> Takrorlashni boshlash
+                            </button>
+                        )}
+                        {totalFlashcards === 0 && (
+                            <p className="text-xs text-center py-6" style={{ color: 'var(--text-muted)' }}>Hali kartochkalar yo'q. Chatda AI dan kartochka so'rang.</p>
+                        )}
+                        {dueCount === 0 && totalFlashcards > 0 && (
+                            <div className="rounded-xl p-4 text-center" style={{ background: 'var(--success-light)', border: '1px solid var(--success)' }}>
+                                <p className="text-sm font-semibold" style={{ color: 'var(--success)' }}>✅ Bugungi takrorlash tugadi!</p>
+                                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Ertaga yana kartochkalar bo'ladi</p>
+                            </div>
+                        )}
+                        {dueFlashcards.length > 0 && (
+                            <div>
+                                <p className="text-[11px] font-semibold uppercase mb-2" style={{ color: 'var(--text-muted)' }}>Kutayotgan kartochkalar</p>
+                                <div className="space-y-1.5">
+                                    {dueFlashcards.map((card, i) => (
+                                        <div key={card.id} className="card card-hover p-3 cursor-pointer"
+                                            onClick={() => {
+                                                setFlashPanel(dueFlashcards.slice(i))
+                                                setFlashIdx(0)
+                                                setFlashFlipped(false)
+                                                setFlashIsReview(true)
+                                            }}>
+                                            <p className="text-[12px] font-medium truncate">{card.front}</p>
+                                            <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{card.subject}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -1388,7 +1517,7 @@ export default function ChatLayout() {
                                         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                         {flashMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
                                     </button>
-                                    <button onClick={() => { setFlashPanel(null); setFlashMaximized(false) }}
+                                    <button onClick={() => { setFlashPanel(null); setFlashMaximized(false); setFlashIsReview(false) }}
                                         className="h-7 w-7 flex items-center justify-center rounded-lg transition"
                                         style={{ color: 'var(--text-muted)' }}
                                         onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
@@ -1440,17 +1569,41 @@ export default function ChatLayout() {
 
                             {/* Navigation */}
                             <div className={`p-5 flex gap-3 flex-shrink-0 ${flashMaximized ? 'max-w-2xl w-full mx-auto' : ''}`} style={{ borderTop: '1px solid var(--border)' }}>
-                                <button disabled={flashIdx === 0}
-                                    onClick={() => { setFlashIdx(flashIdx - 1); setFlashFlipped(false) }}
-                                    className="btn btn-outline flex-1 h-12 flex items-center justify-center gap-1.5 disabled:opacity-40">
-                                    <ChevronLeft className="h-4 w-4" /> Oldingi
-                                </button>
-                                <button onClick={() => {
-                                    if (flashIdx < flashPanel.length - 1) { setFlashIdx(flashIdx + 1); setFlashFlipped(false) }
-                                    else { setFlashPanel(null); setFlashMaximized(false) }
-                                }} className="btn btn-primary flex-1 h-12 flex items-center justify-center gap-1.5">
-                                    {flashIdx < flashPanel.length - 1 ? <><span>Keyingi</span><ChevronRight className="h-4 w-4" /></> : 'Tugallash'}
-                                </button>
+                                {flashIsReview && card.id ? (
+                                    <>
+                                        <button onClick={() => {
+                                            fetchApi(`/flashcards/${card.id}/review`, { method: 'POST', body: JSON.stringify({ quality: 1 }) }).catch(() => { })
+                                            if (flashIdx < flashPanel.length - 1) { setFlashIdx(flashIdx + 1); setFlashFlipped(false) }
+                                            else { setFlashPanel(null); setFlashMaximized(false); setFlashIsReview(false); loadDueFlashcards(); loadProgress() }
+                                        }} className="btn flex-1 h-12 flex items-center justify-center gap-1.5 font-semibold"
+                                            style={{ border: '1.5px solid var(--danger)', color: 'var(--danger)', background: 'transparent' }}
+                                            onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-light)'}
+                                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                            😕 Bilmadim
+                                        </button>
+                                        <button onClick={() => {
+                                            fetchApi(`/flashcards/${card.id}/review`, { method: 'POST', body: JSON.stringify({ quality: 4 }) }).catch(() => { })
+                                            if (flashIdx < flashPanel.length - 1) { setFlashIdx(flashIdx + 1); setFlashFlipped(false) }
+                                            else { setFlashPanel(null); setFlashMaximized(false); setFlashIsReview(false); loadDueFlashcards(); loadProgress() }
+                                        }} className="btn btn-primary flex-1 h-12 flex items-center justify-center gap-1.5">
+                                            😊 Bildim
+                                        </button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <button disabled={flashIdx === 0}
+                                            onClick={() => { setFlashIdx(flashIdx - 1); setFlashFlipped(false) }}
+                                            className="btn btn-outline flex-1 h-12 flex items-center justify-center gap-1.5 disabled:opacity-40">
+                                            <ChevronLeft className="h-4 w-4" /> Oldingi
+                                        </button>
+                                        <button onClick={() => {
+                                            if (flashIdx < flashPanel.length - 1) { setFlashIdx(flashIdx + 1); setFlashFlipped(false) }
+                                            else { setFlashPanel(null); setFlashMaximized(false) }
+                                        }} className="btn btn-primary flex-1 h-12 flex items-center justify-center gap-1.5">
+                                            {flashIdx < flashPanel.length - 1 ? <><span>Keyingi</span><ChevronRight className="h-4 w-4" /></> : 'Tugallash'}
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </div>
                     )
