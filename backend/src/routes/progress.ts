@@ -41,12 +41,31 @@ router.get('/me', async (req: any, res) => {
             ? recentTests.reduce((s, a) => s + a.score, 0) / recentTests.length
             : 0
 
+        // Haftalik faollik — so'nggi 7 kun (TestAttempt sanaları bo'yicha)
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+        const weeklyAttempts = await prisma.testAttempt.findMany({
+            where: { userId, createdAt: { gte: sevenDaysAgo } },
+            select: { createdAt: true }
+        })
+        const dayMap: Record<string, number> = {}
+        for (const a of weeklyAttempts) {
+            const key = a.createdAt.toISOString().split('T')[0]
+            dayMap[key] = (dayMap[key] || 0) + 1
+        }
+        const DAY_NAMES = ['Ya', 'Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh']
+        const weeklyActivity = Array.from({ length: 7 }, (_, i) => {
+            const d = new Date(Date.now() - (6 - i) * 24 * 60 * 60 * 1000)
+            const key = d.toISOString().split('T')[0]
+            return { day: DAY_NAMES[d.getDay()], count: dayMap[key] || 0 }
+        })
+
         res.json({
             xp: progress.xp,
             streak: progress.streak,
             longestStreak: progress.longestStreak,
             lastActiveDate: progress.lastActiveDate,
             avgScore: Math.round(avgScore),
+            weeklyActivity,
             recentTests: recentTests.map(a => ({
                 id: a.id,
                 title: a.test.title,

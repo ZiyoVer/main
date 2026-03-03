@@ -155,7 +155,7 @@ export default function ChatLayout() {
     const [publicTests, setPublicTests] = useState<any[]>([])
     const [myResults, setMyResults] = useState<any[]>([])
     const [stats, setStats] = useState({ chats: 0, messages: 0, streak: 0 })
-    const [progressData, setProgressData] = useState<{ xp: number; streak: number; longestStreak: number } | null>(null)
+    const [progressData, setProgressData] = useState<{ xp: number; streak: number; longestStreak: number; avgScore: number; weeklyActivity: Array<{ day: string; count: number }> } | null>(null)
     const [dueFlashcards, setDueFlashcards] = useState<Array<{ id: string; front: string; back: string; subject: string }>>([])
     const [dueCount, setDueCount] = useState(0)
     const [totalFlashcards, setTotalFlashcards] = useState(0)
@@ -171,6 +171,7 @@ export default function ChatLayout() {
     const scrollRef = useRef<HTMLDivElement>(null)
     const abortRef = useRef<AbortController | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const profileRef = useRef<Profile | null>(null)
     const [testPanel, setTestPanel] = useState<string | null>(null)
     const [testAnswers, setTestAnswers] = useState<Record<number, string>>({})
     const [testSubmitted, setTestSubmitted] = useState(false)
@@ -280,6 +281,7 @@ export default function ChatLayout() {
         try {
             const p = await fetchApi('/profile')
             setProfile(p)
+            profileRef.current = p
             if (p && !p.onboardingDone) setShowOnboarding(true)
             if (p) {
                 const weak = p.weakTopics ? JSON.parse(p.weakTopics) : []
@@ -579,8 +581,14 @@ export default function ChatLayout() {
             setFlashIdx(0)
             setFlashFlipped(false)
             setFlashIsReview(false) // AI chatdan kelgan — review rejimi emas
+            // DB ga saqlaymiz — Kartochkalar tabida ko'rinishi uchun (background)
+            const subj = profileRef.current?.subject || 'Umumiy'
+            fetchApi('/flashcards', {
+                method: 'POST',
+                body: JSON.stringify({ subject: subj, cards: cards.map((c: any) => ({ front: String(c.front || ''), back: String(c.back || '') })) })
+            }).then(() => loadDueFlashcards()).catch(() => { })
         } catch { }
-    }, [])
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Public test ochish (sidebar dan)
     async function openPublicTest(t: any) {
@@ -915,6 +923,43 @@ export default function ChatLayout() {
                                 </div>
                             </div>
                         )}
+                        {/* Haftalik faollik grafik */}
+                        {progressData?.weeklyActivity && (
+                            <div className="bg-white rounded-xl p-3 border border-gray-100">
+                                <p className="text-[11px] font-semibold text-gray-400 uppercase mb-2">Haftalik faollik</p>
+                                <div className="flex items-end gap-1 h-12">
+                                    {progressData.weeklyActivity.map((d, i) => {
+                                        const maxCount = Math.max(...progressData.weeklyActivity.map(x => x.count), 1)
+                                        const h = d.count > 0 ? Math.max(6, Math.round((d.count / maxCount) * 44)) : 4
+                                        return (
+                                            <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                                                <div className="w-full rounded-t-sm transition-all duration-300"
+                                                    style={{ height: `${h}px`, background: d.count > 0 ? 'var(--brand)' : 'var(--bg-muted)' }} />
+                                                <span className="text-[9px] text-gray-300">{d.day}</span>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                        {/* Ball prognozi */}
+                        {progressData && progressData.avgScore > 0 && (
+                            <div className="bg-white rounded-xl p-3 border border-gray-100">
+                                <p className="text-[11px] font-semibold text-gray-400 uppercase mb-2">Ball prognozi</p>
+                                <div className="flex items-center gap-3">
+                                    <div className="flex-1">
+                                        <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                            <div className="h-full rounded-full transition-all duration-500"
+                                                style={{ width: `${progressData.avgScore}%`, background: progressData.avgScore >= 70 ? '#10B981' : progressData.avgScore >= 50 ? '#F59E0B' : '#EF4444' }} />
+                                        </div>
+                                    </div>
+                                    <span className="text-sm font-bold tabular-nums" style={{ color: progressData.avgScore >= 70 ? '#10B981' : progressData.avgScore >= 50 ? '#F59E0B' : '#EF4444' }}>
+                                        ~{progressData.avgScore}%
+                                    </span>
+                                </div>
+                                <p className="text-[10px] text-gray-300 mt-1">So'nggi testlar o'rtachasi asosida</p>
+                            </div>
+                        )}
                         {/* Exam countdown */}
                         {daysLeft !== null && (
                             <div className="bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl p-4 text-white">
@@ -1158,13 +1203,31 @@ export default function ChatLayout() {
 
             {/* Main */}
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-                <div className="h-14 flex items-center px-4 gap-3 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
-                    {!sideOpen && <button onClick={() => setSideOpen(true)} className="h-8 w-8 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><Menu className="h-4 w-4" /></button>}
-                    <span className="text-sm font-medium truncate flex-1" style={{ color: 'var(--text-secondary)' }}>{currentChat?.title || ''}</span>
+                <div className="h-14 flex items-center px-4 gap-2 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+                    {!sideOpen && <button onClick={() => setSideOpen(true)} className="h-8 w-8 flex items-center justify-center rounded-lg transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><Menu className="h-4 w-4" /></button>}
+                    <span className="text-sm font-medium truncate flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>{currentChat?.title || ''}</span>
+                    {/* Fan tanlash dropdown */}
+                    {profile?.subject && (
+                        <select
+                            value={profile.subject}
+                            onChange={async e => {
+                                const newSubject = e.target.value
+                                setProfile(p => p ? { ...p, subject: newSubject } : p)
+                                profileRef.current = profileRef.current ? { ...profileRef.current, subject: newSubject } : null
+                                await fetchApi('/profile', { method: 'PUT', body: JSON.stringify({ subject: newSubject }) }).catch(() => { })
+                            }}
+                            className="h-7 text-[12px] font-medium rounded-lg px-2 pr-6 flex-shrink-0 cursor-pointer transition"
+                            style={{ border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-primary)', outline: 'none', maxWidth: '130px' }}
+                        >
+                            {['Matematika', 'Fizika', 'Kimyo', 'Biologiya', 'Ona tili', 'Ingliz tili', 'Tarix', 'Geografiya'].map(f => (
+                                <option key={f} value={f}>{f}</option>
+                            ))}
+                        </select>
+                    )}
                     <button onClick={() => {
                         if (document.fullscreenElement) document.exitFullscreen()
                         else document.documentElement.requestFullscreen()
-                    }} className="h-8 w-8 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} title="To'liq ekran" onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    }} className="h-8 w-8 flex items-center justify-center rounded-lg transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} title="To'liq ekran" onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                         {document.fullscreenElement ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
                     </button>
                 </div>
