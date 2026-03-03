@@ -30,7 +30,6 @@ export default function Login() {
         e.preventDefault()
         setLoading(true)
         setErr('')
-        localStorage.removeItem('token')
         try {
             const data = await fetchApi('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
             login(data.token, data.user)

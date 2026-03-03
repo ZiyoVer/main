@@ -765,7 +765,7 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
         })
 
         // Chat title yangilash (birinchi xabar bo'lsa)
-        if (history.length <= 2) {
+        if (history.length === 0) {
             const titleSrc = displayText?.trim() || content
             const shortTitle = titleSrc.substring(0, 40) + (titleSrc.length > 40 ? '...' : '')
             await prisma.chat.update({ where: { id: chat.id }, data: { title: shortTitle } })
@@ -841,7 +841,7 @@ router.post('/:chatId/send', authenticate, async (req: AuthRequest, res) => {
             data: { chatId: chat.id, role: 'assistant', content: reply }
         })
 
-        if (history.length <= 2) {
+        if (history.length === 0) {
             const shortTitle = content.substring(0, 40) + (content.length > 40 ? '...' : '')
             await prisma.chat.update({ where: { id: chat.id }, data: { title: shortTitle } })
         }

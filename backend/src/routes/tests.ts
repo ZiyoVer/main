@@ -214,7 +214,7 @@ router.get('/by-link/:shareLink', authenticate, async (req: AuthRequest, res) =>
         const test = await prisma.test.findUnique({
             where: { shareLink },
             include: {
-                questions: { orderBy: { orderIdx: 'asc' }, select: { id: true, text: true, options: true, orderIdx: true, correctIdx: true } },
+                questions: { orderBy: { orderIdx: 'asc' }, select: { id: true, text: true, options: true, orderIdx: true } },
                 creator: { select: { name: true } }
             }
         })
@@ -287,13 +287,17 @@ router.post('/:testId/submit', authenticate, async (req: AuthRequest, res) => {
             return att;
         })
 
+        // Submit dan keyin to'g'ri javoblarni qaytaramiz (oldin emas!)
+        const correctAnswers = test.questions.map(q => ({ id: q.id, correctIdx: q.correctIdx }))
+
         res.json({
             attempt,
             score: Math.round(score * 100) / 100,
             correct,
             total: test.questions.length,
             newAbility,
-            results
+            results,
+            correctAnswers
         })
     } catch (e) {
         console.error(e)

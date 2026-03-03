@@ -614,12 +614,14 @@ export default function ChatLayout() {
         try {
             const data = await fetchApi(`/tests/by-link/${t.shareLink}`)
             const rawQuestions = data.questions || []
+            // correctIdx submit qaytarmaguncha ko'rsatilmaydi — default 'a' (submit keyin yangilanadi)
             const converted = rawQuestions.map((q: any) => {
                 const opts = typeof q.options === 'string' ? JSON.parse(q.options) : q.options
                 return {
+                    id: q.id,
                     q: q.text,
                     a: opts[0] || '', b: opts[1] || '', c: opts[2] || '', d: opts[3] || '',
-                    correct: (['a', 'b', 'c', 'd'] as const)[q.correctIdx] ?? 'a'
+                    correct: 'a' // placeholder — submit dan keyin correctAnswers bilan yangilanadi
                 }
             })
             setActiveTestId(t.id)
@@ -763,6 +765,20 @@ export default function ChatLayout() {
                         setRaschFeedback({ prev: prevAbility, next: res.newAbility })
                         loadProfile()
                         loadMyResults()
+                    }
+                    // Submit dan keyin to'g'ri javoblarni ko'rsatish
+                    if (res?.correctAnswers) {
+                        setTestPanel(prev => {
+                            if (!prev) return prev
+                            try {
+                                const qs = JSON.parse(prev)
+                                const updated = qs.map((q: any) => {
+                                    const ca = res.correctAnswers.find((c: any) => c.id === q.id)
+                                    return ca ? { ...q, correct: (['a', 'b', 'c', 'd'] as const)[ca.correctIdx] ?? 'a' } : q
+                                })
+                                return JSON.stringify(updated)
+                            } catch { return prev }
+                        })
                     }
                 })
                 .catch(() => { })
