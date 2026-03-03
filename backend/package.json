@@ -5,7 +5,7 @@
     "scripts": {
         "build": "npx prisma generate && npx tsc",
         "migrate": "npx prisma migrate deploy",
-        "start": "node dist/app.js",
+        "start": "sh start.sh",
         "dev": "nodemon --exec ts-node src/app.ts"
     },
     "dependencies": {
