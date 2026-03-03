@@ -88,18 +88,21 @@ export default function AdminPanel() {
     ]
 
     return (
-        <div className="h-screen bg-[#fafafa] overflow-y-auto">
+        <div className="h-screen overflow-y-auto w-full" style={{ background: 'var(--bg-page)' }}>
             {/* Header */}
-            <header className="bg-white/90 backdrop-blur-xl border-b border-gray-100 sticky top-0 z-40">
+            <header className="sticky top-0 z-40" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', backdropFilter: 'blur(12px)' }}>
                 <div className="max-w-6xl mx-auto flex items-center justify-between py-3 px-5">
                     <div className="flex items-center gap-2">
-                        <div className="h-7 w-7 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-lg flex items-center justify-center">
+                        <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--brand)' }}>
                             <BrainCircuit className="h-3.5 w-3.5 text-white" />
                         </div>
-                        <span className="text-sm font-bold text-gray-900">msert</span>
-                        <span className="text-[11px] text-gray-400 font-medium bg-gray-100 px-2 py-0.5 rounded-md">Admin</span>
+                        <span className="text-sm font-bold">msert</span>
+                        <span className="text-[11px] font-medium px-2 py-0.5 rounded-md" style={{ color: 'var(--text-muted)', background: 'var(--bg-surface)' }}>Admin</span>
                     </div>
-                    <button onClick={() => { logout(); nav('/') }} className="h-8 w-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-gray-100 transition">
+                    <button onClick={() => { logout(); nav('/') }} className="h-8 w-8 flex items-center justify-center rounded-lg transition"
+                        style={{ color: 'var(--text-muted)' }}
+                        onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.background = 'var(--danger-light)' }}
+                        onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' }}>
                         <LogOut className="h-4 w-4" />
                     </button>
                 </div>
@@ -107,10 +110,11 @@ export default function AdminPanel() {
 
             <div className="max-w-6xl mx-auto px-5 py-5">
                 {/* Tabs */}
-                <div className="flex gap-0.5 mb-5 bg-gray-100 rounded-xl p-1 w-fit overflow-x-auto">
+                <div className="flex gap-0.5 mb-5 rounded-xl p-1 w-fit overflow-x-auto" style={{ background: 'var(--bg-surface)' }}>
                     {tabs.map(t => (
                         <button key={t.k} onClick={() => setTab(t.k)}
-                            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[13px] font-medium transition whitespace-nowrap ${tab === t.k ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[13px] font-medium transition whitespace-nowrap"
+                            style={tab === t.k ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { color: 'var(--text-secondary)' }}>
                             <t.icon className="h-3.5 w-3.5" /> {t.l}
                         </button>
                     ))}

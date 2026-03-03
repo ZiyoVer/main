@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, ShieldCheck } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
@@ -9,44 +9,111 @@ export default function AdminLogin() {
     const login = useAuthStore(s => s.login)
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
-    const [showPassword, setShowPassword] = useState(false)
+    const [showPw, setShowPw] = useState(false)
     const [err, setErr] = useState('')
     const [loading, setLoading] = useState(false)
 
     const submit = async (e: React.FormEvent) => {
-        e.preventDefault(); setLoading(true); setErr('')
+        e.preventDefault()
+        setLoading(true)
+        setErr('')
         localStorage.removeItem('token')
         try {
             const data = await fetchApi('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
-            if (data.user.role === 'STUDENT') { setErr('Faqat admin va o\'qituvchilar kirishi mumkin'); setLoading(false); return }
+            if (data.user.role === 'STUDENT') {
+                setErr("Faqat Admin va O'qituvchilar kirishi mumkin")
+                setLoading(false)
+                return
+            }
             login(data.token, data.user)
             nav(data.user.role === 'ADMIN' ? '/admin' : '/teacher')
-        } catch (e: any) { setErr(e.message) }
+        } catch (e: any) {
+            setErr(e.message)
+        }
         setLoading(false)
     }
 
     return (
-        <div className="h-screen bg-gray-950 flex items-center justify-center p-6 relative overflow-y-auto w-full">
-            <div className="absolute top-10 left-20 w-72 h-72 bg-red-500/10 rounded-full blur-3xl" />
-            <div className="w-full max-w-sm glass rounded-3xl p-8 anim-up">
-                <div className="text-center mb-7">
-                    <div className="text-3xl mb-2">🛡️</div>
-                    <h1 className="text-xl font-bold text-white">Boshqaruv Paneli</h1>
-                    <p className="text-sm text-gray-400">Faqat Admin va O'qituvchilar</p>
-                </div>
-                {err && <div className="bg-red-500/10 text-red-400 text-sm px-4 py-2.5 rounded-xl mb-4">{err}</div>}
-                <form onSubmit={submit} className="space-y-4">
-                    <input type="email" placeholder="Email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full h-11 px-4 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-gray-500 focus:border-red-500 outline-none text-sm" />
-                    <div className="relative">
-                        <input type={showPassword ? "text" : "password"} placeholder="Parol" required value={password} onChange={e => setPassword(e.target.value)} className="w-full h-11 px-4 pr-10 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-gray-500 focus:border-red-500 outline-none text-sm" />
-                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition">
-                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
+        <div
+            className="min-h-screen flex items-center justify-center p-5"
+            style={{ background: 'var(--bg-page)' }}
+        >
+            <div className="w-full max-w-sm anim-up">
+
+                {/* Icon */}
+                <div className="flex justify-center mb-8">
+                    <div
+                        className="h-14 w-14 rounded-2xl flex items-center justify-center"
+                        style={{ background: 'var(--bg-surface)', border: '1.5px solid var(--border)' }}
+                    >
+                        <ShieldCheck className="h-7 w-7" style={{ color: 'var(--brand)' }} />
                     </div>
-                    <button type="submit" disabled={loading} className="w-full h-11 rounded-xl text-sm font-semibold text-white bg-red-600 hover:bg-red-700 transition disabled:opacity-50">
-                        {loading ? 'Tekshirilmoqda...' : 'Kirish'}
-                    </button>
-                </form>
+                </div>
+
+                <div className="card" style={{ padding: '2rem' }}>
+                    <div className="text-center mb-6">
+                        <h1 className="text-xl font-bold mb-1">Boshqaruv Kirishi</h1>
+                        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                            Faqat Admin va O'qituvchilar uchun
+                        </p>
+                    </div>
+
+                    {err && (
+                        <div className="text-sm px-3.5 py-2.5 rounded-lg mb-4" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>
+                            {err}
+                        </div>
+                    )}
+
+                    <form onSubmit={submit} className="space-y-4">
+                        <div>
+                            <label className="text-sm font-medium block mb-1.5">Email</label>
+                            <input
+                                type="email"
+                                required
+                                value={email}
+                                onChange={e => setEmail(e.target.value)}
+                                placeholder="admin@misol.uz"
+                                className="input"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="text-sm font-medium block mb-1.5">Parol</label>
+                            <div style={{ position: 'relative' }}>
+                                <input
+                                    type={showPw ? 'text' : 'password'}
+                                    required
+                                    value={password}
+                                    onChange={e => setPassword(e.target.value)}
+                                    placeholder="••••••••"
+                                    className="input"
+                                    style={{ paddingRight: '2.75rem' }}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPw(!showPw)}
+                                    style={{
+                                        position: 'absolute', right: '0.75rem', top: '50%',
+                                        transform: 'translateY(-50%)', color: 'var(--text-muted)',
+                                        background: 'none', border: 'none', cursor: 'pointer',
+                                        display: 'flex', alignItems: 'center'
+                                    }}
+                                >
+                                    {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </button>
+                            </div>
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="btn btn-primary"
+                            style={{ width: '100%' }}
+                        >
+                            {loading ? 'Tekshirilmoqda...' : 'Kirish'}
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
     )

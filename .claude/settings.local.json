@@ -8,7 +8,8 @@
       "WebFetch(domain:support.claude.com)",
       "Bash(npx tsc:*)",
       "Bash(npm run:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(./node_modules/.bin/tsc:*)"
     ]
   }
 }

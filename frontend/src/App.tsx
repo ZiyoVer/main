@@ -13,7 +13,7 @@ import NotFound from './pages/NotFound'
 function ProtectedRoute({ children, roles }: { children: React.ReactNode, roles?: string[] }) {
     const { user, token } = useAuthStore()
     const location = useLocation()
-    if (!token || !user) return <Navigate to="/login" state={{ from: location.pathname }} replace />
+    if (!token || !user) return <Navigate to="/kirish" state={{ from: location.pathname }} replace />
     if (roles && !roles.includes(user.role)) return <Navigate to="/" replace />
     return <>{children}</>
 }
@@ -22,6 +22,9 @@ export default function App() {
     return (
         <Routes>
             <Route path="/" element={<Landing />} />
+            <Route path="/kirish" element={<Login />} />
+            <Route path="/royxat" element={<Register />} />
+            {/* Legacy routes — backward compat */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/admin-login" element={<AdminLogin />} />

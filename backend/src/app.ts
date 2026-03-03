@@ -84,6 +84,8 @@ import docRoutes from './routes/documents'
 import analyticsRoutes from './routes/analytics'
 import profileRoutes from './routes/profile'
 import aiSettingsRoutes from './routes/aiSettings'
+import progressRoutes from './routes/progress'
+import flashcardsRoutes from './routes/flashcards'
 
 app.get('/api/health', async (_req, res) => {
     try {
@@ -101,6 +103,8 @@ app.use('/api/documents', uploadLimiter, docRoutes)
 app.use('/api/analytics', apiLimiter, analyticsRoutes)
 app.use('/api/profile', apiLimiter, profileRoutes)
 app.use('/api/ai-settings', apiLimiter, aiSettingsRoutes)
+app.use('/api/progress', apiLimiter, progressRoutes)
+app.use('/api/flashcards', apiLimiter, flashcardsRoutes)
 
 // 404 handler (API)
 app.use('/api', (_req, res) => {

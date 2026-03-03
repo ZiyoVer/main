@@ -1,69 +1,298 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { BrainCircuit, Eye, EyeOff } from 'lucide-react'
+import { BrainCircuit, Eye, EyeOff, Check } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 
+const SUBJECTS = ['Matematika', 'Fizika', 'Kimyo', 'Biologiya', 'Ona tili va adabiyoti', 'Ingliz tili', 'Tarix', 'Geografiya']
+
 export default function Register() {
     const nav = useNavigate()
-    const { token, user } = useAuthStore()
+    const { token, user, login } = useAuthStore()
 
-    // Already logged in — redirect
     useEffect(() => {
         if (token && user) nav('/chat', { replace: true })
     }, [])
+
+    const [step, setStep] = useState(1)
     const [form, setForm] = useState({ name: '', email: '', password: '' })
+    const [examType, setExamType] = useState<'DTM' | 'MS' | ''>('')
+    const [subject1, setSubject1] = useState('')
+    const [subject2, setSubject2] = useState('')
+    const [examDate, setExamDate] = useState('')
+    const [targetScore, setTargetScore] = useState('')
+    const [showPw, setShowPw] = useState(false)
     const [err, setErr] = useState('')
     const [loading, setLoading] = useState(false)
-    const [showPassword, setShowPassword] = useState(false)
+
+    const step1Valid = form.name.trim() && form.email.trim() && form.password.length >= 6
 
     const submit = async (e: React.FormEvent) => {
-        e.preventDefault(); setLoading(true); setErr('')
+        e.preventDefault()
+        setLoading(true)
+        setErr('')
         try {
-            await fetchApi('/auth/register', { method: 'POST', body: JSON.stringify(form) })
-            nav('/login')
-        } catch (e: any) { setErr(e.message) }
+            await fetchApi('/auth/register', {
+                method: 'POST',
+                body: JSON.stringify({
+                    name: form.name,
+                    email: form.email,
+                    password: form.password,
+                    examType,
+                    subject: subject1 || undefined,
+                    subject2: subject2 || undefined,
+                    examDate: examDate || undefined,
+                    targetScore: targetScore ? parseInt(targetScore) : undefined
+                })
+            })
+            // Ro'yxatdan so'ng avtomatik tizimga kirish va chatga yo'naltirish
+            const loginData = await fetchApi('/auth/login', { method: 'POST', body: JSON.stringify({ email: form.email, password: form.password }) })
+            login(loginData.token, loginData.user)
+            nav('/chat', { replace: true })
+        } catch (e: any) {
+            setErr(e.message)
+        }
         setLoading(false)
     }
 
     return (
-        <div className="h-screen bg-[#fafafa] flex overflow-y-auto w-full">
-            <div className="hidden lg:flex flex-1 bg-mesh-dark items-center justify-center relative overflow-hidden">
-                <div className="absolute bottom-20 right-10 w-96 h-96 bg-emerald-500/8 rounded-full blur-3xl anim-float d2" />
-                <div className="text-center z-10 anim-up">
-                    <div className="h-16 w-16 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl mx-auto mb-6 flex items-center justify-center shadow-xl shadow-blue-500/30">
-                        <BrainCircuit className="h-8 w-8 text-white" />
+        <div
+            className="min-h-screen flex items-center justify-center p-5"
+            style={{ background: 'var(--bg-page)' }}
+        >
+            <div className="w-full max-w-sm anim-up">
+
+                {/* Logo */}
+                <div className="flex items-center gap-2 justify-center mb-8">
+                    <div className="h-9 w-9 rounded-xl flex items-center justify-center" style={{ background: 'var(--brand)' }}>
+                        <BrainCircuit className="h-5 w-5 text-white" />
                     </div>
-                    <h2 className="text-3xl font-extrabold text-white mb-3">msert</h2>
-                    <p className="text-gray-400 font-light max-w-xs">AI yordamida o'qib, milliy sertifikat oling</p>
+                    <span className="font-bold text-xl tracking-tight">msert</span>
                 </div>
-            </div>
-            <div className="flex-1 flex items-center justify-center p-6">
-                <div className="w-full max-w-sm anim-up">
-                    <h1 className="text-2xl font-extrabold text-gray-900 mb-1">Akkaunt yarating</h1>
-                    <p className="text-gray-500 mb-7 text-sm">Bepul ro'yxatdan o'ting</p>
-                    {err && <div className="bg-red-50 text-red-600 text-sm px-4 py-2.5 rounded-xl mb-4">{err}</div>}
-                    <form onSubmit={submit} className="space-y-4">
-                        <div><label className="text-sm font-medium text-gray-700 block mb-1">Ism</label>
-                            <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full h-11 px-4 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition text-sm" />
-                        </div>
-                        <div><label className="text-sm font-medium text-gray-700 block mb-1">Email</label>
-                            <input type="email" required value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="w-full h-11 px-4 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition text-sm" />
-                        </div>
-                        <div><label className="text-sm font-medium text-gray-700 block mb-1">Parol</label>
-                            <div className="relative">
-                                <input type={showPassword ? "text" : "password"} required value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} className="w-full h-11 px-4 pr-10 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition text-sm" />
-                                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition">
-                                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+
+                {/* Step indicators */}
+                <div className="flex justify-center items-center gap-2 mb-6">
+                    <div className={`step-dot ${step === 1 ? 'active' : ''}`} style={step > 1 ? { background: 'var(--brand)', width: '8px' } : {}} />
+                    <div className={`step-dot ${step === 2 ? 'active' : ''}`} />
+                </div>
+
+                {/* Card */}
+                <div className="card" style={{ padding: '2rem' }}>
+
+                    {step === 1 && (
+                        <>
+                            <h1 className="text-xl font-bold mb-1">Akkaunt yarating</h1>
+                            <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
+                                Bepul ro'yxatdan o'ting
+                            </p>
+
+                            {err && (
+                                <div className="text-sm px-3.5 py-2.5 rounded-lg mb-4" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>
+                                    {err}
+                                </div>
+                            )}
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-sm font-medium block mb-1.5">Ismingiz</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={form.name}
+                                        onChange={e => setForm({ ...form, name: e.target.value })}
+                                        placeholder="Ismingiz"
+                                        className="input"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium block mb-1.5">Email</label>
+                                    <input
+                                        type="email"
+                                        required
+                                        value={form.email}
+                                        onChange={e => setForm({ ...form, email: e.target.value })}
+                                        placeholder="email@misol.uz"
+                                        className="input"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium block mb-1.5">Parol</label>
+                                    <div style={{ position: 'relative' }}>
+                                        <input
+                                            type={showPw ? 'text' : 'password'}
+                                            required
+                                            value={form.password}
+                                            onChange={e => setForm({ ...form, password: e.target.value })}
+                                            placeholder="Kamida 6 belgi"
+                                            className="input"
+                                            style={{ paddingRight: '2.75rem' }}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPw(!showPw)}
+                                            style={{
+                                                position: 'absolute', right: '0.75rem', top: '50%',
+                                                transform: 'translateY(-50%)', color: 'var(--text-muted)',
+                                                background: 'none', border: 'none', cursor: 'pointer',
+                                                display: 'flex', alignItems: 'center'
+                                            }}
+                                        >
+                                            {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    disabled={!step1Valid}
+                                    onClick={() => setStep(2)}
+                                    className="btn btn-primary"
+                                    style={{ width: '100%' }}
+                                >
+                                    Davom etish →
                                 </button>
                             </div>
-                        </div>
-                        <button type="submit" disabled={loading} className="w-full h-11 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-cyan-500 shadow-lg shadow-blue-500/25 disabled:opacity-50 transition">
-                            {loading ? 'Yaratilmoqda...' : 'Ro\'yxatdan O\'tish'}
-                        </button>
-                    </form>
-                    <p className="mt-6 text-center text-sm text-gray-500">Akkauntingiz bormi? <Link to="/login" className="font-semibold text-blue-600">Kirish</Link></p>
+                        </>
+                    )}
+
+                    {step === 2 && (
+                        <form onSubmit={submit}>
+                            <h1 className="text-xl font-bold mb-1">Imtihon ma'lumotlari</h1>
+                            <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
+                                Ixtiyoriy — keyinroq ham o'zgartirishingiz mumkin
+                            </p>
+
+                            {/* Exam type */}
+                            <div className="mb-4">
+                                <label className="text-sm font-medium block mb-2">Imtihon turi</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {(['DTM', 'MS'] as const).map(t => (
+                                        <button
+                                            key={t}
+                                            type="button"
+                                            onClick={() => setExamType(t)}
+                                            className="btn btn-outline"
+                                            style={{
+                                                height: '3rem',
+                                                background: examType === t ? 'var(--brand-light)' : '',
+                                                borderColor: examType === t ? 'var(--brand)' : '',
+                                                color: examType === t ? 'var(--brand-hover)' : '',
+                                                position: 'relative'
+                                            }}
+                                        >
+                                            {examType === t && (
+                                                <Check className="h-3.5 w-3.5 absolute top-1.5 right-1.5" />
+                                            )}
+                                            {t === 'DTM' ? 'DTM' : 'Milliy Sertifikat'}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Subject selection */}
+                            {examType === 'DTM' && (
+                                <div className="space-y-3 mb-4">
+                                    <div>
+                                        <label className="text-sm font-medium block mb-1.5">1-ixtisoslik fani</label>
+                                        <select
+                                            value={subject1}
+                                            onChange={e => setSubject1(e.target.value)}
+                                            className="input"
+                                            style={{ cursor: 'pointer' }}
+                                        >
+                                            <option value="">— Tanlang —</option>
+                                            {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-sm font-medium block mb-1.5">2-ixtisoslik fani</label>
+                                        <select
+                                            value={subject2}
+                                            onChange={e => setSubject2(e.target.value)}
+                                            className="input"
+                                            style={{ cursor: 'pointer' }}
+                                        >
+                                            <option value="">— Tanlang —</option>
+                                            {SUBJECTS.filter(s => s !== subject1).map(s => <option key={s} value={s}>{s}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+                            )}
+
+                            {examType === 'MS' && (
+                                <div className="mb-4">
+                                    <label className="text-sm font-medium block mb-1.5">Fan</label>
+                                    <select
+                                        value={subject1}
+                                        onChange={e => setSubject1(e.target.value)}
+                                        className="input"
+                                        style={{ cursor: 'pointer' }}
+                                    >
+                                        <option value="">— Tanlang —</option>
+                                        {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                </div>
+                            )}
+
+                            {/* Exam date + target */}
+                            <div className="space-y-3 mb-5">
+                                <div>
+                                    <label className="text-sm font-medium block mb-1.5">Imtihon sanasi <span style={{ color: 'var(--text-muted)' }}>(ixtiyoriy)</span></label>
+                                    <input
+                                        type="date"
+                                        value={examDate}
+                                        onChange={e => setExamDate(e.target.value)}
+                                        className="input"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium block mb-1.5">Maqsad ball <span style={{ color: 'var(--text-muted)' }}>(ixtiyoriy)</span></label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        max="189"
+                                        placeholder="Masalan: 150"
+                                        value={targetScore}
+                                        onChange={e => setTargetScore(e.target.value)}
+                                        className="input"
+                                    />
+                                </div>
+                            </div>
+
+                            {err && (
+                                <div className="text-sm px-3.5 py-2.5 rounded-lg mb-4" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>
+                                    {err}
+                                </div>
+                            )}
+
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setStep(1)}
+                                    className="btn btn-outline"
+                                    style={{ flex: '0 0 auto' }}
+                                >
+                                    ←
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="btn btn-primary"
+                                    style={{ flex: 1 }}
+                                >
+                                    {loading ? 'Yaratilmoqda...' : 'Ro\'yxatdan o\'tish ✓'}
+                                </button>
+                            </div>
+                        </form>
+                    )}
                 </div>
+
+                <p className="text-center text-sm mt-5" style={{ color: 'var(--text-secondary)' }}>
+                    Akkauntingiz bormi?{' '}
+                    <Link to="/kirish" className="font-semibold" style={{ color: 'var(--brand)' }}>
+                        Kirish
+                    </Link>
+                </p>
             </div>
         </div>
     )

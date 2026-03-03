@@ -25,6 +25,9 @@ model User {
   visitLogs    VisitLog[]
   profile      StudentProfile?
   testsCreated Test[]         @relation("TestCreator")
+  progress     UserProgress?
+  topicStats   TopicStat[]
+  flashcards   Flashcard[]
 }
 
 enum Role {
@@ -181,4 +184,54 @@ model AISetting {
   key       String   @unique  // "system_prompt_extra", "temperature", "max_tokens", "behavior_rules"
   value     String   // JSON or string value
   updatedAt DateTime @updatedAt
+}
+
+// ============ GAMIFICATION ============
+
+model UserProgress {
+  id             String    @id @default(uuid())
+  userId         String    @unique
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  xp             Int       @default(0)
+  streak         Int       @default(0)
+  longestStreak  Int       @default(0)
+  lastActiveDate DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model TopicStat {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject       String
+  topic         String
+  correct       Int       @default(0)
+  total         Int       @default(0)
+  lastPracticed DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@unique([userId, subject, topic])
+  @@index([userId])
+  @@index([userId, subject])
+}
+
+model Flashcard {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject    String
+  front      String
+  back       String
+  nextReview DateTime @default(now())
+  interval   Int      @default(1)    // kunlar
+  ease       Float    @default(2.5)  // SM-2 easiness factor
+  repetitions Int     @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, subject])
+  @@index([userId, nextReview])
 }
