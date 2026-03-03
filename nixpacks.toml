@@ -11,4 +11,4 @@ cmds = [
 ]
 
 [start]
-cmd = "cd backend && if [ \"$DB_RESET\" = \"true\" ]; then npx prisma db execute --url $DATABASE_URL --stdin <<< 'DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO PUBLIC;' 2>/dev/null || true; fi && npx prisma db push --accept-data-loss && node dist/app.js"
+cmd = "cd backend && sh start.sh"
