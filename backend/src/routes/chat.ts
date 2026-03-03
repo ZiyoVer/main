@@ -677,7 +677,8 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
         ]
 
         // Model tanlash: thinking=true -> deepseek-reasoner (R1), aks holda deepseek-chat (V3)
-        const model = thinking ? 'deepseek-reasoner' : 'deepseek-chat'
+        // Agar umuman DeepSeek ulangan bo'lmasa, gpt-4o-mini ga fallback qilamiz
+        const model = hasDeepseek ? (thinking ? 'deepseek-reasoner' : 'deepseek-chat') : chatModel
 
         // SSE headers
         res.setHeader('Content-Type', 'text/event-stream')
@@ -692,13 +693,16 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
         req.on('close', () => { aborted = true })
 
         const streamOptions: any = {
-            model: chatModel,
+            model: model,
             messages,
-            max_tokens: thinking ? 8192 : aiSettings.maxTokens,
             stream: true
         }
-        // deepseek-reasoner doesn't support temperature
-        if (!thinking) {
+
+        if (model === 'deepseek-reasoner') {
+            streamOptions.max_tokens = 8192
+        } else {
+            // GPT yoki oddiy V3 model
+            streamOptions.max_tokens = aiSettings.maxTokens
             streamOptions.temperature = aiSettings.temperature
         }
 
