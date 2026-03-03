@@ -530,7 +530,7 @@ export default function ChatLayout() {
         e.stopPropagation()
         try {
             await fetchApi(`/chat/${id}`, { method: 'DELETE' })
-            if (chatId === id) { nav('/chat'); setMessages([]); setCurrentChat(null) }
+            if (chatId === id) { nav('/suhbat'); setMessages([]); setCurrentChat(null) }
             loadChats()
         } catch { }
     }
