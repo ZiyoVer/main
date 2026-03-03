@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, Sun, Moon, Search, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import remarkGfm from 'remark-gfm'
@@ -59,7 +59,7 @@ const MdMessage = memo(({ content, onOpenTest, isStreaming, onProfileUpdate, onO
                         <div className="flex items-center gap-3">
                             <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--brand)' }}><ClipboardList className="h-5 w-5 text-white" /></div>
                             <div>
-                                <p className="text-sm font-semibold">📋 Test tayyor — {qCount} savol</p>
+                                <p className="text-sm font-semibold">Test tayyor — {qCount} savol</p>
                                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Yon oynada yechishingiz mumkin</p>
                             </div>
                         </div>
@@ -88,8 +88,8 @@ const MdMessage = memo(({ content, onOpenTest, isStreaming, onProfileUpdate, onO
                             </div>
                         </div>
                         <div className="space-y-1 mb-3">
-                            {hasWeak && <p className="text-xs">⚠️ <strong>Qiyin mavzular:</strong> {data.weakTopics!.join(', ')}</p>}
-                            {hasStrong && <p className="text-xs">✅ <strong>Kuchli mavzular:</strong> {data.strongTopics!.join(', ')}</p>}
+                            {hasWeak && <p className="text-xs flex items-start gap-1.5"><AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" style={{ color: 'var(--danger)' }} /><span><strong>Qiyin mavzular:</strong> {data.weakTopics!.join(', ')}</span></p>}
+                            {hasStrong && <p className="text-xs flex items-start gap-1.5"><CheckCircle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" style={{ color: 'var(--success)' }} /><span><strong>Kuchli mavzular:</strong> {data.strongTopics!.join(', ')}</span></p>}
                         </div>
                         {onProfileUpdate && !isStreaming && (
                             <button onClick={() => onProfileUpdate(data)}
@@ -111,7 +111,7 @@ const MdMessage = memo(({ content, onOpenTest, isStreaming, onProfileUpdate, onO
                                 <Layers className="h-5 w-5 text-white" />
                             </div>
                             <div>
-                                <p className="text-sm font-semibold">🃏 {count} ta kartochka tayyor</p>
+                                <p className="text-sm font-semibold">{count} ta kartochka tayyor</p>
                                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Bosib aylantiring — formula/javob ko'ring</p>
                             </div>
                         </div>
@@ -849,18 +849,18 @@ export default function ChatLayout() {
                 {/* Side tabs — 5 ta ikonka qator */}
                 <div className="flex mx-3 mb-2 mt-2 p-0.5 rounded-lg flex-shrink-0" style={{ background: 'var(--bg-muted)' }}>
                     {[
-                        { k: 'chats' as const, l: 'Suhbat', icon: '💬' },
-                        { k: 'tests' as const, l: 'Testlar', icon: '📝' },
-                        { k: 'progress' as const, l: 'Natija', icon: '📊' },
-                        { k: 'flashcards' as const, l: 'Karta', icon: '🧠' },
-                        { k: 'settings' as const, l: 'Sozlama', icon: '⚙️' },
+                        { k: 'chats' as const, l: 'Suhbat', Icon: MessageSquare },
+                        { k: 'tests' as const, l: 'Testlar', Icon: ClipboardList },
+                        { k: 'progress' as const, l: 'Natija', Icon: TrendingUp },
+                        { k: 'flashcards' as const, l: 'Karta', Icon: Brain },
+                        { k: 'settings' as const, l: 'Sozlama', Icon: Settings },
                     ].map(t => (
                         <button key={t.k} onClick={() => setSideTab(t.k)}
                             className="flex-1 py-1.5 text-xs font-medium rounded-md transition flex flex-col items-center gap-0.5"
                             style={sideTab === t.k ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { color: 'var(--text-secondary)' }}
                             title={t.l}
                         >
-                            <span className="text-base leading-none">{t.icon}</span>
+                            <t.Icon className="h-4 w-4" />
                             <span className="text-[10px]">{t.l}</span>
                         </button>
                     ))}
@@ -924,7 +924,7 @@ export default function ChatLayout() {
                                     {aiKeys.map((_key, i) => (
                                         <div key={i} className="card p-3 mb-1.5" style={{ opacity: 0.7 }}>
                                             <div className="flex items-center gap-2">
-                                                <span className="text-green-500 text-sm">✅</span>
+                                                <CheckCircle className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--success)' }} />
                                                 <p className="text-[12px] font-medium truncate">AI test #{i + 1}</p>
                                             </div>
                                             <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Yechilgan · natija saqlangan</p>
@@ -942,11 +942,17 @@ export default function ChatLayout() {
                         {progressData && (
                             <div className="grid grid-cols-2 gap-2">
                                 <div className="rounded-xl p-3 text-center text-white" style={{ background: 'linear-gradient(135deg, #F59E0B, #F97316)' }}>
-                                    <p className="text-2xl font-bold leading-none">🔥 {progressData.streak}</p>
+                                    <div className="flex items-center justify-center gap-1.5 mb-0.5">
+                                        <Flame className="h-5 w-5" />
+                                        <p className="text-2xl font-bold leading-none">{progressData.streak}</p>
+                                    </div>
                                     <p className="text-[10px] opacity-80 mt-1">kun ketma-ket</p>
                                 </div>
                                 <div className="rounded-xl p-3 text-center text-white" style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6)' }}>
-                                    <p className="text-2xl font-bold leading-none">⚡ {progressData.xp}</p>
+                                    <div className="flex items-center justify-center gap-1.5 mb-0.5">
+                                        <Zap className="h-5 w-5" />
+                                        <p className="text-2xl font-bold leading-none">{progressData.xp}</p>
+                                    </div>
                                     <p className="text-[10px] opacity-80 mt-1">XP ball</p>
                                 </div>
                             </div>
@@ -1127,7 +1133,7 @@ export default function ChatLayout() {
                         )}
                         {dueCount === 0 && totalFlashcards > 0 && (
                             <div className="rounded-xl p-4 text-center" style={{ background: 'var(--success-light)', border: '1px solid var(--success)' }}>
-                                <p className="text-sm font-semibold" style={{ color: 'var(--success)' }}>✅ Bugungi takrorlash tugadi!</p>
+                                <p className="text-sm font-semibold flex items-center justify-center gap-1.5" style={{ color: 'var(--success)' }}><CheckCircle className="h-4 w-4" /> Bugungi takrorlash tugadi!</p>
                                 <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Ertaga yana kartochkalar bo'ladi</p>
                             </div>
                         )}
@@ -1175,7 +1181,10 @@ export default function ChatLayout() {
                             <p className="text-[11px] font-semibold uppercase mb-3" style={{ color: 'var(--text-muted)' }}>Ko'rinish</p>
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm font-medium">{darkMode ? "\ud83c\udf19 Qorong\u2019i rejim" : "\u2600\ufe0f Yorug\u2019 rejim"}</p>
+                                    <div className="flex items-center gap-1.5">
+                                        {darkMode ? <Moon className="h-4 w-4" style={{ color: 'var(--brand)' }} /> : <Sun className="h-4 w-4" style={{ color: 'var(--brand)' }} />}
+                                        <p className="text-sm font-medium">{darkMode ? "Qorong'i rejim" : "Yorug' rejim"}</p>
+                                    </div>
                                     <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Mavzu almashtirish</p>
                                 </div>
                                 <button
@@ -1213,7 +1222,7 @@ export default function ChatLayout() {
                             <div className="h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-semibold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>{user?.name?.[0]?.toUpperCase()}</div>
                             <div className="flex-1 min-w-0"><p className="text-[13px] font-medium truncate">{user?.name}</p></div>
                             <button onClick={() => setDarkMode(!darkMode)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} title={darkMode ? 'Yorug rejim' : 'Qorong\'i rejim'}>
-                                <span className="text-base">{darkMode ? '☀️' : '🌙'}</span>
+                                {darkMode ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
                             </button>
                             <button onClick={() => setSideTab('settings')} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} title="Sozlamalar"><Settings className="h-3.5 w-3.5" /></button>
                         </div>
@@ -1253,9 +1262,9 @@ export default function ChatLayout() {
                             ))}
                         </select>
                     )}
-                    {/* 🌙 Dark mode toggle */}
+                    {/* Dark mode toggle */}
                     <button onClick={() => setDarkMode(!darkMode)} className="h-8 w-8 flex items-center justify-center rounded-lg transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} title={darkMode ? 'Yorug\' rejim' : 'Qorong\'i rejim'} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                        <span className="text-base leading-none">{darkMode ? '☀️' : '🌙'}</span>
+                        {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                     </button>
                     {/* 👤 Profile avatar — settings tabini ochadi */}
                     <button onClick={() => { setSideOpen(true); setSideTab('settings') }} className="h-8 w-8 rounded-full flex items-center justify-center text-[12px] font-semibold text-white flex-shrink-0 transition" style={{ background: 'var(--brand)' }} title={user?.name || 'Profil'}>
@@ -1275,12 +1284,12 @@ export default function ChatLayout() {
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
                                     {[
-                                        { icon: '📖', title: 'Mavzu tushuntir', desc: 'Mavzuni boshidan tushuntirib ber', prompt: 'Menga bugungi mavzuni boshidan tushuntirib bering' },
-                                        { icon: '📝', title: 'Bilimimni testla', desc: 'Test savollari bilan tekshir', prompt: 'Mening bilimimni test savollari bilan tekshiring' },
-                                        { icon: '📋', title: "O'quv reja tuz", desc: "Imtihongacha bo'lgan reja", prompt: "Imtihongacha bo'lgan kunlar uchun batafsil o'quv reja tuzing." },
-                                        { icon: '💡', title: 'Formula va qoidalar', desc: 'Asosiy formulalarni ko\'rsat', prompt: 'Bu fandagi eng muhim formulalar va qoidalarni ko\'rsating.' },
-                                        { icon: '🔍', title: 'Zaif joylarimni aniqla', desc: 'Diagnostika qil', prompt: 'Mening bilim darajamni aniqlash uchun diagnostik savollar bering.' },
-                                        { icon: '🎯', title: 'Imtihon strategiya', desc: 'Vaqt taktikasi', prompt: 'Milliy sertifikat imtihonida vaqt boshqarish strategiyasini o\'rgating' },
+                                        { Icon: BookOpen, color: '#6366F1', title: 'Mavzu tushuntir', desc: 'Mavzuni boshidan tushuntirib ber', prompt: 'Menga bugungi mavzuni boshidan tushuntirib bering' },
+                                        { Icon: ClipboardList, color: '#D97706', title: 'Bilimimni testla', desc: 'Test savollari bilan tekshir', prompt: 'Mening bilimimni test savollari bilan tekshiring' },
+                                        { Icon: Target, color: '#0891B2', title: "O'quv reja tuz", desc: "Imtihongacha bo'lgan reja", prompt: "Imtihongacha bo'lgan kunlar uchun batafsil o'quv reja tuzing." },
+                                        { Icon: Lightbulb, color: '#16A34A', title: 'Formula va qoidalar', desc: 'Asosiy formulalarni ko\'rsat', prompt: 'Bu fandagi eng muhim formulalar va qoidalarni ko\'rsating.' },
+                                        { Icon: Search, color: '#DC2626', title: 'Zaif joylarimni aniqla', desc: 'Diagnostika qil', prompt: 'Mening bilim darajamni aniqlash uchun diagnostik savollar bering.' },
+                                        { Icon: TrendingUp, color: '#7C3AED', title: 'Imtihon strategiya', desc: 'Vaqt taktikasi', prompt: 'Milliy sertifikat imtihonida vaqt boshqarish strategiyasini o\'rgating' },
                                     ].map((s, i) => (
                                         <button key={i} onClick={async () => {
                                             if (creating) return; setCreating(true)
@@ -1296,7 +1305,9 @@ export default function ChatLayout() {
                                             setCreating(false)
                                         }}
                                             className="card card-hover text-left p-4">
-                                            <span className="text-2xl mb-2 block">{s.icon}</span>
+                                            <div className="h-9 w-9 rounded-xl flex items-center justify-center mb-3" style={{ background: s.color + '18' }}>
+                                                <s.Icon className="h-5 w-5" style={{ color: s.color }} />
+                                            </div>
                                             <p className="text-sm font-bold mb-1">{s.title}</p>
                                             <p className="text-[13px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{s.desc}</p>
                                         </button>
@@ -1383,17 +1394,17 @@ export default function ChatLayout() {
                         {!loading && messages.length > 0 && (
                             <div className="max-w-5xl mx-auto mb-2 flex gap-1.5 flex-wrap">
                                 {[
-                                    { l: '📝 Testla', p: 'Meni shu mavzu bo\'yicha testlang. 5 ta test savol bering A, B, C, D variantlar bilan.' },
-                                    { l: '📖 Davom et', p: 'Keyingi mavzuga o\'tamiz. Nimani o\'rganishimiz kerak?' },
-                                    { l: '🔄 Qayta tushuntir', p: 'Bu mavzuni boshqa usulda, oddiyroq tushuntiring' },
-                                    { l: '📋 Reja tuz', p: 'Imtihongacha qolgan vaqtga mos o\'quv reja tuzing' },
-                                    { l: '💡 Formulalar', p: 'Shu mavzuning barcha muhim formulalarini yozing' },
-                                    { l: '🃏 Kartochkalar', p: 'Shu mavzuning eng muhim formulalari va tushunchalarini kartochka formatida bering (```flashcard JSON format).' },
+                                    { Icon: ClipboardList, l: 'Testla', p: 'Meni shu mavzu bo\'yicha testlang. 5 ta test savol bering A, B, C, D variantlar bilan.' },
+                                    { Icon: BookOpen, l: 'Davom et', p: 'Keyingi mavzuga o\'tamiz. Nimani o\'rganishimiz kerak?' },
+                                    { Icon: RotateCcw, l: 'Qayta tushuntir', p: 'Bu mavzuni boshqa usulda, oddiyroq tushuntiring' },
+                                    { Icon: Target, l: 'Reja tuz', p: 'Imtihongacha qolgan vaqtga mos o\'quv reja tuzing' },
+                                    { Icon: Lightbulb, l: 'Formulalar', p: 'Shu mavzuning barcha muhim formulalarini yozing' },
+                                    { Icon: Layers, l: 'Kartochkalar', p: 'Shu mavzuning eng muhim formulalari va tushunchalarini kartochka formatida bering (```flashcard JSON format).' },
                                 ].map((a, i) => (
                                     <button key={i} onClick={() => quickAction(a.p)}
-                                        className="h-7 px-3 text-[12px] font-medium rounded-full transition whitespace-nowrap"
+                                        className="h-7 px-3 text-[12px] font-medium rounded-full transition whitespace-nowrap flex items-center gap-1.5"
                                         style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-strong)', background: 'var(--bg-card)' }}
-                                    >{a.l}</button>
+                                    ><a.Icon className="h-3 w-3 flex-shrink-0" />{a.l}</button>
                                 ))}
                             </div>
                         )}
@@ -1552,7 +1563,7 @@ export default function ChatLayout() {
                                 <div className={testPanelMaximized ? 'max-w-3xl mx-auto' : ''}>
                                     {testReadOnly ? (
                                         <div className="text-center space-y-2">
-                                            <div className="inline-flex items-center justify-center h-8 px-3 rounded-full text-[12px] font-semibold mb-1" style={{ background: 'var(--success-light)', color: 'var(--success)' }}>✓ Bu test avval yechilgan</div>
+                                            <div className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-full text-[12px] font-semibold mb-1" style={{ background: 'var(--success-light)', color: 'var(--success)' }}><CheckCircle className="h-3.5 w-3.5" /> Bu test avval yechilgan</div>
                                             <p className="text-[12px]" style={{ color: 'var(--text-muted)' }}>To'g'ri javoblar yashil bilan ko'rsatilmoqda</p>
                                             <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setTestReadOnly(false); setActiveTestId(null); setActiveTestQuestions([]); setTestTimeLeft(null); setRaschFeedback(null) }} className="text-sm font-medium transition" style={{ color: 'var(--brand)' }}>Panelni yopish</button>
                                         </div>
@@ -1566,7 +1577,7 @@ export default function ChatLayout() {
                                         <div className="text-center space-y-2">
                                             <p className="text-lg font-bold">{score}/{questions.length} <span className="text-sm font-normal" style={{ color: 'var(--text-muted)' }}>— {Math.round(score / questions.length * 100)}%</span></p>
                                             {raschFeedback && (
-                                                <p className="text-xs font-medium" style={{ color: 'var(--brand)' }}>📈 Daraja: {raschFeedback.prev.toFixed(2)} → {raschFeedback.next.toFixed(2)}</p>
+                                                <p className="text-xs font-medium flex items-center gap-1" style={{ color: 'var(--brand)' }}><TrendingUp className="h-3.5 w-3.5" /> Daraja: {raschFeedback.prev.toFixed(2)} → {raschFeedback.next.toFixed(2)}</p>
                                             )}
                                             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Natijalar chatga yuborildi</p>
                                             <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setTestReadOnly(false); setActiveTestId(null); setActiveTestQuestions([]); setTestTimeLeft(null); setRaschFeedback(null) }} className="text-sm font-medium transition" style={{ color: 'var(--brand)' }}>Panelni yopish</button>
@@ -1600,7 +1611,10 @@ export default function ChatLayout() {
                             {/* Header */}
                             <div className="h-14 flex items-center justify-between px-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-sm font-semibold">🃏 Kartochkalar</span>
+                                    <div className="flex items-center gap-1.5">
+                                        <Layers className="h-4 w-4" style={{ color: 'var(--brand)' }} />
+                                        <span className="text-sm font-semibold">Kartochkalar</span>
+                                    </div>
                                     <span className="text-xs px-1.5 py-0.5 rounded-md" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>{flashIdx + 1}/{flashPanel.length}</span>
                                 </div>
                                 <div className="flex items-center gap-1">
@@ -1651,7 +1665,7 @@ export default function ChatLayout() {
                                         <div className="absolute inset-0 [backface-visibility:hidden] rounded-3xl p-8 flex flex-col items-center justify-center text-center shadow-xl"
                                             style={{ transform: 'rotateY(180deg)', background: 'var(--bg-card)', border: '1px solid var(--success-light)' }}>
                                             <div className="absolute top-4 left-0 right-0 flex justify-center">
-                                                <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full" style={{ background: 'var(--success-light)', color: 'var(--success)' }}>✅ Javob</span>
+                                                <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full flex items-center gap-1" style={{ background: 'var(--success-light)', color: 'var(--success)' }}><CheckCircle className="h-3 w-3" /> Javob</span>
                                             </div>
                                             <div className="text-[15px] leading-relaxed w-full mt-2" style={{ color: 'var(--text-primary)' }}>
                                                 <MdMessage content={card.back} onOpenTest={() => { }} onProfileUpdate={() => { }} onOpenFlash={() => { }} />
