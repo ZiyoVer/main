@@ -54,20 +54,42 @@ const MdMessage = memo(({ content, onOpenTest, isStreaming, onProfileUpdate, onO
                 const jsonStr = String(children).trim()
                 let qCount = 0
                 try { qCount = JSON.parse(jsonStr).length } catch { }
+                // 0 savol bo'lsa ko'rsatmaymiz — hali to'liq yuklanmagan
+                if (qCount === 0) return null
                 return (
-                    <div className="my-3 rounded-xl p-4 flex items-center justify-between" style={{ background: 'var(--brand-light)', border: '1px solid var(--border-strong)' }}>
-                        <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--brand)' }}><ClipboardList className="h-5 w-5 text-white" /></div>
-                            <div>
-                                <p className="text-sm font-semibold">Test tayyor — {qCount} savol</p>
-                                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Yon oynada yechishingiz mumkin</p>
+                    <div className="my-3 rounded-2xl overflow-hidden" style={{
+                        background: 'linear-gradient(135deg, rgba(224, 123, 57, 0.1) 0%, rgba(224, 123, 57, 0.04) 100%)',
+                        border: '1.5px solid rgba(224, 123, 57, 0.3)',
+                    }}>
+                        <div className="p-4">
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--brand)' }}>
+                                        <ClipboardList className="h-5 w-5 text-white" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Test tayyor!</p>
+                                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--brand)', color: '#fff' }}>
+                                                {qCount} ta savol
+                                            </span>
+                                        </div>
+                                        <p className="text-[12px] mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>Yon oynada istalgan vaqtda yechishingiz mumkin</p>
+                                    </div>
+                                </div>
+                                {!isStreaming && (
+                                    <button
+                                        onClick={() => onOpenTest(jsonStr)}
+                                        className="flex-shrink-0 h-9 px-4 rounded-xl text-[13px] font-bold text-white flex items-center gap-2 transition-all"
+                                        style={{ background: 'var(--brand)' }}
+                                        onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+                                        onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+                                    >
+                                        <BookOpen className="h-4 w-4" /> Boshlash
+                                    </button>
+                                )}
                             </div>
                         </div>
-                        {!isStreaming && (
-                            <button onClick={() => onOpenTest(jsonStr)} className="h-9 px-4 rounded-xl text-sm font-semibold text-white transition flex items-center gap-2" style={{ background: 'var(--brand)' }}>
-                                <BookOpen className="h-4 w-4" /> Testni ochish
-                            </button>
-                        )}
                     </div>
                 )
             }
