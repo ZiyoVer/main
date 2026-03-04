@@ -1425,6 +1425,47 @@ export default function ChatLayout() {
                                                 </div>
                                             </div>
                                         )}
+                                        {/```flashcard/.test(streaming) && !/```flashcard[\s\S]*?```/.test(streaming) && (
+                                            <div className="mt-3 rounded-2xl overflow-hidden" style={{
+                                                background: 'linear-gradient(135deg, color-mix(in srgb, #6366f1 8%, transparent), color-mix(in srgb, #6366f1 4%, transparent))',
+                                                border: '1px solid color-mix(in srgb, #6366f1 20%, transparent)'
+                                            }}>
+                                                <div className="p-4">
+                                                    <div className="flex items-center gap-3 mb-3">
+                                                        <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 animate-pulse"
+                                                            style={{ background: 'color-mix(in srgb, #6366f1 20%, transparent)' }}>
+                                                            <svg className="h-4 w-4" style={{ color: '#6366f1' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                                            </svg>
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-[13px] font-semibold" style={{ color: '#6366f1' }}>Kartochkalar tayyorlanmoqda</span>
+                                                                <span className="flex gap-0.5 items-center">
+                                                                    {[0, 1, 2].map(i => (
+                                                                        <span key={i} className="h-1 w-1 rounded-full" style={{
+                                                                            background: '#6366f1',
+                                                                            animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite`
+                                                                        }} />
+                                                                    ))}
+                                                                </span>
+                                                            </div>
+                                                            <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>AI kartochkalarni shakllantirmoqda</span>
+                                                        </div>
+                                                    </div>
+                                                    {/* Skeleton bars */}
+                                                    <div className="space-y-2 pl-1">
+                                                        {[75, 90, 55].map((w, i) => (
+                                                            <div key={i} className="h-2 rounded-full animate-pulse" style={{
+                                                                width: `${w}%`,
+                                                                background: 'color-mix(in srgb, #6366f1 15%, transparent)',
+                                                                animationDelay: `${i * 0.15}s`
+                                                            }} />
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}
