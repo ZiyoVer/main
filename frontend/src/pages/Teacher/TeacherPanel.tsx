@@ -18,7 +18,7 @@ function MathPreview({ text }: { text: string }) {
     } catch { return null }
 }
 
-interface Question { text: string; options: string[]; correctIdx: number }
+interface Question { text: string; imageUrl?: string | null; options: string[]; correctIdx: number }
 
 export default function TeacherPanel() {
     const nav = useNavigate()
@@ -58,13 +58,32 @@ export default function TeacherPanel() {
     }
 
     function addQuestion() {
-        setQuestions([...questions, { text: '', options: ['', '', '', ''], correctIdx: 0 }])
+        setQuestions([...questions, { text: '', imageUrl: null, options: ['', '', '', ''], correctIdx: 0 }])
+    }
+
+    async function handleImageUpload(qi: number, file: File) {
+        try {
+            const formData = new FormData()
+            formData.append('image', file)
+            const token = localStorage.getItem('token')
+            const res = await fetch('/api/tests/upload-image', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+                body: formData
+            })
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.error || "Rasm yuklashda xato")
+            updateQ(qi, 'imageUrl', data.url)
+        } catch (e: any) {
+            alert(e.message)
+        }
     }
 
     function updateQ(idx: number, field: string, value: any) {
         setQuestions(prev => prev.map((q, i) => {
             if (i !== idx) return q
             if (field === 'text') return { ...q, text: value }
+            if (field === 'imageUrl') return { ...q, imageUrl: value }
             if (field === 'correctIdx') return { ...q, correctIdx: value }
             if (field.startsWith('opt')) {
                 const oi = parseInt(field.replace('opt', ''))
@@ -371,8 +390,26 @@ export default function TeacherPanel() {
                                             </button>
                                         )}
                                     </div>
-                                    <textarea placeholder="Savol matni ($formula$ yozsa preview chiqadi)" required value={q.text} onChange={e => updateQ(qi, 'text', e.target.value)} rows={2}
-                                        className="input resize-none" style={{ height: 'auto', padding: '0.5rem 0.75rem', fontSize: '13px' }} />
+                                    <div className="relative">
+                                        <textarea placeholder="Savol matni ($formula$ yozsa preview chiqadi)" required value={q.text} onChange={e => updateQ(qi, 'text', e.target.value)} rows={2}
+                                            className="input resize-none w-full pr-12" style={{ height: 'auto', padding: '0.5rem 0.75rem', fontSize: '13px' }} />
+                                        <label className="absolute right-2 top-2 p-1.5 rounded-md cursor-pointer transition hover:bg-slate-100 dark:hover:bg-slate-800"
+                                            title="Rasm yuklash (skrinshot)">
+                                            <input type="file" accept="image/*" className="hidden" onChange={e => {
+                                                if (e.target.files?.[0]) handleImageUpload(qi, e.target.files[0]);
+                                                e.target.value = ''
+                                            }} />
+                                            <Image className="h-4 w-4" style={{ color: 'var(--brand)' }} />
+                                        </label>
+                                    </div>
+                                    {q.imageUrl && (
+                                        <div className="relative inline-block mt-2">
+                                            <img src={q.imageUrl} alt="Savol rasmi" className="max-h-32 rounded-lg border shadow-sm" style={{ borderColor: 'var(--border)' }} />
+                                            <button type="button" onClick={() => updateQ(qi, 'imageUrl', null)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition shadow-md">
+                                                <X className="h-3 w-3" />
+                                            </button>
+                                        </div>
+                                    )}
                                     <MathPreview text={q.text} />
                                     <div className="grid grid-cols-2 gap-1.5">
                                         {q.options.map((o, oi) => (

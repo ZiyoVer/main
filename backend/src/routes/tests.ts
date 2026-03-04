@@ -9,6 +9,7 @@ import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
 import { updateAbility } from '../utils/rasch'
+import { uploadToS3 } from '../utils/s3'
 
 const router = Router()
 
@@ -381,7 +382,7 @@ router.post('/:testId/questions', authenticate, requireRole('TEACHER', 'ADMIN'),
             return res.status(403).json({ error: 'Ruxsat yo\'q' })
         }
 
-        const { text, options, correctIdx, orderIdx, difficulty } = req.body
+        const { text, imageUrl, options, correctIdx, orderIdx, difficulty } = req.body
 
         // Savol matni validatsiyasi
         if (!text || typeof text !== 'string' || !text.trim()) {
@@ -403,6 +404,7 @@ router.post('/:testId/questions', authenticate, requireRole('TEACHER', 'ADMIN'),
             data: {
                 testId: test.id,
                 text,
+                imageUrl: imageUrl || null,
                 options: JSON.stringify(options),
                 correctIdx,
                 orderIdx: orderIdx || 0,
@@ -435,6 +437,7 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
                 questions: {
                     create: questions.map((q: any, i: number) => ({
                         text: q.text,
+                        imageUrl: q.imageUrl || null,
                         options: JSON.stringify(q.options),
                         correctIdx: q.correctIdx,
                         difficulty: q.difficulty || 0.0,
@@ -452,6 +455,24 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
     }
 })
 
+// Rasm yuklash endpointi (savollar uchun)
+router.post('/upload-image', authenticate, requireRole('TEACHER', 'ADMIN'), upload.single('image'), async (req: AuthRequest, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'Rasm yuklanmadi' })
+
+        // s3 ga yuklash
+        const fileName = `${Date.now()}-${req.file.originalname.replace(/\s+/g, '-')}`
+        const fileBuffer = req.file.buffer
+        const mimetype = req.file.mimetype
+
+        const s3Result = await uploadToS3(fileBuffer, fileName, 'questions', mimetype)
+
+        res.json({ url: s3Result.url })
+    } catch (e) {
+        console.error('Image upload error:', e)
+        res.status(500).json({ error: 'Rasm yuklashda xatolik yuz berdi' })
+    }
+})
 
 // AI test natijasi — faqat Rasch abilityLevel yangilash (test entity saqlanmaydi)
 router.post('/submit-ai', authenticate, submitLimiter, async (req: AuthRequest, res) => {

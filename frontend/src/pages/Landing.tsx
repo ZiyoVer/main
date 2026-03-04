@@ -115,7 +115,7 @@ export default function Landing() {
     }, [])
 
     return (
-        <div className="min-h-screen overflow-x-hidden" style={{ background: 'var(--bg-page)', color: 'var(--text-primary)' }}>
+        <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg-page)', color: 'var(--text-primary)' }}>
 
             {/* ── Nav ─────────────────────────────────────────────── */}
             <nav className="sticky top-0 z-50" style={{ borderBottom: '1px solid var(--border)', background: 'color-mix(in srgb, var(--bg-page) 90%, transparent)', backdropFilter: 'blur(12px)' }}>
@@ -285,7 +285,7 @@ export default function Landing() {
             </section>
 
             {/* ── Features ────────────────────────────────────────── */}
-            <section className="py-20 px-5" style={{ background: 'var(--bg-surface)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
+            <section className="py-20 px-5 overflow-hidden" style={{ background: 'var(--bg-surface)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
                 <div className="max-w-5xl mx-auto">
                     <div className="text-center mb-12">
                         <p className="section-label mb-2">Imkoniyatlar</p>

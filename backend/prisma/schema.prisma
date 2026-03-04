@@ -119,6 +119,7 @@ model TestQuestion {
   testId     String
   test       Test   @relation(fields: [testId], references: [id], onDelete: Cascade)
   text       String
+  imageUrl   String?
   options    String // JSON array: ["A", "B", "C", "D"]
   correctIdx Int
   difficulty Float  @default(0.0) // Rasch difficulty

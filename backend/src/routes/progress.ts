@@ -15,20 +15,16 @@ router.get('/me', async (req: any, res) => {
         const userId = req.user.id
 
         // UserProgress mavjud bo'lmasa yaratamiz
-        let progress = await prisma.userProgress.findUnique({
-            where: { userId }
+        let progress = await prisma.userProgress.upsert({
+            where: { userId },
+            create: {
+                userId,
+                xp: 0,
+                streak: 0,
+                longestStreak: 0
+            },
+            update: {}
         })
-
-        if (!progress) {
-            progress = await prisma.userProgress.create({
-                data: {
-                    userId,
-                    xp: 0,
-                    streak: 0,
-                    longestStreak: 0
-                }
-            })
-        }
 
         // Zaif mavzular
         const weakTopics = await prisma.topicStat.findMany({
@@ -111,50 +107,34 @@ router.post('/activity', async (req: any, res) => {
         const now = new Date()
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
 
-        // Mavjud progressni olamiz
-        const existing = await prisma.userProgress.findUnique({
-            where: { userId }
-        })
+        // Bitta UPSERT orqali xavfsiz qilib yozish (race-condition ni oldini oladi)
+        const updated = await prisma.$transaction(async (tx) => {
+            const current = await tx.userProgress.findUnique({ where: { userId } })
 
-        let xp = (existing?.xp || 0) + xpGained
-        let streak = existing ? existing.streak : 1
-        let longestStreak = existing ? existing.longestStreak : 1
-        let lastActiveDate = existing?.lastActiveDate || now
+            let xp = (current?.xp || 0) + xpGained
+            let streak = current ? current.streak : 1
+            let longestStreak = current ? current.longestStreak : 1
 
-        if (existing?.lastActiveDate) {
-            const lastDate = new Date(existing.lastActiveDate)
-            const lastDay = new Date(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate())
-            const diffDays = Math.floor((today.getTime() - lastDay.getTime()) / (1000 * 60 * 60 * 24))
+            if (current?.lastActiveDate) {
+                const lastDate = new Date(current.lastActiveDate)
+                const lastDay = new Date(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate())
+                const diffDays = Math.floor((today.getTime() - lastDay.getTime()) / (1000 * 60 * 60 * 24))
 
-            if (diffDays === 1) {
-                // Ketma-ket kun
-                streak += 1
-                longestStreak = Math.max(streak, longestStreak)
-                if (streak % 7 === 0) xp += 50
-                else if (streak % 3 === 0) xp += 15
-            } else if (diffDays > 1) {
-                // Uzilish bo'ldi
-                streak = 1
+                if (diffDays === 1) {
+                    streak += 1
+                    longestStreak = Math.max(streak, longestStreak)
+                    if (streak % 7 === 0) xp += 50
+                    else if (streak % 3 === 0) xp += 15
+                } else if (diffDays > 1) {
+                    streak = 1
+                }
             }
-            // Agar diffDays === 0 bo'lsa (bugun oldin ham kirgan), faqat xp qo'shiladi va streak o'zgarmaydi
-        }
 
-        // Bitta UPSERT orqali saqlaymiz
-        const updated = await prisma.userProgress.upsert({
-            where: { userId },
-            create: {
-                userId,
-                xp,
-                streak,
-                longestStreak,
-                lastActiveDate: now
-            },
-            update: {
-                xp,
-                streak,
-                longestStreak,
-                lastActiveDate: now
-            }
+            return await tx.userProgress.upsert({
+                where: { userId },
+                create: { userId, xp, streak, longestStreak, lastActiveDate: now },
+                update: { xp, streak, longestStreak, lastActiveDate: now }
+            })
         })
 
         res.json({
