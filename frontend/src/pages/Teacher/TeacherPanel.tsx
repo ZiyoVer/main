@@ -377,7 +377,22 @@ export default function TeacherPanel() {
                             </div>
 
                             {questions.map((q, qi) => (
-                                <div key={qi} className="rounded-xl p-3.5 space-y-2 transition" style={{ ...cardStyle, borderColor: aiDone ? 'color-mix(in srgb, #8b5cf6 20%, transparent)' : 'var(--border)' }}>
+                                <div key={qi} className="rounded-xl p-3.5 space-y-2 transition" style={{ ...cardStyle, borderColor: aiDone ? 'color-mix(in srgb, #8b5cf6 20%, transparent)' : 'var(--border)' }}
+                                    onPaste={(e) => {
+                                        const items = e.clipboardData?.items
+                                        if (!items) return
+                                        for (const item of items) {
+                                            if (item.type.startsWith('image/')) {
+                                                const file = item.getAsFile()
+                                                if (file) {
+                                                    e.preventDefault()
+                                                    handleImageUpload(qi, file)
+                                                    break
+                                                }
+                                            }
+                                        }
+                                    }}
+                                >
                                     {/* Savol header */}
                                     <div className="flex items-center justify-between">
                                         <span className="text-[12px] font-semibold" style={secondaryText}>Savol {qi + 1}</span>
@@ -394,7 +409,7 @@ export default function TeacherPanel() {
                                         <textarea placeholder="Savol matni ($formula$ yozsa preview chiqadi)" required value={q.text} onChange={e => updateQ(qi, 'text', e.target.value)} rows={2}
                                             className="input resize-none w-full pr-12" style={{ height: 'auto', padding: '0.5rem 0.75rem', fontSize: '13px' }} />
                                         <label className="absolute right-2 top-2 p-1.5 rounded-md cursor-pointer transition hover:bg-slate-100 dark:hover:bg-slate-800"
-                                            title="Rasm yuklash (skrinshot)">
+                                            title="Rasm yuklash yoki Ctrl+V (Paste) orqali kiritish">
                                             <input type="file" accept="image/*" className="hidden" onChange={e => {
                                                 if (e.target.files?.[0]) handleImageUpload(qi, e.target.files[0]);
                                                 e.target.value = ''
