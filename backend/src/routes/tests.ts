@@ -188,7 +188,8 @@ ${text}`
                 role: 'user',
                 content: [
                     { type: 'image_url', image_url: { url: `data:${mimetype};base64,${base64}` } },
-                    { type: 'text', text: `Bu rasmdagi test savollari va variantlarini AYNAN ajratib ol — o'zing savol to'qima.${subjectNote}
+                    {
+                        type: 'text', text: `Bu rasmdagi test savollari va variantlarini AYNAN ajratib ol — o'zing savol to'qima.${subjectNote}
 
 MUHIM QOIDALAR:
 - Rasmdagi mavjud savol va variantlarni AYNAN ko'chir
@@ -197,7 +198,8 @@ MUHIM QOIDALAR:
 - Kamida 5 ta, ko'pi 30 ta savol
 
 Javobni FAQAT JSON array formatda qaytargil, boshqa hech narsa yozma:
-${jsonFormat}` }
+${jsonFormat}`
+                    }
                 ]
             }]
         } else {
@@ -220,13 +222,25 @@ ${jsonFormat}` }
         })
 
         const aiContent = completion.choices[0]?.message?.content || '[]'
-        const jsonMatch = aiContent.match(/\[[\s\S]*\]/)
-        if (!jsonMatch) return res.status(500).json({ error: 'AI savollarni ajrata olmadi. PDF formatini yoki rasm sifatini tekshiring.' })
+
+        let jsonStr = aiContent;
+        // Trible backticks ichidagi json ni qidirish:
+        const codeBlockMatch = aiContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+        if (codeBlockMatch && codeBlockMatch[1]) {
+            jsonStr = codeBlockMatch[1];
+        } else {
+            // Faqat array qavslarini ajratib olishga urinish:
+            const arrayMatch = aiContent.match(/\[\s*\{[\s\S]*\}\s*\]/);
+            if (arrayMatch) {
+                jsonStr = arrayMatch[0];
+            }
+        }
 
         let questions: any[]
         try {
-            questions = JSON.parse(jsonMatch[0])
-        } catch {
+            questions = JSON.parse(jsonStr)
+        } catch (e: any) {
+            console.error('AI JSON parse error:', e.message, 'Raw content:', aiContent)
             return res.status(500).json({ error: 'AI noto\'g\'ri format qaytardi. Qayta urinib ko\'ring.' })
         }
 
@@ -246,10 +260,10 @@ ${jsonFormat}` }
                 if (typeof q.correctIdx === 'number') {
                     correctIdx = q.correctIdx
                 } else if (typeof q.correctIdx === 'string') {
-                    const letterIdx = ['a','b','c','d'].indexOf(q.correctIdx.toLowerCase())
+                    const letterIdx = ['a', 'b', 'c', 'd'].indexOf(q.correctIdx.toLowerCase())
                     correctIdx = letterIdx >= 0 ? letterIdx : 0
                 } else if (typeof q.correct === 'string') {
-                    const letterIdx = ['a','b','c','d'].indexOf(q.correct.toLowerCase())
+                    const letterIdx = ['a', 'b', 'c', 'd'].indexOf(q.correct.toLowerCase())
                     correctIdx = letterIdx >= 0 ? letterIdx : 0
                 }
 
