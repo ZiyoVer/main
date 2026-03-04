@@ -21,6 +21,50 @@ const gptClient = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY || ''
 })
 
+// O'qituvchining testlari
+router.get('/my-tests', authenticate, requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, res) => {
+    try {
+        const tests = await prisma.test.findMany({
+            where: { creatorId: req.user.id },
+            include: { _count: { select: { questions: true, attempts: true } } },
+            orderBy: { createdAt: 'desc' }
+        })
+        res.json(tests)
+    } catch (e) {
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+// Admin: barcha testlar
+router.get('/all', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
+    try {
+        const tests = await prisma.test.findMany({
+            include: {
+                _count: { select: { questions: true, attempts: true } },
+                creator: { select: { name: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        })
+        res.json(tests)
+    } catch (e) {
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+// O'quvchining test natijalari
+router.get('/my-results', authenticate, async (req: AuthRequest, res) => {
+    try {
+        const attempts = await prisma.testAttempt.findMany({
+            where: { userId: req.user.id },
+            include: { test: { select: { title: true, subject: true } } },
+            orderBy: { createdAt: 'desc' }
+        })
+        res.json(attempts)
+    } catch (e) {
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
 // Public testlar ro'yxati (barcha o'quvchilar uchun)
 router.get('/public', authenticate, async (req: AuthRequest, res) => {
     try {
@@ -38,29 +82,76 @@ router.get('/public', authenticate, async (req: AuthRequest, res) => {
     }
 })
 
+// Test olish (link bo'yicha ham)
+router.get('/by-link/:shareLink', authenticate, async (req: AuthRequest, res) => {
+    try {
+        const shareLink = req.params.shareLink as string
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(shareLink)) return res.status(400).json({ error: 'Noto\'g\'ri link formati' })
+
+        const test = await prisma.test.findUnique({
+            where: { shareLink },
+            include: {
+                questions: { orderBy: { orderIdx: 'asc' }, select: { id: true, text: true, options: true, orderIdx: true } },
+                creator: { select: { name: true } }
+            }
+        })
+        if (!test) return res.status(404).json({ error: 'Test topilmadi' })
+        res.json(test)
+    } catch (e) {
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
 // AI yordamida fayl/screenshot dan test savollari yaratish
 router.post('/generate-from-file', authenticate, requireRole('TEACHER', 'ADMIN'), upload.single('file'), async (req: AuthRequest, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'Fayl yuklanmadi' })
         const { mimetype, buffer } = req.file
         const subject = (req.body.subject as string) || ''
-        const jsonPrompt = `Javobni FAQAT JSON array formatda qaytargil, boshqa hech narsa yozma:
-[{"text":"Savol matni?","options":["A variant","B variant","C variant","D variant"],"correctIdx":0}]
-correctIdx — to'g'ri javob indeksi (0=A, 1=B, 2=C, 3=D). Eng kamida 5 ta, eng ko'pi 20 ta savol.${subject ? ` Fan: ${subject}.` : ''}`
+        const jsonFormat = `[{"text":"Savol matni?","options":["A variant","B variant","C variant","D variant"],"correctIdx":0}]`
+        const subjectNote = subject ? ` Fan: ${subject}.` : ''
 
         let messages: any[]
+        let truncated = false
 
         if (mimetype === 'application/pdf') {
             const data = await pdfParse(buffer)
-            const text = data.text.trim().substring(0, 8000)
-            messages = [{ role: 'user', content: `Quyidagi matndan test savollari yaratib ber.\n${jsonPrompt}\n\nMatn:\n${text}` }]
+            const fullText = data.text.trim()
+            truncated = fullText.length > 12000
+            const text = fullText.substring(0, 12000)
+
+            const userMsg = `Quyidagi matnda TAYYOR test savollari va variantlari bor. Ularni AYNAN o'sha holda ajratib ol — o'zing savol to'qima, o'zgartirma.${subjectNote}
+
+MUHIM QOIDALAR:
+- Matndagi mavjud savol va variantlarni AYNAN ko'chir
+- Agar matnda savol topilmasa YOKI matn o'quv material bo'lsa — o'sha materialdan YANGI savol yaratishga ruxsat beriladi
+- correctIdx: to'g'ri javob indeksi (0=A, 1=B, 2=C, 3=D)
+- Kamida 5 ta, ko'pi 30 ta savol
+${truncated ? '- DIQQAT: PDF katta, faqat birinchi qism berildi\n' : ''}
+Javobni FAQAT JSON array formatda qaytargil, boshqa hech narsa yozma:
+${jsonFormat}
+
+Matn:
+${text}`
+
+            messages = [{ role: 'user', content: userMsg }]
         } else if (mimetype.startsWith('image/')) {
             const base64 = buffer.toString('base64')
             messages = [{
                 role: 'user',
                 content: [
                     { type: 'image_url', image_url: { url: `data:${mimetype};base64,${base64}` } },
-                    { type: 'text', text: `Bu rasmdagi test savollarini ajratib ol va yangi formatda qaytargil.\n${jsonPrompt}` }
+                    { type: 'text', text: `Bu rasmdagi test savollari va variantlarini AYNAN ajratib ol — o'zing savol to'qima.${subjectNote}
+
+MUHIM QOIDALAR:
+- Rasmdagi mavjud savol va variantlarni AYNAN ko'chir
+- Agar rasmda savol topilmasa — rasmda ko'rsatilgan mavzudan yangi savol yaratishga ruxsat beriladi
+- correctIdx: to'g'ri javob indeksi (0=A, 1=B, 2=C, 3=D)
+- Kamida 5 ta, ko'pi 30 ta savol
+
+Javobni FAQAT JSON array formatda qaytargil, boshqa hech narsa yozma:
+${jsonFormat}` }
                 ]
             }]
         } else {
@@ -75,22 +166,66 @@ correctIdx — to'g'ri javob indeksi (0=A, 1=B, 2=C, 3=D). Eng kamida 5 ta, eng 
         const completion = await client.chat.completions.create({
             model: model,
             messages: [
-                { role: 'system', content: 'Siz test savollari generatorisiz. FAQAT JSON formatda javob bering.' },
+                { role: 'system', content: 'Siz test savollari generatorisiz. Sizga berilgan matn yoki rasmdan savollarni AYNAN ajratib olasiz. FAQAT JSON array formatda javob bering, boshqa hech narsa yozmasdan.' },
                 ...messages
             ],
-            max_tokens: 4096,
-            temperature: 0.2
+            max_tokens: 8000,
+            temperature: 0.1
         })
 
-        const content = completion.choices[0]?.message?.content || '[]'
-        const jsonMatch = content.match(/\[[\s\S]*\]/)
-        if (!jsonMatch) return res.status(500).json({ error: 'AI savollarni ajrata olmadi, PDF formatda yuklang' })
+        const aiContent = completion.choices[0]?.message?.content || '[]'
+        const jsonMatch = aiContent.match(/\[[\s\S]*\]/)
+        if (!jsonMatch) return res.status(500).json({ error: 'AI savollarni ajrata olmadi. PDF formatini yoki rasm sifatini tekshiring.' })
 
-        const questions = JSON.parse(jsonMatch[0])
-        if (!Array.isArray(questions) || questions.length === 0) {
-            return res.status(500).json({ error: 'AI hech qanday savol topa olmadi' })
+        let questions: any[]
+        try {
+            questions = JSON.parse(jsonMatch[0])
+        } catch {
+            return res.status(500).json({ error: 'AI noto\'g\'ri format qaytardi. Qayta urinib ko\'ring.' })
         }
-        res.json({ questions })
+
+        if (!Array.isArray(questions) || questions.length === 0) {
+            return res.status(500).json({ error: 'AI hech qanday savol topa olmadi. Fayl to\'g\'ri savollar borligini tekshiring.' })
+        }
+
+        // Har bir savolni validatsiya qilish va normallashtirish
+        const validatedQuestions = questions
+            .filter((q: any) => q && typeof q.text === 'string' && q.text.trim())
+            .map((q: any) => {
+                const options = Array.isArray(q.options) ? q.options.filter((o: any) => typeof o === 'string') : []
+                if (options.length < 2) return null
+
+                // correctIdx: raqam yoki harf ('A','B','C','D' yoki 'a','b','c','d') bo'lishi mumkin
+                let correctIdx = 0
+                if (typeof q.correctIdx === 'number') {
+                    correctIdx = q.correctIdx
+                } else if (typeof q.correctIdx === 'string') {
+                    const letterIdx = ['a','b','c','d'].indexOf(q.correctIdx.toLowerCase())
+                    correctIdx = letterIdx >= 0 ? letterIdx : 0
+                } else if (typeof q.correct === 'string') {
+                    const letterIdx = ['a','b','c','d'].indexOf(q.correct.toLowerCase())
+                    correctIdx = letterIdx >= 0 ? letterIdx : 0
+                }
+
+                if (correctIdx < 0 || correctIdx >= options.length) correctIdx = 0
+
+                return {
+                    text: q.text.trim(),
+                    options: options.slice(0, 4),
+                    correctIdx
+                }
+            })
+            .filter(Boolean)
+
+        if (validatedQuestions.length === 0) {
+            return res.status(500).json({ error: 'Savollar formati to\'g\'ri emas. PDF yoki rasmni tekshiring.' })
+        }
+
+        res.json({
+            questions: validatedQuestions,
+            truncated: truncated || false,
+            total: validatedQuestions.length
+        })
     } catch (e: any) {
         console.error('AI test generation error:', e.message)
         res.status(500).json({ error: 'AI test yarata olmadi. PDF formatini sinab ko\'ring.' })
@@ -203,32 +338,13 @@ router.post('/submit-ai', authenticate, async (req: AuthRequest, res) => {
     }
 })
 
-// Test olish (link bo'yicha ham)
-router.get('/by-link/:shareLink', authenticate, async (req: AuthRequest, res) => {
-    try {
-        const shareLink = req.params.shareLink as string
-        // UUID formatini tekshirish
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-        if (!uuidRegex.test(shareLink)) return res.status(400).json({ error: 'Noto\'g\'ri link formati' })
-
-        const test = await prisma.test.findUnique({
-            where: { shareLink },
-            include: {
-                questions: { orderBy: { orderIdx: 'asc' }, select: { id: true, text: true, options: true, orderIdx: true } },
-                creator: { select: { name: true } }
-            }
-        })
-        if (!test) return res.status(404).json({ error: 'Test topilmadi' })
-        res.json(test)
-    } catch (e) {
-        res.status(500).json({ error: 'Server xatoligi' })
-    }
-})
-
 // Test yechish va Rasch baholash
 router.post('/:testId/submit', authenticate, async (req: AuthRequest, res) => {
     try {
         const { answers } = req.body // [{questionId, selectedIdx}]
+        if (!Array.isArray(answers)) {
+            return res.status(400).json({ error: 'answers massiv bo\'lishi kerak' })
+        }
         const test = await prisma.test.findUnique({
             where: { id: req.params.testId as string },
             include: { questions: true }
@@ -305,50 +421,6 @@ router.post('/:testId/submit', authenticate, async (req: AuthRequest, res) => {
     }
 })
 
-// O'qituvchining testlari
-router.get('/my-tests', authenticate, requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, res) => {
-    try {
-        const tests = await prisma.test.findMany({
-            where: { creatorId: req.user.id },
-            include: { _count: { select: { questions: true, attempts: true } } },
-            orderBy: { createdAt: 'desc' }
-        })
-        res.json(tests)
-    } catch (e) {
-        res.status(500).json({ error: 'Server xatoligi' })
-    }
-})
-
-// Admin: barcha testlar
-router.get('/all', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
-    try {
-        const tests = await prisma.test.findMany({
-            include: {
-                _count: { select: { questions: true, attempts: true } },
-                creator: { select: { name: true } }
-            },
-            orderBy: { createdAt: 'desc' }
-        })
-        res.json(tests)
-    } catch (e) {
-        res.status(500).json({ error: 'Server xatoligi' })
-    }
-})
-
-// O'quvchining test natijalari
-router.get('/my-results', authenticate, async (req: AuthRequest, res) => {
-    try {
-        const attempts = await prisma.testAttempt.findMany({
-            where: { userId: req.user.id },
-            include: { test: { select: { title: true, subject: true } } },
-            orderBy: { createdAt: 'desc' }
-        })
-        res.json(attempts)
-    } catch (e) {
-        res.status(500).json({ error: 'Server xatoligi' })
-    }
-})
-
 // Test statistikasi (o'qituvchi/admin)
 router.get('/:testId/analytics', authenticate, requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, res) => {
     try {
@@ -378,7 +450,7 @@ router.get('/:testId/analytics', authenticate, requireRole('TEACHER', 'ADMIN'), 
             }
             let totalAnswered = 0
             let correctCount = 0
-            const optionCounts = [0, 0, 0, 0]
+            const optionCounts = new Array(opts.length).fill(0)
 
             for (const attempt of test.attempts) {
                 let answers: any[] = []
@@ -393,7 +465,7 @@ router.get('/:testId/analytics', authenticate, requireRole('TEACHER', 'ADMIN'), 
                     totalAnswered++
                     if (ans.isCorrect) correctCount++
                     const idx = ans.selectedIdx
-                    if (idx >= 0 && idx < 4) optionCounts[idx]++
+                    if (idx >= 0 && idx < opts.length) optionCounts[idx]++
                 }
             }
             return {

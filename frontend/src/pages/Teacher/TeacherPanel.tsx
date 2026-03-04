@@ -55,11 +55,18 @@ export default function TeacherPanel() {
     }
 
     function updateQ(idx: number, field: string, value: any) {
-        const updated = [...questions]
-        if (field === 'text') updated[idx].text = value
-        else if (field === 'correctIdx') updated[idx].correctIdx = value
-        else if (field.startsWith('opt')) { const oi = parseInt(field.replace('opt', '')); updated[idx].options[oi] = value }
-        setQuestions(updated)
+        setQuestions(prev => prev.map((q, i) => {
+            if (i !== idx) return q
+            if (field === 'text') return { ...q, text: value }
+            if (field === 'correctIdx') return { ...q, correctIdx: value }
+            if (field.startsWith('opt')) {
+                const oi = parseInt(field.replace('opt', ''))
+                const newOptions = [...q.options]
+                newOptions[oi] = value
+                return { ...q, options: newOptions }
+            }
+            return q
+        }))
     }
 
     function removeQ(idx: number) {
@@ -82,15 +89,23 @@ export default function TeacherPanel() {
             })
             const data = await res.json()
             if (!res.ok) throw new Error(data.error || 'Xatolik')
-            const mapped: Question[] = data.questions.map((q: any) => ({
-                text: q.text || '',
-                options: Array.isArray(q.options) && q.options.length === 4 ? q.options : ['', '', '', ''],
-                correctIdx: typeof q.correctIdx === 'number' ? q.correctIdx : 0
-            }))
+            const mapped: Question[] = data.questions.map((q: any) => {
+                // options: backend allaqachon validatsiya qilgan, lekin 4 ta bo'lmasa to'ldiramiz
+                let opts = Array.isArray(q.options) ? q.options.map(String) : []
+                while (opts.length < 4) opts.push('')
+                return {
+                    text: q.text || '',
+                    options: opts.slice(0, 4),
+                    correctIdx: typeof q.correctIdx === 'number' ? q.correctIdx : 0
+                }
+            })
             setQuestions(mapped)
             setAiDone(true)
             setShowAiSection(false)
             if (!title) setTitle(`${subject} testi`)
+            if (data.truncated) {
+                setAiError('PDF katta bo\'lgani uchun faqat birinchi qism tahlil qilindi. Natijalarni tekshiring.')
+            }
         } catch (e: any) {
             setAiError(e.message || 'AI test yarata olmadi')
         }
@@ -109,13 +124,16 @@ export default function TeacherPanel() {
         setLoading(true); setMsg('')
         try {
             await fetchApi('/tests/create', { method: 'POST', body: JSON.stringify({ title, subject, isPublic, timeLimit: timeLimit || null, questions }) })
-            setMsg(''); setTitle('')
+            setMsg('success')
+            setTitle('')
             setQuestions([{ text: '', options: ['', '', '', ''], correctIdx: 0 }])
             setTimeLimit(0); setIsPublic(false)
             setAiFile(null); setAiDone(false); setShowAiSection(false)
+            // fileInput ni tozalash — bir xil faylni qayta yuklash mumkin bo'lsin
+            if (fileInputRef.current) fileInputRef.current.value = ''
             setTab('list'); loadTests()
         } catch (e: any) { setMsg(e.message) }
-        setLoading(false)
+        finally { setLoading(false) }
     }
 
     async function deleteTest(id: string) {
@@ -166,12 +184,12 @@ export default function TeacherPanel() {
                 <div className="max-w-5xl mx-auto px-5 py-5">
                     {/* Tabs */}
                     <div className="flex gap-0.5 mb-5 p-0.5 rounded-lg w-fit" style={{ background: 'var(--bg-surface)' }}>
-                        <button onClick={() => setTab('list')}
+                        <button onClick={() => { setTab('list'); setMsg('') }}
                             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-[13px] font-medium transition"
                             style={tab === 'list' ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { color: 'var(--text-secondary)' }}>
                             <ClipboardList className="h-3.5 w-3.5" /> Testlarim
                         </button>
-                        <button onClick={() => setTab('create')}
+                        <button onClick={() => { setTab('create'); setMsg('') }}
                             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-[13px] font-medium transition"
                             style={tab === 'create' ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { color: 'var(--text-secondary)' }}>
                             <Plus className="h-3.5 w-3.5" /> Yangi Test
@@ -227,7 +245,14 @@ export default function TeacherPanel() {
                     {/* Create Test */}
                     {tab === 'create' && (
                         <form onSubmit={submit} className="space-y-3 anim-up max-w-2xl">
-                            {msg && <div className="text-[13px] px-3 py-2 rounded-lg" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>{msg}</div>}
+                            {msg === 'success' && (
+                                <div className="text-[13px] px-3 py-2 rounded-lg" style={{ background: 'var(--success-light)', color: 'var(--success)' }}>
+                                    Test muvaffaqiyatli saqlandi
+                                </div>
+                            )}
+                            {msg && msg !== 'success' && (
+                                <div className="text-[13px] px-3 py-2 rounded-lg" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>{msg}</div>
+                            )}
 
                             {/* Umumiy ma'lumot */}
                             <div className="rounded-xl p-4 space-y-2.5" style={cardStyle}>
@@ -255,10 +280,14 @@ export default function TeacherPanel() {
                                             {min === 0 ? 'Cheksiz' : `${min} min`}
                                         </button>
                                     ))}
-                                    <input type="number" min="1" max="180" placeholder="boshqa"
-                                        value={timeLimit > 0 && ![30, 45, 60, 90].includes(timeLimit) ? timeLimit : ''}
-                                        onChange={e => setTimeLimit(parseInt(e.target.value) || 0)}
-                                        className="input" style={{ height: '1.75rem', width: '5rem', fontSize: '11px', padding: '0 0.5rem' }} />
+                                    <input type="number" min="1" max="180" placeholder="boshqa (min)"
+                                        value={timeLimit > 0 && ![30, 45, 60, 90].includes(timeLimit) ? String(timeLimit) : ''}
+                                        onChange={e => {
+                                            const val = parseInt(e.target.value)
+                                            if (!isNaN(val) && val > 0) setTimeLimit(val)
+                                            else if (e.target.value === '') setTimeLimit(0)
+                                        }}
+                                        className="input" style={{ height: '1.75rem', width: '6.5rem', fontSize: '11px', padding: '0 0.5rem' }} />
                                 </div>
                             </div>
 
