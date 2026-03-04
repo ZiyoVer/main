@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import rateLimit from 'express-rate-limit'
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest } from '../middleware/auth'
 import OpenAI from 'openai'
@@ -11,7 +11,7 @@ router.use(authenticate)
 const mockExamLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 2,
-    keyGenerator: (req: any) => req.user?.id || req.ip,
+    keyGenerator: (req: any) => req.user?.id || ipKeyGenerator(req),
     message: { error: 'Mock exam yaratish limiti (2 ta/daqiqa). Biroz kuting.' },
     standardHeaders: true,
     legacyHeaders: false,

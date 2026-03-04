@@ -2,7 +2,7 @@ import { Router } from 'express'
 import multer from 'multer'
 import pdfParse from 'pdf-parse'
 import OpenAI from 'openai'
-import rateLimit from 'express-rate-limit'
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
 import { updateAbility } from '../utils/rasch'
@@ -13,7 +13,7 @@ const router = Router()
 const submitLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 daqiqa
     max: 20,
-    keyGenerator: (req: any) => req.user?.id || req.ip,
+    keyGenerator: (req: any) => req.user?.id || ipKeyGenerator(req),
     message: { error: 'Juda ko\'p test topshirish urinishi. 15 daqiqadan keyin qayta urinib ko\'ring.' },
     standardHeaders: true,
     legacyHeaders: false,
@@ -23,7 +23,7 @@ const submitLimiter = rateLimit({
 const generateLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 daqiqa
     max: 5,
-    keyGenerator: (req: any) => req.user?.id || req.ip,
+    keyGenerator: (req: any) => req.user?.id || ipKeyGenerator(req),
     message: { error: 'AI test yaratish limiti. Bir daqiqadan keyin qayta urinib ko\'ring.' },
     standardHeaders: true,
     legacyHeaders: false,
@@ -33,7 +33,7 @@ const generateLimiter = rateLimit({
 const createLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 daqiqa
     max: 10,
-    keyGenerator: (req: any) => req.user?.id || req.ip,
+    keyGenerator: (req: any) => req.user?.id || ipKeyGenerator(req),
     message: { error: 'Test yaratish limiti. Bir daqiqadan keyin qayta urinib ko\'ring.' },
     standardHeaders: true,
     legacyHeaders: false,
@@ -43,7 +43,7 @@ const createLimiter = rateLimit({
 const testMutateLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 30,
-    keyGenerator: (req: any) => req.user?.id || req.ip,
+    keyGenerator: (req: any) => req.user?.id || ipKeyGenerator(req),
     message: { error: 'Juda ko\'p so\'rov. Biroz kuting.' },
 })
 
@@ -51,7 +51,7 @@ const testMutateLimiter = rateLimit({
 const testReadLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 60,
-    keyGenerator: (req: any) => req.user?.id || req.ip,
+    keyGenerator: (req: any) => req.user?.id || ipKeyGenerator(req),
 })
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } })
