@@ -126,22 +126,41 @@ const MdMessage = memo(({ content, onOpenTest, isStreaming, onProfileUpdate, onO
                 const jsonStr = String(children).trim()
                 let count = 0
                 try { count = JSON.parse(jsonStr).length } catch { }
+                if (count === 0) return null
                 return (
-                    <div className="my-3 rounded-xl p-4 flex items-center justify-between" style={{ background: 'var(--brand-light)', border: '1px solid var(--border-strong)' }}>
-                        <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--brand)' }}>
-                                <Layers className="h-5 w-5 text-white" />
-                            </div>
-                            <div>
-                                <p className="text-sm font-semibold">{count} ta kartochka tayyor</p>
-                                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Bosib aylantiring — formula/javob ko'ring</p>
+                    <div className="my-3 rounded-2xl overflow-hidden" style={{
+                        background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(99, 102, 241, 0.04) 100%)',
+                        border: '1.5px solid rgba(99, 102, 241, 0.3)',
+                    }}>
+                        <div className="p-4">
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#6366f1' }}>
+                                        <Layers className="h-5 w-5 text-white" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Kartochkalar tayyor!</p>
+                                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: '#6366f1', color: '#fff' }}>
+                                                {count} ta karta
+                                            </span>
+                                        </div>
+                                        <p className="text-[12px] mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>Aylantiring — formula va javoblarni ko'ring</p>
+                                    </div>
+                                </div>
+                                {!isStreaming && onOpenFlash && (
+                                    <button
+                                        onClick={() => onOpenFlash(jsonStr)}
+                                        className="flex-shrink-0 h-9 px-4 rounded-xl text-[13px] font-bold text-white flex items-center gap-2 transition-all"
+                                        style={{ background: '#6366f1' }}
+                                        onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+                                        onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+                                    >
+                                        <Layers className="h-4 w-4" /> Boshlash
+                                    </button>
+                                )}
                             </div>
                         </div>
-                        {!isStreaming && onOpenFlash && (
-                            <button onClick={() => onOpenFlash(jsonStr)} className="h-9 px-4 rounded-xl text-sm font-semibold text-white transition flex items-center gap-2" style={{ background: 'var(--brand)' }}>
-                                <Layers className="h-4 w-4" /> Ochish
-                            </button>
-                        )}
                     </div>
                 )
             }
@@ -1407,38 +1426,38 @@ export default function ChatLayout() {
                                     <div className="bubble-ai">
                                         <MdMessage content={streaming} onOpenTest={openTestPanel} isStreaming={true} onProfileUpdate={handleProfileUpdate} onOpenFlash={openFlashPanel} />
                                         {/```test/.test(streaming) && !/```test[\s\S]*?```/.test(streaming) && (
-                                            <div className="mt-3 rounded-2xl overflow-hidden" style={{
-                                                background: 'linear-gradient(135deg, rgba(224, 123, 57, 0.08), rgba(224, 123, 57, 0.04))',
-                                                border: '1px solid rgba(224, 123, 57, 0.2)'
+                                            <div className="mt-4 rounded-2xl overflow-hidden" style={{
+                                                background: 'linear-gradient(135deg, rgba(224, 123, 57, 0.12) 0%, rgba(224, 123, 57, 0.05) 100%)',
+                                                border: '1.5px solid rgba(224, 123, 57, 0.25)',
                                             }}>
-                                                <div className="p-4">
-                                                    <div className="flex items-center gap-3 mb-3">
-                                                        <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 animate-pulse"
-                                                            style={{ background: 'rgba(224, 123, 57, 0.15)' }}>
-                                                            <svg className="h-4 w-4" style={{ color: 'var(--brand)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <div className="px-5 py-4">
+                                                    <div className="flex items-center gap-4 mb-4">
+                                                        <div className="h-12 w-12 rounded-2xl flex items-center justify-center flex-shrink-0 animate-pulse"
+                                                            style={{ background: 'rgba(224, 123, 57, 0.18)' }}>
+                                                            <svg className="h-6 w-6" style={{ color: 'var(--brand)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                                                             </svg>
                                                         </div>
                                                         <div className="flex-1">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-[13px] font-semibold" style={{ color: 'var(--brand)' }}>Test tayyorlanmoqda</span>
-                                                                <span className="flex gap-0.5 items-center">
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <span className="text-[15px] font-bold" style={{ color: 'var(--brand)' }}>Test tayyorlanmoqda</span>
+                                                                <span className="flex gap-1 items-center">
                                                                     {[0, 1, 2].map(i => (
-                                                                        <span key={i} className="h-1 w-1 rounded-full" style={{
+                                                                        <span key={i} className="h-1.5 w-1.5 rounded-full" style={{
                                                                             background: 'var(--brand)',
                                                                             animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite`
                                                                         }} />
                                                                     ))}
                                                                 </span>
                                                             </div>
-                                                            <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>AI savollarni shakllantirmoqda</span>
+                                                            <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>AI savollar yozmoqda, biroz kuting...</span>
                                                         </div>
                                                     </div>
-                                                    <div className="space-y-2 pl-1">
-                                                        {[80, 60, 70].map((w, i) => (
-                                                            <div key={i} className="h-2 rounded-full animate-pulse" style={{
+                                                    <div className="space-y-2.5">
+                                                        {[85, 65, 75, 50].map((w, i) => (
+                                                            <div key={i} className="h-2.5 rounded-full animate-pulse" style={{
                                                                 width: `${w}%`,
-                                                                background: 'rgba(224, 123, 57, 0.15)',
+                                                                background: 'rgba(224, 123, 57, 0.18)',
                                                                 animationDelay: `${i * 0.15}s`
                                                             }} />
                                                         ))}
@@ -1447,38 +1466,38 @@ export default function ChatLayout() {
                                             </div>
                                         )}
                                         {/```flashcard/.test(streaming) && !/```flashcard[\s\S]*?```/.test(streaming) && (
-                                            <div className="mt-3 rounded-2xl overflow-hidden" style={{
-                                                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(99, 102, 241, 0.04))',
-                                                border: '1px solid rgba(99, 102, 241, 0.2)'
+                                            <div className="mt-4 rounded-2xl overflow-hidden" style={{
+                                                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(99, 102, 241, 0.05) 100%)',
+                                                border: '1.5px solid rgba(99, 102, 241, 0.25)',
                                             }}>
-                                                <div className="p-4">
-                                                    <div className="flex items-center gap-3 mb-3">
-                                                        <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 animate-pulse"
-                                                            style={{ background: 'rgba(99, 102, 241, 0.15)' }}>
-                                                            <svg className="h-4 w-4" style={{ color: '#6366f1' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <div className="px-5 py-4">
+                                                    <div className="flex items-center gap-4 mb-4">
+                                                        <div className="h-12 w-12 rounded-2xl flex items-center justify-center flex-shrink-0 animate-pulse"
+                                                            style={{ background: 'rgba(99, 102, 241, 0.18)' }}>
+                                                            <svg className="h-6 w-6" style={{ color: '#6366f1' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                                                             </svg>
                                                         </div>
                                                         <div className="flex-1">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-[13px] font-semibold" style={{ color: '#6366f1' }}>Kartochkalar tayyorlanmoqda</span>
-                                                                <span className="flex gap-0.5 items-center">
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <span className="text-[15px] font-bold" style={{ color: '#6366f1' }}>Kartochkalar tayyorlanmoqda</span>
+                                                                <span className="flex gap-1 items-center">
                                                                     {[0, 1, 2].map(i => (
-                                                                        <span key={i} className="h-1 w-1 rounded-full" style={{
+                                                                        <span key={i} className="h-1.5 w-1.5 rounded-full" style={{
                                                                             background: '#6366f1',
                                                                             animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite`
                                                                         }} />
                                                                     ))}
                                                                 </span>
                                                             </div>
-                                                            <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>AI kartochkalarni shakllantirmoqda</span>
+                                                            <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>AI kartochkalar yozmoqda, biroz kuting...</span>
                                                         </div>
                                                     </div>
-                                                    <div className="space-y-2 pl-1">
-                                                        {[75, 90, 55].map((w, i) => (
-                                                            <div key={i} className="h-2 rounded-full animate-pulse" style={{
+                                                    <div className="space-y-2.5">
+                                                        {[80, 55, 70, 60].map((w, i) => (
+                                                            <div key={i} className="h-2.5 rounded-full animate-pulse" style={{
                                                                 width: `${w}%`,
-                                                                background: 'rgba(99, 102, 241, 0.15)',
+                                                                background: 'rgba(99, 102, 241, 0.18)',
                                                                 animationDelay: `${i * 0.15}s`
                                                             }} />
                                                         ))}
@@ -1508,9 +1527,9 @@ export default function ChatLayout() {
                 {/* Input + Quick Actions */}
                 {chatId && (
                     <div className="px-4 pb-5 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
-                        {/* Quick Actions */}
+                        {/* Quick Actions — mobile da scroll */}
                         {!loading && messages.length > 0 && (
-                            <div className="max-w-5xl mx-auto mb-2 flex gap-1.5 flex-wrap">
+                            <div className="max-w-5xl mx-auto mb-2 flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
                                 {[
                                     { Icon: ClipboardList, l: 'Testla', p: 'Meni shu mavzu bo\'yicha testlang. 5 ta test savol bering A, B, C, D variantlar bilan.' },
                                     { Icon: BookOpen, l: 'Davom et', p: 'Keyingi mavzuga o\'tamiz. Nimani o\'rganishimiz kerak?' },
@@ -1520,7 +1539,7 @@ export default function ChatLayout() {
                                     { Icon: Layers, l: 'Kartochkalar', p: 'Shu mavzuning eng muhim formulalari va tushunchalarini kartochka formatida bering (```flashcard JSON format).' },
                                 ].map((a, i) => (
                                     <button key={i} onClick={() => quickAction(a.p)}
-                                        className="h-7 px-3 text-[12px] font-medium rounded-full transition whitespace-nowrap flex items-center gap-1.5"
+                                        className="h-7 px-3 text-[12px] font-medium rounded-full transition whitespace-nowrap flex items-center gap-1.5 flex-shrink-0"
                                         style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-strong)', background: 'var(--bg-card)' }}
                                     ><a.Icon className="h-3 w-3 flex-shrink-0" />{a.l}</button>
                                 ))}
@@ -1562,10 +1581,26 @@ export default function ChatLayout() {
                                         ? <div className="h-4 w-4 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--text-muted)', borderTopColor: 'transparent' }} />
                                         : <Paperclip className="h-3.5 w-3.5" />}
                                 </button>
-                                <input value={input} onChange={e => setInput(e.target.value)} onPaste={handlePaste}
-                                    placeholder="Xabar yozing..." disabled={loading}
-                                    className="flex-1 h-12 bg-transparent outline-none text-sm"
-                                    style={{ color: 'var(--text-primary)' }} />
+                                <textarea
+                                    value={input}
+                                    onChange={e => {
+                                        setInput(e.target.value)
+                                        e.target.style.height = 'auto'
+                                        e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'
+                                    }}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault()
+                                            if (!loading && input.trim()) sendMessage(e as any)
+                                        }
+                                    }}
+                                    onPaste={handlePaste}
+                                    placeholder="Xabar yozing..."
+                                    disabled={loading}
+                                    rows={1}
+                                    className="flex-1 bg-transparent outline-none text-sm resize-none leading-relaxed"
+                                    style={{ color: 'var(--text-primary)', minHeight: '44px', maxHeight: '120px', paddingTop: '12px', paddingBottom: '12px' }}
+                                />
                                 <button type="button" onClick={() => setThinkingMode(!thinkingMode)}
                                     title={thinkingMode ? 'Chuqur fikrlash yoqilgan' : 'Chuqur fikrlash'}
                                     className="h-8 w-8 flex items-center justify-center rounded-lg transition"
