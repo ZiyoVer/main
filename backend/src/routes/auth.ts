@@ -156,14 +156,33 @@ router.post('/create-teacher', authenticate, requireRole('ADMIN'), async (req: A
     }
 })
 
-// Admin: Barcha foydalanuvchilar
+// Admin: Barcha foydalanuvchilar (pagination + qidiruv)
 router.get('/users', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
     try {
-        const users = await prisma.user.findMany({
-            select: { id: true, email: true, name: true, role: true, createdAt: true },
-            orderBy: { createdAt: 'desc' }
-        })
-        res.json(users)
+        const page = Math.max(1, parseInt(req.query.page as string) || 1)
+        const limit = Math.min(100, Math.max(10, parseInt(req.query.limit as string) || 50))
+        const search = ((req.query.search as string) || '').trim()
+        const skip = (page - 1) * limit
+
+        const where = search ? {
+            OR: [
+                { name: { contains: search, mode: 'insensitive' as const } },
+                { email: { contains: search, mode: 'insensitive' as const } }
+            ]
+        } : {}
+
+        const [users, total] = await Promise.all([
+            prisma.user.findMany({
+                where,
+                select: { id: true, email: true, name: true, role: true, createdAt: true },
+                orderBy: { createdAt: 'desc' },
+                skip,
+                take: limit
+            }),
+            prisma.user.count({ where })
+        ])
+
+        res.json({ users, total, page, pages: Math.ceil(total / limit) })
     } catch (e) {
         res.status(500).json({ error: 'Server xatoligi' })
     }

@@ -1,10 +1,21 @@
 import { Router } from 'express'
+import rateLimit from 'express-rate-limit'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest } from '../middleware/auth'
 import OpenAI from 'openai'
 
 const router = Router()
 router.use(authenticate)
+
+// Mock exam generatsiya uchun qattiq rate limit (har user uchun 5 ta/daqiqa)
+const mockExamLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 5,
+    keyGenerator: (req: any) => req.user?.id || req.ip,
+    message: { error: 'Mock exam yaratish limiti (5 ta/daqiqa). Biroz kuting.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+})
 
 const hasDeepseek = !!process.env.DEEPSEEK_API_KEY
 const aiClient = new OpenAI({
@@ -69,12 +80,16 @@ Faqat JSON qaytargin, boshqa hech narsa yozma.`
 // POST /api/mock-exam/generate
 // Body: { subject, examType: 'DTM' | 'MS' }
 // ────────────────────────────────────────────────────────────
-router.post('/generate', async (req: AuthRequest, res) => {
+router.post('/generate', mockExamLimiter, async (req: AuthRequest, res) => {
     try {
         const { subject, examType = 'DTM' } = req.body
 
         if (!subject) {
             return res.status(400).json({ error: 'subject majburiy' })
+        }
+
+        if (!['DTM', 'MS'].includes(examType)) {
+            return res.status(400).json({ error: 'examType faqat "DTM" yoki "MS" bo\'lishi mumkin' })
         }
 
         const config = getMockExamConfig(subject, examType as 'DTM' | 'MS')
@@ -108,13 +123,26 @@ router.post('/generate', async (req: AuthRequest, res) => {
         }
 
         // Savollarni tekshirish va normallashtirish
-        const normalized = questions.slice(0, config.count).map((q: any, i: number) => ({
-            id: i,
-            question: q.question || q.text || '',
-            options: Array.isArray(q.options) ? q.options.slice(0, 4) : ['A', 'B', 'C', 'D'],
-            correct: q.correct || q.correctIdx || 'A',
-            explanation: q.explanation || ''
-        })).filter(q => q.question.trim().length > 0)
+        const LETTERS = ['A', 'B', 'C', 'D']
+        const normalized = questions.slice(0, config.count).map((q: any, i: number) => {
+            // correct: 'A'/'B'/'C'/'D' yoki 'a'/'b'/'c'/'d' — katta harfga normalize qilamiz
+            let correct = 'A'
+            if (typeof q.correct === 'string') {
+                const upper = q.correct.toUpperCase()
+                correct = LETTERS.includes(upper) ? upper : 'A'
+            }
+            return {
+                id: i,
+                question: q.question || q.text || '',
+                options: Array.isArray(q.options) ? q.options.slice(0, 4) : ['A variant', 'B variant', 'C variant', 'D variant'],
+                correct,
+                explanation: q.explanation || ''
+            }
+        }).filter(q => q.question.trim().length > 0)
+
+        if (normalized.length === 0) {
+            return res.status(500).json({ error: 'Yaroqli savollar generatsiya qilinmadi' })
+        }
 
         // Mock exam natijasini saqlash uchun Test yaratamiz (isPublic: false)
         const test = await prisma.test.create({
@@ -125,13 +153,16 @@ router.post('/generate', async (req: AuthRequest, res) => {
                 creatorId: req.user.id,
                 timeLimit: config.timeMinutes,
                 questions: {
-                    create: normalized.map((q, idx) => ({
-                        text: q.question,
-                        options: JSON.stringify(q.options),
-                        correctIdx: ['A', 'B', 'C', 'D'].indexOf(q.correct),
-                        difficulty: 0.0,
-                        orderIdx: idx
-                    }))
+                    create: normalized.map((q, idx) => {
+                        const correctIdx = LETTERS.indexOf(q.correct)
+                        return {
+                            text: q.question,
+                            options: JSON.stringify(q.options),
+                            correctIdx: correctIdx >= 0 ? correctIdx : 0,
+                            difficulty: 0.0,
+                            orderIdx: idx
+                        }
+                    })
                 }
             },
             include: { questions: { orderBy: { orderIdx: 'asc' } } }

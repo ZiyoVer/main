@@ -565,6 +565,21 @@ router.post('/:chatId/upload-file', authenticate, uploadSingle, async (req: Auth
         if (!req.file) return res.status(400).json({ error: 'Fayl yuklanmadi' })
 
         const { mimetype, originalname, buffer } = req.file
+
+        // Faqat ruxsat berilgan fayl turlari (prompt injection oldini olish)
+        const ALLOWED_TYPES = [
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'text/plain',
+            'text/markdown',
+        ]
+        const isImage = mimetype.startsWith('image/')
+        const isAllowed = ALLOWED_TYPES.includes(mimetype) || isImage
+        if (!isAllowed) {
+            return res.status(400).json({ error: `Fayl turi qo'llab-quvvatlanmaydi: ${mimetype}. PDF, Word, rasm yoki TXT fayllar yuklanishi mumkin.` })
+        }
+
         let extractedText = ''
         let fileType = 'other'
 
@@ -764,8 +779,9 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
             data: { chatId: chat.id, role: 'assistant', content: fullReply }
         })
 
-        // Chat title yangilash (birinchi xabar bo'lsa)
-        if (history.length === 0) {
+        // Chat title yangilash — faqat birinchi xabar (history da faqat user xabar bor: length === 1)
+        // history allaqachon yangi user xabarni o'z ichiga oladi, shuning uchun 1 = birinchi xabar
+        if (history.length === 1) {
             const titleSrc = displayText?.trim() || content
             const shortTitle = titleSrc.substring(0, 40) + (titleSrc.length > 40 ? '...' : '')
             await prisma.chat.update({ where: { id: chat.id }, data: { title: shortTitle } })
@@ -841,7 +857,8 @@ router.post('/:chatId/send', authenticate, async (req: AuthRequest, res) => {
             data: { chatId: chat.id, role: 'assistant', content: reply }
         })
 
-        if (history.length === 0) {
+        // history allaqachon yangi user xabarni o'z ichiga oladi
+        if (history.length === 1) {
             const shortTitle = content.substring(0, 40) + (content.length > 40 ? '...' : '')
             await prisma.chat.update({ where: { id: chat.id }, data: { title: shortTitle } })
         }

@@ -969,3 +969,58 @@ html.dark .md-content pre {
     color: var(--brand);
     text-decoration: underline;
 }
+
+/* ---- Mobile Responsive ---- */
+@media (max-width: 640px) {
+
+    /* Bubbles — smaller font, wider max-width */
+    .bubble-ai {
+        max-width: 94%;
+        font-size: 0.8125rem;
+        line-height: 1.65;
+    }
+
+    .bubble-user {
+        max-width: 86%;
+        font-size: 0.8125rem;
+        padding: 0.5rem 0.75rem;
+    }
+
+    /* Markdown in chat */
+    .md-content {
+        font-size: 0.8125rem;
+        line-height: 1.65;
+    }
+
+    .md-content h1 {
+        font-size: 1rem;
+    }
+
+    .md-content h2 {
+        font-size: 0.9375rem;
+    }
+
+    .md-content h3 {
+        font-size: 0.875rem;
+    }
+
+    .md-content pre {
+        padding: 0.75rem;
+        font-size: 0.75rem;
+    }
+
+    .md-content table {
+        font-size: 0.75rem;
+    }
+
+    .md-content th,
+    .md-content td {
+        padding: 0.3rem 0.5rem;
+    }
+
+    /* Flashcard face smaller padding */
+    .flashcard-face {
+        padding: 1.25rem;
+        min-height: 140px;
+    }
+}

@@ -69,16 +69,32 @@ router.post('/', async (req: any, res) => {
             return res.status(400).json({ error: 'subject va cards[] majburiy' })
         }
 
+        // Mavjud kartlarning front textlarini olish (duplicate oldini olish)
+        const existing = await prisma.flashcard.findMany({
+            where: { userId, subject },
+            select: { front: true }
+        })
+        const existingFronts = new Set(existing.map(c => c.front.toLowerCase().trim()))
+
+        // Faqat yangi (duplicate bo'lmagan) kartlarni saqlash
+        const newCards = cards.filter((c: { front: string; back: string }) =>
+            c.front?.trim() && !existingFronts.has(c.front.toLowerCase().trim())
+        )
+
+        if (newCards.length === 0) {
+            return res.json({ created: 0, skipped: cards.length, message: 'Barcha kartalar allaqachon mavjud' })
+        }
+
         const created = await prisma.flashcard.createMany({
-            data: cards.map((c: { front: string; back: string }) => ({
+            data: newCards.map((c: { front: string; back: string }) => ({
                 userId,
                 subject,
-                front: c.front,
-                back: c.back,
+                front: c.front.trim(),
+                back: c.back?.trim() || '',
             })),
         })
 
-        res.json({ created: created.count })
+        res.json({ created: created.count, skipped: cards.length - created.count })
     } catch (e) {
         console.error(e)
         res.status(500).json({ error: 'Server xatoligi' })

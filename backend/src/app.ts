@@ -38,14 +38,23 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 
 app.use(cors({
     origin: (origin, cb) => {
-        // Same-origin (origin yo'q) yoki ruxsat berilgan originlar — o'tkazib yuborish
-        if (!origin || allowedOrigins.some(o => origin.startsWith(o))) {
+        // Same-origin (origin yo'q) — to'g'ridan-to'g'ri ruxsat
+        if (!origin) return cb(null, true)
+
+        // Aniq mos kelish tekshiruvi (startsWith zaif — msert.uz.evil.com ni o'tkazib yuboradi)
+        if (allowedOrigins.some(o => origin === o)) {
             return cb(null, true)
         }
-        // Railway ichki URL lari ham ruxsat — *.up.railway.app
-        if (origin.endsWith('.up.railway.app')) {
-            return cb(null, true)
-        }
+
+        // Railway ichki URL lari — *.up.railway.app
+        // Xavfsiz: faqat exactly *.up.railway.app domenlar, localhost emas
+        try {
+            const parsed = new URL(origin)
+            if (parsed.hostname.endsWith('.up.railway.app')) {
+                return cb(null, true)
+            }
+        } catch { /* noto'g'ri URL */ }
+
         return cb(null, false)
     },
     credentials: true

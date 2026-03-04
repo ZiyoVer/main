@@ -29,14 +29,19 @@ export default function AdminPanel() {
     const [registerTrend, setRegisterTrend] = useState<any[]>([])
     const [newUsers24h, setNewUsers24h] = useState<any[]>([])
     const [recentRegs, setRecentRegs] = useState<any[]>([])
+    // Users pagination
+    const [usersPage, setUsersPage] = useState(1)
+    const [usersTotal, setUsersTotal] = useState(0)
+    const [usersPages, setUsersPages] = useState(1)
+    const [usersSearch, setUsersSearch] = useState('')
+    const USERS_PER_PAGE = 50
 
-    useEffect(() => {
-        loadAll()
-    }, [tab])
-    async function loadAll() {
+    useEffect(() => { loadStats() }, [tab])
+    useEffect(() => { if (tab === 'users') loadUsers() }, [tab, usersPage, usersSearch])
+
+    async function loadStats() {
         setLoading(true)
         try { setStats(await fetchApi('/analytics/stats')) } catch { setStats({}) }
-        try { setUsers(await fetchApi('/auth/users')) } catch { setUsers([]) }
         try { setDocs(await fetchApi('/documents/list')) } catch { setDocs([]) }
         try { setTests(await fetchApi('/tests/all')) } catch { setTests([]) }
         try { const ai = await fetchApi('/ai-settings'); setAiConfig(ai) } catch { }
@@ -47,6 +52,20 @@ export default function AdminPanel() {
         try { setRecentRegs(await fetchApi('/analytics/recent-registrations')) } catch { setRecentRegs([]) }
         setLoading(false)
     }
+
+    async function loadUsers() {
+        try {
+            const params = new URLSearchParams({ page: String(usersPage), limit: String(USERS_PER_PAGE) })
+            if (usersSearch.trim()) params.set('search', usersSearch.trim())
+            const data = await fetchApi(`/auth/users?${params}`)
+            setUsers(data.users || [])
+            setUsersTotal(data.total || 0)
+            setUsersPages(data.pages || 1)
+        } catch { setUsers([]) }
+    }
+
+    // loadAll ni boshqa joylarda ishlatish uchun saqlaymiz
+    async function loadAll() { await loadStats(); await loadUsers() }
 
     async function createTeacher(e: React.FormEvent) {
         e.preventDefault()
@@ -352,7 +371,15 @@ export default function AdminPanel() {
                 {/* === USERS === */}
                 {tab === 'users' && (
                     <div>
-                        <p className="text-[11px] mb-3" style={mutedText}>{users.length} ta foydalanuvchi</p>
+                        <div className="flex items-center justify-between mb-3 gap-3">
+                            <p className="text-[11px]" style={mutedText}>{usersTotal} ta foydalanuvchi</p>
+                            <input
+                                type="search" placeholder="Ism yoki email bo'yicha qidirish..."
+                                value={usersSearch}
+                                onChange={e => { setUsersSearch(e.target.value); setUsersPage(1) }}
+                                className="input" style={{ height: '2rem', fontSize: '12px', width: '240px' }}
+                            />
+                        </div>
                         <div className="rounded-xl overflow-hidden" style={cardStyle}>
                             <table className="w-full text-sm">
                                 <thead>
@@ -385,6 +412,36 @@ export default function AdminPanel() {
                                 </tbody>
                             </table>
                         </div>
+                        {/* Pagination */}
+                        {usersPages > 1 && (
+                            <div className="flex items-center justify-between mt-3">
+                                <p className="text-[11px]" style={mutedText}>
+                                    {(usersPage - 1) * USERS_PER_PAGE + 1}–{Math.min(usersPage * USERS_PER_PAGE, usersTotal)} / {usersTotal}
+                                </p>
+                                <div className="flex gap-1">
+                                    <button onClick={() => setUsersPage(p => Math.max(1, p - 1))} disabled={usersPage <= 1}
+                                        className="h-7 px-3 rounded-lg text-[12px] font-medium transition disabled:opacity-40"
+                                        style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>
+                                        ← Oldingi
+                                    </button>
+                                    {Array.from({ length: Math.min(5, usersPages) }, (_, i) => {
+                                        const p = Math.max(1, Math.min(usersPages - 4, usersPage - 2)) + i
+                                        return (
+                                            <button key={p} onClick={() => setUsersPage(p)}
+                                                className="h-7 w-7 rounded-lg text-[12px] font-medium transition"
+                                                style={p === usersPage ? { background: 'var(--brand)', color: '#fff' } : { background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>
+                                                {p}
+                                            </button>
+                                        )
+                                    })}
+                                    <button onClick={() => setUsersPage(p => Math.min(usersPages, p + 1))} disabled={usersPage >= usersPages}
+                                        className="h-7 px-3 rounded-lg text-[12px] font-medium transition disabled:opacity-40"
+                                        style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>
+                                        Keyingi →
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 

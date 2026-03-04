@@ -268,7 +268,16 @@ export default function ChatLayout() {
         localStorage.setItem('darkMode', String(darkMode))
     }, [darkMode])
 
-    useEffect(() => { loadChats(); loadProfile(); loadPublicTests(); loadMyResults(); loadProgress(); loadDueFlashcards(); logActivity() }, [])
+    useEffect(() => {
+        loadChats(); loadProfile(); loadPublicTests(); loadMyResults(); loadProgress(); loadDueFlashcards(); logActivity()
+        // Komponent unmount bo'lganda barcha blob URL'larni tozalash (memory leak oldini olish)
+        return () => {
+            setAttachedFiles(prev => {
+                prev.forEach(f => { if (f.previewUrl) URL.revokeObjectURL(f.previewUrl) })
+                return []
+            })
+        }
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
     useEffect(() => { if (chatId) loadMessages(chatId) }, [chatId])
 
     // Panel drag-to-resize (flashcard + test)
@@ -437,6 +446,7 @@ export default function ChatLayout() {
         setLoading(true); setStreaming(''); setThinkingText('')
         const controller = new AbortController()
         abortRef.current = controller
+        let fullText = '' // local ref — stale closure muammosini oldini olish uchun
         try {
             const token = localStorage.getItem('token')
             const res = await fetch(`/api/chat/${targetChatId}/stream`, {
@@ -452,7 +462,6 @@ export default function ChatLayout() {
             }
             const reader = res.body?.getReader()
             const decoder = new TextDecoder()
-            let fullText = ''
             let thinkBuf = ''
             if (reader) {
                 while (true) {
@@ -501,13 +510,13 @@ export default function ChatLayout() {
             }
         } catch (err: any) {
             if (err?.name === 'AbortError') {
-                // User stopped — keep partial
-                if (streaming) {
+                // User stopped — fullText local variable ishlatamiz (stale closure yo'q)
+                if (fullText.trim()) {
                     setMessages(prev => {
                         const filtered = prev.filter(m => m.id !== 'temp-u')
                         return [...filtered,
                         { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() },
-                        { id: 'a-' + Date.now(), role: 'assistant', content: streaming + '\n\n*[To\'xtatildi]*', createdAt: new Date().toISOString() }
+                        { id: 'a-' + Date.now(), role: 'assistant', content: fullText + '\n\n*[To\'xtatildi]*', createdAt: new Date().toISOString() }
                         ]
                     })
                 }
@@ -555,6 +564,8 @@ export default function ChatLayout() {
                 displayText += `\n\n${userInput}`
             }
 
+            // Blob URL'larni tozalash — memory leak oldini olish
+            attachedFiles.forEach(f => { if (f.previewUrl) URL.revokeObjectURL(f.previewUrl) })
             setAttachedFiles([])
             setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: displayText.trim(), createdAt: new Date().toISOString() }])
             await streamToChat(chatId, promptText.trim(), displayText.trim())
@@ -668,9 +679,25 @@ export default function ChatLayout() {
             setActiveTestId(t.id)
             setActiveTestQuestions(rawQuestions)
             if (completedTestIdsRef.current.has(t.id)) {
-                // Avval yechilgan — faqat ko'rish rejimi
-                setTestPanel(JSON.stringify(converted))
-                setTestAnswers({})
+                // Avval yechilgan — to'g'ri javoblarni localStorage dan olish
+                try {
+                    const savedCorrect = localStorage.getItem('msert_correct_' + t.id)
+                    if (savedCorrect) {
+                        const correctMap: Record<string, number> = JSON.parse(savedCorrect)
+                        const withCorrect = converted.map((q: any) => {
+                            const ci = correctMap[q.id]
+                            return ci !== undefined ? { ...q, correct: (['a', 'b', 'c', 'd'] as const)[ci] ?? 'a' } : q
+                        })
+                        setTestPanel(JSON.stringify(withCorrect))
+                    } else {
+                        setTestPanel(JSON.stringify(converted))
+                    }
+                } catch { setTestPanel(JSON.stringify(converted)) }
+                // Avvalgi javoblarni ham ko'rsatish
+                try {
+                    const savedAnswers = localStorage.getItem('msert_pub_ans_' + t.id)
+                    setTestAnswers(savedAnswers ? JSON.parse(savedAnswers) : {})
+                } catch { setTestAnswers({}) }
                 setTestSubmitted(true)
                 setTestReadOnly(true)
                 setTestPanelMaximized(false)
@@ -807,15 +834,21 @@ export default function ChatLayout() {
                         loadProfile()
                         loadMyResults()
                     }
-                    // Submit dan keyin to'g'ri javoblarni ko'rsatish
-                    if (res?.correctAnswers) {
+                    // Submit dan keyin to'g'ri javoblarni ko'rsatish va localStorage ga saqlash
+                    if (res?.correctAnswers && activeTestId) {
+                        // To'g'ri javoblarni saqlash (keyingi ochilishda ishlatish uchun)
+                        const correctMap: Record<string, number> = {}
+                        res.correctAnswers.forEach((c: any) => { correctMap[c.id] = c.correctIdx })
+                        try { localStorage.setItem('msert_correct_' + activeTestId, JSON.stringify(correctMap)) } catch { }
+                        // User javoblarini ham saqlaymiz
+                        try { localStorage.setItem('msert_pub_ans_' + activeTestId, JSON.stringify(testAnswers)) } catch { }
                         setTestPanel(prev => {
                             if (!prev) return prev
                             try {
                                 const qs = JSON.parse(prev)
                                 const updated = qs.map((q: any) => {
-                                    const ca = res.correctAnswers.find((c: any) => c.id === q.id)
-                                    return ca ? { ...q, correct: (['a', 'b', 'c', 'd'] as const)[ca.correctIdx] ?? 'a' } : q
+                                    const ci = correctMap[q.id]
+                                    return ci !== undefined ? { ...q, correct: (['a', 'b', 'c', 'd'] as const)[ci] ?? 'a' } : q
                                 })
                                 return JSON.stringify(updated)
                             } catch { return prev }
@@ -1076,26 +1109,34 @@ export default function ChatLayout() {
                             </div>
                         </div>
                         {/* Weak/Strong topics */}
-                        {profile?.weakTopics && (
-                            <div className="rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                <p className="text-[11px] font-semibold uppercase mb-2" style={{ color: 'var(--text-muted)' }}>Qiyin mavzular</p>
-                                <div className="flex flex-wrap gap-1">
-                                    {JSON.parse(profile.weakTopics).map((t: string, i: number) => (
-                                        <span key={i} className="text-[11px] px-2 py-0.5 rounded-md" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>{t}</span>
-                                    ))}
+                        {profile?.weakTopics && (() => {
+                            let topics: string[] = []
+                            try { const p = JSON.parse(profile.weakTopics); topics = Array.isArray(p) ? p : [] } catch { }
+                            return topics.length > 0 ? (
+                                <div className="rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                    <p className="text-[11px] font-semibold uppercase mb-2" style={{ color: 'var(--text-muted)' }}>Qiyin mavzular</p>
+                                    <div className="flex flex-wrap gap-1">
+                                        {topics.map((t: string, i: number) => (
+                                            <span key={i} className="text-[11px] px-2 py-0.5 rounded-md" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>{t}</span>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
-                        )}
-                        {profile?.strongTopics && (
-                            <div className="rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                <p className="text-[11px] font-semibold uppercase mb-2" style={{ color: 'var(--text-muted)' }}>Kuchli mavzular</p>
-                                <div className="flex flex-wrap gap-1">
-                                    {JSON.parse(profile.strongTopics).map((t: string, i: number) => (
-                                        <span key={i} className="text-[11px] px-2 py-0.5 rounded-md" style={{ background: 'var(--success-light)', color: 'var(--success)' }}>{t}</span>
-                                    ))}
+                            ) : null
+                        })()}
+                        {profile?.strongTopics && (() => {
+                            let topics: string[] = []
+                            try { const p = JSON.parse(profile.strongTopics); topics = Array.isArray(p) ? p : [] } catch { }
+                            return topics.length > 0 ? (
+                                <div className="rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                    <p className="text-[11px] font-semibold uppercase mb-2" style={{ color: 'var(--text-muted)' }}>Kuchli mavzular</p>
+                                    <div className="flex flex-wrap gap-1">
+                                        {topics.map((t: string, i: number) => (
+                                            <span key={i} className="text-[11px] px-2 py-0.5 rounded-md" style={{ background: 'var(--success-light)', color: 'var(--success)' }}>{t}</span>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            ) : null
+                        })()}
                         {/* Test statistikasi */}
                         {(() => {
                             const abilityLevel = profile?.abilityLevel ?? 0
