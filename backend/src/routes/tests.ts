@@ -157,7 +157,7 @@ router.post('/generate-from-file', authenticate, requireRole('TEACHER', 'ADMIN')
         if (!req.file) return res.status(400).json({ error: 'Fayl yuklanmadi' })
         const { mimetype, buffer } = req.file
         const subject = (req.body.subject as string) || ''
-        const jsonFormat = `[{"text":"Savol matni?","options":["A variant","B variant","C variant","D variant"],"correctIdx":0}]`
+        const jsonFormat = `[{"text":"Savol matni (masalan: $\\\\sqrt{2}$ yoki $\\\\frac{a}{b}$)?","options":["A variant","B variant","C variant","D variant"],"correctIdx":0}]`
         const subjectNote = subject ? ` Fan: ${subject}.` : ''
 
         let messages: any[] = []
@@ -202,6 +202,8 @@ MUHIM QOIDALAR:
 - Rasmdagi mavjud savol va variantlarni AYNAN ko'chir
 - Kamida 5 ta, ko'pi 30 ta savol
 - correctIdx: to'g'ri javob indeksi (0=A, 1=B, 2=C, 3=D)
+- Matematik ifodalarni KaTeX formatida yoz: $\\sqrt{x}$, $\\frac{a}{b}$, $x^{2}$, $a_{n}$, $\\pi$
+- Rasmdagi har qanday formula, ildiz, kasr, daraja, indeksni LaTeX bilan ifodalash SHART
 
 Javobni FAQAT JSON array formatda qaytargil:
 ${jsonFormat}`
@@ -229,6 +231,8 @@ MUHIM QOIDALAR:
 - Agar matnda savol topilmasa YOKI matn o'quv material bo'lsa — o'sha materialdan YANGI savol yaratishga ruxsat beriladi
 - correctIdx: to'g'ri javob indeksi (0=A, 1=B, 2=C, 3=D)
 - Kamida 5 ta, ko'pi 30 ta savol
+- Matematik ifodalarni KaTeX formatida yoz: $\\sqrt{x}$, $\\frac{a}{b}$, $x^{2}$, $a_{n}$, $\\pi$
+- Har qanday formula, ildiz, kasr, daraja, indeksni LaTeX bilan ifodalash SHART
 ${truncated ? '- DIQQAT: PDF katta, faqat birinchi qism berildi\n' : ''}
 Javobni FAQAT JSON array formatda qaytargil, boshqa hech narsa yozma:
 ${jsonFormat}
@@ -252,6 +256,8 @@ MUHIM QOIDALAR:
 - Matndagi mavjud savol va variantlarni AYNAN ko'chir
 - correctIdx: to'g'ri javob indeksi (0=A, 1=B, 2=C, 3=D)
 - Kamida 5 ta, ko'pi 30 ta savol
+- Matematik ifodalarni KaTeX formatida yoz: $\\sqrt{x}$, $\\frac{a}{b}$, $x^{2}$, $a_{n}$, $\\pi$
+- Har qanday formula, ildiz, kasr, daraja, indeksni LaTeX bilan ifodalash SHART
 ${truncated ? '- DIQQAT: Fayl katta, faqat birinchi qism berildi\n' : ''}
 Javobni FAQAT JSON array formatda qaytargil:
 ${jsonFormat}
@@ -273,6 +279,8 @@ MUHIM QOIDALAR:
 - Agar rasmda savol topilmasa — rasmda ko'rsatilgan mavzudan yangi savol yaratishga ruxsat beriladi
 - correctIdx: to'g'ri javob indeksi (0=A, 1=B, 2=C, 3=D)
 - Kamida 5 ta, ko'pi 30 ta savol
+- Matematik ifodalarni KaTeX formatida yoz: $\\sqrt{x}$, $\\frac{a}{b}$, $x^{2}$, $a_{n}$, $\\pi$
+- Rasmdagi har qanday formula, ildiz, kasr, daraja, indeksni LaTeX bilan ifodalash SHART
 
 Javobni FAQAT JSON array formatda qaytargil, boshqa hech narsa yozma:
 ${jsonFormat}`
@@ -294,7 +302,21 @@ ${jsonFormat}`
         const completion = await client.chat.completions.create({
             model: model,
             messages: [
-                { role: 'system', content: 'Siz test savollari generatorisiz. Sizga berilgan matn yoki rasmdan savollarni AYNAN ajratib olasiz. FAQAT JSON array formatda javob bering, boshqa hech narsa yozmasdan.' },
+                { role: 'system', content: `Siz test savollari generatorisiz. Sizga berilgan matn yoki rasmdan savollarni AYNAN ajratib olasiz. FAQAT JSON array formatda javob bering, boshqa hech narsa yozmasdan.
+
+MATEMATIK IFODALAR UCHUN QOIDA (MUHIM):
+- Barcha matematik ifodalarni KaTeX/LaTeX formatida yozing
+- Inline formula: $formula$ — masalan: $\\sqrt{2}$, $\\frac{1}{2}$, $x^2$, $a_n$
+- Block formula: $$formula$$ — katta ifodalar uchun
+- Ildiz: $\\sqrt{x}$ yoki $\\sqrt[n]{x}$
+- Kasr: $\\frac{a}{b}$
+- Daraja: $x^{2}$, $2^{n}$
+- Indeks: $a_{n}$, $x_{1}$
+- Ko'paytma: $a \\cdot b$ yoki $a \\times b$
+- Mutlaq qiymat: $|x|$
+- PI: $\\pi$
+- Tengsizlik: $\\leq$, $\\geq$, $\\neq`
+        },
                 ...messages
             ],
             max_tokens: 8000,

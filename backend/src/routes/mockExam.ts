@@ -37,7 +37,8 @@ Qoidalar:
 - Faqat bitta to'g'ri javob
 - Qiyinlik darajasi: 40% oson, 40% o'rta, 20% qiyin
 - Barcha savollar DTM dasturi doirasida
-- LaTeX formulalar uchun $...$ va $$...$$ ishlatamiz
+- Matematik ifodalarni MAJBURIY LaTeX bilan yoz: ildiz=$\\sqrt{x}$, kasr=$\\frac{a}{b}$, daraja=$x^{2}$, indeks=$a_{n}$, pi=$\\pi$, ko'paytma=$a \\cdot b$
+- Inline: $formula$, blok: $$formula$$
 
 Qat'iy JSON formatda qaytarishin kerak:
 [
@@ -61,7 +62,8 @@ Qoidalar:
 - 4 ta variant (A, B, C, D)
 - Faqat bitta to'g'ri javob
 - Qiyinlik darajasi: 30% oson, 50% o'rta, 20% qiyin
-- LaTeX formulalar uchun $...$ va $$...$$ ishlatamiz
+- Matematik ifodalarni MAJBURIY LaTeX bilan yoz: ildiz=$\\sqrt{x}$, kasr=$\\frac{a}{b}$, daraja=$x^{2}$, indeks=$a_{n}$, pi=$\\pi$, ko'paytma=$a \\cdot b$
+- Inline: $formula$, blok: $$formula$$
 
 Qat'iy JSON formatda qaytarishin kerak:
 [
