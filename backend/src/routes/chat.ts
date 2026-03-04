@@ -6,7 +6,22 @@ import prisma from '../utils/db'
 import { authenticate, AuthRequest } from '../middleware/auth'
 import OpenAI from 'openai'
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } })
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 15 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const allowed = [
+            'application/pdf',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp'
+        ]
+        if (allowed.includes(file.mimetype)) {
+            cb(null, true)
+        } else {
+            cb(new Error(`Ruxsat etilmagan fayl turi: ${file.mimetype}`))
+        }
+    }
+})
 
 const router = Router()
 
@@ -263,9 +278,14 @@ function buildSystemPrompt(profile: any, subject?: string, extraRules?: string, 
 
     let daysLeft = ''
     if (profile?.examDate) {
-        const diff = Math.ceil((new Date(profile.examDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-        if (diff > 0) daysLeft = `Imtihon sanasi: ${new Date(profile.examDate).toLocaleDateString('uz')} (${diff} kun qoldi).`
-        else daysLeft = 'Imtihon sanasi o\'tgan.'
+        try {
+            const examDate = new Date(profile.examDate)
+            if (!isNaN(examDate.getTime())) {
+                const diff = Math.ceil((examDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+                if (diff > 0) daysLeft = `Imtihon sanasi: ${examDate.toLocaleDateString('uz')} (${diff} kun qoldi).`
+                else daysLeft = "Imtihon sanasi o'tgan."
+            }
+        } catch { daysLeft = '' }
     }
 
     let weakTopics: string[] = []

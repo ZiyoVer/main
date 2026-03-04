@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { BrainCircuit, Plus, Trash2, LogOut, Copy, Check, Globe, Lock, ClipboardList, Upload, Sparkles, FileText, Image, ChevronDown, ChevronUp, BarChart2, X, Users } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
+import { SUBJECTS } from '../../constants'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 
@@ -17,8 +18,6 @@ function MathPreview({ text }: { text: string }) {
 }
 
 interface Question { text: string; options: string[]; correctIdx: number }
-
-const SUBJECTS = ['Matematika', 'Fizika', 'Kimyo', 'Biologiya', 'Ona tili', 'Ingliz tili', 'Tarix', 'Geografiya']
 
 export default function TeacherPanel() {
     const nav = useNavigate()
@@ -46,6 +45,13 @@ export default function TeacherPanel() {
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     useEffect(() => { loadTests() }, [])
+    useEffect(() => {
+        const handleEsc = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setAnalyticsId(null)
+        }
+        window.addEventListener('keydown', handleEsc)
+        return () => window.removeEventListener('keydown', handleEsc)
+    }, [])
     async function loadTests() {
         try { setTests(await fetchApi('/tests/my-tests')) } catch { }
     }

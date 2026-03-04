@@ -9,12 +9,15 @@ import rehypeSanitize from 'rehype-sanitize'
 import DOMPurify from 'dompurify'
 import 'katex/dist/katex.min.css'
 import katex from 'katex'
+import toast from 'react-hot-toast'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 
 interface Chat { id: string; title: string; subject?: string; updatedAt: string }
 interface Msg { id: string; role: string; content: string; createdAt: string }
 interface Profile { onboardingDone: boolean; subject?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string; totalTests?: number; avgScore?: number; abilityLevel?: number }
+interface PublicTest { id: string; title: string; subject?: string; _count?: { questions: number; attempts: number } }
+interface MyResult { id: string; testId: string; score: number; total: number; createdAt: string }
 
 // Test paneli uchun inline KaTeX renderer (ReactMarkdown ishlatmaymiz, tez va engil)
 function MathText({ text }: { text: string }) {
@@ -37,7 +40,7 @@ const MdMessage = memo(({ content, onOpenTest, isStreaming, onProfileUpdate, onO
     onOpenFlash?: (jsonStr: string) => void
 }) => (
     <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex, rehypeSanitize]} components={{
-        img: ({ src, alt }) => <img src={src} alt={alt || ''} className="max-h-48 max-w-xs rounded-xl object-contain my-1" style={{ border: '1px solid var(--border)' }} />,
+        img: ({ src, alt }) => <img src={src} alt={alt || ''} className="max-h-48 max-w-[90%] sm:max-w-sm md:max-w-md rounded-xl object-contain my-1" style={{ border: '1px solid var(--border)' }} />,
         p: ({ children }) => <p className="mb-2.5 last:mb-0 leading-relaxed">{children}</p>,
         strong: ({ children }) => <strong className="font-semibold" style={{ color: 'var(--text-primary)' }}>{children}</strong>,
         em: ({ children }) => <em style={{ color: 'var(--text-secondary)' }}>{children}</em>,
@@ -195,8 +198,8 @@ export default function ChatLayout() {
         const saved = localStorage.getItem('darkMode')
         return saved === 'true'
     })
-    const [publicTests, setPublicTests] = useState<any[]>([])
-    const [myResults, setMyResults] = useState<any[]>([])
+    const [publicTests, setPublicTests] = useState<PublicTest[]>([])
+    const [myResults, setMyResults] = useState<MyResult[]>([])
     const [stats, setStats] = useState({ chats: 0, messages: 0, streak: 0 })
     const [progressData, setProgressData] = useState<{ xp: number; streak: number; longestStreak: number; avgScore: number; weeklyActivity: Array<{ day: string; count: number }> } | null>(null)
     const [dueFlashcards, setDueFlashcards] = useState<Array<{ id: string; front: string; back: string; subject: string }>>([])
@@ -222,6 +225,7 @@ export default function ChatLayout() {
     const [attachedFiles, setAttachedFiles] = useState<{ id: string; name: string; text: string; type: string; previewUrl?: string }[]>([])
     const [uploadingFile, setUploadingFile] = useState(false)
     const [loadingPublicTest, setLoadingPublicTest] = useState(false)
+    const [testsLoading, setTestsLoading] = useState(false)
     const [activeTestId, setActiveTestId] = useState<string | null>(null)
     const [activeTestQuestions, setActiveTestQuestions] = useState<any[]>([])
     const [testReadOnly, setTestReadOnly] = useState(false)
@@ -240,6 +244,7 @@ export default function ChatLayout() {
     const [flashMaximized, setFlashMaximized] = useState(false)
     const [flashWidth, setFlashWidth] = useState(384)
     const flashDragRef = useRef(false)
+    const flashWidthRef = useRef(384)
     const [testWidth, setTestWidth] = useState(384)
     const testDragRef = useRef(false)
     const [sidebarWidth, setSidebarWidth] = useState(288)
@@ -285,11 +290,17 @@ export default function ChatLayout() {
     // Panel drag-to-resize (flashcard + test)
     useEffect(() => {
         const onMove = (e: MouseEvent) => {
-            if (flashDragRef.current) setFlashWidth(Math.max(280, Math.min(900, window.innerWidth - e.clientX)))
+            if (flashDragRef.current) {
+                const newWidth = Math.max(280, Math.min(900, window.innerWidth - e.clientX))
+                flashWidthRef.current = newWidth
+                const el = document.querySelector('.flash-panel') as HTMLElement
+                if (el) el.style.width = newWidth + 'px'
+            }
             if (testDragRef.current) setTestWidth(Math.max(280, Math.min(900, window.innerWidth - e.clientX)))
             if (sidebarDragRef.current) setSidebarWidth(Math.max(240, Math.min(600, e.clientX)))
         }
         const onUp = () => {
+            if (flashDragRef.current) setFlashWidth(flashWidthRef.current)
             flashDragRef.current = false; testDragRef.current = false;
             if (sidebarDragRef.current) {
                 sidebarDragRef.current = false;
@@ -355,7 +366,8 @@ export default function ChatLayout() {
     }
 
     async function loadPublicTests() {
-        try { setPublicTests(await fetchApi('/tests/public')) } catch (err) { console.error('loadPublicTests:', err) }
+        setTestsLoading(true)
+        try { setPublicTests(await fetchApi('/tests/public')) } catch (err) { console.error('loadPublicTests:', err) } finally { setTestsLoading(false) }
     }
 
     async function loadMyResults() {
@@ -602,12 +614,12 @@ export default function ChatLayout() {
 
     function markTestCompleted(testId: string) {
         completedTestIdsRef.current.add(testId)
-        try { localStorage.setItem('msert_done_tests', JSON.stringify([...completedTestIdsRef.current])) } catch { }
+        try { localStorage.setItem('msert_done_tests', JSON.stringify([...completedTestIdsRef.current])) } catch (err) { console.warn('localStorage limit to\'lgan:', err); toast.error("Xotira to'lgan, eski ma'lumotlar o'chirilishi mumkin") }
     }
 
     function markAiTestCompleted(key: string) {
         completedAiTestsRef.current.add(key)
-        try { localStorage.setItem('msert_done_ai_tests', JSON.stringify([...completedAiTestsRef.current])) } catch { }
+        try { localStorage.setItem('msert_done_ai_tests', JSON.stringify([...completedAiTestsRef.current])) } catch (err) { console.warn('localStorage limit to\'lgan:', err); toast.error("Xotira to'lgan, eski ma'lumotlar o'chirilishi mumkin") }
     }
 
     // AI taklif qilgan profil yangilashni tasdiqlash
@@ -741,7 +753,7 @@ export default function ChatLayout() {
             }))
             setAttachedFiles(prev => [...prev, ...newAttachments])
         } catch (e: any) {
-            alert('Fayl yuklashda xato: ' + (e?.message || 'Qayta urinib ko\'ring'))
+            toast.error('Fayl yuklashda xato: ' + (e?.message || 'Qayta urinib ko\'ring'))
         }
         setUploadingFile(false)
     }
@@ -750,7 +762,7 @@ export default function ChatLayout() {
         const files = Array.from(e.target.files || [])
         if (!files.length) return
         if (attachedFiles.length + files.length > 5) {
-            alert("Kechirasiz, birdaniga eng ko'pi bilan 5 ta rasm/fayl yuborishingiz mumkin!")
+            toast.error("Birdaniga eng ko'pi bilan 5 ta rasm/fayl yuborish mumkin")
             if (fileInputRef.current) fileInputRef.current.value = ''
             return
         }
@@ -774,7 +786,7 @@ export default function ChatLayout() {
         }
 
         if (attachedFiles.length + filesToUpload.length > 5) {
-            alert("Kechirasiz, birdaniga eng ko'pi bilan 5 ta rasm/fayl yuborishingiz mumkin!")
+            toast.error("Birdaniga eng ko'pi bilan 5 ta rasm/fayl yuborish mumkin")
             return
         }
 
@@ -997,10 +1009,22 @@ export default function ChatLayout() {
                 {sideTab === 'tests' && (
                     <div className="flex-1 overflow-y-auto px-2 space-y-1">
                         {/* O'qituvchi testlari */}
-                        {publicTests.length > 0 && (
+                        {testsLoading ? (
+                            <div className="space-y-2 p-2">
+                                {[1,2,3].map(i => (
+                                    <div key={i} className="h-10 rounded animate-pulse" style={{ background: 'var(--bg-muted)' }} />
+                                ))}
+                            </div>
+                        ) : publicTests.length === 0 ? (
+                            <div className="text-center p-4">
+                                <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>Hozircha testlar yo'q</p>
+                                <button onClick={() => setSideTab('chats')} className="text-xs underline" style={{ color: 'var(--brand)' }}>
+                                    AI dan test so'rang
+                                </button>
+                            </div>
+                        ) : (
                             <p className="text-[11px] font-semibold uppercase px-1 mb-2 mt-1" style={{ color: 'var(--text-muted)' }}>O'qituvchi testlari</p>
                         )}
-                        {publicTests.length === 0 && <p className="text-xs text-center py-6" style={{ color: 'var(--text-muted)' }}>Hozircha testlar yo'q</p>}
                         {loadingPublicTest && (
                             <div className="flex justify-center py-4">
                                 <div className="h-4 w-4 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--brand)', borderTopColor: 'transparent' }} />
@@ -1463,7 +1487,7 @@ export default function ChatLayout() {
                                     <div className="flex-1">
                                         <details className="group">
                                             <summary className="text-[11px] cursor-pointer select-none mb-1" style={{ color: 'var(--text-muted)' }}>Fikrlash jarayoni <span className="group-open:hidden">(ko'rish)</span></summary>
-                                            <div className="rounded-lg p-2.5 text-[11px] leading-relaxed whitespace-pre-wrap max-h-24 overflow-hidden mt-1" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>{thinkingText}</div>
+                                            <div className="rounded-lg p-2.5 text-[11px] leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto mt-1" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>{thinkingText.length > 3000 ? thinkingText.slice(0, 3000) + '\n...[qisqartirildi]' : thinkingText}</div>
                                         </details>
                                     </div>
                                 </div>
@@ -1745,6 +1769,10 @@ export default function ChatLayout() {
                                                     return (
                                                         <button key={opt} disabled={testSubmitted}
                                                             onClick={() => setTestAnswers({ ...testAnswers, [i]: opt })}
+                                                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTestAnswers({ ...testAnswers, [i]: opt }) } }}
+                                                            tabIndex={0}
+                                                            role="radio"
+                                                            aria-checked={testAnswers[i] === opt}
                                                             className="w-full text-left px-4 py-3 rounded-xl text-[13px] border transition-all duration-200 outline-none"
                                                             style={sty}>
                                                             <span className="font-bold mr-2" style={{ opacity: 0.6 }}>{opt.toUpperCase()})</span> <MathText text={q[opt]} />
@@ -1797,7 +1825,7 @@ export default function ChatLayout() {
                     const card = flashPanel[flashIdx]
                     return (
                         <div
-                            className={flashMaximized ? 'fixed inset-0 z-50 flex flex-col' : 'relative flex flex-col flex-shrink-0'}
+                            className={flashMaximized ? 'fixed inset-0 z-50 flex flex-col' : 'flash-panel relative flex flex-col flex-shrink-0'}
                             style={flashMaximized ? { background: 'var(--bg-card)' } : { width: flashWidth, background: 'var(--bg-card)', borderLeft: '1px solid var(--border)' }}>
 
                             {/* Drag handle */}

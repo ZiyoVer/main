@@ -290,6 +290,14 @@ router.post('/:testId/questions', authenticate, requireRole('TEACHER', 'ADMIN'),
 
         const { text, options, correctIdx, orderIdx, difficulty } = req.body
 
+        // Savol matni validatsiyasi
+        if (!text || typeof text !== 'string' || !text.trim()) {
+            return res.status(400).json({ error: 'Savol matni majburiy' })
+        }
+        if (text.trim().length > 2000) {
+            return res.status(400).json({ error: 'Savol matni 2000 belgidan oshmasligi kerak' })
+        }
+
         // Validatsiya
         if (!Array.isArray(options) || options.length < 2) {
             return res.status(400).json({ error: 'Kamida 2 ta variant bo\'lishi kerak' })
