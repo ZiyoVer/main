@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import { BrainCircuit, Plus, Trash2, LogOut, Copy, Check, Globe, Lock, ClipboardList, Upload, Sparkles, FileText, Image, ChevronDown, ChevronUp, BarChart2, X, Users } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
@@ -62,21 +63,19 @@ export default function TeacherPanel() {
     }
 
     async function handleImageUpload(qi: number, file: File) {
-        try {
-            const formData = new FormData()
-            formData.append('image', file)
-            const token = localStorage.getItem('token')
-            const res = await fetch('/api/tests/upload-image', {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` },
-                body: formData
-            })
-            const data = await res.json()
-            if (!res.ok) throw new Error(data.error || "Rasm yuklashda xato")
-            updateQ(qi, 'imageUrl', data.url)
-        } catch (e: any) {
-            alert(e.message)
+        // S3 o'rniga base64 — server konfiguratsiya talab qilmaydi
+        const MAX_SIZE = 2 * 1024 * 1024 // 2MB
+        if (file.size > MAX_SIZE) {
+            toast.error('Rasm hajmi 2MB dan oshmasligi kerak')
+            return
         }
+        const reader = new FileReader()
+        reader.onload = (e) => {
+            const base64 = e.target?.result as string
+            updateQ(qi, 'imageUrl', base64)
+        }
+        reader.onerror = () => toast.error('Rasm o\'qishda xatolik')
+        reader.readAsDataURL(file)
     }
 
     function updateQ(idx: number, field: string, value: any) {
@@ -142,7 +141,7 @@ export default function TeacherPanel() {
         e.preventDefault()
         if (loading) return
         for (let i = 0; i < questions.length; i++) {
-            if (!questions[i].text.trim() && !questions[i].imageUrl) { setMsg(`Savol ${i + 1} matni bo'sh`); return }
+            if (!questions[i].text.trim()) { setMsg(`Savol ${i + 1} matni bo'sh`); return }
             for (let j = 0; j < 4; j++) {
                 if (!questions[i].options[j].trim()) { setMsg(`Savol ${i + 1}, variant ${String.fromCharCode(65 + j)} bo'sh`); return }
             }
@@ -406,7 +405,7 @@ export default function TeacherPanel() {
                                         )}
                                     </div>
                                     <div className="relative">
-                                        <textarea placeholder="Savol matni ($formula$ yozsa preview chiqadi)" required={!q.imageUrl} value={q.text} onChange={e => updateQ(qi, 'text', e.target.value)} rows={2}
+                                        <textarea placeholder="Savol matni ($formula$ yozsa preview chiqadi)" required value={q.text} onChange={e => updateQ(qi, 'text', e.target.value)} rows={2}
                                             className="input resize-none w-full pr-12" style={{ height: 'auto', padding: '0.5rem 0.75rem', fontSize: '13px' }} />
                                         <label className="absolute right-2 top-2 p-1.5 rounded-md cursor-pointer transition hover:bg-slate-100 dark:hover:bg-slate-800"
                                             title="Rasm yuklash yoki Ctrl+V (Paste) orqali kiritish">

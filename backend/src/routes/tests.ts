@@ -286,8 +286,11 @@ ${jsonFormat}`
             return res.status(400).json({ error: 'Faqat PDF va rasm fayllari qo\'llab-quvvatlanadi' })
         }
 
-        // Rasm tahlili doim OpenAI ga yuboriladi (deepseek vision qabul qilmaydi)
+        // Rasm tahlili: DeepSeek vision qabul qilmaydi, OpenAI kerak
         const isVision = messages.some(m => Array.isArray(m.content));
+        if (isVision && !process.env.OPENAI_API_KEY) {
+            return res.status(400).json({ error: 'Rasm/screenshot tahlili uchun OpenAI API kalit kerak. Iltimos, matnli PDF yoki Word fayl yuklang.' })
+        }
         const client = isVision ? gptClient : aiClient;
         const model = isVision ? 'gpt-4o-mini' : aiModel;
 
