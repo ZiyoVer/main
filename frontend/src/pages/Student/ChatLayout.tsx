@@ -12,6 +12,9 @@ import katex from 'katex'
 import toast from 'react-hot-toast'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
+import ChatContext, { useChatContext } from '../../contexts/ChatContext'
+import { useTestPanel } from '../../hooks/useTestPanel'
+import { useFlashPanel } from '../../hooks/useFlashPanel'
 
 interface Chat { id: string; title: string; subject?: string; updatedAt: string }
 interface Msg { id: string; role: string; content: string; createdAt: string }
@@ -32,13 +35,12 @@ function MathText({ text }: { text: string }) {
 
 // MdMessage komponentni tashqarida va memo bilan ta'riflaymiz —
 // shunda har keystrokeda re-render bo'lmaydi (ReactMarkdown+KaTeX qimmat!)
-const MdMessage = memo(({ content, onOpenTest, isStreaming, onProfileUpdate, onOpenFlash }: {
+const MdMessage = memo(({ content, isStreaming }: {
     content: string
-    onOpenTest: (s: string) => void
     isStreaming?: boolean
-    onProfileUpdate?: (data: { weakTopics?: string[]; strongTopics?: string[] }) => void
-    onOpenFlash?: (jsonStr: string) => void
-}) => (
+}) => {
+    const { onOpenTest, onProfileUpdate, onOpenFlash } = useChatContext()
+    return (
     <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex, rehypeSanitize]} components={{
         img: ({ src, alt }) => <img src={src} alt={alt || ''} className="max-h-48 max-w-[90%] sm:max-w-sm md:max-w-md rounded-xl object-contain my-1" style={{ border: '1px solid var(--border)' }} />,
         p: ({ children }) => <p className="mb-2.5 last:mb-0 leading-relaxed">{children}</p>,
@@ -177,7 +179,7 @@ const MdMessage = memo(({ content, onOpenTest, isStreaming, onProfileUpdate, onO
         blockquote: ({ children }) => <blockquote className="border-l-[3px] pl-4 pr-3 py-2 my-3" style={{ borderColor: 'var(--brand)', background: 'var(--brand-light)', color: 'var(--text-secondary)', borderRadius: '0 0.75rem 0.75rem 0' }}>{children}</blockquote>,
         hr: () => <hr className="my-4" style={{ borderColor: 'var(--border)' }} />,
     }}>{content}</ReactMarkdown>
-))
+)})
 
 export default function ChatLayout() {
     const { chatId } = useParams()
@@ -218,17 +220,9 @@ export default function ChatLayout() {
     const abortRef = useRef<AbortController | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const profileRef = useRef<Profile | null>(null)
-    const [testPanel, setTestPanel] = useState<string | null>(null)
-    const [testAnswers, setTestAnswers] = useState<Record<number, string>>({})
-    const [testSubmitted, setTestSubmitted] = useState(false)
-    const [testPanelMaximized, setTestPanelMaximized] = useState(false)
     const [attachedFiles, setAttachedFiles] = useState<{ id: string; name: string; text: string; type: string; previewUrl?: string }[]>([])
     const [uploadingFile, setUploadingFile] = useState(false)
-    const [loadingPublicTest, setLoadingPublicTest] = useState(false)
     const [testsLoading, setTestsLoading] = useState(false)
-    const [activeTestId, setActiveTestId] = useState<string | null>(null)
-    const [activeTestQuestions, setActiveTestQuestions] = useState<any[]>([])
-    const [testReadOnly, setTestReadOnly] = useState(false)
     // Yechilgan testlar IDlarini localStorage da saqlaymiz
     const completedTestIdsRef = useRef<Set<string>>((() => {
         try { return new Set(JSON.parse(localStorage.getItem('msert_done_tests') || '[]')) } catch { return new Set() }
@@ -237,21 +231,32 @@ export default function ChatLayout() {
     const completedAiTestsRef = useRef<Set<string>>((() => {
         try { return new Set(JSON.parse(localStorage.getItem('msert_done_ai_tests') || '[]')) } catch { return new Set() }
     })())
-    // Flashcard panel state
-    const [flashPanel, setFlashPanel] = useState<Array<{ id?: string; front: string; back: string; subject?: string }> | null>(null)
-    const [flashIdx, setFlashIdx] = useState(0)
-    const [flashFlipped, setFlashFlipped] = useState(false)
-    const [flashMaximized, setFlashMaximized] = useState(false)
-    const [flashWidth, setFlashWidth] = useState(384)
-    const flashDragRef = useRef(false)
-    const flashWidthRef = useRef(384)
-    const [testWidth, setTestWidth] = useState(384)
-    const testDragRef = useRef(false)
-    const [sidebarWidth, setSidebarWidth] = useState(288)
+
+    // Hook'lar
+    const {
+        testPanel, setTestPanel, testAnswers, setTestAnswers, testSubmitted, setTestSubmitted,
+        testPanelMaximized, setTestPanelMaximized, activeTestId, setActiveTestId,
+        activeTestQuestions, setActiveTestQuestions, testReadOnly, setTestReadOnly,
+        testWidth, setTestWidth, testDragRef, testTimeLeft, setTestTimeLeft,
+        raschFeedback, setRaschFeedback, loadingPublicTest, setLoadingPublicTest,
+        openTestPanel,
+    } = useTestPanel(completedTestIdsRef, completedAiTestsRef)
+
+    const {
+        flashPanel, setFlashPanel, flashIdx, setFlashIdx, flashFlipped, setFlashFlipped,
+        flashMaximized, setFlashMaximized, flashWidth, setFlashWidth,
+        flashDragRef, flashWidthRef, openFlashPanel,
+    } = useFlashPanel()
+
+    const textareaRef = useRef<HTMLTextAreaElement>(null)
+    const [sidebarWidth, setSidebarWidth] = useState(() => {
+        const w = window.innerWidth
+        if (w < 768) return 288
+        if (w <= 1024) return 240
+        return 288
+    })
     const sidebarDragRef = useRef(false)
     const [isSidebarDragging, setIsSidebarDragging] = useState(false)
-    const [testTimeLeft, setTestTimeLeft] = useState<number | null>(null)
-    const [raschFeedback, setRaschFeedback] = useState<{ prev: number; next: number } | null>(null)
 
     // Auto-close sidebar on mobile + isMobile track
     useEffect(() => {
@@ -284,7 +289,7 @@ export default function ChatLayout() {
                 return []
             })
         }
-    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [openFlashPanel]) // eslint-disable-line react-hooks/exhaustive-deps
     useEffect(() => { if (chatId) loadMessages(chatId) }, [chatId])
 
     // Panel drag-to-resize (flashcard + test)
@@ -444,6 +449,13 @@ export default function ChatLayout() {
         } catch (err) { console.error('loadMessages:', err) }
     }
 
+    const adjustTextareaHeight = useCallback(() => {
+        const el = textareaRef.current
+        if (!el) return
+        el.style.height = 'auto'
+        el.style.height = Math.min(el.scrollHeight, 120) + 'px'
+    }, [])
+
     const createChat = useCallback(async () => {
         if (creating) return
         setCreating(true)
@@ -551,6 +563,7 @@ export default function ChatLayout() {
             setStreaming(''); setThinkingText('')
         }
         setLoading(false); setInput(''); abortRef.current = null
+        if (textareaRef.current) textareaRef.current.style.height = 'auto'
     }
 
     function stopGeneration() {
@@ -562,6 +575,7 @@ export default function ChatLayout() {
         e.preventDefault()
         if ((!input.trim() && attachedFiles.length === 0) || !chatId || loading) return
         setInput('')
+        if (textareaRef.current) textareaRef.current.style.height = 'auto'
         logActivity(5) // Har xabar uchun +5 XP
         if (attachedFiles.length > 0) {
             const userInput = input.trim()
@@ -636,38 +650,14 @@ export default function ChatLayout() {
         } catch (err) { console.error('handleProfileUpdate:', err) }
     }, [chatId])
 
-    // Open test in side panel
-    const openTestPanel = useCallback((jsonStr: string) => {
-        const aiKey = jsonStr.substring(0, 120)
-        setRaschFeedback(null)
-        setTestTimeLeft(null)
-        if (completedAiTestsRef.current.has(aiKey)) {
-            // Allaqachon yechilgan — saqlangan javoblar bilan ko'rish rejimi
-            let savedAnswers: Record<number, string> = {}
-            try { savedAnswers = JSON.parse(localStorage.getItem('msert_ans_' + aiKey) || '{}') } catch { }
-            setTestPanel(jsonStr)
-            setTestAnswers(savedAnswers)
-            setTestSubmitted(true)
-            setTestReadOnly(true)
-            setTestPanelMaximized(false)
-            return
-        }
-        setTestPanel(jsonStr)
-        setTestAnswers({})
-        setTestSubmitted(false)
-        setTestPanelMaximized(false)
-        setTestReadOnly(false)
-    }, [])
 
     // Flashcard panelni ochish
-    const openFlashPanel = useCallback((jsonStr: string) => {
+    const handleOpenFlash = useCallback((jsonStr: string) => {
         try {
             const cards = JSON.parse(jsonStr)
             if (!Array.isArray(cards) || cards.length === 0) return
             setTestPanel(null) // testni yopamiz
-            setFlashPanel(cards)
-            setFlashIdx(0)
-            setFlashFlipped(false)
+            openFlashPanel(jsonStr)
             setFlashIsReview(false) // AI chatdan kelgan — review rejimi emas
             // DB ga saqlaymiz — Kartochkalar tabida ko'rinishi uchun (background)
             const subj = profileRef.current?.subject || 'Umumiy'
@@ -676,7 +666,7 @@ export default function ChatLayout() {
                 body: JSON.stringify({ subject: subj, cards: cards.map((c: any) => ({ front: String(c.front || ''), back: String(c.back || '') })) })
             }).then(() => loadDueFlashcards()).catch((err: unknown) => { console.error('saveFlashcards:', err) })
         } catch (err) { console.error('openFlashPanel:', err) }
-    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [openFlashPanel]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Public test ochish (sidebar dan)
     async function openPublicTest(t: any) {
@@ -932,6 +922,7 @@ export default function ChatLayout() {
     }
 
     return (
+        <ChatContext.Provider value={{ onOpenTest: openTestPanel, onProfileUpdate: handleProfileUpdate, onOpenFlash: handleOpenFlash }}>
         <div className="h-screen flex overflow-hidden" style={{ background: 'var(--bg-page)' }}>
             {/* Mobile backdrop */}
             {sideOpen && isMobile && (
@@ -1473,7 +1464,7 @@ export default function ChatLayout() {
                                             ) : m.content}
                                         </div>
                                     ) : (
-                                        <div className="bubble-ai"><MdMessage content={m.content} onOpenTest={openTestPanel} onProfileUpdate={handleProfileUpdate} onOpenFlash={openFlashPanel} /></div>
+                                        <div className="bubble-ai"><MdMessage content={m.content} /></div>
                                     )}
                                     {m.role === 'user' && (
                                         <div className="h-8 w-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ background: 'var(--brand)' }}>{user?.name?.[0]?.toUpperCase() || 'S'}</div>
@@ -1496,7 +1487,7 @@ export default function ChatLayout() {
                                 <div className="flex gap-3">
                                     <div className="h-8 w-8 rounded-full flex-shrink-0 flex items-center justify-center mt-0.5 text-white text-xs font-bold" style={{ background: 'var(--brand)' }}>AI</div>
                                     <div className="bubble-ai">
-                                        <MdMessage content={streaming} onOpenTest={openTestPanel} isStreaming={true} onProfileUpdate={handleProfileUpdate} onOpenFlash={openFlashPanel} />
+                                        <MdMessage content={streaming} isStreaming={true} />
                                         {/```test/.test(streaming) && !/```test[\s\S]*?```/.test(streaming) && (
                                             <div className="mt-4 rounded-2xl overflow-hidden" style={{
                                                 background: 'linear-gradient(135deg, rgba(224, 123, 57, 0.12) 0%, rgba(224, 123, 57, 0.05) 100%)',
@@ -1654,11 +1645,11 @@ export default function ChatLayout() {
                                         : <Paperclip className="h-3.5 w-3.5" />}
                                 </button>
                                 <textarea
+                                    ref={textareaRef}
                                     value={input}
                                     onChange={e => {
                                         setInput(e.target.value)
-                                        e.target.style.height = 'auto'
-                                        e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'
+                                        adjustTextareaHeight()
                                     }}
                                     onKeyDown={e => {
                                         if (e.key === 'Enter' && !e.shiftKey) {
@@ -1883,7 +1874,7 @@ export default function ChatLayout() {
                                                 <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full" style={{ background: 'rgba(79,70,229,0.12)', color: 'var(--brand)' }}>❓ Savol</span>
                                             </div>
                                             <div className="text-[15px] font-medium leading-relaxed w-full mt-2" style={{ color: 'var(--text-primary)' }}>
-                                                <MdMessage content={card.front} onOpenTest={() => { }} onProfileUpdate={() => { }} onOpenFlash={() => { }} />
+                                                <MdMessage content={card.front} />
                                             </div>
                                             <p className="absolute bottom-5 text-[11px] font-semibold flex items-center gap-1 opacity-60" style={{ color: 'var(--brand)' }}>
                                                 <RotateCcw className="h-3 w-3" /> Bosib javobni ko'ring
@@ -1897,7 +1888,7 @@ export default function ChatLayout() {
                                                 <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full flex items-center gap-1" style={{ background: 'var(--success-light)', color: 'var(--success)' }}><CheckCircle className="h-3 w-3" /> Javob</span>
                                             </div>
                                             <div className="text-[15px] leading-relaxed w-full mt-2" style={{ color: 'var(--text-primary)' }}>
-                                                <MdMessage content={card.back} onOpenTest={() => { }} onProfileUpdate={() => { }} onOpenFlash={() => { }} />
+                                                <MdMessage content={card.back} />
                                             </div>
                                         </div>
                                     </div>
@@ -1949,5 +1940,6 @@ export default function ChatLayout() {
                 })()
             }
         </div >
+        </ChatContext.Provider>
     )
 }

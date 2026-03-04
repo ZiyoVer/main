@@ -1024,3 +1024,25 @@ html.dark .md-content pre {
         min-height: 140px;
     }
 }
+
+/* ===== TABLET (641px - 1024px) ===== */
+@media (min-width: 641px) and (max-width: 1024px) {
+    /* Sidebar tor qilish */
+    .sidebar-tablet {
+        min-width: 200px !important;
+        max-width: 240px !important;
+        width: 220px !important;
+    }
+
+    /* Test/flash panel kichikroq */
+    .test-panel-tablet,
+    .flash-panel {
+        min-width: 260px !important;
+        max-width: 420px !important;
+    }
+
+    /* Chat input kichikroq padding */
+    .chat-input-tablet {
+        padding: 8px 12px !important;
+    }
+}
