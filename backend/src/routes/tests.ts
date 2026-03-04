@@ -2,8 +2,6 @@ import { Router } from 'express'
 import multer from 'multer'
 import pdfParse from 'pdf-parse'
 import mammoth from 'mammoth'
-import { fromBuffer } from 'pdf2pic'
-import { PDFDocument } from 'pdf-lib'
 import OpenAI from 'openai'
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
 import prisma from '../utils/db'
@@ -170,26 +168,25 @@ router.post('/generate-from-file', authenticate, requireRole('TEACHER', 'ADMIN')
             const fullText = data.text.trim()
             let hasImageContent = false
 
-            // Text extracts empty usually on scanned docs. 
-            // We use pdf2pic to convert first few pages to image if text is empty.
+            // Skanerlangan PDF: matn yo'q bo'lsa pdfjs-dist + canvas bilan render
             if (!fullText || fullText.length < 50) {
                 try {
-                    const pdfDoc = await PDFDocument.load(buffer, { ignoreEncryption: true })
-                    const pageCount = pdfDoc.getPageCount()
-                    const pagesToConvert = Math.min(pageCount, 3)
+                    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs' as any)
+                    const { createCanvas } = await import('@napi-rs/canvas')
 
-                    const converter = fromBuffer(buffer, {
-                        density: 150,
-                        format: "png",
-                        width: 800
-                    })
-
+                    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) })
+                    const pdfDoc = await loadingTask.promise
+                    const pageCount = Math.min(pdfDoc.numPages, 3)
                     const imageMessages: any[] = []
-                    for (let i = 1; i <= pagesToConvert; i++) {
-                        const pageData = await converter(i, { responseType: "base64" }) as any
-                        if (pageData && pageData.base64) {
-                            imageMessages.push({ type: 'image_url', image_url: { url: `data:image/png;base64,${pageData.base64}` } })
-                        }
+
+                    for (let i = 1; i <= pageCount; i++) {
+                        const page = await pdfDoc.getPage(i)
+                        const viewport = page.getViewport({ scale: 1.5 })
+                        const canvas = createCanvas(viewport.width, viewport.height)
+                        const ctx = canvas.getContext('2d')
+                        await page.render({ canvasContext: ctx as any, viewport }).promise
+                        const base64 = canvas.toBuffer('image/png').toString('base64')
+                        imageMessages.push({ type: 'image_url', image_url: { url: `data:image/png;base64,${base64}` } })
                     }
 
                     if (imageMessages.length > 0) {
@@ -199,7 +196,7 @@ router.post('/generate-from-file', authenticate, requireRole('TEACHER', 'ADMIN')
                             content: [
                                 ...imageMessages,
                                 {
-                                    type: 'text', text: `Bu rasm formatidagi PDF faylidan test savollari va variantlarini AYNAN ajratib ol — o'zing savol to'qima.${subjectNote}
+                                    type: 'text', text: `Bu skanerlangan PDF sahifalaridan test savollari va variantlarini AYNAN ajratib ol.${subjectNote}
 
 MUHIM QOIDALAR:
 - Rasmdagi mavjud savol va variantlarni AYNAN ko'chir
@@ -213,13 +210,13 @@ ${jsonFormat}`
                         }]
                     }
                 } catch (err) {
-                    console.error("PDF to Image failed:", err)
+                    console.error("PDF render failed:", err)
                 }
             }
 
             if (!hasImageContent) {
                 if (!fullText) {
-                    return res.status(400).json({ error: 'PDF fayldan matn ham, rasm ham o\'qib bo\'lmadi. Boshqa fayl yuklab ko\'ring.' })
+                    return res.status(400).json({ error: 'PDF fayldan matn o\'qib bo\'lmadi. Iltimos, PDF ni PNG/JPG rasmga aylantiring va yuklang, yoki Word (.docx) fayl yuklang.' })
                 }
 
                 truncated = fullText.length > 12000
