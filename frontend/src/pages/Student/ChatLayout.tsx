@@ -1386,13 +1386,13 @@ export default function ChatLayout() {
                                         <MdMessage content={streaming} onOpenTest={openTestPanel} isStreaming={true} onProfileUpdate={handleProfileUpdate} onOpenFlash={openFlashPanel} />
                                         {/```test/.test(streaming) && !/```test[\s\S]*?```/.test(streaming) && (
                                             <div className="mt-3 rounded-2xl overflow-hidden" style={{
-                                                background: 'linear-gradient(135deg, color-mix(in srgb, var(--brand) 8%, transparent), color-mix(in srgb, var(--brand) 4%, transparent))',
-                                                border: '1px solid color-mix(in srgb, var(--brand) 20%, transparent)'
+                                                background: 'linear-gradient(135deg, rgba(224, 123, 57, 0.08), rgba(224, 123, 57, 0.04))',
+                                                border: '1px solid rgba(224, 123, 57, 0.2)'
                                             }}>
                                                 <div className="p-4">
                                                     <div className="flex items-center gap-3 mb-3">
                                                         <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 animate-pulse"
-                                                            style={{ background: 'color-mix(in srgb, var(--brand) 20%, transparent)' }}>
+                                                            style={{ background: 'rgba(224, 123, 57, 0.15)' }}>
                                                             <svg className="h-4 w-4" style={{ color: 'var(--brand)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                                                             </svg>
@@ -1412,12 +1412,11 @@ export default function ChatLayout() {
                                                             <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>AI savollarni shakllantirmoqda</span>
                                                         </div>
                                                     </div>
-                                                    {/* Skeleton bars */}
                                                     <div className="space-y-2 pl-1">
                                                         {[80, 60, 70].map((w, i) => (
                                                             <div key={i} className="h-2 rounded-full animate-pulse" style={{
                                                                 width: `${w}%`,
-                                                                background: 'color-mix(in srgb, var(--brand) 15%, transparent)',
+                                                                background: 'rgba(224, 123, 57, 0.15)',
                                                                 animationDelay: `${i * 0.15}s`
                                                             }} />
                                                         ))}
@@ -1427,13 +1426,13 @@ export default function ChatLayout() {
                                         )}
                                         {/```flashcard/.test(streaming) && !/```flashcard[\s\S]*?```/.test(streaming) && (
                                             <div className="mt-3 rounded-2xl overflow-hidden" style={{
-                                                background: 'linear-gradient(135deg, color-mix(in srgb, #6366f1 8%, transparent), color-mix(in srgb, #6366f1 4%, transparent))',
-                                                border: '1px solid color-mix(in srgb, #6366f1 20%, transparent)'
+                                                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(99, 102, 241, 0.04))',
+                                                border: '1px solid rgba(99, 102, 241, 0.2)'
                                             }}>
                                                 <div className="p-4">
                                                     <div className="flex items-center gap-3 mb-3">
                                                         <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 animate-pulse"
-                                                            style={{ background: 'color-mix(in srgb, #6366f1 20%, transparent)' }}>
+                                                            style={{ background: 'rgba(99, 102, 241, 0.15)' }}>
                                                             <svg className="h-4 w-4" style={{ color: '#6366f1' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                                                             </svg>
@@ -1453,12 +1452,11 @@ export default function ChatLayout() {
                                                             <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>AI kartochkalarni shakllantirmoqda</span>
                                                         </div>
                                                     </div>
-                                                    {/* Skeleton bars */}
                                                     <div className="space-y-2 pl-1">
                                                         {[75, 90, 55].map((w, i) => (
                                                             <div key={i} className="h-2 rounded-full animate-pulse" style={{
                                                                 width: `${w}%`,
-                                                                background: 'color-mix(in srgb, #6366f1 15%, transparent)',
+                                                                background: 'rgba(99, 102, 241, 0.15)',
                                                                 animationDelay: `${i * 0.15}s`
                                                             }} />
                                                         ))}
