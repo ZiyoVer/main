@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
+import { tokenBlacklist } from '../utils/tokenBlacklist'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'msert-dev-secret'
 
@@ -15,6 +16,10 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
     }
     try {
         const token = authHeader.split(' ')[1]
+        if (tokenBlacklist.has(token)) {
+            res.status(401).json({ error: 'Token yaroqsiz (logout qilingan)' })
+            return
+        }
         const decoded = jwt.verify(token, JWT_SECRET)
         req.user = decoded
         next()

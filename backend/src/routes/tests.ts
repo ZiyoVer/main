@@ -2,11 +2,57 @@ import { Router } from 'express'
 import multer from 'multer'
 import pdfParse from 'pdf-parse'
 import OpenAI from 'openai'
+import rateLimit from 'express-rate-limit'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
 import { updateAbility } from '../utils/rasch'
 
 const router = Router()
+
+// Test submit uchun rate limit (brute force javob topish oldini olish)
+const submitLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 daqiqa
+    max: 20,
+    keyGenerator: (req: any) => req.user?.id || req.ip,
+    message: { error: 'Juda ko\'p test topshirish urinishi. 15 daqiqadan keyin qayta urinib ko\'ring.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+})
+
+// AI test generatsiya uchun rate limit (qimmat API chaqiruv)
+const generateLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 daqiqa
+    max: 5,
+    keyGenerator: (req: any) => req.user?.id || req.ip,
+    message: { error: 'AI test yaratish limiti. Bir daqiqadan keyin qayta urinib ko\'ring.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+})
+
+// Test yaratish uchun rate limit (spam oldini olish)
+const createLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 daqiqa
+    max: 10,
+    keyGenerator: (req: any) => req.user?.id || req.ip,
+    message: { error: 'Test yaratish limiti. Bir daqiqadan keyin qayta urinib ko\'ring.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+})
+
+// Test yaratish/o'zgartirish uchun (questions qo'shish)
+const testMutateLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 30,
+    keyGenerator: (req: any) => req.user?.id || req.ip,
+    message: { error: 'Juda ko\'p so\'rov. Biroz kuting.' },
+})
+
+// Test o'qish uchun (by-link brute force oldini olish)
+const testReadLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 60,
+    keyGenerator: (req: any) => req.user?.id || req.ip,
+})
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } })
 
@@ -83,7 +129,7 @@ router.get('/public', authenticate, async (req: AuthRequest, res) => {
 })
 
 // Test olish (link bo'yicha ham)
-router.get('/by-link/:shareLink', authenticate, async (req: AuthRequest, res) => {
+router.get('/by-link/:shareLink', authenticate, testReadLimiter, async (req: AuthRequest, res) => {
     try {
         const shareLink = req.params.shareLink as string
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -104,7 +150,7 @@ router.get('/by-link/:shareLink', authenticate, async (req: AuthRequest, res) =>
 })
 
 // AI yordamida fayl/screenshot dan test savollari yaratish
-router.post('/generate-from-file', authenticate, requireRole('TEACHER', 'ADMIN'), upload.single('file'), async (req: AuthRequest, res) => {
+router.post('/generate-from-file', authenticate, requireRole('TEACHER', 'ADMIN'), generateLimiter, upload.single('file'), async (req: AuthRequest, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'Fayl yuklanmadi' })
         const { mimetype, buffer } = req.file
@@ -233,7 +279,7 @@ ${jsonFormat}` }
 })
 
 // O'qituvchi: Test yaratish
-router.post('/:testId/questions', authenticate, requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, res) => {
+router.post('/:testId/questions', authenticate, requireRole('TEACHER', 'ADMIN'), testMutateLimiter, async (req: AuthRequest, res) => {
     try {
         const testId = req.params.testId as string
         const test = await prisma.test.findUnique({ where: { id: testId } })
@@ -270,7 +316,7 @@ router.post('/:testId/questions', authenticate, requireRole('TEACHER', 'ADMIN'),
 })
 
 // O'qituvchi: Test yaratish
-router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, res) => {
+router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimiter, async (req: AuthRequest, res) => {
     try {
         const { title, description, subject, isPublic, questions, timeLimit } = req.body
         if (!title || !questions?.length) {
@@ -307,7 +353,7 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), async (req
 
 
 // AI test natijasi — faqat Rasch abilityLevel yangilash (test entity saqlanmaydi)
-router.post('/submit-ai', authenticate, async (req: AuthRequest, res) => {
+router.post('/submit-ai', authenticate, submitLimiter, async (req: AuthRequest, res) => {
     try {
         const { score, totalQuestions, results } = req.body
         if (!results || !Array.isArray(results)) {
@@ -339,7 +385,7 @@ router.post('/submit-ai', authenticate, async (req: AuthRequest, res) => {
 })
 
 // Test yechish va Rasch baholash
-router.post('/:testId/submit', authenticate, async (req: AuthRequest, res) => {
+router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequest, res) => {
     try {
         const { answers } = req.body // [{questionId, selectedIdx}]
         if (!Array.isArray(answers)) {
@@ -445,7 +491,8 @@ router.get('/:testId/analytics', authenticate, requireRole('TEACHER', 'ADMIN'), 
             let opts: any[]
             try {
                 opts = typeof q.options === 'string' ? JSON.parse(q.options) : q.options
-            } catch {
+            } catch (e) {
+                console.warn('Question options parse failed:', e)
                 opts = []
             }
             let totalAnswered = 0

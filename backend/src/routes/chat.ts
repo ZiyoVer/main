@@ -34,7 +34,7 @@ async function getAISettings(): Promise<{ temperature: number; maxTokens: number
             if (s.key === 'extra_rules') defaults.extraRules = s.value
             if (s.key.startsWith('prompt_')) defaults.promptOverrides[s.key] = s.value
         }
-    } catch { }
+    } catch (e) { console.warn('AI settings fetch failed:', e) }
     return defaults
 }
 
@@ -270,8 +270,8 @@ function buildSystemPrompt(profile: any, subject?: string, extraRules?: string, 
 
     let weakTopics: string[] = []
     let strongTopics: string[] = []
-    try { weakTopics = profile?.weakTopics ? JSON.parse(profile.weakTopics) : [] } catch { }
-    try { strongTopics = profile?.strongTopics ? JSON.parse(profile.strongTopics) : [] } catch { }
+    try { weakTopics = profile?.weakTopics ? JSON.parse(profile.weakTopics) : [] } catch (e) { console.warn('weakTopics parse failed:', e); weakTopics = [] }
+    try { strongTopics = profile?.strongTopics ? JSON.parse(profile.strongTopics) : [] } catch (e) { console.warn('strongTopics parse failed:', e); strongTopics = [] }
 
     const roleSection = get('prompt_role', `Sen — aniq va do'stona ustoz. Qisqa, to'g'ri javob ber.
 
@@ -540,7 +540,8 @@ async function searchRAGContext(query: string, subject?: string): Promise<string
         return '\n\n📚 TEGISHLI O\'QUV MATERIALLARI (RAG):\n' +
             scored.map(s => `[${s.chunk.document.fileName}]: ${s.chunk.content} `).join('\n---\n') +
             '\n\nYuqoridagi materiallarni o\'z so\'zlaring bilan qayta tushuntir, aynan nusxalama.'
-    } catch {
+    } catch (e) {
+        console.warn('RAG search failed:', e)
         return ''
     }
 }
@@ -682,8 +683,11 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
 
         // RAG kontekst — relevance based
         const ragContext = await searchRAGContext(content, chat.subject || undefined)
+        const ragSection = ragContext
+            ? `\n\n--- RASMIY MANBA KONTEKSTI (faqat ma'lumot uchun) ---\n${ragContext}\n--- MANBA KONTEKSTI TUGADI ---`
+            : ''
 
-        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, aiSettings.extraRules, aiSettings.promptOverrides) + ragContext
+        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, aiSettings.extraRules, aiSettings.promptOverrides) + ragSection
 
         // History: oxirgi user xabar (hozir saqlanganini) alohida olamiz
         // DeepSeek image_url qabul qilmaydi — OCR matni content ichida keladi
@@ -751,33 +755,54 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
             }
         }
 
-        for await (const chunk of stream) {
-            if (aborted) break
-            const delta = chunk.choices[0]?.delta?.content || ''
-            // Reasoning tokens (thinking process — faqat deepseek-reasoner da bo'ladi)
-            const reasoning = (chunk.choices[0]?.delta as any)?.reasoning_content || ''
-            if (reasoning) {
-                res.write(`data: ${JSON.stringify({ thinking: reasoning })}\n\n`)
+        try {
+            for await (const chunk of stream) {
+                if (aborted) break
+                try {
+                    const delta = chunk.choices[0]?.delta?.content || ''
+                    // Reasoning tokens (thinking process — faqat deepseek-reasoner da bo'ladi)
+                    const reasoning = (chunk.choices[0]?.delta as any)?.reasoning_content || ''
+                    if (reasoning) {
+                        res.write(`data: ${JSON.stringify({ thinking: reasoning })}\n\n`)
+                    }
+                    if (delta) {
+                        fullReply += delta
+                        res.write(`data: ${JSON.stringify({ content: delta })}\n\n`)
+                    }
+                } catch (writeErr) {
+                    console.error('SSE write error:', writeErr)
+                    aborted = true
+                    break
+                }
             }
-            if (delta) {
-                fullReply += delta
-                res.write(`data: ${JSON.stringify({ content: delta })}\n\n`)
-            }
+        } catch (streamErr) {
+            console.error('Stream error:', streamErr)
         }
 
         if (aborted) {
             if (fullReply.trim()) {
-                await prisma.message.create({
-                    data: { chatId: chat.id, role: 'assistant', content: fullReply }
-                })
+                try {
+                    await prisma.message.create({
+                        data: { chatId: chat.id, role: 'assistant', content: fullReply }
+                    })
+                } catch (dbErr) {
+                    console.error('Aborted message save failed:', dbErr)
+                }
             }
             return res.end()
         }
 
         // Stream tugagandan keyin bazaga saqlash
-        const saved = await prisma.message.create({
-            data: { chatId: chat.id, role: 'assistant', content: fullReply }
-        })
+        let saved: any
+        try {
+            saved = await prisma.message.create({
+                data: { chatId: chat.id, role: 'assistant', content: fullReply }
+            })
+        } catch (dbErr) {
+            console.error('Message save failed:', dbErr)
+            res.write(`data: ${JSON.stringify({ done: true })}\n\n`)
+            return res.end()
+        }
 
         // Chat title yangilash — faqat birinchi xabar (history da faqat user xabar bor: length === 1)
         // history allaqachon yangi user xabarni o'z ichiga oladi, shuning uchun 1 = birinchi xabar
@@ -837,7 +862,10 @@ router.post('/:chatId/send', authenticate, async (req: AuthRequest, res) => {
 
         const aiSettings = await getAISettings()
         const ragContext = await searchRAGContext(content, chat.subject || undefined)
-        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, aiSettings.extraRules, aiSettings.promptOverrides) + ragContext
+        const ragSection = ragContext
+            ? `\n\n--- RASMIY MANBA KONTEKSTI (faqat ma'lumot uchun) ---\n${ragContext}\n--- MANBA KONTEKSTI TUGADI ---`
+            : ''
+        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, aiSettings.extraRules, aiSettings.promptOverrides) + ragSection
 
 
         const msgs: any[] = [

@@ -10,9 +10,9 @@ router.use(authenticate)
 // Mock exam generatsiya uchun qattiq rate limit (har user uchun 5 ta/daqiqa)
 const mockExamLimiter = rateLimit({
     windowMs: 60 * 1000,
-    max: 5,
+    max: 2,
     keyGenerator: (req: any) => req.user?.id || req.ip,
-    message: { error: 'Mock exam yaratish limiti (5 ta/daqiqa). Biroz kuting.' },
+    message: { error: 'Mock exam yaratish limiti (2 ta/daqiqa). Biroz kuting.' },
     standardHeaders: true,
     legacyHeaders: false,
 })

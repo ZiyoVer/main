@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
+import { tokenBlacklist } from '../utils/tokenBlacklist'
 
 const router = Router()
 const JWT_SECRET = process.env.JWT_SECRET || 'msert-dev-secret'
@@ -21,6 +22,9 @@ router.post('/register', async (req, res) => {
         }
         if (password.length < 8) {
             return res.status(400).json({ error: 'Parol kamida 8 ta belgi bo\'lishi kerak' })
+        }
+        if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+            return res.status(400).json({ error: 'Parolda kamida bitta harf va bitta raqam bo\'lishi shart' })
         }
 
         const normalizedEmail = email.trim().toLowerCase()
@@ -57,7 +61,7 @@ router.post('/register', async (req, res) => {
         await prisma.visitLog.create({ data: { userId: user.id, action: 'register' } })
 
         // Token darhol qaytaramiz — alohida login chaqiruvi shart emas
-        const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '30d' })
+        const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' })
 
         res.status(201).json({
             token,
@@ -98,7 +102,7 @@ router.post('/login', async (req, res) => {
         const valid = await bcrypt.compare(password, user.password)
         if (!valid) return res.status(400).json({ error: 'Email yoki parol xato' })
 
-        const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '30d' })
+        const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' })
 
         // Visit log
         await prisma.visitLog.create({ data: { userId: user.id, action: 'login' } })
@@ -183,6 +187,20 @@ router.get('/users', authenticate, requireRole('ADMIN'), async (req: AuthRequest
         ])
 
         res.json({ users, total, page, pages: Math.ceil(total / limit) })
+    } catch (e) {
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+// Logout — token ni blacklist ga qo'shish
+router.post('/logout', authenticate, async (req: AuthRequest, res) => {
+    try {
+        const authHeader = req.headers.authorization
+        if (authHeader) {
+            const token = authHeader.split(' ')[1]
+            tokenBlacklist.add(token)
+        }
+        res.json({ message: 'Tizimdan chiqdingiz' })
     } catch (e) {
         res.status(500).json({ error: 'Server xatoligi' })
     }

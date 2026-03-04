@@ -5,6 +5,8 @@ import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import remarkGfm from 'remark-gfm'
 import rehypeKatex from 'rehype-katex'
+import rehypeSanitize from 'rehype-sanitize'
+import DOMPurify from 'dompurify'
 import 'katex/dist/katex.min.css'
 import katex from 'katex'
 import { fetchApi } from '@/lib/api'
@@ -21,7 +23,7 @@ function MathText({ text }: { text: string }) {
         const html = text
             .replace(/\$\$([^$]+)\$\$/g, (_, m) => katex.renderToString(m.trim(), { displayMode: true, throwOnError: false }))
             .replace(/\$([^$\n]+)\$/g, (_, m) => katex.renderToString(m.trim(), { throwOnError: false }))
-        return <span dangerouslySetInnerHTML={{ __html: html }} />
+        return <span dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
     } catch { return <>{text}</> }
 }
 
@@ -34,7 +36,7 @@ const MdMessage = memo(({ content, onOpenTest, isStreaming, onProfileUpdate, onO
     onProfileUpdate?: (data: { weakTopics?: string[]; strongTopics?: string[] }) => void
     onOpenFlash?: (jsonStr: string) => void
 }) => (
-    <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} components={{
+    <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex, rehypeSanitize]} components={{
         img: ({ src, alt }) => <img src={src} alt={alt || ''} className="max-h-48 max-w-xs rounded-xl object-contain my-1" style={{ border: '1px solid var(--border)' }} />,
         p: ({ children }) => <p className="mb-2.5 last:mb-0 leading-relaxed">{children}</p>,
         strong: ({ children }) => <strong className="font-semibold" style={{ color: 'var(--text-primary)' }}>{children}</strong>,
@@ -311,12 +313,14 @@ export default function ChatLayout() {
         if (!testPanel) { setTestTimeLeft(null); setRaschFeedback(null) }
     }, [testPanel])
 
-    // Timer countdown (chain effect — har sekund 1 ta kamayadi)
+    // Timer countdown (setInterval — har sekund 1 ta kamayadi)
     useEffect(() => {
         if (testTimeLeft === null || testTimeLeft <= 0) return
-        const id = setTimeout(() => setTestTimeLeft(t => (t !== null && t > 0) ? t - 1 : null), 1000)
-        return () => clearTimeout(id)
-    }, [testTimeLeft])
+        const id = setInterval(() => {
+            setTestTimeLeft(t => (t !== null && t > 0) ? t - 1 : null)
+        }, 1000)
+        return () => clearInterval(id)
+    }, [testTimeLeft !== null && testTimeLeft > 0 ? 'running' : 'stopped'])
 
     // Vaqt tugaganda avtomatik topshirish
     useEffect(() => {
@@ -334,8 +338,10 @@ export default function ChatLayout() {
             profileRef.current = p
             if (p && !p.onboardingDone) setShowOnboarding(true)
             if (p) {
-                const weak = p.weakTopics ? JSON.parse(p.weakTopics) : []
-                const strong = p.strongTopics ? JSON.parse(p.strongTopics) : []
+                let weak: string[] = []
+                let strong: string[] = []
+                try { weak = p.weakTopics ? JSON.parse(p.weakTopics) : [] } catch { /* invalid JSON */ }
+                try { strong = p.strongTopics ? JSON.parse(p.strongTopics) : [] } catch { /* invalid JSON */ }
                 setOnboardingForm({
                     subject: p.subject || 'Matematika',
                     targetScore: p.targetScore || 80,
@@ -345,22 +351,22 @@ export default function ChatLayout() {
                     concerns: p.concerns || ''
                 })
             }
-        } catch { setShowOnboarding(true) }
+        } catch (err) { console.error('loadProfile:', err); setShowOnboarding(true) }
     }
 
     async function loadPublicTests() {
-        try { setPublicTests(await fetchApi('/tests/public')) } catch { }
+        try { setPublicTests(await fetchApi('/tests/public')) } catch (err) { console.error('loadPublicTests:', err) }
     }
 
     async function loadMyResults() {
-        try { setMyResults(await fetchApi('/tests/my-results')) } catch { }
+        try { setMyResults(await fetchApi('/tests/my-results')) } catch (err) { console.error('loadMyResults:', err) }
     }
 
     async function loadProgress() {
         try {
             const data = await fetchApi('/progress/me')
             setProgressData(data)
-        } catch { }
+        } catch (err) { console.error('loadProgress:', err) }
     }
 
     async function loadDueFlashcards() {
@@ -369,11 +375,11 @@ export default function ChatLayout() {
             setDueFlashcards(data.cards || [])
             setDueCount(data.dueCount || 0)
             setTotalFlashcards(data.total || 0)
-        } catch { }
+        } catch (err) { console.error('loadDueFlashcards:', err) }
     }
 
     async function logActivity(xpGained = 5) {
-        try { await fetchApi('/progress/activity', { method: 'POST', body: JSON.stringify({ xpGained }) }) } catch { }
+        try { await fetchApi('/progress/activity', { method: 'POST', body: JSON.stringify({ xpGained }) }) } catch (err) { console.error('logActivity:', err) }
     }
 
     async function saveOnboarding(e: React.FormEvent) {
@@ -401,7 +407,7 @@ export default function ChatLayout() {
                     streamToChat(firstChat.id, welcomePrompt, 'Salom! 👋')
                 }, 300)
             }
-        } catch { }
+        } catch (err) { console.error('saveOnboarding:', err) }
         setSavingProfile(false)
     }
 
@@ -410,7 +416,7 @@ export default function ChatLayout() {
             const c = await fetchApi('/chat/list')
             setChats(c)
             setStats(prev => ({ ...prev, chats: c.length }))
-        } catch { }
+        } catch (err) { console.error('loadChats:', err) }
     }
 
     async function loadMessages(id: string) {
@@ -423,7 +429,7 @@ export default function ChatLayout() {
                 const el = scrollRef.current
                 if (el) el.scrollTop = el.scrollHeight
             }, 50)
-        } catch { }
+        } catch (err) { console.error('loadMessages:', err) }
     }
 
     const createChat = useCallback(async () => {
@@ -436,7 +442,7 @@ export default function ChatLayout() {
             })
             await loadChats()
             nav(`/suhbat/${data.id}`)
-        } catch { }
+        } catch (err) { console.error('createChat:', err) }
         setCreating(false)
     }, [creating, profile])
 
@@ -588,7 +594,7 @@ export default function ChatLayout() {
             await fetchApi(`/chat/${id}`, { method: 'DELETE' })
             if (chatId === id) { nav('/suhbat'); setMessages([]); setCurrentChat(null) }
             loadChats()
-        } catch { }
+        } catch (err) { console.error('deleteChat:', err) }
     }
 
     // Days until exam
@@ -615,7 +621,7 @@ export default function ChatLayout() {
                 setMessages(prev => [...prev, { id: 'sys-' + Date.now(), role: 'user', content: notice, createdAt: new Date().toISOString() }])
                 streamToChat(chatId, 'O\'quvchi profil yangilashni tasdiqladi. Yangi mavzular ro\'yxati: ' + JSON.stringify(data) + '. Buni e\'tirof etib davom et.', notice)
             }
-        } catch { }
+        } catch (err) { console.error('handleProfileUpdate:', err) }
     }, [chatId])
 
     // Open test in side panel
@@ -656,8 +662,8 @@ export default function ChatLayout() {
             fetchApi('/flashcards', {
                 method: 'POST',
                 body: JSON.stringify({ subject: subj, cards: cards.map((c: any) => ({ front: String(c.front || ''), back: String(c.back || '') })) })
-            }).then(() => loadDueFlashcards()).catch(() => { })
-        } catch { }
+            }).then(() => loadDueFlashcards()).catch((err: unknown) => { console.error('saveFlashcards:', err) })
+        } catch (err) { console.error('openFlashPanel:', err) }
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Public test ochish (sidebar dan)
@@ -668,7 +674,8 @@ export default function ChatLayout() {
             const rawQuestions = data.questions || []
             // correctIdx submit qaytarmaguncha ko'rsatilmaydi — default 'a' (submit keyin yangilanadi)
             const converted = rawQuestions.map((q: any) => {
-                const opts = typeof q.options === 'string' ? JSON.parse(q.options) : q.options
+                let opts: string[] = []
+                try { opts = typeof q.options === 'string' ? JSON.parse(q.options) : q.options } catch { /* invalid JSON */ }
                 return {
                     id: q.id,
                     q: q.text,
@@ -710,7 +717,7 @@ export default function ChatLayout() {
                     setTestTimeLeft(data.timeLimit * 60)
                 }
             }
-        } catch { }
+        } catch (err) { console.error('openPublicTest:', err) }
         setLoadingPublicTest(false)
     }
 
@@ -817,7 +824,7 @@ export default function ChatLayout() {
                         setMessages([{ id: 'temp-u', role: 'user', content: displayMsg, createdAt: new Date().toISOString() }])
                         streamToChat(data.id, summary, displayMsg)
                     }, 300)
-                } catch { }
+                } catch (err) { console.error('submitTestPanel newChat:', err) }
             }, 500)
         }
         // Public test bo'lsa backendga ham yuborish (Rasch tracking)
@@ -1405,7 +1412,7 @@ export default function ChatLayout() {
                                                     setMessages([{ id: 'temp-u', role: 'user', content: s.prompt, createdAt: new Date().toISOString() }])
                                                     streamToChat(data.id, s.prompt)
                                                 }, 200)
-                                            } catch { }
+                                            } catch (err) { console.error('quickAction chat:', err) }
                                             setCreating(false)
                                         }}
                                             className="card card-hover text-left p-4">
