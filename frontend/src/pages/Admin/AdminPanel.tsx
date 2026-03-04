@@ -4,6 +4,7 @@ import { BrainCircuit, Users, UserCheck, GraduationCap, Clock, CalendarDays, Cal
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { fetchApi, uploadFile } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
+import toast from 'react-hot-toast'
 
 export default function AdminPanel() {
     const nav = useNavigate()
@@ -90,7 +91,7 @@ export default function AdminPanel() {
             await uploadFile('/documents/upload', fd)
             loadAll()
         } catch (e: any) {
-            alert('Hujjat yuklashda xato: ' + (e?.message || 'Qayta urinib ko\'ring'))
+            toast.error('Hujjat yuklashda xato: ' + (e?.message || "Qayta urinib ko'ring"))
         }
         setUploading(false)
         e.target.value = ''

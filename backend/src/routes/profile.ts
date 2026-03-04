@@ -40,11 +40,15 @@ router.put('/', authenticate, async (req: AuthRequest, res) => {
             profile = await prisma.studentProfile.update({
                 where: { userId: req.user.id },
                 data: {
-                    subject, examType, targetScore, concerns, studyHoursPerDay,
-                    weakTopics: weakTopics ? JSON.stringify(weakTopics) : undefined,
-                    strongTopics: strongTopics ? JSON.stringify(strongTopics) : undefined,
-                    examDate: examDate ? new Date(examDate) : undefined,
-                    onboardingDone: onboardingDone !== undefined ? onboardingDone : true
+                    ...(subject !== undefined && { subject }),
+                    ...(examType !== undefined && { examType }),
+                    ...(targetScore !== undefined && { targetScore }),
+                    ...(concerns !== undefined && { concerns }),
+                    ...(studyHoursPerDay !== undefined && { studyHoursPerDay }),
+                    ...(weakTopics !== undefined && { weakTopics: weakTopics ? JSON.stringify(weakTopics) : null }),
+                    ...(strongTopics !== undefined && { strongTopics: strongTopics ? JSON.stringify(strongTopics) : null }),
+                    ...(examDate !== undefined && { examDate: examDate ? new Date(examDate) : null }),
+                    ...(onboardingDone !== undefined && { onboardingDone })
                 }
             })
         }

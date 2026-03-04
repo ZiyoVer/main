@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { BrainCircuit, CheckCircle, XCircle, ArrowLeft } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
+import toast from 'react-hot-toast'
 
 export default function TestPage() {
     const { shareLink } = useParams<{ shareLink: string }>()
@@ -37,7 +38,7 @@ export default function TestPage() {
             setResult(res)
             setSubmitted(true)
         } catch (e: any) {
-            alert(e.message)
+            toast.error(e.message || 'Test yuborishda xatolik yuz berdi')
         }
         setSubmitting(false)
     }
