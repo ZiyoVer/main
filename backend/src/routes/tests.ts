@@ -1,6 +1,9 @@
 import { Router } from 'express'
 import multer from 'multer'
 import pdfParse from 'pdf-parse'
+import mammoth from 'mammoth'
+import { fromBuffer } from 'pdf2pic'
+import { PDFDocument } from 'pdf-lib'
 import OpenAI from 'openai'
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
 import prisma from '../utils/db'
@@ -158,21 +161,70 @@ router.post('/generate-from-file', authenticate, requireRole('TEACHER', 'ADMIN')
         const jsonFormat = `[{"text":"Savol matni?","options":["A variant","B variant","C variant","D variant"],"correctIdx":0}]`
         const subjectNote = subject ? ` Fan: ${subject}.` : ''
 
-        let messages: any[]
+        let messages: any[] = []
         let truncated = false
 
         if (mimetype === 'application/pdf') {
             const data = await pdfParse(buffer)
             const fullText = data.text.trim()
+            let hasImageContent = false
 
-            if (!fullText) {
-                return res.status(400).json({ error: 'PDF fayldan matn o\'qib bo\'lmadi. Agar bu skanerlangan (yoki rasm ko\'rinishidagi) PDF bo\'lsa, uning o\'rniga skrinshot (rasm formatida) yuklab ko\'ring.' })
+            // Text extracts empty usually on scanned docs. 
+            // We use pdf2pic to convert first few pages to image if text is empty.
+            if (!fullText || fullText.length < 50) {
+                try {
+                    const pdfDoc = await PDFDocument.load(buffer, { ignoreEncryption: true })
+                    const pageCount = pdfDoc.getPageCount()
+                    const pagesToConvert = Math.min(pageCount, 3)
+
+                    const converter = fromBuffer(buffer, {
+                        density: 150,
+                        format: "png",
+                        width: 800
+                    })
+
+                    const imageMessages: any[] = []
+                    for (let i = 1; i <= pagesToConvert; i++) {
+                        const pageData = await converter(i, { responseType: "base64" }) as any
+                        if (pageData && pageData.base64) {
+                            imageMessages.push({ type: 'image_url', image_url: { url: `data:image/png;base64,${pageData.base64}` } })
+                        }
+                    }
+
+                    if (imageMessages.length > 0) {
+                        hasImageContent = true
+                        messages = [{
+                            role: 'user',
+                            content: [
+                                ...imageMessages,
+                                {
+                                    type: 'text', text: `Bu rasm formatidagi PDF faylidan test savollari va variantlarini AYNAN ajratib ol — o'zing savol to'qima.${subjectNote}
+
+MUHIM QOIDALAR:
+- Rasmdagi mavjud savol va variantlarni AYNAN ko'chir
+- Kamida 5 ta, ko'pi 30 ta savol
+- correctIdx: to'g'ri javob indeksi (0=A, 1=B, 2=C, 3=D)
+
+Javobni FAQAT JSON array formatda qaytargil:
+${jsonFormat}`
+                                }
+                            ]
+                        }]
+                    }
+                } catch (err) {
+                    console.error("PDF to Image failed:", err)
+                }
             }
 
-            truncated = fullText.length > 12000
-            const text = fullText.substring(0, 12000)
+            if (!hasImageContent) {
+                if (!fullText) {
+                    return res.status(400).json({ error: 'PDF fayldan matn ham, rasm ham o\'qib bo\'lmadi. Boshqa fayl yuklab ko\'ring.' })
+                }
 
-            const userMsg = `Quyidagi matnda TAYYOR test savollari va variantlari bor. Ularni AYNAN o'sha holda ajratib ol — o'zing savol to'qima, o'zgartirma.${subjectNote}
+                truncated = fullText.length > 12000
+                const text = fullText.substring(0, 12000)
+
+                const userMsg = `Quyidagi matnda TAYYOR test savollari va variantlari bor. Ularni AYNAN o'sha holda ajratib ol — o'zing savol to'qima, o'zgartirma.${subjectNote}
 
 MUHIM QOIDALAR:
 - Matndagi mavjud savol va variantlarni AYNAN ko'chir
@@ -185,7 +237,29 @@ ${jsonFormat}
 
 Matn:
 ${text}`
+                messages = [{ role: 'user', content: userMsg }]
+            }
 
+        } else if (mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || mimetype === 'application/msword') {
+            const result = await mammoth.extractRawText({ buffer })
+            const fullText = result.value.trim()
+            if (!fullText) return res.status(400).json({ error: 'Word fayli bo\'sh' })
+
+            truncated = fullText.length > 12000
+            const text = fullText.substring(0, 12000)
+
+            const userMsg = `Quyidagi matnda TAYYOR test savollari va variantlari bor. Ularni AYNAN o'sha holda ajratib ol — o'zing savol to'qima.${subjectNote}
+
+MUHIM QOIDALAR:
+- Matndagi mavjud savol va variantlarni AYNAN ko'chir
+- correctIdx: to'g'ri javob indeksi (0=A, 1=B, 2=C, 3=D)
+- Kamida 5 ta, ko'pi 30 ta savol
+${truncated ? '- DIQQAT: Fayl katta, faqat birinchi qism berildi\n' : ''}
+Javobni FAQAT JSON array formatda qaytargil:
+${jsonFormat}
+
+Matn:
+${text}`
             messages = [{ role: 'user', content: userMsg }]
         } else if (mimetype.startsWith('image/')) {
             const base64 = buffer.toString('base64')
