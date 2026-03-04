@@ -1729,7 +1729,7 @@ export default function ChatLayout() {
                                     {testTimeLeft !== null && (
                                         <span className={`text-sm font-mono tabular-nums ml-1 px-2 py-0.5 rounded-md ${testTimeLeft < 60 ? 'animate-pulse' : ''}`}
                                             style={testTimeLeft < 60 ? { color: 'var(--danger)', background: 'var(--danger-light)' } : { color: 'var(--text-secondary)', background: 'var(--bg-muted)' }}>
-                                            ⏱ {Math.floor(testTimeLeft / 60)}:{String(testTimeLeft % 60).padStart(2, '0')}
+                                            ⏱ {String(Math.floor(testTimeLeft / 60)).padStart(2, '0')}:{String(testTimeLeft % 60).padStart(2, '0')}
                                         </span>
                                     )}
                                 </div>

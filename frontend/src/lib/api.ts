@@ -31,7 +31,9 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
         return data
     } catch (e: any) {
         if (e.message !== 'Sessiya muddati tugadi. Qayta kiring.') {
-            console.error('API Error:', e)
+            if (import.meta.env.DEV) {
+                console.error('API Error:', e)
+            }
         }
         throw e
     }
