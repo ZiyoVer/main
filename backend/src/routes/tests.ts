@@ -164,6 +164,11 @@ router.post('/generate-from-file', authenticate, requireRole('TEACHER', 'ADMIN')
         if (mimetype === 'application/pdf') {
             const data = await pdfParse(buffer)
             const fullText = data.text.trim()
+
+            if (!fullText) {
+                return res.status(400).json({ error: 'PDF fayldan matn o\'qib bo\'lmadi. Agar bu skanerlangan (yoki rasm ko\'rinishidagi) PDF bo\'lsa, uning o\'rniga skrinshot (rasm formatida) yuklab ko\'ring.' })
+            }
+
             truncated = fullText.length > 12000
             const text = fullText.substring(0, 12000)
 
