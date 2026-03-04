@@ -41,7 +41,7 @@ const MdMessage = memo(({ content, isStreaming }: {
 }) => {
     const { onOpenTest, onProfileUpdate, onOpenFlash } = useChatContext()
     return (
-    <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex, rehypeSanitize]} components={{
+    <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeSanitize, rehypeKatex]} components={{
         img: ({ src, alt }) => <img src={src} alt={alt || ''} className="max-h-48 max-w-[90%] sm:max-w-sm md:max-w-md rounded-xl object-contain my-1" style={{ border: '1px solid var(--border)' }} />,
         p: ({ children }) => <p className="mb-2.5 last:mb-0 leading-relaxed">{children}</p>,
         strong: ({ children }) => <strong className="font-semibold" style={{ color: 'var(--text-primary)' }}>{children}</strong>,
