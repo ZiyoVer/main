@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
+import dns from 'dns/promises'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
 import { tokenBlacklist } from '../utils/tokenBlacklist'
@@ -32,6 +33,17 @@ router.post('/register', async (req, res) => {
         // Email format tekshiruv
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
             return res.status(400).json({ error: 'Email manzil noto\'g\'ri' })
+        }
+
+        // --- B-VARIANT: DOMEN TEKSHIRUVI (MX Records) ---
+        const domain = normalizedEmail.split('@')[1];
+        try {
+            const mxRecords = await dns.resolveMx(domain);
+            if (!mxRecords || mxRecords.length === 0) {
+                return res.status(400).json({ error: 'Bunday email domen mavjud emas yoxud xat qabul qila olmaydi.' })
+            }
+        } catch (dnsErr) {
+            return res.status(400).json({ error: 'Email domenini (masalan @gmail.com) tasdiqlab bo\'lmadi. Haqiqiy email kiriting.' })
         }
 
         const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } })
