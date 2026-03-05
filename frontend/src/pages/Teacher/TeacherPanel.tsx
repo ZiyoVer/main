@@ -140,15 +140,27 @@ export default function TeacherPanel() {
     async function submit(e: React.FormEvent) {
         e.preventDefault()
         if (loading) return
-        for (let i = 0; i < questions.length; i++) {
-            if (!questions[i].text.trim()) { setMsg(`Savol ${i + 1} matni bo'sh`); return }
+
+        // Auto-fill empty options or text if there's an image
+        const finalQuestions = questions.map(q => {
+            const newOpts = [...(q.options || ['', '', '', ''])]
             for (let j = 0; j < 4; j++) {
-                if (!questions[i].options[j].trim()) { setMsg(`Savol ${i + 1}, variant ${String.fromCharCode(65 + j)} bo'sh`); return }
+                if (!newOpts[j].trim() && q.imageUrl) {
+                    newOpts[j] = String.fromCharCode(65 + j)
+                }
+            }
+            return { ...q, text: q.text?.trim() || (q.imageUrl ? " " : ""), options: newOpts }
+        })
+
+        for (let i = 0; i < finalQuestions.length; i++) {
+            if (!finalQuestions[i].text?.trim() && !finalQuestions[i].imageUrl) { setMsg(`Savol ${i + 1} matni bo'sh`); return }
+            for (let j = 0; j < 4; j++) {
+                if (!finalQuestions[i].options[j]?.trim()) { setMsg(`Savol ${i + 1}, variant ${String.fromCharCode(65 + j)} bo'sh`); return }
             }
         }
         setLoading(true); setMsg('')
         try {
-            await fetchApi('/tests/create', { method: 'POST', body: JSON.stringify({ title, subject, isPublic, timeLimit: timeLimit || null, questions }) })
+            await fetchApi('/tests/create', { method: 'POST', body: JSON.stringify({ title, subject, isPublic, timeLimit: timeLimit || null, questions: finalQuestions }) })
             setMsg('success')
             setTitle('')
             setQuestions([{ text: '', options: ['', '', '', ''], correctIdx: 0 }])

@@ -3,6 +3,19 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { BrainCircuit, CheckCircle, XCircle, ArrowLeft } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import toast from 'react-hot-toast'
+import katex from 'katex'
+import 'katex/dist/katex.min.css'
+import DOMPurify from 'dompurify'
+
+function MathPreview({ text }: { text: string }) {
+    if (!text?.includes('$')) return null
+    try {
+        const html = text
+            .replace(/\$\$([^$]+)\$\$/g, (_, m) => katex.renderToString(m.trim(), { displayMode: true, throwOnError: false }))
+            .replace(/\$([^$\n]+)\$/g, (_, m) => katex.renderToString(m.trim(), { throwOnError: false }))
+        return <div className="mt-1 mb-2 px-2.5 py-1.5 rounded-lg text-sm overflow-x-auto" style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)', color: 'var(--text-primary)' }} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
+    } catch { return null }
+}
 
 export default function TestPage() {
     const { shareLink } = useParams<{ shareLink: string }>()
@@ -112,10 +125,16 @@ export default function TestPage() {
                     const opts: string[] = JSON.parse(q.options)
                     return (
                         <div key={q.id} className="card p-4">
-                            <p className="text-[13px] font-medium mb-3">
+                            <p className="text-[13px] font-medium mb-1">
                                 <span className="mr-1" style={{ color: 'var(--text-muted)' }}>{qi + 1}.</span> {q.text}
                             </p>
-                            <div className="space-y-2">
+                            <MathPreview text={q.text} />
+                            {q.imageUrl && (
+                                <div className="mt-2 mb-4">
+                                    <img src={q.imageUrl} alt="Test savoli" className="max-w-full rounded-lg border shadow-sm" style={{ borderColor: 'var(--border)' }} />
+                                </div>
+                            )}
+                            <div className="space-y-2 mt-3">
                                 {opts.map((opt, oi) => {
                                     let bg = 'var(--bg-surface)'
                                     let border = 'var(--border)'
@@ -143,7 +162,10 @@ export default function TestPage() {
                                             <span className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 text-[10px] font-bold border-current">
                                                 {['A', 'B', 'C', 'D'][oi]}
                                             </span>
-                                            <span className="flex-1">{opt}</span>
+                                            <span className="flex-1">
+                                                {opt}
+                                                <MathPreview text={opt} />
+                                            </span>
                                             {submitted && oi === q.correctIdx && <CheckCircle className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--success)' }} />}
                                             {submitted && selected === oi && oi !== q.correctIdx && <XCircle className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--danger)' }} />}
                                         </button>
