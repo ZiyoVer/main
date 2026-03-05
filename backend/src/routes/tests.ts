@@ -302,7 +302,8 @@ ${jsonFormat}`
         const completion = await client.chat.completions.create({
             model: model,
             messages: [
-                { role: 'system', content: `Siz test savollari generatorisiz. Sizga berilgan matn yoki rasmdan savollarni AYNAN ajratib olasiz. FAQAT JSON array formatda javob bering, boshqa hech narsa yozmasdan.
+                {
+                    role: 'system', content: `Siz test savollari generatorisiz. Sizga berilgan matn yoki rasmdan savollarni AYNAN ajratib olasiz. FAQAT JSON array formatda javob bering, boshqa hech narsa yozmasdan.
 
 MATEMATIK IFODALAR UCHUN QOIDA (MUHIM):
 - Barcha matematik ifodalarni KaTeX/LaTeX formatida yozing
@@ -316,7 +317,7 @@ MATEMATIK IFODALAR UCHUN QOIDA (MUHIM):
 - Mutlaq qiymat: $|x|$
 - PI: $\\pi$
 - Tengsizlik: $\\leq$, $\\geq$, $\\neq`
-        },
+                },
                 ...messages
             ],
             max_tokens: 8000,
@@ -338,60 +339,66 @@ MATEMATIK IFODALAR UCHUN QOIDA (MUHIM):
             }
         }
 
-        let questions: any[]
-        try {
-            questions = JSON.parse(jsonStr)
-        } catch (e: any) {
-            console.error('AI JSON parse error:', e.message, 'Raw content:', aiContent)
-            return res.status(500).json({ error: 'AI noto\'g\'ri format qaytardi. Qayta urinib ko\'ring.' })
-        }
-
-        if (!Array.isArray(questions) || questions.length === 0) {
-            return res.status(500).json({ error: 'AI hech qanday savol topa olmadi. Fayl to\'g\'ri savollar borligini tekshiring.' })
-        }
-
-        // Har bir savolni validatsiya qilish va normallashtirish
-        const validatedQuestions = questions
-            .filter((q: any) => q && typeof q.text === 'string' && q.text.trim())
-            .map((q: any) => {
-                const options = Array.isArray(q.options) ? q.options.filter((o: any) => typeof o === 'string') : []
-                if (options.length < 2) return null
-
-                // correctIdx: raqam yoki harf ('A','B','C','D' yoki 'a','b','c','d') bo'lishi mumkin
-                let correctIdx = 0
-                if (typeof q.correctIdx === 'number') {
-                    correctIdx = q.correctIdx
-                } else if (typeof q.correctIdx === 'string') {
-                    const letterIdx = ['a', 'b', 'c', 'd'].indexOf(q.correctIdx.toLowerCase())
-                    correctIdx = letterIdx >= 0 ? letterIdx : 0
-                } else if (typeof q.correct === 'string') {
-                    const letterIdx = ['a', 'b', 'c', 'd'].indexOf(q.correct.toLowerCase())
-                    correctIdx = letterIdx >= 0 ? letterIdx : 0
-                }
-
-                if (correctIdx < 0 || correctIdx >= options.length) correctIdx = 0
-
-                return {
-                    text: q.text.trim(),
-                    options: options.slice(0, 4),
-                    correctIdx
-                }
-            })
-            .filter(Boolean)
-
-        if (validatedQuestions.length === 0) {
-            return res.status(500).json({ error: 'Savollar formati to\'g\'ri emas. PDF yoki rasmni tekshiring.' })
-        }
-
-        res.json({
-            questions: validatedQuestions,
-            truncated: truncated || false,
-            total: validatedQuestions.length
-        })
-    } catch (e: any) {
-        console.error('AI test generation error:', e.message)
-        res.status(500).json({ error: 'AI test yarata olmadi. PDF formatini sinab ko\'ring.' })
     }
+        
+        console.log('--- AI RAW CONTENT START ---');
+    console.log(aiContent);
+    console.log('--- AI RAW CONTENT END ---');
+
+    let questions: any[]
+    try {
+        questions = JSON.parse(jsonStr)
+    } catch (e: any) {
+        console.error('AI JSON parse error:', e.message, 'Raw content:', aiContent)
+        return res.status(500).json({ error: 'AI noto\'g\'ri format qaytardi. Qayta urinib ko\'ring.' })
+    }
+
+    if (!Array.isArray(questions) || questions.length === 0) {
+        return res.status(500).json({ error: 'AI hech qanday savol topa olmadi yoki tushunmadi. Boshqa fayl yuklang.' })
+    }
+
+    // Har bir savolni validatsiya qilish va normallashtirish
+    const validatedQuestions = questions
+        .filter((q: any) => q && q.options && Array.isArray(q.options))
+        .map((q: any) => {
+            const options = Array.isArray(q.options) ? q.options.filter((o: any) => typeof o === 'string') : []
+            if (options.length < 2) return null
+
+            // correctIdx: raqam yoki harf ('A','B','C','D' yoki 'a','b','c','d') bo'lishi mumkin
+            let correctIdx = 0
+            if (typeof q.correctIdx === 'number') {
+                correctIdx = q.correctIdx
+            } else if (typeof q.correctIdx === 'string') {
+                const letterIdx = ['a', 'b', 'c', 'd'].indexOf(q.correctIdx.toLowerCase())
+                correctIdx = letterIdx >= 0 ? letterIdx : 0
+            } else if (typeof q.correct === 'string') {
+                const letterIdx = ['a', 'b', 'c', 'd'].indexOf(q.correct.toLowerCase())
+                correctIdx = letterIdx >= 0 ? letterIdx : 0
+            }
+
+            if (correctIdx < 0 || correctIdx >= options.length) correctIdx = 0
+
+            return {
+                text: q.text.trim(),
+                options: options.slice(0, 4),
+                correctIdx
+            }
+        })
+        .filter(Boolean)
+
+    if (validatedQuestions.length === 0) {
+        return res.status(500).json({ error: 'Savollar formati to\'g\'ri emas. PDF yoki rasmni tekshiring.' })
+    }
+
+    res.json({
+        questions: validatedQuestions,
+        truncated: truncated || false,
+        total: validatedQuestions.length
+    })
+} catch (e: any) {
+    console.error('AI test generation error:', e.message)
+    res.status(500).json({ error: 'AI test yarata olmadi. PDF formatini sinab ko\'ring.' })
+}
 })
 
 // O'qituvchi: Test yaratish
