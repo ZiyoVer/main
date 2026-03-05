@@ -422,7 +422,7 @@ export default function TeacherPanel() {
                                         )}
                                     </div>
                                     <div className="relative">
-                                        <textarea placeholder="Savol matni ($formula$ yozsa preview chiqadi)" required value={q.text} onChange={e => updateQ(qi, 'text', e.target.value)} rows={2}
+                                        <textarea placeholder="Savol matni ($formula$ yozsa preview chiqadi)" required={!q.imageUrl} value={q.text} onChange={e => updateQ(qi, 'text', e.target.value)} rows={2}
                                             className="input resize-none w-full pr-12" style={{ height: 'auto', padding: '0.5rem 0.75rem', fontSize: '13px' }} />
                                         <label className="absolute right-2 top-2 p-1.5 rounded-md cursor-pointer transition hover:bg-slate-100 dark:hover:bg-slate-800"
                                             title="Rasm yuklash yoki Ctrl+V (Paste) orqali kiritish">
