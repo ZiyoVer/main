@@ -305,18 +305,20 @@ ${jsonFormat}`
                 {
                     role: 'system', content: `Siz test savollari generatorisiz. Sizga berilgan matn yoki rasmdan savollarni AYNAN ajratib olasiz. FAQAT JSON array formatda javob bering, boshqa hech narsa yozmasdan.
 
-MATEMATIK IFODALAR UCHUN QOIDA (MUHIM):
-- Barcha matematik ifodalarni KaTeX/LaTeX formatida yozing
-- Inline formula: $formula$ — masalan: $\\sqrt{2}$, $\\frac{1}{2}$, $x^2$, $a_n$
-- Block formula: $$formula$$ — katta ifodalar uchun
-- Ildiz: $\\sqrt{x}$ yoki $\\sqrt[n]{x}$
-- Kasr: $\\frac{a}{b}$
-- Daraja: $x^{2}$, $2^{n}$
-- Indeks: $a_{n}$, $x_{1}$
-- Ko'paytma: $a \\cdot b$ yoki $a \\times b$
-- Mutlaq qiymat: $|x|$
-- PI: $\\pi$
-- Tengsizlik: $\\leq$, $\\geq$, $\\neq`
+MATEMATIK IFODALAR BA GEOMETRIK CHIZMALAR UCHUN QAT'IY QOIDALAR (MUHIM):
+1. Barcha matematik ifodalarni faqat KaTeX/LaTeX formatida yozing.
+2. Inline formula: $formula$ — masalan: $\\sqrt{2}$, $\\frac{1}{2}$, $x^2$, $a_n$
+3. Block formula xato berishi mumkin, faqat bitta $ ishlating: $x^2 + y^2 = r^2$
+4. Ildiz: $\\sqrt{x}$ yoki $\\sqrt[n]{x}$
+5. Kasr: $\\frac{a}{b}$
+6. Daraja va Indeks: $x^{2}$, $2^{n}$, $a_{n}$, $x_{1}$
+7. Logarifm va natural logarifm: $\\log_{a}{b}$, $\\ln{x}$, $\\lg{x}$
+8. Limit va Integral: $\\lim_{x \\to \\infty} f(x)$, $\\int_{a}^{b} f(x) dx$
+9. Trigonometriya: $\\sin(\\alpha)$, $\\cos(\\beta)$, $\\tan(x)$, $\\cot(x)$
+10. Burchaklar va graduslar: $\\angle ABC = 90^\\circ$, $a^{\\circ}$
+11. Geometrik chizmalar yoki grafiklar bor bo'lsa, savol matniga "[Rasmda geometrik chizma/grafik berilgan, uni e'tiborga oling]" deb yozing, va matnni to'liq o'qing.
+12. PI, tengsizlik, qavslar majmui: $\\pi$, $\\leq$, $\\geq$, $\\neq$, $\\{ x \\mid x > 0 \\}$
+DIQQAT: Formulalarda bo'sh joylar yoki ortiqcha belgilarni qoldirmang, aynan rasmda qanday yozilgan bo'lsa shunday yarating. Qavslar $ichi$da harflar oddiy emas, balki matematik bo'lsin.`
                 },
                 ...messages
             ],
@@ -339,66 +341,64 @@ MATEMATIK IFODALAR UCHUN QOIDA (MUHIM):
             }
         }
 
-    }
-        
         console.log('--- AI RAW CONTENT START ---');
-    console.log(aiContent);
-    console.log('--- AI RAW CONTENT END ---');
+        console.log(aiContent);
+        console.log('--- AI RAW CONTENT END ---');
 
-    let questions: any[]
-    try {
-        questions = JSON.parse(jsonStr)
-    } catch (e: any) {
-        console.error('AI JSON parse error:', e.message, 'Raw content:', aiContent)
-        return res.status(500).json({ error: 'AI noto\'g\'ri format qaytardi. Qayta urinib ko\'ring.' })
-    }
+        let questions: any[]
+        try {
+            questions = JSON.parse(jsonStr)
+        } catch (e: any) {
+            console.error('AI JSON parse error:', e.message, 'Raw content:', aiContent)
+            return res.status(500).json({ error: 'AI noto\'g\'ri format qaytardi. Qayta urinib ko\'ring.' })
+        }
 
-    if (!Array.isArray(questions) || questions.length === 0) {
-        return res.status(500).json({ error: 'AI hech qanday savol topa olmadi yoki tushunmadi. Boshqa fayl yuklang.' })
-    }
+        if (!Array.isArray(questions) || questions.length === 0) {
+            return res.status(500).json({ error: 'AI hech qanday savol topa olmadi yoki tushunmadi. Boshqa fayl yuklang.' })
+        }
 
-    // Har bir savolni validatsiya qilish va normallashtirish
-    const validatedQuestions = questions
-        .filter((q: any) => q && q.options && Array.isArray(q.options))
-        .map((q: any) => {
-            const options = Array.isArray(q.options) ? q.options.filter((o: any) => typeof o === 'string') : []
-            if (options.length < 2) return null
+        // Har bir savolni validatsiya qilish va normallashtirish
+        const validatedQuestions = questions
+            .filter((q: any) => q && q.options && Array.isArray(q.options))
+            .map((q: any) => {
+                const options = Array.isArray(q.options) ? q.options.filter((o: any) => typeof o === 'string') : []
+                if (options.length < 2) return null
 
-            // correctIdx: raqam yoki harf ('A','B','C','D' yoki 'a','b','c','d') bo'lishi mumkin
-            let correctIdx = 0
-            if (typeof q.correctIdx === 'number') {
-                correctIdx = q.correctIdx
-            } else if (typeof q.correctIdx === 'string') {
-                const letterIdx = ['a', 'b', 'c', 'd'].indexOf(q.correctIdx.toLowerCase())
-                correctIdx = letterIdx >= 0 ? letterIdx : 0
-            } else if (typeof q.correct === 'string') {
-                const letterIdx = ['a', 'b', 'c', 'd'].indexOf(q.correct.toLowerCase())
-                correctIdx = letterIdx >= 0 ? letterIdx : 0
-            }
+                // correctIdx: raqam yoki harf ('A','B','C','D' yoki 'a','b','c','d') bo'lishi mumkin
+                let correctIdx = 0
+                if (typeof q.correctIdx === 'number') {
+                    correctIdx = q.correctIdx
+                } else if (typeof q.correctIdx === 'string') {
+                    const letterIdx = ['a', 'b', 'c', 'd'].indexOf(q.correctIdx.toLowerCase())
+                    correctIdx = letterIdx >= 0 ? letterIdx : 0
+                } else if (typeof q.correct === 'string') {
+                    const letterIdx = ['a', 'b', 'c', 'd'].indexOf(q.correct.toLowerCase())
+                    correctIdx = letterIdx >= 0 ? letterIdx : 0
+                }
 
-            if (correctIdx < 0 || correctIdx >= options.length) correctIdx = 0
+                if (correctIdx < 0 || correctIdx >= options.length) correctIdx = 0
 
-            return {
-                text: q.text.trim(),
-                options: options.slice(0, 4),
-                correctIdx
-            }
+                return {
+                    text: q.text.trim(),
+                    options: options.slice(0, 4),
+                    correctIdx
+                }
+            })
+            .filter(Boolean)
+
+        if (validatedQuestions.length === 0) {
+            return res.status(500).json({ error: 'Savollar formati to\'g\'ri emas. PDF yoki rasmni tekshiring.' })
+        }
+
+        res.json({
+            questions: validatedQuestions,
+            truncated: truncated || false,
+            total: validatedQuestions.length
         })
-        .filter(Boolean)
-
-    if (validatedQuestions.length === 0) {
-        return res.status(500).json({ error: 'Savollar formati to\'g\'ri emas. PDF yoki rasmni tekshiring.' })
+    } catch (e: any) {
+        console.error('AI test generation error:', e.message)
+        res.status(500).json({ error: 'AI test yarata olmadi. PDF formatini sinab ko\'ring.' })
     }
-
-    res.json({
-        questions: validatedQuestions,
-        truncated: truncated || false,
-        total: validatedQuestions.length
-    })
-} catch (e: any) {
-    console.error('AI test generation error:', e.message)
-    res.status(500).json({ error: 'AI test yarata olmadi. PDF formatini sinab ko\'ring.' })
-}
 })
 
 // O'qituvchi: Test yaratish
