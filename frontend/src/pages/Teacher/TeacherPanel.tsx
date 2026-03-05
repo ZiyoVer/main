@@ -9,12 +9,17 @@ import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import DOMPurify from 'dompurify'
 
-function MathPreview({ text }: { text: string }) {
+function MathPreview({ text, inline }: { text: string; inline?: boolean }) {
     if (!text?.includes('$')) return null
     try {
         const html = text
             .replace(/\$\$([^$]+)\$\$/g, (_, m) => katex.renderToString(m.trim(), { displayMode: true, throwOnError: false }))
             .replace(/\$([^$\n]+)\$/g, (_, m) => katex.renderToString(m.trim(), { throwOnError: false }))
+
+        if (inline) {
+            return <span className="inline-block ml-1" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
+        }
+
         return <div className="mt-1 px-2.5 py-1.5 rounded-lg text-sm overflow-x-auto" style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)', color: 'var(--text-primary)' }} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
     } catch { return null }
 }
@@ -443,10 +448,10 @@ export default function TeacherPanel() {
                                                 <label className="flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition"
                                                     style={q.correctIdx === oi ? { border: '1px solid color-mix(in srgb, var(--success) 40%, transparent)', background: 'color-mix(in srgb, var(--success) 6%, transparent)' } : { border: '1px solid var(--border)' }}>
                                                     <input type="radio" name={`correct-${qi}`} checked={q.correctIdx === oi} onChange={() => updateQ(qi, 'correctIdx', oi)} className="w-3 h-3 flex-shrink-0" style={{ accentColor: 'var(--success)' }} />
-                                                    <input placeholder={`Variant ${String.fromCharCode(65 + oi)}`} required value={o} onChange={e => updateQ(qi, `opt${oi}`, e.target.value)}
+                                                    <input placeholder={`Variant ${String.fromCharCode(65 + oi)}`} required={!q.imageUrl} value={o} onChange={e => updateQ(qi, `opt${oi}`, e.target.value)}
                                                         className="flex-1 bg-transparent outline-none text-[13px] min-w-0" />
+                                                    <MathPreview text={o} inline={true} />
                                                 </label>
-                                                <MathPreview text={o} />
                                             </div>
                                         ))}
                                     </div>

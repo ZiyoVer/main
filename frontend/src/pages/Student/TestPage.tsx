@@ -7,12 +7,17 @@ import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import DOMPurify from 'dompurify'
 
-function MathPreview({ text }: { text: string }) {
+function MathPreview({ text, inline }: { text: string; inline?: boolean }) {
     if (!text?.includes('$')) return null
     try {
         const html = text
             .replace(/\$\$([^$]+)\$\$/g, (_, m) => katex.renderToString(m.trim(), { displayMode: true, throwOnError: false }))
             .replace(/\$([^$\n]+)\$/g, (_, m) => katex.renderToString(m.trim(), { throwOnError: false }))
+
+        if (inline) {
+            return <span className="inline-block ml-1" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
+        }
+
         return <div className="mt-1 mb-2 px-2.5 py-1.5 rounded-lg text-sm overflow-x-auto" style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)', color: 'var(--text-primary)' }} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
     } catch { return null }
 }
@@ -162,9 +167,9 @@ export default function TestPage() {
                                             <span className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 text-[10px] font-bold border-current">
                                                 {['A', 'B', 'C', 'D'][oi]}
                                             </span>
-                                            <span className="flex-1">
-                                                {opt}
-                                                <MathPreview text={opt} />
+                                            <span className="flex-1 flex items-center gap-1">
+                                                <span>{opt.replace(/\$[^$]+\$/g, '').trim()}</span>
+                                                <MathPreview text={opt} inline={true} />
                                             </span>
                                             {submitted && oi === q.correctIdx && <CheckCircle className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--success)' }} />}
                                             {submitted && selected === oi && oi !== q.correctIdx && <XCircle className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--danger)' }} />}
