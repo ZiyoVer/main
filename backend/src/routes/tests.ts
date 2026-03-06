@@ -502,6 +502,53 @@ router.post('/upload-image', authenticate, requireRole('TEACHER', 'ADMIN'), uplo
     }
 })
 
+// Rasmli savollarni vision AI bilan tahlil qilish
+router.post('/analyze-vision', authenticate, async (req: AuthRequest, res) => {
+    try {
+        const { questions } = req.body
+        if (!Array.isArray(questions) || questions.length === 0) {
+            return res.json({ analysis: null })
+        }
+        const imageQs = questions.filter((q: any) => q.imageUrl)
+        if (imageQs.length === 0) return res.json({ analysis: null })
+
+        if (!process.env.OPENAI_API_KEY) {
+            return res.json({ analysis: null })
+        }
+
+        const optLabels = ['A', 'B', 'C', 'D']
+        const content: any[] = [{
+            type: 'text',
+            text: `Siz DTM va o'quv platformasining AI ustozisiz. O'quvchi quyidagi rasmli test savollarini yechdi.\nHar bir savol uchun:\n1. Rasmni tahlil qiling va savol nimani so'rayotganini tushuntiring\n2. To'g'ri javob qaysi va NIMA UCHUN — qoida/formula bilan izohlang\n3. O'quvchi xato qilgan bo'lsa, qayerda chalg'iganini ko'rsating\n\nJavob O'zbek tilida, KaTeX formulalar bilan ($\\frac{a}{b}$ formatida) bo'lsin.\n`
+        }]
+
+        imageQs.forEach((q: any, idx: number) => {
+            const studentLabel = typeof q.studentAnswer === 'string' ? q.studentAnswer.toUpperCase() : '?'
+            const correctLabel = typeof q.correctAnswer === 'string' ? q.correctAnswer.toUpperCase() : '?'
+            const isCorrect = q.studentAnswer === q.correctAnswer
+            const opts = ['a','b','c','d'].map((k, i) => q[k] ? `${optLabels[i]}) ${q[k]}` : null).filter(Boolean).join(' | ')
+
+            content.push({
+                type: 'text',
+                text: `\n---\nSavol ${idx + 1}${q.text ? ': ' + q.text : ' (quyidagi rasmga qarang):'}\nVariantlar: ${opts || '—'}\nO'quvchi javobi: ${studentLabel} ${isCorrect ? '✅ To\'g\'ri' : '❌ Xato'} | To\'g\'ri javob: ${correctLabel}\nRasm:`
+            })
+            content.push({ type: 'image_url', image_url: { url: q.imageUrl, detail: 'high' } })
+        })
+
+        const completion = await gptClient.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [{ role: 'user', content }],
+            max_tokens: 2500,
+            temperature: 0.3
+        })
+
+        res.json({ analysis: completion.choices[0]?.message?.content || null })
+    } catch (e: any) {
+        console.error('analyze-vision:', e.message)
+        res.json({ analysis: null })
+    }
+})
+
 // AI test natijasi — faqat Rasch abilityLevel yangilash (test entity saqlanmaydi)
 router.post('/submit-ai', authenticate, submitLimiter, async (req: AuthRequest, res) => {
     try {

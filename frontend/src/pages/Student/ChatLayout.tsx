@@ -809,8 +809,37 @@ export default function ChatLayout() {
             })
         }).then(() => loadProgress()).catch(() => { })
         logActivity(20) // Test uchun +20 XP
+        const hasImages = questions.some((q: any) => q.imageUrl)
         const summary = `--- YANGI TEST NATIJASI (bu mustaqil test) ---\nJami savol: ${questions.length}\nTo'g'ri javoblar: ${score}/${questions.length}\n\n${results}\n\nFaqat shu ${questions.length} ta savol bo'yicha tahlil qil va qaysi mavzularni qayta o'rganishim kerakligini ayt. Oldingi testlar bilan aralashma.`
         const displayMsg = `📊 Test natijasi: ${score}/${questions.length} — AI tahlil qilmoqda...`
+
+        // Rasmli savollar bo'lsa vision AI bilan tahlil qilish
+        if (hasImages) {
+            const imageQsList = questions
+                .map((q: any, i: number) => ({ q, i }))
+                .filter(({ q }) => q.imageUrl)
+            fetchApi('/tests/analyze-vision', {
+                method: 'POST',
+                body: JSON.stringify({
+                    questions: imageQsList.map(({ q, i }) => ({
+                        text: q.q,
+                        imageUrl: q.imageUrl,
+                        studentAnswer: testAnswers[i] || null,
+                        correctAnswer: q.correct,
+                        a: q.a, b: q.b, c: q.c, d: q.d
+                    }))
+                })
+            }).then((data: any) => {
+                if (data?.analysis) {
+                    setMessages(prev => [...prev, {
+                        id: 'vision-' + Date.now(),
+                        role: 'assistant',
+                        content: `🔍 **Rasmli savollar tahlili (GPT-4o Vision):**\n\n${data.analysis}`,
+                        createdAt: new Date().toISOString()
+                    }])
+                }
+            }).catch(() => { })
+        }
 
         if (chatId) {
             // Chat allaqachon ochiq — to'g'ridan-to'g'ri yubor
