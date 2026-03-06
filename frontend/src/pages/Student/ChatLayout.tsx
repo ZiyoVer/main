@@ -293,14 +293,11 @@ export default function ChatLayout() {
 
     useEffect(() => {
         loadChats(); loadProfile(); loadPublicTests(); loadMyResults(); loadProgress(); loadDueFlashcards(); logActivity()
-        // Komponent unmount bo'lganda barcha blob URL'larni tozalash (memory leak oldini olish)
         return () => {
-            setAttachedFiles(prev => {
-                prev.forEach(f => { if (f.previewUrl) URL.revokeObjectURL(f.previewUrl) })
-                return []
-            })
+            blobUrlsRef.current.forEach(url => URL.revokeObjectURL(url))
+            blobUrlsRef.current = []
         }
-    }, [openFlashPanel]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
     useEffect(() => { if (chatId) loadMessages(chatId) }, [chatId])
 
     // Panel drag-to-resize (flashcard + test)
@@ -612,11 +609,7 @@ export default function ChatLayout() {
 
             attachedFiles.forEach(file => {
                 promptText += `📎 **${file.name}** faylidan:\n\n${file.text}\n\n`
-                if (file.previewUrl) {
-                    displayText += `![${file.name}](${file.previewUrl}) `
-                } else {
-                    displayText += `📎 **${file.name}** `
-                }
+                displayText += `📎 **[${file.type === 'image' ? 'Rasm' : 'Fayl'}: ${file.name}]** `
             })
 
             if (userInput) {
