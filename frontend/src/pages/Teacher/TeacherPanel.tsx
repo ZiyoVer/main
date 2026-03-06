@@ -68,19 +68,31 @@ export default function TeacherPanel() {
     }
 
     async function handleImageUpload(qi: number, file: File) {
-        // S3 o'rniga base64 — server konfiguratsiya talab qilmaydi
-        const MAX_SIZE = 2 * 1024 * 1024 // 2MB
+        const MAX_SIZE = 10 * 1024 * 1024 // 10MB
         if (file.size > MAX_SIZE) {
-            toast.error('Rasm hajmi 2MB dan oshmasligi kerak')
+            toast.error('Rasm hajmi 10MB dan oshmasligi kerak')
             return
         }
-        const reader = new FileReader()
-        reader.onload = (e) => {
-            const base64 = e.target?.result as string
-            updateQ(qi, 'imageUrl', base64)
+        try {
+            // Canvas orqali compress: max 1200px, JPEG 0.82 — ~100-300KB ga tushadi
+            const bitmap = await createImageBitmap(file)
+            const MAX_DIM = 1200
+            const scale = Math.min(1, MAX_DIM / Math.max(bitmap.width, bitmap.height))
+            const w = Math.round(bitmap.width * scale)
+            const h = Math.round(bitmap.height * scale)
+            const canvas = document.createElement('canvas')
+            canvas.width = w
+            canvas.height = h
+            canvas.getContext('2d')!.drawImage(bitmap, 0, 0, w, h)
+            const compressed = canvas.toDataURL('image/jpeg', 0.82)
+            updateQ(qi, 'imageUrl', compressed)
+        } catch {
+            // createImageBitmap ishlamasa oddiy FileReader
+            const reader = new FileReader()
+            reader.onload = (e) => updateQ(qi, 'imageUrl', e.target?.result as string)
+            reader.onerror = () => toast.error('Rasm o\'qishda xatolik')
+            reader.readAsDataURL(file)
         }
-        reader.onerror = () => toast.error('Rasm o\'qishda xatolik')
-        reader.readAsDataURL(file)
     }
 
     function updateQ(idx: number, field: string, value: any) {

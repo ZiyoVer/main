@@ -1273,7 +1273,7 @@ export default function ChatLayout() {
                                                     setFlashFlipped(false)
                                                     setFlashIsReview(true)
                                                 }}>
-                                                <p className="text-[12px] font-medium truncate">{card.front}</p>
+                                                <p className="text-[12px] font-medium truncate"><MathText text={card.front} /></p>
                                                 <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{card.subject}</p>
                                             </div>
                                         ))}
