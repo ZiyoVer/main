@@ -682,6 +682,8 @@ export default function ChatLayout() {
                 return {
                     id: q.id,
                     q: q.text,
+                    imageUrl: q.imageUrl || null,
+                    questionType: q.questionType || 'mcq',
                     a: opts[0] || '', b: opts[1] || '', c: opts[2] || '', d: opts[3] || '',
                     correct: 'a' // placeholder — submit dan keyin correctAnswers bilan yangilanadi
                 }
@@ -1743,37 +1745,61 @@ export default function ChatLayout() {
                                     <div className={testPanelMaximized ? 'max-w-3xl mx-auto space-y-5' : 'space-y-5'}>
                                         {questions.map((q: any, i: number) => (
                                             <div key={i} className="card p-5">
-                                                <p className="text-[14px] font-semibold mb-4 leading-relaxed">{i + 1}. <MathText text={q.q} /></p>
-                                                <div className="space-y-2.5">
-                                                    {(['a', 'b', 'c', 'd'] as const).map(opt => {
-                                                        const isSelected = testAnswers[i] === opt
-                                                        const isCorrect = q.correct === opt
-                                                        let sty: React.CSSProperties = {}
-                                                        if (testSubmitted) {
-                                                            if (isCorrect) sty = { borderColor: 'var(--success)', background: 'var(--success-light)', color: 'var(--success)', fontWeight: 600 }
-                                                            else if (isSelected && !isCorrect) sty = { borderColor: 'var(--danger)', background: 'var(--danger-light)', color: 'var(--danger)' }
-                                                            else sty = { borderColor: 'var(--border)', background: 'var(--bg-surface)', opacity: 0.6 }
-                                                        } else {
-                                                            sty = isSelected
-                                                                ? { borderColor: 'var(--brand)', background: 'var(--brand-light)', color: 'var(--brand)', fontWeight: 600 }
-                                                                : { borderColor: 'var(--border)', background: 'var(--bg-card)' }
-                                                        }
-                                                        return (
-                                                            <button key={opt} disabled={testSubmitted}
-                                                                onClick={() => setTestAnswers({ ...testAnswers, [i]: opt })}
-                                                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTestAnswers({ ...testAnswers, [i]: opt }) } }}
-                                                                tabIndex={0}
-                                                                role="radio"
-                                                                aria-checked={testAnswers[i] === opt}
-                                                                className="w-full text-left px-4 py-3 rounded-xl text-[13px] border transition-all duration-200 outline-none"
-                                                                style={sty}>
-                                                                <span className="font-bold mr-2" style={{ opacity: 0.6 }}>{opt.toUpperCase()})</span> <MathText text={q[opt]} />
-                                                                {testSubmitted && isCorrect && <span className="ml-2 inline-flex items-center justify-center h-5 w-5 rounded-full text-xs" style={{ background: 'var(--success-light)', color: 'var(--success)' }}>✓</span>}
-                                                                {testSubmitted && isSelected && !isCorrect && <span className="ml-2 inline-flex items-center justify-center h-5 w-5 rounded-full text-xs" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>✕</span>}
-                                                            </button>
-                                                        )
-                                                    })}
-                                                </div>
+                                                <p className="text-[14px] font-semibold mb-2 leading-relaxed">{i + 1}. <MathText text={q.q} /></p>
+                                                {q.imageUrl && (
+                                                    <div className="mb-4 mt-1">
+                                                        <img src={q.imageUrl} alt="Savol rasmi" className="max-w-full rounded-xl border shadow-sm" style={{ borderColor: 'var(--border)', maxHeight: '320px', objectFit: 'contain' }} />
+                                                    </div>
+                                                )}
+                                                {q.questionType === 'open' ? (
+                                                    <div className="space-y-2">
+                                                        <textarea
+                                                            disabled={testSubmitted}
+                                                            value={typeof testAnswers[i] === 'string' ? testAnswers[i] : ''}
+                                                            onChange={e => setTestAnswers({ ...testAnswers, [i]: e.target.value })}
+                                                            placeholder="Javobingizni shu yerga yozing..."
+                                                            rows={3}
+                                                            className="w-full rounded-xl border px-3 py-2 text-[13px] resize-none outline-none transition"
+                                                            style={{ background: 'var(--bg-surface)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+                                                        />
+                                                        {testSubmitted && q.correctText && (
+                                                            <p className="text-[12px] px-3 py-2 rounded-lg" style={{ background: 'var(--success-light)', color: 'var(--success)' }}>
+                                                                To'g'ri javob: <span className="font-semibold">{q.correctText}</span>
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-2.5">
+                                                        {(['a', 'b', 'c', 'd'] as const).map(opt => {
+                                                            const isSelected = testAnswers[i] === opt
+                                                            const isCorrect = q.correct === opt
+                                                            let sty: React.CSSProperties = {}
+                                                            if (testSubmitted) {
+                                                                if (isCorrect) sty = { borderColor: 'var(--success)', background: 'var(--success-light)', color: 'var(--success)', fontWeight: 600 }
+                                                                else if (isSelected && !isCorrect) sty = { borderColor: 'var(--danger)', background: 'var(--danger-light)', color: 'var(--danger)' }
+                                                                else sty = { borderColor: 'var(--border)', background: 'var(--bg-surface)', opacity: 0.6 }
+                                                            } else {
+                                                                sty = isSelected
+                                                                    ? { borderColor: 'var(--brand)', background: 'var(--brand-light)', color: 'var(--brand)', fontWeight: 600 }
+                                                                    : { borderColor: 'var(--border)', background: 'var(--bg-card)' }
+                                                            }
+                                                            return (
+                                                                <button key={opt} disabled={testSubmitted}
+                                                                    onClick={() => setTestAnswers({ ...testAnswers, [i]: opt })}
+                                                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTestAnswers({ ...testAnswers, [i]: opt }) } }}
+                                                                    tabIndex={0}
+                                                                    role="radio"
+                                                                    aria-checked={testAnswers[i] === opt}
+                                                                    className="w-full text-left px-4 py-3 rounded-xl text-[13px] border transition-all duration-200 outline-none"
+                                                                    style={sty}>
+                                                                    <span className="font-bold mr-2" style={{ opacity: 0.6 }}>{opt.toUpperCase()})</span> <MathText text={q[opt]} />
+                                                                    {testSubmitted && isCorrect && <span className="ml-2 inline-flex items-center justify-center h-5 w-5 rounded-full text-xs" style={{ background: 'var(--success-light)', color: 'var(--success)' }}>✓</span>}
+                                                                    {testSubmitted && isSelected && !isCorrect && <span className="ml-2 inline-flex items-center justify-center h-5 w-5 rounded-full text-xs" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>✕</span>}
+                                                                </button>
+                                                            )
+                                                        })}
+                                                    </div>
+                                                )}
                                             </div>
                                         ))}
                                     </div>
