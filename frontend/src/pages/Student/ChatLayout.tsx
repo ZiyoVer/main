@@ -33,6 +33,13 @@ function MathText({ text }: { text: string }) {
     } catch { return <>{text}</> }
 }
 
+// DeepSeek \[...\] va \(...\) formatini $$...$$ va $...$ ga o'giradi
+function preprocessMath(text: string): string {
+    return text
+        .replace(/\\\[(\s*[\s\S]*?\s*)\\\]/g, (_, m) => `$$${m}$$`)
+        .replace(/\\\((\s*[\s\S]*?\s*)\\\)/g, (_, m) => `$${m}$`)
+}
+
 // MdMessage komponentni tashqarida va memo bilan ta'riflaymiz —
 // shunda har keystrokeda re-render bo'lmaydi (ReactMarkdown+KaTeX qimmat!)
 const MdMessage = memo(({ content, isStreaming }: {
@@ -40,6 +47,7 @@ const MdMessage = memo(({ content, isStreaming }: {
     isStreaming?: boolean
 }) => {
     const { onOpenTest, onProfileUpdate, onOpenFlash } = useChatContext()
+    const processedContent = preprocessMath(content)
     return (
         <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeSanitize, rehypeKatex]} components={{
             img: ({ src, alt }) => <img src={src} alt={alt || ''} className="max-h-48 max-w-[90%] sm:max-w-sm md:max-w-md rounded-xl object-contain my-1" style={{ border: '1px solid var(--border)' }} />,
@@ -178,7 +186,7 @@ const MdMessage = memo(({ content, isStreaming }: {
             },
             blockquote: ({ children }) => <blockquote className="border-l-[3px] pl-4 pr-3 py-2 my-3" style={{ borderColor: 'var(--brand)', background: 'var(--brand-light)', color: 'var(--text-secondary)', borderRadius: '0 0.75rem 0.75rem 0' }}>{children}</blockquote>,
             hr: () => <hr className="my-4" style={{ borderColor: 'var(--border)' }} />,
-        }}>{content}</ReactMarkdown>
+        }}>{processedContent}</ReactMarkdown>
     )
 })
 
@@ -218,6 +226,8 @@ export default function ChatLayout() {
     const [thinkingMode, setThinkingMode] = useState(false)
     const [thinkingText, setThinkingText] = useState('')
     const scrollRef = useRef<HTMLDivElement>(null)
+    const userScrolledRef = useRef(false)
+    const blobUrlsRef = useRef<string[]>([])
     const abortRef = useRef<AbortController | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const profileRef = useRef<Profile | null>(null)
@@ -317,13 +327,30 @@ export default function ChatLayout() {
         window.addEventListener('mouseup', onUp)
         return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
     }, [])
+    // Scroll event: user yuqoriga chiqsa auto-scroll to'xtatamiz
     useEffect(() => {
         const el = scrollRef.current
         if (!el) return
-        // Foydalanuvchi yuqoriga scroll qilmagan bo'lsa avtomatik pastga tush
-        const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 180
-        if (isNearBottom) el.scrollTop = el.scrollHeight
+        const onScroll = () => {
+            const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 200
+            userScrolledRef.current = !isNearBottom
+        }
+        el.addEventListener('scroll', onScroll, { passive: true })
+        return () => el.removeEventListener('scroll', onScroll)
+    }, [])
+    // Auto-scroll faqat user pastda bo'lsa ishlaydi
+    useEffect(() => {
+        if (userScrolledRef.current) return
+        const el = scrollRef.current
+        if (!el) return
+        el.scrollTop = el.scrollHeight
     }, [messages, streaming, attachedFiles.length])
+    // chatId o'zgarganda blobUrllarni tozalash va scroll reset
+    useEffect(() => {
+        userScrolledRef.current = false
+        blobUrlsRef.current.forEach(url => URL.revokeObjectURL(url))
+        blobUrlsRef.current = []
+    }, [chatId])
 
     // Test panel yopilganda timerni tozalash
     useEffect(() => {
@@ -597,8 +624,8 @@ export default function ChatLayout() {
                 displayText += `\n\n${userInput}`
             }
 
-            // Blob URL'larni tozalash — memory leak oldini olish
-            attachedFiles.forEach(f => { if (f.previewUrl) URL.revokeObjectURL(f.previewUrl) })
+            // Blob URL'larni blobUrlsRef ga o'tkazamiz — chatId o'zgarganda tozalanadi
+            attachedFiles.forEach(f => { if (f.previewUrl) blobUrlsRef.current.push(f.previewUrl) })
             setAttachedFiles([])
             setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: displayText.trim(), createdAt: new Date().toISOString() }])
             await streamToChat(chatId, promptText.trim(), displayText.trim())
@@ -833,7 +860,7 @@ export default function ChatLayout() {
                 })
             }).then((data: any) => {
                 if (data?.analysis) {
-                    const fullText = `🔍 **Rasmli savollar tahlili (GPT-4o Vision):**\n\n${data.analysis}`
+                    const fullText = `🔍 **Rasmli savollar tahlili (AI Vision):**\n\n${data.analysis}`
                     // Animatsiya: streaming state orqali xarakter-xarakter chiqarish
                     let idx = 0
                     const CHUNK = 8
@@ -1739,7 +1766,7 @@ export default function ChatLayout() {
                                         onKeyDown={e => {
                                             if (e.key === 'Enter' && !e.shiftKey) {
                                                 e.preventDefault()
-                                                if (!loading && input.trim()) sendMessage(e as any)
+                                                if (!loading && (input.trim() || attachedFiles.length > 0)) sendMessage(e as any)
                                             }
                                         }}
                                         onPaste={handlePaste}

@@ -240,8 +240,170 @@ function getExamSection(subject?: string): string {
 - Test natijasida: qaysi section zaifligini aniqla va o'sha bo'limdan qo'shimcha mashq ber`
     }
 
+    // DTM umumiy tuzilishi (barcha fanlarda bir xil)
+    const dtmGeneral = `# 📋 DTM IMTIHONI UMUMIY TUZILISHI (2025-2026)
+
+**Jami**: 90 ta savol | **Maksimal ball**: 189 | **Barcha savollar MCQ (A/B/C/D)**
+
+| Fan | Savollar | Har biri | Jami ball |
+|-----|----------|----------|-----------|
+| Ona tili (majburiy) | 10 | 1.1 | 11 |
+| Matematika (majburiy) | 10 | 1.1 | 11 |
+| O'zbekiston tarixi (majburiy) | 10 | 1.1 | 11 |
+| 1-mutaxassislik fan | 30 | 3.1 | 93 |
+| 2-mutaxassislik fan | 30 | 2.1 | 63 |
+
+**Muhim**: DTMda OCHIQ (yozma) savollar YO'Q — faqat A/B/C/D.
+**Qiyinlik darajasi**: 15% oson, 70% o'rta, 15% qiyin.`
+
+    if (subject === 'O\'zbekiston tarixi' || subject === 'Tarix') {
+        return `${dtmGeneral}
+
+# 🏛️ TARIX (O'zbekiston tarixi) — DTM & Milliy Sertifikat
+
+## DTMda tarix:
+- Majburiy fanda **10 ta savol** (1.1 ball = 11 ball max)
+- Mutaxassislik fanda **30 ta savol** (masalan, tarix-geografiya bloki)
+- Faqat MCQ format
+
+## Asosiy mavzular (DTM):
+1. **Qadimgi davr** — ibtidoiy jamoa, Baqtriya, Xorazm, So'g'd, Parfiya
+2. **O'rta asrlar** — Somoniylar, G'aznaviylar, Temuriylar, Shayboniylar, Xonliklar
+3. **Mustamlakachilik davri** — Rossiya bosqini (1865-1917), jadidchilik, istiqlol kurashi
+4. **Mustaqillik davri** — 1991-yil, Konstitutsiya, islohotlar, tashqi siyosat
+5. **Jahon tarixi** — qadimgi tsivilizatsiyalar, O'rta asrlar, yangi va eng yangi davr
+
+## Eng ko'p chiqadigan savollar:
+- Aniq sanalar (1865, 1918, 1924, 1991, 1992...)
+- Shaxslar va ularning faoliyati (Amir Temur, Navoiy, Jadidlar...)
+- Davlat tuzilmalari va hududiy o'zgarishlar
+- Iqtisodiy va madaniy taraqqiyot bosqichlari
+
+## Mock test strategiyasi:
+- Davr bo'yicha aralashtir: har davrdan 2-3 ta savol
+- Sanali savollar ko'p — shu bo'yicha alohida mashq qildir
+- Xarita va hududiy savollarga e'tibor ber`
+    }
+
+    if (subject === 'Fizika') {
+        return `${dtmGeneral}
+
+# ⚛️ FIZIKA — DTM & Milliy Sertifikat
+
+## DTMda fizika:
+- Mutaxassislik fanda **30 ta savol** (fizika-matematika, fizika-kimyo bloki)
+- Faqat MCQ format
+- Formulalar va hisob-kitob savollar ko'p
+
+## Milliy Sertifikat (fizika):
+- **Y-1** (Yagona tanlov A/B/C/D): asosiy qism
+- **O** (Ochiq javob a/b): hisob-kitob masalalar, 1.5–3.2 ball
+
+## Asosiy mavzular:
+1. **Mexanika** — kinematika, dinamika, energiya, impuls, statika
+2. **Molekulyar fizika va termodinamika** — issiqlik, gaz qonunlari, entropi
+3. **Elektrodinamika** — Kulon, tok, qarshilik, Faradey, magnit maydon
+4. **Optika** — yorug'lik tezligi, linzalar, sinish, difraksiya
+5. **Kvant fizikasi** — fotoeffekt, atom modellari, radioaktivlik
+6. **Tebranishlar va to'lqinlar** — mexanik, elektromagnit
+
+## Mock test strategiyasi:
+- Har mavzudan formulali masalalar qo'y (raqamli hisoblash)
+- Grafik o'qish savollarini qo'sh
+- Fizika konstantalari (c, g, e, k) ni bilishga e'tibor ber`
+    }
+
+    if (subject === 'Kimyo') {
+        return `${dtmGeneral}
+
+# 🧪 KIMYO — DTM & Milliy Sertifikat
+
+## DTMda kimyo:
+- Mutaxassislik fanda **30 ta savol** (kimyo-biologiya bloki)
+- Faqat MCQ format
+
+## Milliy Sertifikat (kimyo):
+- **Y-1** (Yagona tanlov): asosiy qism
+- **O** (Ochiq javob a/b): reaksiya tenglamalari va hisob-kitob
+
+## Asosiy mavzular:
+1. **Umumiy kimyo asoslari** — atom tuzilishi, davriy sistema, kimyoviy bog'
+2. **Noorganik kimyo** — oksidlar, kislotalar, asoslar, tuzlar, elektroliz
+3. **Organik kimyo** — alkanlar, alkenlar, aromatik birikmalar, funksional guruhlar
+4. **Reaksiyalar kimyosi** — tezlik, muvozanat, oksidlanish-qaytarilish
+5. **Hisob-kitob masalalari** — mol, massa, konsentratsiya, reaksiya mahsuloti
+
+## Mock test strategiyasi:
+- Kimyoviy formulalar va nomlar (IUPAC) dan savol ber
+- Reaksiyalarni tenglashtirish savollarini qo'sh
+- Organik kimyoda izomeriya va nomenklatura muhim`
+    }
+
+    if (subject === 'Biologiya') {
+        return `${dtmGeneral}
+
+# 🧬 BIOLOGIYA — DTM & Milliy Sertifikat
+
+## DTMda biologiya:
+- Mutaxassislik fanda **30 ta savol** (biologiya-kimyo, biologiya-geografiya bloki)
+- Faqat MCQ format
+
+## Milliy Sertifikat (biologiya):
+- **Y-1** (Yagona tanlov A/B/C/D): asosiy qism
+- **O** (Ochiq javob): jarayon va tushuntirish savollar
+
+## Asosiy mavzular:
+1. **Hujayra biologiyasi** — hujayra tuzilishi, organellalar, bo'linish (mitoz/meyoz)
+2. **Genetika** — Mendel qonunlari, DNK, RNK, oqsil sintezi, mutatsiyalar
+3. **Evolyutsiya** — Darvin, tabiiy tanlanish, populyatsiya genetikasi
+4. **Ekologiya** — ekosistemalar, oziq zanjiri, biogeochemik davrlar
+5. **O'simliklar fiziologiyasi** — fotosintez, nafas olish, o'sish regulyatsiyasi
+6. **Hayvonlar anatomiyasi** — qon aylanish, hazm qilish, nerv tizimi, ko'payyish
+
+## Mock test strategiyasi:
+- Sxemalar va diagrammalar asosida savollar ber (to'qima, hujayra)
+- Genetika masalalari (F1, F2, probabil hisob) qo'y
+- Lotincha atamalar (genus, species) ni bilishga e'tibor ber`
+    }
+
+    if (subject === 'Ona tili' || subject === 'O\'zbek tili') {
+        return `${dtmGeneral}
+
+# 📝 ONA TILI VA ADABIYOT — DTM & Milliy Sertifikat
+
+## DTMda ona tili:
+- Majburiy fanda **10 ta savol** (1.1 ball = 11 ball max)
+- Faqat MCQ format
+
+## Milliy Sertifikat (ona tili va adabiyot):
+- **Y-1** (Yagona tanlov): 70% savollar
+- **O** (Ochiq javob — qisqa yozma): 30% savollar, insho elementlari
+- **Jami vaqt**: ~2.5 soat
+
+## Asosiy mavzular (grammatika):
+1. **Fonetika** — tovush va harf, unlilar/undoshlar, bo'g'in, urg'u
+2. **Leksikologiya** — sinonimlar, antonimlar, omonimlar, frazeologizmlar
+3. **So'z yasalishi** — qo'shimchalar, qo'shma so'zlar, abbreviaturalar
+4. **Morfologiya** — so'z turkumlari, ot/sifat/fe'l/ravish qo'shimchalari
+5. **Sintaksis** — gap bo'laklari, murakkab gap, tinish belgilari
+6. **Imlo** — qo'shib/ajratib/chiziqcha bilan yozish qoidalari
+
+## Adabiyot mavzulari:
+- Alisher Navoiy asarlari (Xamsa, g'azallar)
+- Bobur, Muqimiy, Furqat, Hamza
+- Cho'lpon, Abdulla Qahhor, Oybek, G'afur G'ulom
+- Zamonaviy adabiyot: Said Ahmad, Erkin Vohidov, Abdulla Oripov
+
+## Mock test strategiyasi:
+- Imlo qoidalari bo'yicha alohida mashq ber
+- Adabiy asarlar va yozuvchilar juftligini moslashtir
+- Grammatik tahlil savollarini qo'sh`
+    }
+
     // Default: Matematika
-    return `# 🏆 MILLIY SERTIFIKAT IMTIHONI (Matematika)
+    return `${dtmGeneral}
+
+# 🏆 MILLIY SERTIFIKAT IMTIHONI (Matematika)
 
 ## Savol turlari:
 - **Y-1** (Yagona tanlov): To'g'ri bir javob tanlanadi. 1–3 ball.
