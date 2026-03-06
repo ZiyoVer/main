@@ -8,8 +8,8 @@ import { useAuthStore } from '@/store/authStore'
 
 const FAQ_ITEMS = [
     {
-        q: "msert nima?",
-        a: "msert — DTM va Milliy Sertifikat imtihonlariga tayyorlaydigan bepul AI platforma. Shaxsiy ustoz, testlar va natija kuzatuvi birin-ketin bitta joyda."
+        q: "BallMax nima?",
+        a: "BallMax — DTM va Milliy Sertifikat imtihonlariga tayyorlaydigan bepul AI platforma. Shaxsiy ustoz, testlar va natija kuzatuvi birin-ketin bitta joyda."
     },
     {
         q: "Haqiqatan bepulmi?",
@@ -125,7 +125,7 @@ export default function Landing() {
                         <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--brand)' }}>
                             <BrainCircuit className="h-4 w-4 text-white" />
                         </div>
-                        <span className="font-bold text-base tracking-tight">msert</span>
+                        <span className="font-bold text-base tracking-tight">BallMax</span>
                     </div>
 
                     {/* Nav links */}
@@ -216,7 +216,7 @@ export default function Landing() {
                                 className="flex-1 flex justify-center text-xs rounded-md px-3 py-1"
                                 style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}
                             >
-                                msert.uz — AI Ustoz
+                                ballmax.uz — AI Ustoz
                             </div>
                         </div>
 
@@ -355,7 +355,7 @@ export default function Landing() {
                         <div className="h-6 w-6 rounded-md flex items-center justify-center" style={{ background: 'var(--brand)' }}>
                             <BrainCircuit className="h-3.5 w-3.5 text-white" />
                         </div>
-                        <span className="font-bold text-sm">msert</span>
+                        <span className="font-bold text-sm">BallMax</span>
                         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>© 2026</span>
                     </div>
                     <button

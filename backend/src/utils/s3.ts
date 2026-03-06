@@ -17,7 +17,7 @@ const s3 = new S3Client({
     forcePathStyle: true // Wasabi uchun kerak
 })
 
-const BUCKET = process.env.S3_BUCKET || 'msert'
+const BUCKET = process.env.S3_BUCKET || 'ballmax'
 
 /**
  * Faylni S3 ga yuklash

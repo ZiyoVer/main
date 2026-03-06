@@ -130,7 +130,7 @@ export default function AdminPanel() {
                         <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--brand)' }}>
                             <BrainCircuit className="h-3.5 w-3.5 text-white" />
                         </div>
-                        <span className="text-sm font-bold">msert</span>
+                        <span className="text-sm font-bold">BallMax</span>
                         <span className="text-[11px] font-medium px-2 py-0.5 rounded-md" style={{ color: 'var(--text-muted)', background: 'var(--bg-surface)' }}>Admin</span>
                     </div>
                     <button onClick={() => { logout(); nav('/') }} className="h-8 w-8 flex items-center justify-center rounded-lg transition"
@@ -562,7 +562,7 @@ export default function AdminPanel() {
                 {tab === 'ai' && (() => {
                     const SECTIONS = [
                         { key: 'extra_rules', label: 'Qo\'shimcha qoidalar', desc: 'Har doim qo\'shiladigan ko\'rsatmalar' },
-                        { key: 'prompt_role', label: 'Rol va shaxsiyat', desc: '\uD83C\uDF93 AI kim — "Sen msert platformasi..."' },
+                        { key: 'prompt_role', label: 'Rol va shaxsiyat', desc: '🎓 AI kim — "Sen BallMax platformasi..."' },
                         { key: 'prompt_teaching', label: 'O\'qitish metodikasi', desc: '\uD83D\uDCD6 Avval tushuntir, dialog, diagnostika' },
                         { key: 'prompt_format', label: 'Formatlash qoidalari', desc: '\uD83D\uDCDD LaTeX, jadval, flashcard, test format' },
                         { key: 'prompt_math', label: 'Matematika bo\'limi', desc: '\uD83C\uDFC6 Milliy Sertifikat Matematika' },

@@ -10,7 +10,7 @@ description: |
 tools: Read, Glob, Grep, Bash
 ---
 
-Siz msert platformasining Bug Finder agentisiz. Quyidagi sohalarni chuqur tekshiring:
+Siz BallMax platformasining Bug Finder agentisiz. Quyidagi sohalarni chuqur tekshiring:
 
 ## Tekshirish yo'nalishlari
 

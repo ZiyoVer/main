@@ -236,11 +236,11 @@ export default function ChatLayout() {
     const [testsLoading, setTestsLoading] = useState(false)
     // Yechilgan testlar IDlarini localStorage da saqlaymiz
     const completedTestIdsRef = useRef<Set<string>>((() => {
-        try { return new Set(JSON.parse(localStorage.getItem('msert_done_tests') || '[]')) } catch { return new Set() }
+        try { return new Set(JSON.parse(localStorage.getItem('ballmax_done_tests') || '[]')) } catch { return new Set() }
     })())
     // AI tomonidan yaratilgan yechilgan testlarni saqlash (JSON kaliti bo'yicha)
     const completedAiTestsRef = useRef<Set<string>>((() => {
-        try { return new Set(JSON.parse(localStorage.getItem('msert_done_ai_tests') || '[]')) } catch { return new Set() }
+        try { return new Set(JSON.parse(localStorage.getItem('ballmax_done_ai_tests') || '[]')) } catch { return new Set() }
     })())
 
     // Hook'lar
@@ -649,12 +649,12 @@ export default function ChatLayout() {
 
     function markTestCompleted(testId: string) {
         completedTestIdsRef.current.add(testId)
-        try { localStorage.setItem('msert_done_tests', JSON.stringify([...completedTestIdsRef.current])) } catch (err) { console.warn('localStorage limit to\'lgan:', err); toast.error("Xotira to'lgan, eski ma'lumotlar o'chirilishi mumkin") }
+        try { localStorage.setItem('ballmax_done_tests', JSON.stringify([...completedTestIdsRef.current])) } catch (err) { console.warn('localStorage limit to\'lgan:', err); toast.error("Xotira to'lgan, eski ma'lumotlar o'chirilishi mumkin") }
     }
 
     function markAiTestCompleted(key: string) {
         completedAiTestsRef.current.add(key)
-        try { localStorage.setItem('msert_done_ai_tests', JSON.stringify([...completedAiTestsRef.current])) } catch (err) { console.warn('localStorage limit to\'lgan:', err); toast.error("Xotira to'lgan, eski ma'lumotlar o'chirilishi mumkin") }
+        try { localStorage.setItem('ballmax_done_ai_tests', JSON.stringify([...completedAiTestsRef.current])) } catch (err) { console.warn('localStorage limit to\'lgan:', err); toast.error("Xotira to'lgan, eski ma'lumotlar o'chirilishi mumkin") }
     }
 
     // AI taklif qilgan profil yangilashni tasdiqlash
@@ -713,7 +713,7 @@ export default function ChatLayout() {
             if (completedTestIdsRef.current.has(t.id)) {
                 // Avval yechilgan — to'g'ri javoblarni localStorage dan olish
                 try {
-                    const savedCorrect = localStorage.getItem('msert_correct_' + t.id)
+                    const savedCorrect = localStorage.getItem('ballmax_correct_' + t.id)
                     if (savedCorrect) {
                         const correctMap: Record<string, number> = JSON.parse(savedCorrect)
                         const withCorrect = converted.map((q: any) => {
@@ -727,7 +727,7 @@ export default function ChatLayout() {
                 } catch { setTestPanel(JSON.stringify(converted)) }
                 // Avvalgi javoblarni ham ko'rsatish
                 try {
-                    const savedAnswers = localStorage.getItem('msert_pub_ans_' + t.id)
+                    const savedAnswers = localStorage.getItem('ballmax_pub_ans_' + t.id)
                     setTestAnswers(savedAnswers ? JSON.parse(savedAnswers) : {})
                 } catch { setTestAnswers({}) }
                 setTestSubmitted(true)
@@ -938,9 +938,9 @@ export default function ChatLayout() {
                         // To'g'ri javoblarni saqlash (keyingi ochilishda ishlatish uchun)
                         const correctMap: Record<string, number> = {}
                         res.correctAnswers.forEach((c: any) => { correctMap[c.id] = c.correctIdx })
-                        try { localStorage.setItem('msert_correct_' + activeTestId, JSON.stringify(correctMap)) } catch { }
+                        try { localStorage.setItem('ballmax_correct_' + activeTestId, JSON.stringify(correctMap)) } catch { }
                         // User javoblarini ham saqlaymiz
-                        try { localStorage.setItem('msert_pub_ans_' + activeTestId, JSON.stringify(testAnswers)) } catch { }
+                        try { localStorage.setItem('ballmax_pub_ans_' + activeTestId, JSON.stringify(testAnswers)) } catch { }
                         setTestPanel(prev => {
                             if (!prev) return prev
                             try {
@@ -960,7 +960,7 @@ export default function ChatLayout() {
             // AI tomonidan yaratilgan test — javoblarni va yechilgan holatni saqlash
             const aiKey = testPanel.substring(0, 120)
             markAiTestCompleted(aiKey)
-            try { localStorage.setItem('msert_ans_' + aiKey, JSON.stringify(testAnswers)) } catch { }
+            try { localStorage.setItem('ballmax_ans_' + aiKey, JSON.stringify(testAnswers)) } catch { }
             // AI test natijasini Rasch ga yuborish
             const scorePercent = (score / questions.length) * 100
             const raschResults = questions.map((q: any, i: number) => ({
@@ -1034,7 +1034,7 @@ export default function ChatLayout() {
                             <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--brand)' }}>
                                 <BrainCircuit className="h-3.5 w-3.5 text-white" />
                             </div>
-                            <span className="text-sm font-bold whitespace-nowrap">msert</span>
+                            <span className="text-sm font-bold whitespace-nowrap">BallMax</span>
                         </div>
                         <button onClick={() => setSideOpen(false)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-muted)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}><X className="h-4 w-4" /></button>
                     </div>
@@ -1121,7 +1121,7 @@ export default function ChatLayout() {
                             {/* AI testlarim tarixi (localStorage dan) */}
                             {(() => {
                                 let aiKeys: string[] = []
-                                try { aiKeys = JSON.parse(localStorage.getItem('msert_done_ai_tests') || '[]') } catch { }
+                                try { aiKeys = JSON.parse(localStorage.getItem('ballmax_done_ai_tests') || '[]') } catch { }
                                 if (aiKeys.length === 0) return null
                                 return (
                                     <div className="mt-3">

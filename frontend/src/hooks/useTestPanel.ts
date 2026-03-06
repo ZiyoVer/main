@@ -26,7 +26,7 @@ export function useTestPanel(
     if (completedAiTestsRef.current.has(aiKey)) {
       // Allaqachon yechilgan — saqlangan javoblar bilan ko'rish rejimi
       let savedAnswers: Record<number, string> = {}
-      try { savedAnswers = JSON.parse(localStorage.getItem('msert_ans_' + aiKey) || '{}') } catch { }
+      try { savedAnswers = JSON.parse(localStorage.getItem('ballmax_ans_' + aiKey) || '{}') } catch { }
       setTestPanel(jsonStr)
       setTestAnswers(savedAnswers)
       setTestSubmitted(true)

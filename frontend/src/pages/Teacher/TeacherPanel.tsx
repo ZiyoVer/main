@@ -231,7 +231,7 @@ export default function TeacherPanel() {
                             <div className="h-6 w-6 rounded-md flex items-center justify-center" style={{ background: 'var(--brand)' }}>
                                 <BrainCircuit className="h-3 w-3 text-white" />
                             </div>
-                            <span className="text-sm font-bold">msert</span>
+                            <span className="text-sm font-bold">BallMax</span>
                             <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ color: 'var(--text-muted)', background: 'var(--bg-surface)' }}>O'qituvchi</span>
                         </div>
                         <button onClick={() => { logout(); nav('/') }} className="h-7 w-7 flex items-center justify-center rounded-lg transition"

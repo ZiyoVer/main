@@ -18,7 +18,7 @@ for (const key of REQUIRED_ENV) {
         process.exit(1)
     }
 }
-if (process.env.JWT_SECRET === 'msert-dev-secret') {
+if (process.env.JWT_SECRET === 'ballmax-dev-secret') {
     console.error('❌ JWT_SECRET hali dev qiymati bilan turibdi! O\'zgartiring.')
     process.exit(1)
 }
@@ -41,7 +41,7 @@ app.use(cors({
         // Same-origin (origin yo'q) — to'g'ridan-to'g'ri ruxsat
         if (!origin) return cb(null, true)
 
-        // Aniq mos kelish tekshiruvi (startsWith zaif — msert.uz.evil.com ni o'tkazib yuboradi)
+        // Aniq mos kelish tekshiruvi (startsWith zaif — ballmax.uz.evil.com ni o'tkazib yuboradi)
         if (allowedOrigins.some(o => origin === o)) {
             return cb(null, true)
         }
@@ -140,17 +140,17 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 const PORT = process.env.PORT || 8080
 
 async function bootstrap() {
-    const adminExists = await prisma.user.findUnique({ where: { email: 'admin@msert.uz' } })
+    const adminExists = await prisma.user.findUnique({ where: { email: 'admin@ballmax.uz' } })
     if (!adminExists) {
         const pw = await bcrypt.hash(process.env.ADMIN_PASSWORD!, 10)
         await prisma.user.create({
-            data: { email: 'admin@msert.uz', password: pw, name: 'Administrator', role: 'ADMIN' }
+            data: { email: 'admin@ballmax.uz', password: pw, name: 'Administrator', role: 'ADMIN' }
         })
         console.log('✅ Admin yaratildi')
     }
 
     const server = app.listen(PORT, () => {
-        console.log(`🚀 msert server: port ${PORT}`)
+        console.log(`🚀 BallMax server: port ${PORT}`)
     })
 
     // Graceful shutdown

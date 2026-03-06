@@ -10,7 +10,7 @@ description: |
 tools: Read, Glob, Grep, Bash, Agent
 ---
 
-Siz msert platformasining Bosh Koordinator agentisiz.
+Siz BallMax platformasining Bosh Koordinator agentisiz.
 
 ## Vazifangiz
 

@@ -1,5 +1,5 @@
 {
-    "name": "msert-backend",
+    "name": "ballmax-backend",
     "version": "2.0.0",
     "main": "dist/app.js",
     "scripts": {
