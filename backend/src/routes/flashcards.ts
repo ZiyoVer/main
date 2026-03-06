@@ -180,6 +180,20 @@ router.post('/:id/review', async (req: any, res) => {
 })
 
 // ────────────────────────────────────────────────────────────
+// DELETE /api/flashcards — Barcha kartochkalarni o'chirish
+// ────────────────────────────────────────────────────────────
+router.delete('/', async (req: any, res) => {
+    try {
+        const userId = req.user.id
+        await prisma.flashcard.deleteMany({ where: { userId } })
+        res.json({ ok: true })
+    } catch (e) {
+        console.error(e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+// ────────────────────────────────────────────────────────────
 // DELETE /api/flashcards/:id — Kartochkani o'chirish
 // ────────────────────────────────────────────────────────────
 router.delete('/:id', async (req: any, res) => {

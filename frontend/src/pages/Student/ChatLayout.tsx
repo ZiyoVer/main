@@ -1321,6 +1321,14 @@ export default function ChatLayout() {
                                     <Layers className="h-4 w-4" /> Takrorlashni boshlash
                                 </button>
                             )}
+                            {totalFlashcards > 0 && (
+                                <button onClick={() => {
+                                    fetchApi('/flashcards', { method: 'DELETE' }).then(() => loadDueFlashcards()).catch(() => {})
+                                }} className="w-full h-8 rounded-lg text-[12px] font-medium transition flex items-center justify-center gap-1.5"
+                                    style={{ background: 'var(--danger-light)', color: 'var(--danger)', border: '1px solid color-mix(in srgb, var(--danger) 25%, transparent)' }}>
+                                    <Trash2 className="h-3.5 w-3.5" /> Hammasini o'chirish
+                                </button>
+                            )}
                             {totalFlashcards === 0 && (
                                 <p className="text-xs text-center py-6" style={{ color: 'var(--text-muted)' }}>Hali kartochkalar yo'q. Chatda AI dan kartochka so'rang.</p>
                             )}
@@ -1335,15 +1343,22 @@ export default function ChatLayout() {
                                     <p className="text-[11px] font-semibold uppercase mb-2" style={{ color: 'var(--text-muted)' }}>Kutayotgan kartochkalar</p>
                                     <div className="space-y-1.5">
                                         {dueFlashcards.map((card, i) => (
-                                            <div key={card.id} className="card card-hover p-3 cursor-pointer"
-                                                onClick={() => {
+                                            <div key={card.id} className="card p-3 flex items-center gap-2 group">
+                                                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => {
                                                     setFlashPanel(dueFlashcards.slice(i))
                                                     setFlashIdx(0)
                                                     setFlashFlipped(false)
                                                     setFlashIsReview(true)
                                                 }}>
-                                                <p className="text-[12px] font-medium truncate"><MathText text={card.front} /></p>
-                                                <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{card.subject}</p>
+                                                    <p className="text-[12px] font-medium truncate"><MathText text={card.front} /></p>
+                                                    <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{card.subject}</p>
+                                                </div>
+                                                <button onClick={() => {
+                                                    fetchApi(`/flashcards/${card.id}`, { method: 'DELETE' }).then(() => loadDueFlashcards()).catch(() => {})
+                                                }} className="flex-shrink-0 h-6 w-6 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 transition"
+                                                    style={{ color: 'var(--danger)' }}>
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </button>
                                             </div>
                                         ))}
                                     </div>

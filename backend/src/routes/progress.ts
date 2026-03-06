@@ -46,14 +46,14 @@ router.get('/me', async (req: any, res) => {
             ? recentTests.reduce((s, a) => s + a.score, 0) / recentTests.length
             : 0
 
-        // Haftalik faollik — so'nggi 7 kun (TestAttempt sanaları bo'yicha)
+        // Haftalik faollik — so'nggi 7 kun (VisitLog "activity" yozuvlari bo'yicha)
         const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-        const weeklyAttempts = await prisma.testAttempt.findMany({
-            where: { userId, createdAt: { gte: sevenDaysAgo } },
+        const weeklyLogs = await prisma.visitLog.findMany({
+            where: { userId, action: 'activity', createdAt: { gte: sevenDaysAgo } },
             select: { createdAt: true }
         })
         const dayMap: Record<string, number> = {}
-        for (const a of weeklyAttempts) {
+        for (const a of weeklyLogs) {
             const key = a.createdAt.toISOString().split('T')[0]
             dayMap[key] = (dayMap[key] || 0) + 1
         }
@@ -130,6 +130,7 @@ router.post('/activity', async (req: any, res) => {
                 }
             }
 
+            await tx.visitLog.create({ data: { userId, action: 'activity' } })
             return await tx.userProgress.upsert({
                 where: { userId },
                 create: { userId, xp, streak, longestStreak, lastActiveDate: now },
