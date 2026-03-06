@@ -1504,13 +1504,13 @@ export default function ChatLayout() {
                     <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-0">
                         {(!chatId || (messages.length === 0 && !loading && !streaming)) ? (
                             <div className="h-full flex items-center justify-center" style={{ background: 'var(--bg-page)' }}>
-                                <div className="max-w-2xl w-full px-6 anim-up">
-                                    <div className="text-center mb-10">
-                                        <div className="h-14 w-14 rounded-2xl flex items-center justify-center mx-auto mb-5" style={{ background: 'var(--brand)' }}><BrainCircuit className="h-7 w-7 text-white" /></div>
-                                        <h2 className="text-2xl font-bold mb-2">Salom, {user?.name?.split(' ')[0]}! 👋</h2>
+                                <div className="max-w-2xl w-full px-4 sm:px-6 anim-up">
+                                    <div className="text-center mb-6 sm:mb-10">
+                                        <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl flex items-center justify-center mx-auto mb-4 sm:mb-5" style={{ background: 'var(--brand)' }}><BrainCircuit className="h-6 w-6 sm:h-7 sm:w-7 text-white" /></div>
+                                        <h2 className="text-xl sm:text-2xl font-bold mb-2">Salom, {user?.name?.split(' ')[0]}! 👋</h2>
                                         <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Bugun nima o'rganmoqchisiz?</p>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-2 gap-2 sm:gap-3">
                                         {[
                                             { Icon: BookOpen, color: '#6366F1', title: 'Mavzu tushuntir', desc: 'Mavzuni boshidan tushuntirib ber', prompt: 'Menga bugungi mavzuni boshidan tushuntirib bering' },
                                             { Icon: ClipboardList, color: '#D97706', title: 'Bilimimni testla', desc: 'Test savollari bilan tekshir', prompt: 'Mening bilimimni test savollari bilan tekshiring' },
@@ -1547,11 +1547,11 @@ export default function ChatLayout() {
                                 </div>
                             </div>
                         ) : (
-                            <div className="max-w-5xl mx-auto px-8 py-8 space-y-6">
+                            <div className="max-w-5xl mx-auto px-3 sm:px-8 py-4 sm:py-8 space-y-3 sm:space-y-6">
                                 {messages.map((m, i) => (
-                                    <div key={m.id || i} className={`flex gap-3 ${m.role === 'user' ? 'justify-end' : ''}`}>
+                                    <div key={m.id || i} className={`flex gap-2 sm:gap-3 ${m.role === 'user' ? 'justify-end' : ''}`}>
                                         {m.role !== 'user' && (
-                                            <div className="h-8 w-8 rounded-full flex-shrink-0 flex items-center justify-center mt-0.5 text-white text-xs font-bold" style={{ background: 'var(--brand)' }}>AI</div>
+                                            <div className="hidden sm:flex h-8 w-8 rounded-full flex-shrink-0 items-center justify-center mt-0.5 text-white text-xs font-bold" style={{ background: 'var(--brand)' }}>AI</div>
                                         )}
                                         {m.role === 'user' ? (
                                             <div className="bubble-user">
@@ -1572,7 +1572,7 @@ export default function ChatLayout() {
                                             <div className="bubble-ai"><MdMessage content={m.content} /></div>
                                         )}
                                         {m.role === 'user' && (
-                                            <div className="h-8 w-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ background: 'var(--brand)' }}>{user?.name?.[0]?.toUpperCase() || 'S'}</div>
+                                            <div className="hidden sm:flex h-8 w-8 rounded-full flex-shrink-0 items-center justify-center text-white text-xs font-bold" style={{ background: 'var(--brand)' }}>{user?.name?.[0]?.toUpperCase() || 'S'}</div>
                                         )}
                                     </div>
                                 ))}
@@ -1589,9 +1589,9 @@ export default function ChatLayout() {
                                     </div>
                                 )}
                                 {streaming && (
-                                    <div className="flex gap-3">
-                                        <div className="h-8 w-8 rounded-full flex-shrink-0 flex items-center justify-center mt-0.5 text-white text-xs font-bold" style={{ background: 'var(--brand)' }}>AI</div>
-                                        <div className="bubble-ai">
+                                    <div className="flex gap-2 sm:gap-3">
+                                        <div className="hidden sm:flex h-8 w-8 rounded-full flex-shrink-0 items-center justify-center mt-0.5 text-white text-xs font-bold" style={{ background: 'var(--brand)' }}>AI</div>
+                                        <div className="bubble-ai w-full sm:w-auto">
                                             <MdMessage content={streaming} isStreaming={true} />
                                             {/```test/.test(streaming) && !/```test[\s\S]*?```/.test(streaming) && (
                                                 <div className="mt-4 rounded-2xl overflow-hidden" style={{
@@ -1677,14 +1677,14 @@ export default function ChatLayout() {
                                     </div>
                                 )}
                                 {loading && !streaming && !thinkingText && (
-                                    <div className="flex gap-3">
-                                        <div className="h-8 w-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold" style={{ background: 'var(--brand)' }}>AI</div>
+                                    <div className="flex gap-2 sm:gap-3">
+                                        <div className="hidden sm:flex h-8 w-8 rounded-full flex-shrink-0 items-center justify-center text-white text-xs font-bold" style={{ background: 'var(--brand)' }}>AI</div>
                                         <div className="typing-dots"><span /><span /><span /></div>
                                     </div>
                                 )}
                                 {loading && thinkingText && !streaming && (
-                                    <div className="flex gap-3">
-                                        <div className="h-8 w-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold" style={{ background: 'var(--brand)' }}>AI</div>
+                                    <div className="flex gap-2 sm:gap-3">
+                                        <div className="hidden sm:flex h-8 w-8 rounded-full flex-shrink-0 items-center justify-center text-white text-xs font-bold" style={{ background: 'var(--brand)' }}>AI</div>
                                         <div className="text-[13px] py-3 flex items-center gap-2" style={{ color: 'var(--text-muted)' }}>Javob yozilmoqda...<span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--text-muted)' }} /></div>
                                     </div>
                                 )}
@@ -1694,7 +1694,7 @@ export default function ChatLayout() {
 
                     {/* Input + Quick Actions */}
                     {chatId && (
-                        <div className="px-4 pb-5 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+                        <div className="px-3 sm:px-4 pb-4 sm:pb-5 pt-2 chat-input-area" style={{ borderTop: '1px solid var(--border)' }}>
                             {/* Quick Actions — mobile da scroll */}
                             {!loading && messages.length > 0 && (
                                 <div className="max-w-5xl mx-auto mb-2 flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
@@ -1804,8 +1804,8 @@ export default function ChatLayout() {
                         const answered = Object.keys(testAnswers).length
                         const score = testSubmitted ? questions.filter((q: any, i: number) => testAnswers[i] === q.correct).length : 0
                         return (
-                            <div className={testPanelMaximized ? 'fixed inset-0 z-50 flex flex-col' : 'relative flex flex-col flex-shrink-0'}
-                                style={testPanelMaximized ? { background: 'var(--bg-card)' } : { width: testWidth, background: 'var(--bg-card)', borderLeft: '1px solid var(--border)' }}>
+                            <div className={(testPanelMaximized || isMobile) ? 'fixed inset-0 z-50 flex flex-col' : 'relative flex flex-col flex-shrink-0'}
+                                style={(testPanelMaximized || isMobile) ? { background: 'var(--bg-card)' } : { width: testWidth, background: 'var(--bg-card)', borderLeft: '1px solid var(--border)' }}>
 
                                 {/* Drag handle */}
                                 {!testPanelMaximized && (
@@ -1945,8 +1945,8 @@ export default function ChatLayout() {
                         const card = flashPanel[flashIdx]
                         return (
                             <div
-                                className={flashMaximized ? 'fixed inset-0 z-50 flex flex-col' : 'flash-panel relative flex flex-col flex-shrink-0'}
-                                style={flashMaximized ? { background: 'var(--bg-card)' } : { width: flashWidth, background: 'var(--bg-card)', borderLeft: '1px solid var(--border)' }}>
+                                className={(flashMaximized || isMobile) ? 'fixed inset-0 z-50 flex flex-col' : 'flash-panel relative flex flex-col flex-shrink-0'}
+                                style={(flashMaximized || isMobile) ? { background: 'var(--bg-card)' } : { width: flashWidth, background: 'var(--bg-card)', borderLeft: '1px solid var(--border)' }}>
 
                                 {/* Drag handle */}
                                 {!flashMaximized && (

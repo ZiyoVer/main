@@ -973,15 +973,15 @@ html.dark .md-content pre {
 /* ---- Mobile Responsive ---- */
 @media (max-width: 640px) {
 
-    /* Bubbles — smaller font, wider max-width */
+    /* Bubbles — full width, compact */
     .bubble-ai {
-        max-width: 94%;
+        max-width: 100%;
         font-size: 0.8125rem;
-        line-height: 1.65;
+        line-height: 1.6;
     }
 
     .bubble-user {
-        max-width: 86%;
+        max-width: 88%;
         font-size: 0.8125rem;
         padding: 0.5rem 0.75rem;
     }
@@ -989,39 +989,65 @@ html.dark .md-content pre {
     /* Markdown in chat */
     .md-content {
         font-size: 0.8125rem;
-        line-height: 1.65;
+        line-height: 1.6;
     }
 
-    .md-content h1 {
-        font-size: 1rem;
-    }
-
-    .md-content h2 {
+    .md-content h1, .md-content h2 {
         font-size: 0.9375rem;
+        margin-top: 0.75rem;
+        margin-bottom: 0.375rem;
     }
 
     .md-content h3 {
         font-size: 0.875rem;
+        margin-top: 0.5rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .md-content p {
+        margin-bottom: 0.5rem;
+    }
+
+    .md-content ul, .md-content ol {
+        padding-left: 1.1rem;
+        margin-bottom: 0.5rem;
     }
 
     .md-content pre {
-        padding: 0.75rem;
-        font-size: 0.75rem;
+        padding: 0.625rem;
+        font-size: 0.725rem;
+        overflow-x: auto;
     }
 
     .md-content table {
-        font-size: 0.75rem;
+        font-size: 0.725rem;
     }
 
     .md-content th,
     .md-content td {
-        padding: 0.3rem 0.5rem;
+        padding: 0.25rem 0.4rem;
+    }
+
+    /* KaTeX — prevent horizontal overflow */
+    .katex-display {
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 0.25rem 0;
+    }
+
+    .katex {
+        font-size: 0.9em;
     }
 
     /* Flashcard face smaller padding */
     .flashcard-face {
         padding: 1.25rem;
-        min-height: 140px;
+        min-height: 130px;
+    }
+
+    /* Input area compact */
+    .chat-input-area {
+        padding-bottom: env(safe-area-inset-bottom, 0.75rem);
     }
 }
 
