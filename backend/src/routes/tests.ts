@@ -342,10 +342,6 @@ DIQQAT: Formulalarda bo'sh joylar yoki ortiqcha belgilarni qoldirmang, aynan ras
             }
         }
 
-        console.log('--- AI RAW CONTENT START ---');
-        console.log(aiContent);
-        console.log('--- AI RAW CONTENT END ---');
-
         let questions: any[]
         try {
             questions = JSON.parse(jsonStr)
@@ -360,7 +356,7 @@ DIQQAT: Formulalarda bo'sh joylar yoki ortiqcha belgilarni qoldirmang, aynan ras
 
         // Har bir savolni validatsiya qilish va normallashtirish
         const validatedQuestions = questions
-            .filter((q: any) => q && q.options && Array.isArray(q.options))
+            .filter((q: any) => q && q.text && q.options && Array.isArray(q.options))
             .map((q: any) => {
                 const options = Array.isArray(q.options) ? q.options.filter((o: any) => typeof o === 'string') : []
                 if (options.length < 2) return null

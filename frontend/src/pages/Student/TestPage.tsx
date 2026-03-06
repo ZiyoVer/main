@@ -22,6 +22,25 @@ function MathPreview({ text, inline }: { text: string; inline?: boolean }) {
     } catch { return null }
 }
 
+// Savol matni ichidagi formulalarni inline render qiladi — raw $...$ ko'rinmaydi
+function TextWithMath({ text }: { text: string }) {
+    if (!text) return null
+    if (!text.includes('$')) return <>{text}</>
+    const parts = text.split(/(\$[^$\n]+\$)/g)
+    return <>
+        {parts.map((part, i) => {
+            if (/^\$[^$\n]+\$$/.test(part)) {
+                const formula = part.slice(1, -1)
+                try {
+                    return <span key={i} className="inline-block mx-0.5 align-middle"
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(katex.renderToString(formula, { throwOnError: false })) }} />
+                } catch { return <span key={i}>{part}</span> }
+            }
+            return <span key={i}>{part}</span>
+        })}
+    </>
+}
+
 export default function TestPage() {
     const { shareLink } = useParams<{ shareLink: string }>()
     const nav = useNavigate()
@@ -32,6 +51,7 @@ export default function TestPage() {
     const [submitted, setSubmitted] = useState(false)
     const [result, setResult] = useState<any>(null)
     const [submitting, setSubmitting] = useState(false)
+    const [correctMap, setCorrectMap] = useState<Record<string, number>>({})
 
     useEffect(() => {
         if (!shareLink) return
@@ -54,6 +74,9 @@ export default function TestPage() {
                 body: JSON.stringify({ answers: payload })
             })
             setResult(res)
+            const map: Record<string, number> = {}
+            res.correctAnswers?.forEach((ca: any) => { map[ca.id] = ca.correctIdx })
+            setCorrectMap(map)
             setSubmitted(true)
         } catch (e: any) {
             toast.error(e.message || 'Test yuborishda xatolik yuz berdi')
@@ -127,13 +150,15 @@ export default function TestPage() {
                 {/* Questions */}
                 {test?.questions?.map((q: any, qi: number) => {
                     const selected = answers[q.id]
-                    const opts: string[] = JSON.parse(q.options)
+                    let opts: string[] = []
+                    try { opts = JSON.parse(q.options) } catch { opts = [] }
+                    const correctIdx = submitted ? (correctMap[q.id] ?? -1) : -1
                     return (
                         <div key={q.id} className="card p-4">
-                            <p className="text-[13px] font-medium mb-1">
-                                <span className="mr-1" style={{ color: 'var(--text-muted)' }}>{qi + 1}.</span> {q.text}
+                            <p className="text-[13px] font-medium mb-1 leading-relaxed">
+                                <span className="mr-1" style={{ color: 'var(--text-muted)' }}>{qi + 1}.</span>
+                                <TextWithMath text={q.text} />
                             </p>
-                            <MathPreview text={q.text} />
                             {q.imageUrl && (
                                 <div className="mt-2 mb-4">
                                     <img src={q.imageUrl} alt="Test savoli" className="max-w-full rounded-lg border shadow-sm" style={{ borderColor: 'var(--border)' }} />
@@ -151,7 +176,7 @@ export default function TestPage() {
                                         color = 'var(--brand-hover)'
                                     }
                                     if (submitted) {
-                                        if (oi === q.correctIdx) { bg = 'var(--success-light)'; border = 'var(--success)'; color = 'var(--success)' }
+                                        if (oi === correctIdx) { bg = 'var(--success-light)'; border = 'var(--success)'; color = 'var(--success)' }
                                         else if (selected === oi) { bg = 'var(--danger-light)'; border = 'var(--danger)'; color = 'var(--danger)' }
                                         else { bg = 'var(--bg-surface)'; border = 'var(--border)'; color = 'var(--text-muted)' }
                                     }
@@ -171,8 +196,8 @@ export default function TestPage() {
                                                 <span>{opt.replace(/\$[^$]+\$/g, '').trim()}</span>
                                                 <MathPreview text={opt} inline={true} />
                                             </span>
-                                            {submitted && oi === q.correctIdx && <CheckCircle className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--success)' }} />}
-                                            {submitted && selected === oi && oi !== q.correctIdx && <XCircle className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--danger)' }} />}
+                                            {submitted && oi === correctIdx && <CheckCircle className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--success)' }} />}
+                                            {submitted && selected === oi && oi !== correctIdx && <XCircle className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--danger)' }} />}
                                         </button>
                                     )
                                 })}
