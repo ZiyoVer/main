@@ -549,6 +549,47 @@ router.post('/analyze-vision', authenticate, async (req: AuthRequest, res) => {
     }
 })
 
+// Test natijasini AI bilan tahlil qilish (TestPage uchun)
+router.post('/analyze-result', authenticate, async (req: AuthRequest, res) => {
+    try {
+        const { title, subject, score, total, questions } = req.body
+        if (!Array.isArray(questions)) return res.json({ analysis: null })
+
+        const hasImages = questions.some((q: any) => q.imageUrl)
+
+        // Rasmli savollar bo'lsa vision AI
+        if (hasImages && process.env.OPENAI_API_KEY) {
+            const optLabels = ['A', 'B', 'C', 'D']
+            const content: any[] = [{
+                type: 'text',
+                text: `O'quvchi "${title || 'Test'}" testini yechdi. Natija: ${score}/${total}.\nHar bir rasmli savolni mustaqil tahlil qil, to'g'ri javobni rasmdan o'zing aniqlа, o'quvchi javobini solishtir.\nJavob O'zbek tilida, KaTeX ($...$ formatida) bo'lsin.`
+            }]
+            questions.filter((q: any) => q.imageUrl).forEach((q: any, idx: number) => {
+                const opts = ['a','b','c','d'].map((k, i) => q[k] ? `${optLabels[i]}) ${q[k]}` : null).filter(Boolean).join(' | ')
+                const studentLabel = (q.studentAnswer || '?').toUpperCase()
+                const correctLabel = (q.correctAnswer || '?').toUpperCase()
+                content.push({ type: 'text', text: `\nSavol ${idx+1}${q.text ? ': '+q.text : ' (rasm):'}\nVariantlar: ${opts||'—'}\nO'quvchi javobi: ${studentLabel} | Tizim to'g'ri javobi: ${correctLabel} (rasmdan mustaqil tekshir)\nRasm:` })
+                content.push({ type: 'image_url', image_url: { url: q.imageUrl, detail: 'high' } })
+            })
+            const completion = await gptClient.chat.completions.create({ model: 'gpt-4o-mini', messages: [{ role: 'user', content }], max_tokens: 2000, temperature: 0.3 })
+            return res.json({ analysis: completion.choices[0]?.message?.content || null, type: 'vision' })
+        }
+
+        // Rasmsiz — DeepSeek bilan umumiy tahlil
+        const wrongList = questions.filter((q: any) => q.studentAnswer !== q.correctAnswer)
+            .map((q: any, i: number) => `${i+1}. ${q.text || 'Savol'} — O'quvchi: ${(q.studentAnswer||'?').toUpperCase()}, To'g'ri: ${(q.correctAnswer||'?').toUpperCase()}`)
+            .join('\n')
+
+        const prompt = `O'quvchi "${title||'Test'}" testini yechdi (${subject||''}). Natija: ${score}/${total} (${Math.round(score/total*100)}%).\n\n${wrongList ? 'Xato savollar:\n'+wrongList : 'Barcha savollar to\'g\'ri!'}\n\nQisqacha (3-5 gap) tahlil qil: qaysi mavzular zaif, nima o'rganish kerak. O'zbek tilida yoz.`
+
+        const completion = await aiClient.chat.completions.create({ model: aiModel, messages: [{ role: 'user', content: prompt }], max_tokens: 600, temperature: 0.4 })
+        res.json({ analysis: completion.choices[0]?.message?.content || null, type: 'text' })
+    } catch (e: any) {
+        console.error('analyze-result:', e.message)
+        res.json({ analysis: null })
+    }
+})
+
 // AI test natijasi — faqat Rasch abilityLevel yangilash (test entity saqlanmaydi)
 router.post('/submit-ai', authenticate, submitLimiter, async (req: AuthRequest, res) => {
     try {
