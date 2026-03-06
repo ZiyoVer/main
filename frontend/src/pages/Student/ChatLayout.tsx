@@ -811,13 +811,15 @@ export default function ChatLayout() {
         logActivity(20) // Test uchun +20 XP
         const hasImages = questions.some((q: any) => q.imageUrl)
         const summary = `--- YANGI TEST NATIJASI (bu mustaqil test) ---\nJami savol: ${questions.length}\nTo'g'ri javoblar: ${score}/${questions.length}\n\n${results}\n\nFaqat shu ${questions.length} ta savol bo'yicha tahlil qil va qaysi mavzularni qayta o'rganishim kerakligini ayt. Oldingi testlar bilan aralashma.`
-        const displayMsg = `📊 Test natijasi: ${score}/${questions.length} — AI tahlil qilmoqda...`
+        const displayMsg = `📊 Test natijasi: ${score}/${questions.length} — ${hasImages ? 'Vision AI tahlil qilmoqda...' : 'AI tahlil qilmoqda...'}`
 
-        // Rasmli savollar bo'lsa vision AI bilan tahlil qilish
-        if (hasImages) {
+        // Vision AI orqali rasmli savollarni tahlil qilish — DeepSeek tahlilini o'tkazib yuboramiz
+        function runVisionAnalysis(addUserMsg: () => void) {
             const imageQsList = questions
                 .map((q: any, i: number) => ({ q, i }))
                 .filter(({ q }) => q.imageUrl)
+            addUserMsg()
+            setLoading(true)
             fetchApi('/tests/analyze-vision', {
                 method: 'POST',
                 body: JSON.stringify({
@@ -831,24 +833,60 @@ export default function ChatLayout() {
                 })
             }).then((data: any) => {
                 if (data?.analysis) {
-                    setMessages(prev => [...prev, {
-                        id: 'vision-' + Date.now(),
-                        role: 'assistant',
-                        content: `🔍 **Rasmli savollar tahlili (GPT-4o Vision):**\n\n${data.analysis}`,
-                        createdAt: new Date().toISOString()
-                    }])
+                    const fullText = `🔍 **Rasmli savollar tahlili (GPT-4o Vision):**\n\n${data.analysis}`
+                    // Animatsiya: streaming state orqali xarakter-xarakter chiqarish
+                    let idx = 0
+                    const CHUNK = 8
+                    const interval = setInterval(() => {
+                        idx += CHUNK
+                        setStreaming(fullText.slice(0, idx))
+                        if (idx >= fullText.length) {
+                            clearInterval(interval)
+                            setStreaming('')
+                            setLoading(false)
+                            setMessages(prev => [...prev, {
+                                id: 'vision-' + Date.now(),
+                                role: 'assistant',
+                                content: fullText,
+                                createdAt: new Date().toISOString()
+                            }])
+                        }
+                    }, 12)
+                } else {
+                    setLoading(false)
                 }
-            }).catch(() => { })
+            }).catch(() => { setLoading(false) })
         }
 
-        if (chatId) {
-            // Chat allaqachon ochiq — to'g'ridan-to'g'ri yubor
+        if (hasImages) {
+            // Faqat vision tahlil — DeepSeek tahlilini chaqirmaymiz
+            if (chatId) {
+                setTimeout(() => {
+                    runVisionAnalysis(() =>
+                        setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: displayMsg, createdAt: new Date().toISOString() }])
+                    )
+                }, 500)
+            } else {
+                setTimeout(async () => {
+                    try {
+                        const data = await fetchApi('/chat/new', { method: 'POST', body: JSON.stringify({ title: 'Test tahlili', subject: profile?.subject }) })
+                        await loadChats()
+                        nav(`/suhbat/${data.id}`)
+                        setTimeout(() => {
+                            runVisionAnalysis(() =>
+                                setMessages([{ id: 'temp-u', role: 'user', content: displayMsg, createdAt: new Date().toISOString() }])
+                            )
+                        }, 300)
+                    } catch (err) { console.error('submitTestPanel newChat:', err) }
+                }, 500)
+            }
+        } else if (chatId) {
+            // Rasmsiz — oddiy DeepSeek tahlili
             setTimeout(() => {
                 setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: displayMsg, createdAt: new Date().toISOString() }])
                 streamToChat(chatId, summary, displayMsg)
             }, 500)
         } else {
-            // Chat yo'q — yangi chat ochib, o'sha yerga yubor
             setTimeout(async () => {
                 try {
                     const data = await fetchApi('/chat/new', { method: 'POST', body: JSON.stringify({ title: 'Test tahlili', subject: profile?.subject }) })
