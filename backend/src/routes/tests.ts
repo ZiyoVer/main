@@ -140,7 +140,7 @@ router.get('/by-link/:shareLink', authenticate, testReadLimiter, async (req: Aut
         const test = await prisma.test.findUnique({
             where: { shareLink },
             include: {
-                questions: { orderBy: { orderIdx: 'asc' }, select: { id: true, text: true, imageUrl: true, options: true, orderIdx: true } },
+                questions: { orderBy: { orderIdx: 'asc' }, select: { id: true, text: true, imageUrl: true, options: true, orderIdx: true, questionType: true } },
                 creator: { select: { name: true } }
             }
         })
@@ -464,8 +464,10 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
                     create: questions.map((q: any, i: number) => ({
                         text: q.text,
                         imageUrl: q.imageUrl || null,
-                        options: JSON.stringify(q.options),
-                        correctIdx: q.correctIdx,
+                        options: q.questionType === 'open' ? '[]' : JSON.stringify(q.options),
+                        correctIdx: q.questionType === 'open' ? -1 : (q.correctIdx ?? 0),
+                        correctText: q.questionType === 'open' ? (q.correctText?.trim() || null) : null,
+                        questionType: q.questionType || 'mcq',
                         difficulty: q.difficulty || 0.0,
                         orderIdx: i
                     }))
@@ -548,10 +550,22 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
         // Javoblarni tekshirish
         const results = answers.map((a: any) => {
             const q = test.questions.find(q => q.id === a.questionId)
+            let isCorrect = false
+            if (q) {
+                if (q.questionType === 'open') {
+                    // Yozma javob: case-insensitive, trim bilan solishtirish
+                    const studentAns = (a.textAnswer || '').trim().toLowerCase()
+                    const correctAns = (q.correctText || '').trim().toLowerCase()
+                    isCorrect = correctAns.length > 0 && studentAns === correctAns
+                } else {
+                    isCorrect = q.correctIdx === a.selectedIdx
+                }
+            }
             return {
                 questionId: a.questionId,
-                selectedIdx: a.selectedIdx,
-                isCorrect: q ? q.correctIdx === a.selectedIdx : false,
+                selectedIdx: a.selectedIdx ?? -1,
+                textAnswer: a.textAnswer || null,
+                isCorrect,
                 difficulty: q?.difficulty || 0.0
             }
         })
@@ -598,7 +612,12 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
         })
 
         // Submit dan keyin to'g'ri javoblarni qaytaramiz (oldin emas!)
-        const correctAnswers = test.questions.map(q => ({ id: q.id, correctIdx: q.correctIdx }))
+        const correctAnswers = test.questions.map(q => ({
+            id: q.id,
+            correctIdx: q.correctIdx,
+            correctText: (q as any).questionType === 'open' ? (q as any).correctText : undefined,
+            questionType: (q as any).questionType || 'mcq'
+        }))
 
         res.json({
             attempt,

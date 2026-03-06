@@ -47,11 +47,11 @@ export default function TestPage() {
     const [test, setTest] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [err, setErr] = useState('')
-    const [answers, setAnswers] = useState<Record<string, number>>({})
+    const [answers, setAnswers] = useState<Record<string, number | string>>({})
     const [submitted, setSubmitted] = useState(false)
     const [result, setResult] = useState<any>(null)
     const [submitting, setSubmitting] = useState(false)
-    const [correctMap, setCorrectMap] = useState<Record<string, number>>({})
+    const [correctMap, setCorrectMap] = useState<Record<string, { idx: number; text?: string; type: string }>>({})
 
     useEffect(() => {
         if (!shareLink) return
@@ -65,17 +65,21 @@ export default function TestPage() {
         if (!test) return
         setSubmitting(true)
         try {
-            const payload = test.questions.map((q: any) => ({
-                questionId: q.id,
-                selectedIdx: answers[q.id] ?? -1
-            }))
+            const payload = test.questions.map((q: any) => {
+                if (q.questionType === 'open') {
+                    return { questionId: q.id, selectedIdx: -1, textAnswer: answers[q.id] ?? '' }
+                }
+                return { questionId: q.id, selectedIdx: answers[q.id] ?? -1 }
+            })
             const res = await fetchApi(`/tests/${test.id}/submit`, {
                 method: 'POST',
                 body: JSON.stringify({ answers: payload })
             })
             setResult(res)
-            const map: Record<string, number> = {}
-            res.correctAnswers?.forEach((ca: any) => { map[ca.id] = ca.correctIdx })
+            const map: Record<string, { idx: number; text?: string; type: string }> = {}
+            res.correctAnswers?.forEach((ca: any) => {
+                map[ca.id] = { idx: ca.correctIdx, text: ca.correctText, type: ca.questionType || 'mcq' }
+            })
             setCorrectMap(map)
             setSubmitted(true)
         } catch (e: any) {
@@ -102,7 +106,11 @@ export default function TestPage() {
         </div>
     )
 
-    const answeredCount = Object.keys(answers).length
+    const answeredCount = test?.questions?.filter((q: any) => {
+        const a = answers[q.id]
+        if (q.questionType === 'open') return typeof a === 'string' && a.trim().length > 0
+        return typeof a === 'number'
+    }).length ?? 0
     const total = test?.questions?.length || 0
 
     return (
@@ -152,56 +160,103 @@ export default function TestPage() {
                     const selected = answers[q.id]
                     let opts: string[] = []
                     try { opts = JSON.parse(q.options) } catch { opts = [] }
-                    const correctIdx = submitted ? (correctMap[q.id] ?? -1) : -1
+                    const correct = submitted ? correctMap[q.id] : null
+                    const correctIdx = correct?.idx ?? -1
+                    const isOpen = q.questionType === 'open'
+                    const textAnswer = typeof answers[q.id] === 'string' ? answers[q.id] as string : ''
+                    const isCorrectOpen = submitted && correct?.type === 'open'
+                        ? textAnswer.trim().toLowerCase() === (correct.text || '').trim().toLowerCase()
+                        : false
+
                     return (
                         <div key={q.id} className="card p-4">
-                            <p className="text-[13px] font-medium mb-1 leading-relaxed">
-                                <span className="mr-1" style={{ color: 'var(--text-muted)' }}>{qi + 1}.</span>
-                                <TextWithMath text={q.text} />
-                            </p>
+                            <div className="flex items-start gap-2 mb-1">
+                                <span className="text-[12px] mt-0.5 flex-shrink-0" style={{ color: 'var(--text-muted)' }}>{qi + 1}.</span>
+                                <p className="text-[13px] font-medium leading-relaxed flex-1 flex flex-wrap items-center gap-x-1">
+                                    <TextWithMath text={q.text} />
+                                </p>
+                                {isOpen && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--brand) 10%, transparent)', color: 'var(--brand)' }}>
+                                        Yozma
+                                    </span>
+                                )}
+                            </div>
                             {q.imageUrl && (
                                 <div className="mt-2 mb-4">
                                     <img src={q.imageUrl} alt="Test savoli" className="max-w-full rounded-lg border shadow-sm" style={{ borderColor: 'var(--border)' }} />
                                 </div>
                             )}
-                            <div className="space-y-2 mt-3">
-                                {opts.map((opt, oi) => {
-                                    let bg = 'var(--bg-surface)'
-                                    let border = 'var(--border)'
-                                    let color = 'var(--text-primary)'
 
-                                    if (!submitted && selected === oi) {
-                                        bg = 'var(--brand-light)'
-                                        border = 'var(--brand)'
-                                        color = 'var(--brand-hover)'
-                                    }
-                                    if (submitted) {
-                                        if (oi === correctIdx) { bg = 'var(--success-light)'; border = 'var(--success)'; color = 'var(--success)' }
-                                        else if (selected === oi) { bg = 'var(--danger-light)'; border = 'var(--danger)'; color = 'var(--danger)' }
-                                        else { bg = 'var(--bg-surface)'; border = 'var(--border)'; color = 'var(--text-muted)' }
-                                    }
+                            {isOpen ? (
+                                /* Yozma javob maydoni */
+                                <div className="mt-3 space-y-2">
+                                    <textarea
+                                        disabled={submitted}
+                                        value={textAnswer}
+                                        onChange={e => setAnswers(a => ({ ...a, [q.id]: e.target.value }))}
+                                        placeholder="Javobingizni shu yerga yozing..."
+                                        rows={3}
+                                        className="w-full rounded-lg border px-3 py-2 text-[13px] resize-none outline-none transition"
+                                        style={{
+                                            background: submitted
+                                                ? isCorrectOpen ? 'var(--success-light)' : 'var(--danger-light)'
+                                                : 'var(--bg-surface)',
+                                            borderColor: submitted
+                                                ? isCorrectOpen ? 'var(--success)' : 'var(--danger)'
+                                                : textAnswer.trim() ? 'var(--brand)' : 'var(--border)',
+                                            color: 'var(--text-primary)'
+                                        }}
+                                    />
+                                    {submitted && (
+                                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]"
+                                            style={{ background: isCorrectOpen ? 'var(--success-light)' : 'var(--danger-light)', color: isCorrectOpen ? 'var(--success)' : 'var(--danger)' }}>
+                                            {isCorrectOpen
+                                                ? <><CheckCircle className="h-3.5 w-3.5 flex-shrink-0" /> To'g'ri javob!</>
+                                                : <><XCircle className="h-3.5 w-3.5 flex-shrink-0" /> To'g'ri javob: <span className="font-semibold">{correct?.text}</span></>
+                                            }
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                /* MCQ variantlari */
+                                <div className="space-y-2 mt-3">
+                                    {opts.map((opt, oi) => {
+                                        const sel = answers[q.id]
+                                        let bg = 'var(--bg-surface)'
+                                        let border = 'var(--border)'
+                                        let color = 'var(--text-primary)'
 
-                                    return (
-                                        <button
-                                            key={oi}
-                                            disabled={submitted}
-                                            onClick={() => setAnswers(a => ({ ...a, [q.id]: oi }))}
-                                            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border text-left text-[13px] transition"
-                                            style={{ background: bg, borderColor: border, color }}
-                                        >
-                                            <span className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 text-[10px] font-bold border-current">
-                                                {['A', 'B', 'C', 'D'][oi]}
-                                            </span>
-                                            <span className="flex-1 flex items-center gap-1">
-                                                <span>{opt.replace(/\$[^$]+\$/g, '').trim()}</span>
-                                                <MathPreview text={opt} inline={true} />
-                                            </span>
-                                            {submitted && oi === correctIdx && <CheckCircle className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--success)' }} />}
-                                            {submitted && selected === oi && oi !== correctIdx && <XCircle className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--danger)' }} />}
-                                        </button>
-                                    )
-                                })}
-                            </div>
+                                        if (!submitted && sel === oi) {
+                                            bg = 'var(--brand-light)'; border = 'var(--brand)'; color = 'var(--brand-hover)'
+                                        }
+                                        if (submitted) {
+                                            if (oi === correctIdx) { bg = 'var(--success-light)'; border = 'var(--success)'; color = 'var(--success)' }
+                                            else if (sel === oi) { bg = 'var(--danger-light)'; border = 'var(--danger)'; color = 'var(--danger)' }
+                                            else { bg = 'var(--bg-surface)'; border = 'var(--border)'; color = 'var(--text-muted)' }
+                                        }
+
+                                        return (
+                                            <button
+                                                key={oi}
+                                                disabled={submitted}
+                                                onClick={() => setAnswers(a => ({ ...a, [q.id]: oi }))}
+                                                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border text-left text-[13px] transition"
+                                                style={{ background: bg, borderColor: border, color }}
+                                            >
+                                                <span className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 text-[10px] font-bold border-current">
+                                                    {['A', 'B', 'C', 'D'][oi]}
+                                                </span>
+                                                <span className="flex-1 flex items-center gap-1">
+                                                    <span>{opt.replace(/\$[^$]+\$/g, '').trim()}</span>
+                                                    <MathPreview text={opt} inline={true} />
+                                                </span>
+                                                {submitted && oi === correctIdx && <CheckCircle className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--success)' }} />}
+                                                {submitted && sel === oi && oi !== correctIdx && <XCircle className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--danger)' }} />}
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                            )}
                         </div>
                     )
                 })}

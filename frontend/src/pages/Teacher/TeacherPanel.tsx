@@ -24,7 +24,7 @@ function MathPreview({ text, inline }: { text: string; inline?: boolean }) {
     } catch { return null }
 }
 
-interface Question { text: string; imageUrl?: string | null; options: string[]; correctIdx: number }
+interface Question { text: string; imageUrl?: string | null; options: string[]; correctIdx: number; questionType: 'mcq' | 'open'; correctText?: string }
 
 export default function TeacherPanel() {
     const nav = useNavigate()
@@ -36,7 +36,7 @@ export default function TeacherPanel() {
     const [subject, setSubject] = useState('Matematika')
     const [isPublic, setIsPublic] = useState(false)
     const [timeLimit, setTimeLimit] = useState<number>(0)
-    const [questions, setQuestions] = useState<Question[]>([{ text: '', options: ['', '', '', ''], correctIdx: 0 }])
+    const [questions, setQuestions] = useState<Question[]>([{ text: '', options: ['', '', '', ''], correctIdx: 0, questionType: 'mcq', correctText: '' }])
     const [loading, setLoading] = useState(false)
     const [msg, setMsg] = useState('')
     const [copied, setCopied] = useState<string | null>(null)
@@ -64,7 +64,7 @@ export default function TeacherPanel() {
     }
 
     function addQuestion() {
-        setQuestions([...questions, { text: '', imageUrl: null, options: ['', '', '', ''], correctIdx: 0 }])
+        setQuestions([...questions, { text: '', imageUrl: null, options: ['', '', '', ''], correctIdx: 0, questionType: 'mcq', correctText: '' }])
     }
 
     async function handleImageUpload(qi: number, file: File) {
@@ -89,6 +89,8 @@ export default function TeacherPanel() {
             if (field === 'text') return { ...q, text: value }
             if (field === 'imageUrl') return { ...q, imageUrl: value }
             if (field === 'correctIdx') return { ...q, correctIdx: value }
+            if (field === 'correctText') return { ...q, correctText: value }
+            if (field === 'questionType') return { ...q, questionType: value }
             if (field.startsWith('opt')) {
                 const oi = parseInt(field.replace('opt', ''))
                 const newOptions = [...q.options]
@@ -126,7 +128,9 @@ export default function TeacherPanel() {
                 return {
                     text: q.text || '',
                     options: opts.slice(0, 4),
-                    correctIdx: typeof q.correctIdx === 'number' ? q.correctIdx : 0
+                    correctIdx: typeof q.correctIdx === 'number' ? q.correctIdx : 0,
+                    questionType: 'mcq' as const,
+                    correctText: ''
                 }
             })
             setQuestions(mapped)
@@ -148,17 +152,21 @@ export default function TeacherPanel() {
 
         // Auto-fill empty options or text if there's an image
         const finalQuestions = questions.map(q => {
+            if (q.questionType === 'open') {
+                return { ...q, text: q.text?.trim() || (q.imageUrl ? ' ' : ''), options: [], correctIdx: -1 }
+            }
             const newOpts = [...(q.options || ['', '', '', ''])]
             for (let j = 0; j < 4; j++) {
                 if (!newOpts[j].trim() && q.imageUrl) {
                     newOpts[j] = String.fromCharCode(65 + j)
                 }
             }
-            return { ...q, text: q.text?.trim() || (q.imageUrl ? " " : ""), options: newOpts }
+            return { ...q, text: q.text?.trim() || (q.imageUrl ? ' ' : ''), options: newOpts }
         })
 
         for (let i = 0; i < finalQuestions.length; i++) {
             if (!finalQuestions[i].text?.trim() && !finalQuestions[i].imageUrl) { setMsg(`Savol ${i + 1} matni bo'sh`); return }
+            if (finalQuestions[i].questionType === 'open') continue
             for (let j = 0; j < 4; j++) {
                 if (!finalQuestions[i].options[j]?.trim()) { setMsg(`Savol ${i + 1}, variant ${String.fromCharCode(65 + j)} bo'sh`); return }
             }
@@ -168,7 +176,7 @@ export default function TeacherPanel() {
             await fetchApi('/tests/create', { method: 'POST', body: JSON.stringify({ title, subject, isPublic, timeLimit: timeLimit || null, questions: finalQuestions }) })
             setMsg('success')
             setTitle('')
-            setQuestions([{ text: '', options: ['', '', '', ''], correctIdx: 0 }])
+            setQuestions([{ text: '', options: ['', '', '', ''], correctIdx: 0, questionType: 'mcq', correctText: '' }])
             setTimeLimit(0); setIsPublic(false)
             setAiFile(null); setAiDone(false); setShowAiSection(false)
             // fileInput ni tozalash — bir xil faylni qayta yuklash mumkin bo'lsin
@@ -411,7 +419,22 @@ export default function TeacherPanel() {
                                 >
                                     {/* Savol header */}
                                     <div className="flex items-center justify-between">
-                                        <span className="text-[12px] font-semibold" style={secondaryText}>Savol {qi + 1}</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[12px] font-semibold" style={secondaryText}>Savol {qi + 1}</span>
+                                            {/* MCQ / Yozma toggle */}
+                                            <div className="flex rounded-md overflow-hidden border text-[11px] font-medium" style={{ borderColor: 'var(--border)' }}>
+                                                <button type="button" onClick={() => updateQ(qi, 'questionType', 'mcq')}
+                                                    className="px-2 py-0.5 transition"
+                                                    style={q.questionType !== 'open' ? { background: 'var(--brand)', color: '#fff' } : { background: 'transparent', color: 'var(--text-muted)' }}>
+                                                    A/B/C/D
+                                                </button>
+                                                <button type="button" onClick={() => updateQ(qi, 'questionType', 'open')}
+                                                    className="px-2 py-0.5 transition"
+                                                    style={q.questionType === 'open' ? { background: 'var(--brand)', color: '#fff' } : { background: 'transparent', color: 'var(--text-muted)' }}>
+                                                    Yozma
+                                                </button>
+                                            </div>
+                                        </div>
                                         {questions.length > 1 && (
                                             <button type="button" onClick={() => removeQ(qi)} className="h-6 w-6 flex items-center justify-center rounded-md transition"
                                                 style={{ color: 'var(--border-strong)' }}
@@ -442,20 +465,36 @@ export default function TeacherPanel() {
                                         </div>
                                     )}
                                     <MathPreview text={q.text} />
-                                    <div className="grid grid-cols-2 gap-1.5">
-                                        {q.options.map((o, oi) => (
-                                            <div key={oi}>
-                                                <label className="flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition"
-                                                    style={q.correctIdx === oi ? { border: '1px solid color-mix(in srgb, var(--success) 40%, transparent)', background: 'color-mix(in srgb, var(--success) 6%, transparent)' } : { border: '1px solid var(--border)' }}>
-                                                    <input type="radio" name={`correct-${qi}`} checked={q.correctIdx === oi} onChange={() => updateQ(qi, 'correctIdx', oi)} className="w-3 h-3 flex-shrink-0" style={{ accentColor: 'var(--success)' }} />
-                                                    <input placeholder={`Variant ${String.fromCharCode(65 + oi)}`} required={!q.imageUrl} value={o} onChange={e => updateQ(qi, `opt${oi}`, e.target.value)}
-                                                        className="flex-1 bg-transparent outline-none text-[13px] min-w-0" />
-                                                    <MathPreview text={o} inline={true} />
-                                                </label>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <p className="text-[10px]" style={{ color: 'var(--border-strong)' }}>Yashil doira = to'g'ri javob · $formula$ yozsa KaTeX preview</p>
+                                    {q.questionType === 'open' ? (
+                                        /* Yozma savol uchun to'g'ri javob kirish maydoni */
+                                        <div className="mt-1 space-y-1">
+                                            <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>To'g'ri javob (o'quvchi aynan shu yozadi):</p>
+                                            <input
+                                                placeholder="Masalan: 42 yoki x=3 yoki Parij"
+                                                value={q.correctText || ''}
+                                                onChange={e => updateQ(qi, 'correctText', e.target.value)}
+                                                className="input w-full text-[13px]"
+                                                style={{ padding: '0.4rem 0.75rem', borderColor: 'color-mix(in srgb, var(--success) 40%, transparent)', background: 'color-mix(in srgb, var(--success) 4%, transparent)' }}
+                                            />
+                                            <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Katta-kichik harf farq qilmaydi · Matematik formulalar uchun oddiy yozing: 1/2, sqrt(2)</p>
+                                        </div>
+                                    ) : (
+                                        /* MCQ variantlari */
+                                        <div className="grid grid-cols-2 gap-1.5">
+                                            {q.options.map((o, oi) => (
+                                                <div key={oi}>
+                                                    <label className="flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition"
+                                                        style={q.correctIdx === oi ? { border: '1px solid color-mix(in srgb, var(--success) 40%, transparent)', background: 'color-mix(in srgb, var(--success) 6%, transparent)' } : { border: '1px solid var(--border)' }}>
+                                                        <input type="radio" name={`correct-${qi}`} checked={q.correctIdx === oi} onChange={() => updateQ(qi, 'correctIdx', oi)} className="w-3 h-3 flex-shrink-0" style={{ accentColor: 'var(--success)' }} />
+                                                        <input placeholder={`Variant ${String.fromCharCode(65 + oi)}`} required={!q.imageUrl} value={o} onChange={e => updateQ(qi, `opt${oi}`, e.target.value)}
+                                                            className="flex-1 bg-transparent outline-none text-[13px] min-w-0" />
+                                                        <MathPreview text={o} inline={true} />
+                                                    </label>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {q.questionType !== 'open' && <p className="text-[10px]" style={{ color: 'var(--border-strong)' }}>Yashil doira = to'g'ri javob · $formula$ yozsa KaTeX preview</p>}
                                 </div>
                             ))}
 

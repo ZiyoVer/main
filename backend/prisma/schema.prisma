@@ -115,15 +115,17 @@ model Test {
 }
 
 model TestQuestion {
-  id         String @id @default(uuid())
-  testId     String
-  test       Test   @relation(fields: [testId], references: [id], onDelete: Cascade)
-  text       String
-  imageUrl   String?
-  options    String // JSON array: ["A", "B", "C", "D"]
-  correctIdx Int
-  difficulty Float  @default(0.0) // Rasch difficulty
-  orderIdx   Int    @default(0)
+  id           String  @id @default(uuid())
+  testId       String
+  test         Test    @relation(fields: [testId], references: [id], onDelete: Cascade)
+  text         String
+  imageUrl     String?
+  options      String  // JSON array: ["A", "B", "C", "D"], "[]" for open-ended
+  correctIdx   Int     @default(0) // -1 for open-ended
+  correctText  String? // To'g'ri javob matni (open-ended uchun)
+  questionType String  @default("mcq") // "mcq" | "open"
+  difficulty   Float   @default(0.0)   // Rasch difficulty
+  orderIdx     Int     @default(0)
 }
 
 model TestAttempt {
