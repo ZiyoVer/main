@@ -519,7 +519,7 @@ router.post('/analyze-vision', authenticate, async (req: AuthRequest, res) => {
         const optLabels = ['A', 'B', 'C', 'D']
         const content: any[] = [{
             type: 'text',
-            text: `Siz DTM va o'quv platformasining AI ustozisiz. O'quvchi quyidagi rasmli test savollarini yechdi.\nHar bir savol uchun:\n1. Rasmni tahlil qiling va savol nimani so'rayotganini tushuntiring\n2. To'g'ri javob qaysi va NIMA UCHUN — qoida/formula bilan izohlang\n3. O'quvchi xato qilgan bo'lsa, qayerda chalg'iganini ko'rsating\n\nJavob O'zbek tilida, KaTeX formulalar bilan ($\\frac{a}{b}$ formatida) bo'lsin.\n`
+            text: `Siz DTM va o'quv platformasining AI ustozisiz. O'quvchi quyidagi rasmli test savollarini yechdi.\nHar bir savol uchun:\n1. Rasmni MUSTAQIL tahlil qiling — savol nimani so'rayotganini aniqlang\n2. Variantlarni ko'rib, QAYSI JAVOB TO'G'RI ekanini o'zingiz hisoblang yoki aniqlang (qoida/formula bilan asoslang)\n3. O'quvchi tanlagan javobni o'zingiz topgan to'g'ri javob bilan solishtiring\n4. Agar tizim belgilagan "to'g'ri javob" sizning tahlilингизdan farq qilsa, buni ANIQ qayd eting va haqiqiy to'g'ri javobni ko'rsating\n\nMUHIM: To'g'ri javobni faqat rasmdan va variantlardan mustaqil aniqlang. Tizim ko'rsatgan "to'g'ri javob"ga ishonmang — u noto'g'ri bo'lishi mumkin.\nJavob O'zbek tilida, KaTeX formulalar bilan ($\\frac{a}{b}$ formatida) bo'lsin.\n`
         }]
 
         imageQs.forEach((q: any, idx: number) => {
@@ -530,7 +530,7 @@ router.post('/analyze-vision', authenticate, async (req: AuthRequest, res) => {
 
             content.push({
                 type: 'text',
-                text: `\n---\nSavol ${idx + 1}${q.text ? ': ' + q.text : ' (quyidagi rasmga qarang):'}\nVariantlar: ${opts || '—'}\nO'quvchi javobi: ${studentLabel} ${isCorrect ? '✅ To\'g\'ri' : '❌ Xato'} | To\'g\'ri javob: ${correctLabel}\nRasm:`
+                text: `\n---\nSavol ${idx + 1}${q.text ? ': ' + q.text : ' (quyidagi rasmga qarang):'}\nVariantlar: ${opts || '—'}\nO'quvchi tanlagan javob: ${studentLabel}\nTizim belgilagan "to'g'ri javob": ${correctLabel} (bu noto'g'ri bo'lishi mumkin — siz rasmdan mustaqil aniqlang)\nRasm:`
             })
             content.push({ type: 'image_url', image_url: { url: q.imageUrl, detail: 'high' } })
         })
