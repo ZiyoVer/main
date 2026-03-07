@@ -542,32 +542,68 @@ router.post('/analyze-vision', authenticate, async (req: AuthRequest, res) => {
         }
 
         const optLabels = ['A', 'B', 'C', 'D']
-        const content: any[] = [{
+
+        // BOSQICH 1: GPT-4o-mini rasmni o'qiydi va masalani matn sifatida chiqaradi (faqat OCR/extract)
+        const extractContent: any[] = [{
             type: 'text',
-            text: `Siz DTM va o'quv platformasining AI ustozisiz. O'quvchi quyidagi rasmli test savollarini yechdi.\nHar bir savol uchun:\n1. Rasmni MUSTAQIL tahlil qiling — savol nimani so'rayotganini aniqlang\n2. Variantlarni ko'rib, QAYSI JAVOB TO'G'RI ekanini o'zingiz hisoblang yoki aniqlang (qoida/formula bilan asoslang)\n3. O'quvchi tanlagan javobni o'zingiz topgan to'g'ri javob bilan solishtiring\n4. Agar tizim belgilagan "to'g'ri javob" sizning tahlilингизdan farq qilsa, buni ANIQ qayd eting va haqiqiy to'g'ri javobni ko'rsating\n\nMUHIM: To'g'ri javobni faqat rasmdan va variantlardan mustaqil aniqlang. Tizim ko'rsatgan "to'g'ri javob"ga ishonmang — u noto'g'ri bo'lishi mumkin.\nJavob O'zbek tilida, KaTeX formulalar bilan ($\\frac{a}{b}$ formatida) bo'lsin.\n`
+            text: `Quyidagi rasmli test savollarini diqqat bilan o'qi. Har bir savol uchun:
+1. Rasmdan savol matnini, formulalarni va barcha sonlarni ANIQ o'qi
+2. Variantlarni aniq yoz (A, B, C, D)
+3. Savol nima so'rayotganini qisqacha ayt
+
+MUHIM: Javobni topishga urinma — faqat rasmda nima yozilganini aniq o'qi va matn sifatida chiqar.
+Matematik belgilar va formulalarni LaTeX formatida yoz ($\\frac{a}{b}$, $x^2$, $\\sqrt{x}$).
+`
         }]
 
         imageQs.forEach((q: any, idx: number) => {
+            const opts = ['a','b','c','d'].map((k, i) => q[k] ? `${optLabels[i]}) ${q[k]}` : null).filter(Boolean).join(' | ')
+            extractContent.push({
+                type: 'text',
+                text: `\nSavol ${idx + 1}${q.text ? ': ' + q.text : ' (rasm):'}${opts ? '\nVariantlar: ' + opts : ''}\nRasm:`
+            })
+            extractContent.push({ type: 'image_url', image_url: { url: q.imageUrl, detail: 'high' } })
+        })
+
+        const extractResult = await gptClient.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [{ role: 'user', content: extractContent }],
+            max_tokens: 1500,
+            temperature: 0.1
+        })
+
+        const extractedText = extractResult.choices[0]?.message?.content || ''
+
+        // BOSQICH 2: DeepSeek (yoki GPT) matematikani hisoblaydi va o'quvchiga tahlil beradi
+        const studentAnswers = imageQs.map((q: any, idx: number) => {
             const studentLabel = typeof q.studentAnswer === 'string' ? q.studentAnswer.toUpperCase() : '?'
             const correctLabel = typeof q.correctAnswer === 'string' ? q.correctAnswer.toUpperCase() : '?'
-            const isCorrect = q.studentAnswer === q.correctAnswer
-            const opts = ['a','b','c','d'].map((k, i) => q[k] ? `${optLabels[i]}) ${q[k]}` : null).filter(Boolean).join(' | ')
+            return `Savol ${idx + 1}: O'quvchi tanladi: ${studentLabel} | Tizim to'g'ri deb belgilagan: ${correctLabel}`
+        }).join('\n')
 
-            content.push({
-                type: 'text',
-                text: `\n---\nSavol ${idx + 1}${q.text ? ': ' + q.text : ' (quyidagi rasmga qarang):'}\nVariantlar: ${opts || '—'}\nO'quvchi tanlagan javob: ${studentLabel}\nTizim belgilagan "to'g'ri javob": ${correctLabel} (bu noto'g'ri bo'lishi mumkin — siz rasmdan mustaqil aniqlang)\nRasm:`
-            })
-            content.push({ type: 'image_url', image_url: { url: q.imageUrl, detail: 'high' } })
-        })
+        const solvePrompt = `O'quvchi DTM test savollarini yechdi. Quyida rasmdan o'qilgan savollar:
 
-        const completion = await gptClient.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [{ role: 'user', content }],
+${extractedText}
+
+O'quvchining javoblari:
+${studentAnswers}
+
+Iltimos:
+1. Har bir savolni mustaqil yech — qoida, formula yoki hisob bilan to'g'ri javobni aniqla
+2. O'quvchi tanlagan javob to'g'rimi yoki xatomi — aniq ko'rsat
+3. Xato bo'lsa, nima uchun xato ekanini qisqacha tushuntir
+4. "Tizim to'g'ri deb belgilagan" javobni e'tiborsiz qoldirmay tekshir — tizim noto'g'ri bo'lishi mumkin
+
+Javoblar O'zbek tilida, KaTeX formulalar bilan ($\\frac{a}{b}$ formatida) bo'lsin.`
+
+        const solveCompletion = await aiClient.chat.completions.create({
+            model: aiModel,
+            messages: [{ role: 'user', content: solvePrompt }],
             max_tokens: 2500,
-            temperature: 0.3
+            temperature: 0.1
         })
 
-        res.json({ analysis: completion.choices[0]?.message?.content || null })
+        res.json({ analysis: solveCompletion.choices[0]?.message?.content || null })
     } catch (e: any) {
         console.error('analyze-vision:', e.message)
         res.json({ analysis: null })
