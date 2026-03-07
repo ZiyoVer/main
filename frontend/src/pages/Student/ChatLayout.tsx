@@ -531,16 +531,23 @@ export default function ChatLayout() {
         window.addEventListener('mouseup', onUp)
         return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
     }, [])
-    // Scroll event: user yuqoriga chiqsa auto-scroll to'xtatamiz
+    // Scroll: user yuqoriga wheel qilsa auto-scroll to'xtatamiz, pastga qaytsa davom etadi
     useEffect(() => {
         const el = scrollRef.current
         if (!el) return
-        const onScroll = () => {
-            const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 200
-            userScrolledRef.current = !isNearBottom
+        const onWheel = (e: WheelEvent) => {
+            if (e.deltaY < 0) userScrolledRef.current = true
         }
+        const onScroll = () => {
+            const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+            if (isNearBottom) userScrolledRef.current = false
+        }
+        el.addEventListener('wheel', onWheel, { passive: true })
         el.addEventListener('scroll', onScroll, { passive: true })
-        return () => el.removeEventListener('scroll', onScroll)
+        return () => {
+            el.removeEventListener('wheel', onWheel)
+            el.removeEventListener('scroll', onScroll)
+        }
     }, [])
     // Auto-scroll faqat user pastda bo'lsa ishlaydi
     useEffect(() => {
