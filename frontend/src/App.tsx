@@ -5,6 +5,9 @@ import Landing from './pages/Landing'
 import Login from './pages/Auth/Login'
 import Register from './pages/Auth/Register'
 import AdminLogin from './pages/Auth/AdminLogin'
+import ForgotPassword from './pages/Auth/ForgotPassword'
+import ResetPassword from './pages/Auth/ResetPassword'
+import EmailVerify from './pages/Auth/EmailVerify'
 import ChatLayout from './pages/Student/ChatLayout'
 import TestPage from './pages/Student/TestPage'
 import AdminPanel from './pages/Admin/AdminPanel'
@@ -33,6 +36,9 @@ export default function App() {
                 <Route path="/" element={<Landing />} />
                 <Route path="/kirish" element={<Login />} />
                 <Route path="/royxat" element={<Register />} />
+                <Route path="/parolni-tiklash" element={<ForgotPassword />} />
+                <Route path="/parol-tiklash/:token" element={<ResetPassword />} />
+                <Route path="/email-tasdiqlash/:token" element={<EmailVerify />} />
                 {/* O'zbek tilidagi asosiy routelar */}
                 <Route path="/suhbat" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
                 <Route path="/suhbat/:chatId" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />

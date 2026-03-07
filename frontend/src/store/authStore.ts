@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-interface User { id: string; email: string; name: string; role: string }
+interface User { id: string; email: string; name: string; role: string; emailVerified?: boolean }
 
 interface AuthState {
     token: string | null

@@ -417,6 +417,11 @@ export default function ChatLayout() {
         weakTopics: '', strongTopics: '', concerns: ''
     })
     const [savingProfile, setSavingProfile] = useState(false)
+    const [emailVerified, setEmailVerified] = useState<boolean>(user?.emailVerified ?? true)
+    const [resendingVerif, setResendingVerif] = useState(false)
+    const [verifBannerDismissed, setVerifBannerDismissed] = useState(
+        () => localStorage.getItem('ballmax_verif_dismissed') === '1'
+    )
     const [notifCount, setNotifCount] = useState(0)
     const [notifications, setNotifications] = useState<any[]>([])
     const [notifLoading, setNotifLoading] = useState(false)
@@ -637,6 +642,16 @@ export default function ChatLayout() {
             setNotifCount(0)
             await fetchApi('/notifications/read-all', { method: 'PATCH' })
         } catch { } finally { setNotifLoading(false) }
+    }
+
+    const resendVerification = async () => {
+        setResendingVerif(true)
+        try {
+            await fetchApi('/auth/resend-verification', { method: 'POST' })
+            toast.success('Tasdiqlash emaili yuborildi! Spam papkasini ham tekshiring.')
+        } catch (e: any) {
+            toast.error(e.message || 'Email yuborishda xato')
+        } finally { setResendingVerif(false) }
     }
 
     async function logActivity(xpGained = 5) {
@@ -1693,6 +1708,28 @@ export default function ChatLayout() {
                             {user?.name?.[0]?.toUpperCase() || '?'}
                         </button>
                     </div>
+
+                    {/* Email verification banner */}
+                    {!emailVerified && !verifBannerDismissed && (
+                        <div className="flex items-center gap-2 px-4 py-2 flex-shrink-0 text-sm" style={{ background: '#FEF3C7', borderBottom: '1px solid #FCD34D', color: '#92400E' }}>
+                            <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                            <span className="flex-1 min-w-0">Email manzilingiz tasdiqlanmagan. Pochtangizni tekshiring.</span>
+                            <button
+                                onClick={resendVerification}
+                                disabled={resendingVerif}
+                                className="text-xs font-semibold underline flex-shrink-0"
+                                style={{ color: '#92400E', background: 'none', border: 'none', cursor: 'pointer' }}
+                            >
+                                {resendingVerif ? 'Yuborilmoqda...' : 'Qayta yuborish'}
+                            </button>
+                            <button
+                                onClick={() => { setVerifBannerDismissed(true); localStorage.setItem('ballmax_verif_dismissed', '1') }}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#92400E', display: 'flex', alignItems: 'center' }}
+                            >
+                                <X className="h-3.5 w-3.5" />
+                            </button>
+                        </div>
+                    )}
 
                     {/* Messages */}
                     <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-0">

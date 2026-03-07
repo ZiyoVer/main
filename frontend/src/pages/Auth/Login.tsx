@@ -88,7 +88,12 @@ export default function Login() {
                         </div>
 
                         <div>
-                            <label className="text-sm font-medium block mb-1.5">Parol</label>
+                            <div className="flex items-center justify-between mb-1.5">
+                                <label className="text-sm font-medium">Parol</label>
+                                <Link to="/parolni-tiklash" className="text-xs" style={{ color: 'var(--brand)' }}>
+                                    Parolni unutdingizmi?
+                                </Link>
+                            </div>
                             <div style={{ position: 'relative' }}>
                                 <input
                                     type={showPw ? 'text' : 'password'}
