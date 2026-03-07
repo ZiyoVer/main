@@ -28,6 +28,8 @@ model User {
   progress     UserProgress?
   topicStats   TopicStat[]
   flashcards   Flashcard[]
+  notificationsReceived Notification[] @relation("NotificationRecipient")
+  notificationsSent     Notification[] @relation("NotificationSender")
 }
 
 enum Role {
@@ -43,6 +45,7 @@ model StudentProfile {
 
   // Onboarding data
   subject      String?
+  subject2     String?   // DTM 2-ixtisoslik fani
   examType     String?  // "DTM" | "MS"
   targetScore  Int?
   weakTopics   String?  // JSON string array
@@ -238,4 +241,35 @@ model Flashcard {
   @@index([userId])
   @@index([userId, subject])
   @@index([userId, nextReview])
+}
+
+// ============ NOTIFICATIONS ============
+
+model Notification {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  senderId   String
+  sender     User     @relation("NotificationSender", fields: [senderId], references: [id], onDelete: Cascade)
+  title      String
+  message    String
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, isRead])
+}
+
+// ============ KNOWLEDGE BASE ============
+
+model KnowledgeItem {
+  id        String   @id @default(uuid())
+  subject   String   // "Matematika", "Ona tili", "Fizika", "Kimyo", "Biologiya", "Tarix", "Ingliz tili"
+  title     String   // "DTM 2023 - Algebra", "MS 2022 - Morfologiya"
+  content   String   // Matn (savollar, formulalar, qoidalar)
+  source    String?  // "DTM 2023", "MS 2022", "Darslik"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([subject])
 }

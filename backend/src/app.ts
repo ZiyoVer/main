@@ -96,6 +96,8 @@ import aiSettingsRoutes from './routes/aiSettings'
 import progressRoutes from './routes/progress'
 import flashcardsRoutes from './routes/flashcards'
 import mockExamRoutes from './routes/mockExam'
+import notificationsRoutes from './routes/notifications'
+import knowledgeRoutes from './routes/knowledge'
 
 app.get('/api/health', async (_req, res) => {
     try {
@@ -116,6 +118,8 @@ app.use('/api/ai-settings', apiLimiter, aiSettingsRoutes)
 app.use('/api/progress', apiLimiter, progressRoutes)
 app.use('/api/flashcards', apiLimiter, flashcardsRoutes)
 app.use('/api/mock-exam', apiLimiter, mockExamRoutes)
+app.use('/api/notifications', apiLimiter, notificationsRoutes)
+app.use('/api/knowledge', apiLimiter, knowledgeRoutes)
 
 // 404 handler (API)
 app.use('/api', (_req, res) => {

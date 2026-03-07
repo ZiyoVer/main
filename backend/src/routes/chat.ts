@@ -566,9 +566,13 @@ Qoidalar:
 
 Agar rasm matnini o'qib bo'lmasa yoki ko'ra olmasang — foydalanuvchiga ayt: "Rasmni aniq ko'ra olmadim, iltimos savol matnini yozib bering"`)
 
-    const examSection = subject === 'Ingliz tili'
+    const subject1Section = subject === 'Ingliz tili'
         ? get('prompt_english', getExamSection('Ingliz tili'))
         : get('prompt_math', getExamSection(subject))
+
+    const subject2Section = profile?.subject2 ? getExamSection(profile.subject2) : ''
+
+    const examSection = subject1Section + (subject2Section ? '\n\n---\n\n## 2-ixtisoslik fani:\n' + subject2Section : '')
 
     const dontsSection = get('prompt_donts', `# ❌ TAQIQLANGAN HARAKATLAR
 
@@ -717,11 +721,33 @@ async function searchRAGContext(query: string, subject?: string): Promise<string
             .sort((a, b) => b.score - a.score)
             .slice(0, 5) // top 5 most relevant
 
-        if (scored.length === 0) return ''
+        // KnowledgeItem dan ham qidirish
+        const knowledgeItems = await prisma.knowledgeItem.findMany({
+            where: subject ? { subject } : {},
+            take: 20,
+            orderBy: { createdAt: 'desc' }
+        })
 
-        return '\n\n📚 TEGISHLI O\'QUV MATERIALLARI (RAG):\n' +
-            scored.map(s => `[${s.chunk.document.fileName}]: ${s.chunk.content} `).join('\n---\n') +
-            '\n\nYuqoridagi materiallarni o\'z so\'zlaring bilan qayta tushuntir, aynan nusxalama.'
+        const knowledgeContext = knowledgeItems
+            .filter(item => {
+                const text = (item.title + ' ' + item.content).toLowerCase()
+                return keywords.some(kw => text.includes(kw))
+            })
+            .slice(0, 5)
+            .map(item => `[${item.subject} - ${item.title}${item.source ? ' (' + item.source + ')' : ''}]\n${item.content}`)
+            .join('\n\n---\n\n')
+
+        let contextString = ''
+
+        if (scored.length > 0) {
+            contextString += '\n\n📚 TEGISHLI O\'QUV MATERIALLARI (RAG):\n' +
+                scored.map(s => `[${s.chunk.document.fileName}]: ${s.chunk.content} `).join('\n---\n') +
+                '\n\nYuqoridagi materiallarni o\'z so\'zlaring bilan qayta tushuntir, aynan nusxalama.'
+        }
+
+        if (knowledgeContext) contextString += '\n\n## Bilim Bazasi:\n' + knowledgeContext
+
+        return contextString
     } catch (e) {
         console.warn('RAG search failed:', e)
         return ''

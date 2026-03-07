@@ -19,7 +19,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
 // Profil yangilash (onboarding)
 router.put('/', authenticate, async (req: AuthRequest, res) => {
     try {
-        const { subject, examType, targetScore, weakTopics, strongTopics, concerns, examDate, studyHoursPerDay, onboardingDone } = req.body
+        const { subject, subject2, examType, targetScore, weakTopics, strongTopics, concerns, examDate, studyHoursPerDay, onboardingDone } = req.body
 
         let profile = await prisma.studentProfile.findUnique({
             where: { userId: req.user.id }
@@ -29,7 +29,7 @@ router.put('/', authenticate, async (req: AuthRequest, res) => {
             profile = await prisma.studentProfile.create({
                 data: {
                     userId: req.user.id,
-                    subject, examType, targetScore, concerns, studyHoursPerDay,
+                    subject, subject2: subject2 !== undefined ? subject2 : null, examType, targetScore, concerns, studyHoursPerDay,
                     weakTopics: weakTopics ? JSON.stringify(weakTopics) : null,
                     strongTopics: strongTopics ? JSON.stringify(strongTopics) : null,
                     examDate: examDate ? new Date(examDate) : null,
@@ -41,6 +41,7 @@ router.put('/', authenticate, async (req: AuthRequest, res) => {
                 where: { userId: req.user.id },
                 data: {
                     ...(subject !== undefined && { subject }),
+                    ...(subject2 !== undefined && { subject2 }),
                     ...(examType !== undefined && { examType }),
                     ...(targetScore !== undefined && { targetScore }),
                     ...(concerns !== undefined && { concerns }),
