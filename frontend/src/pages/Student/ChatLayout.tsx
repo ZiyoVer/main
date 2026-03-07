@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, memo } from 'react'
+import React, { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, Sun, Moon, Search, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -18,7 +18,7 @@ import { useFlashPanel } from '../../hooks/useFlashPanel'
 
 interface Chat { id: string; title: string; subject?: string; updatedAt: string }
 interface Msg { id: string; role: string; content: string; createdAt: string }
-interface Profile { onboardingDone: boolean; subject?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string; totalTests?: number; avgScore?: number; abilityLevel?: number }
+interface Profile { onboardingDone: boolean; subject?: string; subject2?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string; totalTests?: number; avgScore?: number; abilityLevel?: number }
 interface PublicTest { id: string; title: string; subject?: string; _count?: { questions: number; attempts: number } }
 interface MyResult { id: string; testId: string; score: number; total: number; createdAt: string }
 
@@ -190,13 +190,207 @@ const MdMessage = memo(({ content, isStreaming }: {
     )
 })
 
+type AttachedFile = { id: string; name: string; text: string; type: string; previewUrl?: string }
+
+interface ChatInputAreaProps {
+    chatId: string | undefined
+    loading: boolean
+    thinkingMode: boolean
+    setThinkingMode: (v: boolean) => void
+    onSend: (text: string, files: AttachedFile[]) => void
+    onStop: () => void
+    blobUrlsRef: React.MutableRefObject<string[]>
+    messagesCount: number
+}
+
+const ChatInputArea = memo(function ChatInputArea({
+    chatId, loading, thinkingMode, setThinkingMode, onSend, onStop, blobUrlsRef, messagesCount
+}: ChatInputAreaProps) {
+    const [input, setInput] = useState('')
+    const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
+    const [uploadingFile, setUploadingFile] = useState(false)
+    const textareaRef = useRef<HTMLTextAreaElement>(null)
+    const fileInputRef = useRef<HTMLInputElement>(null)
+
+    const adjustTextareaHeight = useCallback(() => {
+        const el = textareaRef.current
+        if (!el) return
+        el.style.height = 'auto'
+        el.style.height = Math.min(el.scrollHeight, 120) + 'px'
+    }, [])
+
+    async function uploadFiles(filesToUpload: File[]) {
+        if (!chatId) return
+        setUploadingFile(true)
+        try {
+            const token = localStorage.getItem('token')
+            const newAttachments = await Promise.all(filesToUpload.map(async (file) => {
+                const formData = new FormData()
+                formData.append('file', file)
+                const res = await fetch(`/api/chat/${chatId}/upload-file`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${token}` },
+                    body: formData
+                })
+                const data = await res.json()
+                const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined
+                return { id: Math.random().toString(), name: file.name, text: data.text, type: data.fileType, previewUrl }
+            }))
+            setAttachedFiles(prev => [...prev, ...newAttachments])
+        } catch (e: any) {
+            toast.error('Fayl yuklashda xato: ' + (e?.message || "Qayta urinib ko'ring"))
+        }
+        setUploadingFile(false)
+    }
+
+    async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+        const files = Array.from(e.target.files || [])
+        if (!files.length) return
+        if (attachedFiles.length + files.length > 5) {
+            toast.error("Birdaniga eng ko'pi bilan 5 ta rasm/fayl yuborish mumkin")
+            if (fileInputRef.current) fileInputRef.current.value = ''
+            return
+        }
+        await uploadFiles(files)
+        if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+
+    async function handlePaste(e: React.ClipboardEvent) {
+        if (!chatId || loading || uploadingFile) return
+        const items = Array.from(e.clipboardData.items)
+        const imageItems = items.filter(item => item.type.startsWith('image/'))
+        if (!imageItems.length) return
+        e.preventDefault()
+        const filesToUpload: File[] = []
+        for (const item of imageItems) {
+            const file = item.getAsFile()
+            if (file) filesToUpload.push(new File([file], `screenshot-${Date.now()}-${Math.floor(Math.random() * 1000)}.png`, { type: file.type }))
+        }
+        if (attachedFiles.length + filesToUpload.length > 5) {
+            toast.error("Birdaniga eng ko'pi bilan 5 ta rasm/fayl yuborish mumkin")
+            return
+        }
+        await uploadFiles(filesToUpload)
+    }
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault()
+        if ((!input.trim() && attachedFiles.length === 0) || !chatId || loading) return
+        const text = input.trim()
+        const files = [...attachedFiles]
+        files.forEach(f => { if (f.previewUrl) blobUrlsRef.current.push(f.previewUrl) })
+        setInput('')
+        setAttachedFiles([])
+        if (textareaRef.current) textareaRef.current.style.height = 'auto'
+        onSend(text, files)
+    }
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            if (!loading && (input.trim() || attachedFiles.length > 0)) handleSubmit(e as any)
+        }
+    }
+
+    const QUICK_ACTIONS = [
+        { Icon: ClipboardList, l: 'Testla', p: "Meni shu mavzu bo'yicha testlang. 5 ta test savol bering A, B, C, D variantlar bilan." },
+        { Icon: BookOpen, l: 'Davom et', p: "Keyingi mavzuga o'tamiz. Nimani o'rganishimiz kerak?" },
+        { Icon: RotateCcw, l: 'Qayta tushuntir', p: 'Bu mavzuni boshqa usulda, oddiyroq tushuntiring' },
+        { Icon: Target, l: 'Reja tuz', p: "Imtihongacha qolgan vaqtga mos o'quv reja tuzing" },
+        { Icon: Lightbulb, l: 'Formulalar', p: 'Shu mavzuning barcha muhim formulalarini yozing' },
+        { Icon: Layers, l: 'Kartochkalar', p: "Shu mavzuning eng muhim formulalari va tushunchalarini kartochka formatida bering (```flashcard JSON format)." },
+    ]
+
+    return (
+        <div className="px-3 sm:px-4 pb-4 sm:pb-5 pt-2 chat-input-area" style={{ borderTop: '1px solid var(--border)' }}>
+            {!loading && messagesCount > 0 && (
+                <div className="max-w-5xl mx-auto mb-2 flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+                    {QUICK_ACTIONS.map((a, i) => (
+                        <button key={i} onClick={() => { if (!chatId || loading) return; onSend(a.p, []) }}
+                            className="h-7 px-3 text-[12px] font-medium rounded-full transition whitespace-nowrap flex items-center gap-1.5 flex-shrink-0"
+                            style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-strong)', background: 'var(--bg-card)' }}
+                        ><a.Icon className="h-3 w-3 flex-shrink-0" />{a.l}</button>
+                    ))}
+                </div>
+            )}
+            <form onSubmit={handleSubmit} className="max-w-5xl mx-auto">
+                {attachedFiles.length > 0 && (
+                    <div className="mb-2 flex flex-wrap gap-2 z-10 px-2 pb-1 relative">
+                        {attachedFiles.map(file => (
+                            <div key={file.id} className="relative rounded-xl p-1.5 w-[72px] h-[72px] flex flex-col items-center justify-center" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                <button type="button" onClick={() => {
+                                    if (file.previewUrl) URL.revokeObjectURL(file.previewUrl)
+                                    setAttachedFiles(prev => prev.filter(f => f.id !== file.id))
+                                }} className="absolute -top-1.5 -right-1.5 rounded-full h-[22px] w-[22px] flex items-center justify-center shadow-sm z-10" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+                                    <X className="h-3 w-3" />
+                                </button>
+                                {file.previewUrl ? (
+                                    <img src={file.previewUrl} alt={file.name} title={file.name} className="w-full h-full object-cover rounded-[8px]" />
+                                ) : (
+                                    <>
+                                        <FileText className="h-6 w-6 mb-1" style={{ color: 'var(--brand)' }} />
+                                        <span className="text-[10px] w-full truncate text-center px-1" style={{ color: 'var(--text-secondary)' }} title={file.name}>{file.name.substring(0, 8)}...</span>
+                                    </>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
+                <div className="flex items-center gap-2 rounded-2xl px-4" style={{ background: 'var(--bg-card)', border: '1.5px solid var(--border)', boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
+                    <input ref={fileInputRef} type="file" multiple accept=".pdf,.doc,.docx,.txt,image/*" className="hidden" onChange={handleFileSelect} />
+                    <button type="button" onClick={() => fileInputRef.current?.click()} disabled={loading || uploadingFile}
+                        className="h-8 w-8 flex items-center justify-center rounded-lg transition disabled:opacity-40"
+                        style={{ color: 'var(--text-muted)' }}
+                        onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
+                        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+                        {uploadingFile
+                            ? <div className="h-4 w-4 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--text-muted)', borderTopColor: 'transparent' }} />
+                            : <Paperclip className="h-3.5 w-3.5" />}
+                    </button>
+                    <textarea
+                        ref={textareaRef}
+                        value={input}
+                        onChange={e => { setInput(e.target.value); adjustTextareaHeight() }}
+                        onKeyDown={handleKeyDown}
+                        onPaste={handlePaste}
+                        placeholder="Xabar yozing..."
+                        disabled={loading}
+                        rows={1}
+                        className="flex-1 bg-transparent outline-none text-sm resize-none leading-relaxed"
+                        style={{ color: 'var(--text-primary)', minHeight: '44px', maxHeight: '120px', paddingTop: '12px', paddingBottom: '12px' }}
+                    />
+                    <button type="button" onClick={() => setThinkingMode(!thinkingMode)}
+                        title={thinkingMode ? 'Chuqur fikrlash yoqilgan' : 'Chuqur fikrlash'}
+                        className="h-8 w-8 flex items-center justify-center rounded-lg transition"
+                        style={thinkingMode ? { background: 'var(--brand-light)', color: 'var(--brand)' } : { color: 'var(--text-muted)' }}>
+                        <Lightbulb className="h-3.5 w-3.5" />
+                    </button>
+                    {loading ? (
+                        <button type="button" onClick={onStop}
+                            className="h-8 w-8 flex items-center justify-center rounded-lg text-white animate-pulse"
+                            style={{ background: 'var(--danger)' }}>
+                            <Square className="h-3 w-3" />
+                        </button>
+                    ) : (
+                        <button type="submit" disabled={!input.trim() && attachedFiles.length === 0}
+                            className="h-8 w-8 flex items-center justify-center rounded-lg text-white transition disabled:opacity-40"
+                            style={{ background: 'var(--text-primary)' }}>
+                            <Send className="h-3.5 w-3.5" />
+                        </button>
+                    )}
+                </div>
+                <p className="text-[10px] mt-1 text-center select-none" style={{ color: 'var(--border-strong)' }}>AI xato qilishi mumkin — muhim ma'lumotlarni tekshirib ko'ring</p>
+            </form>
+        </div>
+    )
+})
+
 export default function ChatLayout() {
     const { chatId } = useParams()
     const nav = useNavigate()
     const { user, logout, token } = useAuthStore()
     const [chats, setChats] = useState<Chat[]>([])
     const [messages, setMessages] = useState<Msg[]>([])
-    const [input, setInput] = useState('')
     const [loading, setLoading] = useState(false)
     const [creating, setCreating] = useState(false)
     const [streaming, setStreaming] = useState('')
@@ -232,10 +426,7 @@ export default function ChatLayout() {
     const userScrolledRef = useRef(false)
     const blobUrlsRef = useRef<string[]>([])
     const abortRef = useRef<AbortController | null>(null)
-    const fileInputRef = useRef<HTMLInputElement>(null)
     const profileRef = useRef<Profile | null>(null)
-    const [attachedFiles, setAttachedFiles] = useState<{ id: string; name: string; text: string; type: string; previewUrl?: string }[]>([])
-    const [uploadingFile, setUploadingFile] = useState(false)
     const [testsLoading, setTestsLoading] = useState(false)
     // Yechilgan testlar IDlarini localStorage da saqlaymiz
     const completedTestIdsRef = useRef<Set<string>>((() => {
@@ -263,7 +454,6 @@ export default function ChatLayout() {
     } = useFlashPanel()
 
     const loadControllerRef = useRef<AbortController | null>(null)
-    const textareaRef = useRef<HTMLTextAreaElement>(null)
     const [sidebarWidth, setSidebarWidth] = useState(() => {
         const w = window.innerWidth
         if (w < 768) return 288
@@ -345,7 +535,7 @@ export default function ChatLayout() {
         const el = scrollRef.current
         if (!el) return
         el.scrollTop = el.scrollHeight
-    }, [messages, streaming, attachedFiles.length])
+    }, [messages, streaming])
     // chatId o'zgarganda blobUrllarni tozalash va scroll reset
     useEffect(() => {
         userScrolledRef.current = false
@@ -511,13 +701,6 @@ export default function ChatLayout() {
         }
     }
 
-    const adjustTextareaHeight = useCallback(() => {
-        const el = textareaRef.current
-        if (!el) return
-        el.style.height = 'auto'
-        el.style.height = Math.min(el.scrollHeight, 120) + 'px'
-    }, [])
-
     const createChat = useCallback(async () => {
         if (creating) return
         setCreating(true)
@@ -628,8 +811,7 @@ export default function ChatLayout() {
             }
             setStreaming(''); setThinkingText('')
         }
-        setLoading(false); setInput(''); abortRef.current = null
-        if (textareaRef.current) textareaRef.current.style.height = 'auto'
+        setLoading(false); abortRef.current = null
     }
 
     function stopGeneration() {
@@ -637,44 +819,24 @@ export default function ChatLayout() {
         abortRef.current = null
     }
 
-    async function sendMessage(e: React.FormEvent) {
-        e.preventDefault()
-        if ((!input.trim() && attachedFiles.length === 0) || !chatId || loading) return
-        setInput('')
-        if (textareaRef.current) textareaRef.current.style.height = 'auto'
-        logActivity(5) // Har xabar uchun +5 XP
-        if (attachedFiles.length > 0) {
-            const userInput = input.trim()
+    const handleSend = useCallback(async (text: string, files: AttachedFile[]) => {
+        if (!chatId || loading) return
+        logActivity(5)
+        if (files.length > 0) {
             let promptText = ''
             let displayText = ''
-
-            attachedFiles.forEach(file => {
+            files.forEach(file => {
                 promptText += `📎 **${file.name}** faylidan:\n\n${file.text}\n\n`
                 displayText += `📎 **[${file.type === 'image' ? 'Rasm' : 'Fayl'}: ${file.name}]** `
             })
-
-            if (userInput) {
-                promptText += `\n\n${userInput}`
-                displayText += `\n\n${userInput}`
-            }
-
-            // Blob URL'larni blobUrlsRef ga o'tkazamiz — chatId o'zgarganda tozalanadi
-            attachedFiles.forEach(f => { if (f.previewUrl) blobUrlsRef.current.push(f.previewUrl) })
-            setAttachedFiles([])
+            if (text) { promptText += `\n\n${text}`; displayText += `\n\n${text}` }
             setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: displayText.trim(), createdAt: new Date().toISOString() }])
             await streamToChat(chatId, promptText.trim(), displayText.trim())
         } else {
-            const text = input.trim() || ''
             setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: text, createdAt: new Date().toISOString() }])
             await streamToChat(chatId, text)
         }
-    }
-
-    async function quickAction(prompt: string) {
-        if (!chatId || loading) return
-        setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: prompt, createdAt: new Date().toISOString() }])
-        await streamToChat(chatId, prompt)
-    }
+    }, [chatId, loading])
 
     async function deleteChat(id: string, e: React.MouseEvent) {
         e.stopPropagation()
@@ -785,66 +947,6 @@ export default function ChatLayout() {
             }
         } catch (err) { console.error('openPublicTest:', err) }
         setLoadingPublicTest(false)
-    }
-
-    async function uploadFiles(filesToUpload: File[]) {
-        if (!chatId) return
-        setUploadingFile(true)
-        try {
-            const token = localStorage.getItem('token')
-            // Barcha fayllarni bir vaqtda (parallel) yuklaymiz
-            const newAttachments = await Promise.all(filesToUpload.map(async (file) => {
-                const formData = new FormData()
-                formData.append('file', file)
-                const res = await fetch(`/api/chat/${chatId}/upload-file`, {
-                    method: 'POST',
-                    headers: { Authorization: `Bearer ${token}` },
-                    body: formData
-                })
-                const data = await res.json()
-                const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined
-                return { id: Math.random().toString(), name: file.name, text: data.text, type: data.fileType, previewUrl }
-            }))
-            setAttachedFiles(prev => [...prev, ...newAttachments])
-        } catch (e: any) {
-            toast.error('Fayl yuklashda xato: ' + (e?.message || 'Qayta urinib ko\'ring'))
-        }
-        setUploadingFile(false)
-    }
-
-    async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-        const files = Array.from(e.target.files || [])
-        if (!files.length) return
-        if (attachedFiles.length + files.length > 5) {
-            toast.error("Birdaniga eng ko'pi bilan 5 ta rasm/fayl yuborish mumkin")
-            if (fileInputRef.current) fileInputRef.current.value = ''
-            return
-        }
-        await uploadFiles(files)
-        if (fileInputRef.current) fileInputRef.current.value = ''
-    }
-
-    async function handlePaste(e: React.ClipboardEvent) {
-        if (!chatId || loading || uploadingFile) return
-        const items = Array.from(e.clipboardData.items)
-        const imageItems = items.filter(item => item.type.startsWith('image/'))
-        if (!imageItems.length) return
-        e.preventDefault()
-
-        const filesToUpload: File[] = []
-        for (const item of imageItems) {
-            const file = item.getAsFile()
-            if (file) {
-                filesToUpload.push(new File([file], `screenshot-${Date.now()}-${Math.floor(Math.random() * 1000)}.png`, { type: file.type }))
-            }
-        }
-
-        if (attachedFiles.length + filesToUpload.length > 5) {
-            toast.error("Birdaniga eng ko'pi bilan 5 ta rasm/fayl yuborish mumkin")
-            return
-        }
-
-        await uploadFiles(filesToUpload)
     }
 
     function submitTestPanel() {
@@ -1786,104 +1888,16 @@ export default function ChatLayout() {
 
                     {/* Input + Quick Actions */}
                     {chatId && (
-                        <div className="px-3 sm:px-4 pb-4 sm:pb-5 pt-2 chat-input-area" style={{ borderTop: '1px solid var(--border)' }}>
-                            {/* Quick Actions — mobile da scroll */}
-                            {!loading && messages.length > 0 && (
-                                <div className="max-w-5xl mx-auto mb-2 flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-                                    {[
-                                        { Icon: ClipboardList, l: 'Testla', p: 'Meni shu mavzu bo\'yicha testlang. 5 ta test savol bering A, B, C, D variantlar bilan.' },
-                                        { Icon: BookOpen, l: 'Davom et', p: 'Keyingi mavzuga o\'tamiz. Nimani o\'rganishimiz kerak?' },
-                                        { Icon: RotateCcw, l: 'Qayta tushuntir', p: 'Bu mavzuni boshqa usulda, oddiyroq tushuntiring' },
-                                        { Icon: Target, l: 'Reja tuz', p: 'Imtihongacha qolgan vaqtga mos o\'quv reja tuzing' },
-                                        { Icon: Lightbulb, l: 'Formulalar', p: 'Shu mavzuning barcha muhim formulalarini yozing' },
-                                        { Icon: Layers, l: 'Kartochkalar', p: 'Shu mavzuning eng muhim formulalari va tushunchalarini kartochka formatida bering (```flashcard JSON format).' },
-                                    ].map((a, i) => (
-                                        <button key={i} onClick={() => quickAction(a.p)}
-                                            className="h-7 px-3 text-[12px] font-medium rounded-full transition whitespace-nowrap flex items-center gap-1.5 flex-shrink-0"
-                                            style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-strong)', background: 'var(--bg-card)' }}
-                                        ><a.Icon className="h-3 w-3 flex-shrink-0" />{a.l}</button>
-                                    ))}
-                                </div>
-                            )}
-                            <form onSubmit={sendMessage} className="max-w-5xl mx-auto">
-                                {/* Attached files preview */}
-                                {attachedFiles.length > 0 && (
-                                    <div className="mb-2 flex flex-wrap gap-2 z-10 px-2 pb-1 relative">
-                                        {attachedFiles.map(file => (
-                                            <div key={file.id} className="relative rounded-xl p-1.5 w-[72px] h-[72px] flex flex-col items-center justify-center" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                                <button type="button" onClick={() => {
-                                                    if (file.previewUrl) URL.revokeObjectURL(file.previewUrl);
-                                                    setAttachedFiles(prev => prev.filter(f => f.id !== file.id));
-                                                }} className="absolute -top-1.5 -right-1.5 rounded-full h-[22px] w-[22px] flex items-center justify-center shadow-sm z-10" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
-                                                    <X className="h-3 w-3" />
-                                                </button>
-
-                                                {file.previewUrl ? (
-                                                    <img src={file.previewUrl} alt={file.name} title={file.name} className="w-full h-full object-cover rounded-[8px]" />
-                                                ) : (
-                                                    <>
-                                                        <FileText className="h-6 w-6 mb-1" style={{ color: 'var(--brand)' }} />
-                                                        <span className="text-[10px] w-full truncate text-center px-1" style={{ color: 'var(--text-secondary)' }} title={file.name}>{file.name.substring(0, 8)}...</span>
-                                                    </>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                                <div className="flex items-center gap-2 rounded-2xl px-4" style={{ background: 'var(--bg-card)', border: '1.5px solid var(--border)', boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
-                                    <input ref={fileInputRef} type="file" multiple accept=".pdf,.doc,.docx,.txt,image/*" className="hidden" onChange={handleFileSelect} />
-                                    <button type="button" onClick={() => fileInputRef.current?.click()} disabled={loading || uploadingFile}
-                                        className="h-8 w-8 flex items-center justify-center rounded-lg transition disabled:opacity-40"
-                                        style={{ color: 'var(--text-muted)' }}
-                                        onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
-                                        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
-                                        {uploadingFile
-                                            ? <div className="h-4 w-4 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--text-muted)', borderTopColor: 'transparent' }} />
-                                            : <Paperclip className="h-3.5 w-3.5" />}
-                                    </button>
-                                    <textarea
-                                        ref={textareaRef}
-                                        value={input}
-                                        onChange={e => {
-                                            setInput(e.target.value)
-                                            adjustTextareaHeight()
-                                        }}
-                                        onKeyDown={e => {
-                                            if (e.key === 'Enter' && !e.shiftKey) {
-                                                e.preventDefault()
-                                                if (!loading && (input.trim() || attachedFiles.length > 0)) sendMessage(e as any)
-                                            }
-                                        }}
-                                        onPaste={handlePaste}
-                                        placeholder="Xabar yozing..."
-                                        disabled={loading}
-                                        rows={1}
-                                        className="flex-1 bg-transparent outline-none text-sm resize-none leading-relaxed"
-                                        style={{ color: 'var(--text-primary)', minHeight: '44px', maxHeight: '120px', paddingTop: '12px', paddingBottom: '12px' }}
-                                    />
-                                    <button type="button" onClick={() => setThinkingMode(!thinkingMode)}
-                                        title={thinkingMode ? 'Chuqur fikrlash yoqilgan' : 'Chuqur fikrlash'}
-                                        className="h-8 w-8 flex items-center justify-center rounded-lg transition"
-                                        style={thinkingMode ? { background: 'var(--brand-light)', color: 'var(--brand)' } : { color: 'var(--text-muted)' }}>
-                                        <Lightbulb className="h-3.5 w-3.5" />
-                                    </button>
-                                    {loading ? (
-                                        <button type="button" onClick={stopGeneration}
-                                            className="h-8 w-8 flex items-center justify-center rounded-lg text-white animate-pulse"
-                                            style={{ background: 'var(--danger)' }}>
-                                            <Square className="h-3 w-3" />
-                                        </button>
-                                    ) : (
-                                        <button type="submit" disabled={!input.trim() && attachedFiles.length === 0}
-                                            className="h-8 w-8 flex items-center justify-center rounded-lg text-white transition disabled:opacity-40"
-                                            style={{ background: 'var(--text-primary)' }}>
-                                            <Send className="h-3.5 w-3.5" />
-                                        </button>
-                                    )}
-                                </div>
-                                <p className="text-[10px] mt-1 text-center select-none" style={{ color: 'var(--border-strong)' }}>AI xato qilishi mumkin — muhim ma'lumotlarni tekshirib ko'ring</p>
-                            </form>
-                        </div>
+                        <ChatInputArea
+                            chatId={chatId}
+                            loading={loading}
+                            thinkingMode={thinkingMode}
+                            setThinkingMode={setThinkingMode}
+                            onSend={handleSend}
+                            onStop={stopGeneration}
+                            blobUrlsRef={blobUrlsRef}
+                            messagesCount={messages.length}
+                        />
                     )}
                 </div>
 
