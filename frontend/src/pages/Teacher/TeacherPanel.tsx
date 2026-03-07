@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Copy, Check, Globe, Lock, ClipboardList, Upload, Sparkles, FileText, Image, ChevronDown, ChevronUp, BarChart2, X, Users } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Copy, Check, Globe, Lock, ClipboardList, Upload, Sparkles, FileText, Image, ChevronDown, ChevronUp, BarChart2, X, Users, Bell } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 import { SUBJECTS } from '../../constants'
@@ -44,6 +44,10 @@ export default function TeacherPanel() {
     const [analytics, setAnalytics] = useState<any>(null)
     const [loadingAnalytics, setLoadingAnalytics] = useState(false)
 
+    const [showNotifModal, setShowNotifModal] = useState(false)
+    const [notifForm, setNotifForm] = useState({ title: '', message: '' })
+    const [sendingNotif, setSendingNotif] = useState(false)
+
     const [aiFile, setAiFile] = useState<File | null>(null)
     const [aiGenerating, setAiGenerating] = useState(false)
     const [aiError, setAiError] = useState('')
@@ -61,6 +65,23 @@ export default function TeacherPanel() {
     }, [])
     async function loadTests() {
         try { setTests(await fetchApi('/tests/my-tests')) } catch { }
+    }
+
+    const sendNotification = async () => {
+        if (!notifForm.title.trim() || !notifForm.message.trim()) {
+            return toast.error("Sarlavha va xabar kerak")
+        }
+        setSendingNotif(true)
+        try {
+            const data = await fetchApi('/notifications/send', {
+                method: 'POST',
+                body: JSON.stringify({ title: notifForm.title, message: notifForm.message })
+            })
+            toast.success(`${data.sent} ta o'quvchiga yuborildi!`)
+            setNotifForm({ title: '', message: '' })
+            setShowNotifModal(false)
+        } catch (e: any) { toast.error(e.message) }
+        finally { setSendingNotif(false) }
     }
 
     function addQuestion() {
@@ -261,7 +282,15 @@ export default function TeacherPanel() {
                     {/* Test List */}
                     {tab === 'list' && (
                         <div className="space-y-1.5 anim-up">
-                            {tests.length > 0 && <p className="text-[11px] mb-1.5" style={mutedText}>{tests.length} ta test</p>}
+                            <div className="flex items-center justify-between mb-1.5">
+                                {tests.length > 0 && <p className="text-[11px]" style={mutedText}>{tests.length} ta test</p>}
+                                {tests.length === 0 && <span />}
+                                <button className="btn btn-outline btn-sm flex items-center gap-1.5"
+                                    onClick={() => setShowNotifModal(true)}>
+                                    <Bell className="h-4 w-4" />
+                                    Xabar yuborish
+                                </button>
+                            </div>
                             {tests.length === 0 && (
                                 <div className="card rounded-xl p-12 text-center">
                                     <ClipboardList className="h-8 w-8 mx-auto mb-2" style={{ color: 'var(--border-strong)' }} />
@@ -525,6 +554,39 @@ export default function TeacherPanel() {
                     )}
                 </div>
             </div>
+
+            {/* Notification Modal */}
+            {showNotifModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                    style={{ background: 'rgba(0,0,0,0.5)' }}>
+                    <div className="rounded-2xl w-full max-w-md p-6 shadow-2xl" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                        <h3 className="font-bold text-lg mb-4">Barcha o'quvchilarga xabar yuborish</h3>
+                        <div className="space-y-3 mb-5">
+                            <div>
+                                <label className="text-sm font-medium block mb-1">Sarlavha</label>
+                                <input className="input" placeholder="Masalan: Yangi test qo'shildi!"
+                                    value={notifForm.title}
+                                    onChange={e => setNotifForm(f => ({ ...f, title: e.target.value }))} />
+                            </div>
+                            <div>
+                                <label className="text-sm font-medium block mb-1">Xabar</label>
+                                <textarea className="input" rows={4}
+                                    placeholder="O'quvchilarga yetkazmoqchi bo'lgan xabaringiz..."
+                                    value={notifForm.message}
+                                    onChange={e => setNotifForm(f => ({ ...f, message: e.target.value }))} />
+                            </div>
+                        </div>
+                        <div className="flex gap-2">
+                            <button className="btn btn-primary flex-1" onClick={sendNotification} disabled={sendingNotif}>
+                                {sendingNotif ? 'Yuborilmoqda...' : 'Yuborish'}
+                            </button>
+                            <button className="btn btn-outline" onClick={() => setShowNotifModal(false)}>
+                                Bekor
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Analytics Modal */}
             {analyticsId && (

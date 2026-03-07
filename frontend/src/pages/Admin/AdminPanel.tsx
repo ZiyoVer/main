@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BrainCircuit, Users, UserCheck, GraduationCap, Clock, CalendarDays, CalendarRange, BarChart3, MessageSquare, FileText, Layers, Target, LogOut, Upload, Trash2, Activity, Bot, Save, Globe, Lock, TrendingUp, UserPlus } from 'lucide-react'
+import { BrainCircuit, Users, UserCheck, GraduationCap, Clock, CalendarDays, CalendarRange, BarChart3, MessageSquare, FileText, Layers, Target, LogOut, Upload, Trash2, Activity, Bot, Save, Globe, Lock, TrendingUp, UserPlus, BookOpen } from 'lucide-react'
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { fetchApi, uploadFile } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
@@ -9,7 +9,7 @@ import toast from 'react-hot-toast'
 export default function AdminPanel() {
     const nav = useNavigate()
     const { logout } = useAuthStore()
-    const [tab, setTab] = useState<'stats' | 'users' | 'teachers' | 'docs' | 'tests' | 'ai'>('stats')
+    const [tab, setTab] = useState<'stats' | 'users' | 'teachers' | 'docs' | 'tests' | 'ai' | 'knowledge'>('stats')
     const [stats, setStats] = useState<any>(null)
     const [users, setUsers] = useState<any[]>([])
     const [docs, setDocs] = useState<any[]>([])
@@ -30,6 +30,14 @@ export default function AdminPanel() {
     const [registerTrend, setRegisterTrend] = useState<any[]>([])
     const [newUsers24h, setNewUsers24h] = useState<any[]>([])
     const [recentRegs, setRecentRegs] = useState<any[]>([])
+    const [knowledgeItems, setKnowledgeItems] = useState<any[]>([])
+    const [knowledgeLoading, setKnowledgeLoading] = useState(false)
+    const [knowledgeForm, setKnowledgeForm] = useState({ subject: 'Matematika', title: '', content: '', source: '' })
+    const [editingKnowledge, setEditingKnowledge] = useState<string | null>(null)
+    const [knowledgeFilter, setKnowledgeFilter] = useState('all')
+
+    const KNOWLEDGE_SUBJECTS = ['Matematika', 'Fizika', 'Kimyo', 'Biologiya', 'Ona tili', 'Tarix', 'Ingliz tili', 'Geografiya']
+
     // Users pagination
     const [usersPage, setUsersPage] = useState(1)
     const [usersTotal, setUsersTotal] = useState(0)
@@ -39,6 +47,7 @@ export default function AdminPanel() {
 
     useEffect(() => { loadStats() }, [tab])
     useEffect(() => { if (tab === 'users') loadUsers() }, [tab, usersPage, usersSearch])
+    useEffect(() => { if (tab === 'knowledge') loadKnowledge() }, [tab])
 
     async function loadStats() {
         setLoading(true)
@@ -97,6 +106,42 @@ export default function AdminPanel() {
         e.target.value = ''
     }
 
+    const loadKnowledge = async () => {
+        setKnowledgeLoading(true)
+        try {
+            const data = await fetchApi('/knowledge')
+            setKnowledgeItems(data)
+        } catch (e: any) { toast.error(e.message) }
+        finally { setKnowledgeLoading(false) }
+    }
+
+    const saveKnowledge = async () => {
+        if (!knowledgeForm.title.trim() || !knowledgeForm.content.trim()) {
+            return toast.error("Fan, sarlavha va mazmun kerak")
+        }
+        try {
+            if (editingKnowledge) {
+                await fetchApi('/knowledge/' + editingKnowledge, { method: 'PUT', body: JSON.stringify(knowledgeForm) })
+                toast.success("Yangilandi")
+            } else {
+                await fetchApi('/knowledge', { method: 'POST', body: JSON.stringify(knowledgeForm) })
+                toast.success("Qo'shildi")
+            }
+            setKnowledgeForm({ subject: 'Matematika', title: '', content: '', source: '' })
+            setEditingKnowledge(null)
+            loadKnowledge()
+        } catch (e: any) { toast.error(e.message) }
+    }
+
+    const deleteKnowledge = async (id: string) => {
+        if (!confirm("O'chirishni tasdiqlaysizmi?")) return
+        try {
+            await fetchApi('/knowledge/' + id, { method: 'DELETE' })
+            setKnowledgeItems(prev => prev.filter(i => i.id !== id))
+            toast.success("O'chirildi")
+        } catch (e: any) { toast.error(e.message) }
+    }
+
     async function deleteDoc(id: string) {
         if (!confirm('Hujjatni o\'chirmoqchimisiz?')) return
         try { await fetchApi(`/documents/${id}`, { method: 'DELETE' }); loadAll() } catch { }
@@ -114,6 +159,7 @@ export default function AdminPanel() {
         { k: 'tests' as const, l: 'Testlar', icon: Layers },
         { k: 'docs' as const, l: 'Materiallar', icon: FileText },
         { k: 'ai' as const, l: 'AI Sozlamalar', icon: Bot },
+        { k: 'knowledge' as const, l: 'Bilim Bazasi', icon: BookOpen },
     ]
 
     // Helper: card style
@@ -555,6 +601,125 @@ export default function AdminPanel() {
                                 </button>
                             </div>
                         ))}
+                    </div>
+                )}
+
+                {/* === KNOWLEDGE BASE === */}
+                {tab === 'knowledge' && (
+                    <div>
+                        <h2 className="text-base font-bold mb-1">Bilim Bazasi — Fan bo'yicha AI Xotira</h2>
+                        <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
+                            DTM va Milliy Sertifikat savollarini, qoidalarni qo'shing. AI chat jarayonida shu ma'lumotlardan foydalanadi.
+                        </p>
+
+                        {/* Yangi qo'shish / tahrirlash formasi */}
+                        <div className="rounded-xl p-4 mb-6" style={cardStyle}>
+                            <h3 className="font-semibold mb-4">{editingKnowledge ? 'Tahrirlash' : "Yangi ma'lumot qo'shish"}</h3>
+                            <div className="grid grid-cols-2 gap-3 mb-3">
+                                <div>
+                                    <label className="text-sm font-medium block mb-1">Fan</label>
+                                    <select className="input" value={knowledgeForm.subject}
+                                        onChange={e => setKnowledgeForm(f => ({ ...f, subject: e.target.value }))}>
+                                        {KNOWLEDGE_SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium block mb-1">Manba (ixtiyoriy)</label>
+                                    <input className="input" placeholder="DTM 2023, MS 2022, Darslik..."
+                                        value={knowledgeForm.source}
+                                        onChange={e => setKnowledgeForm(f => ({ ...f, source: e.target.value }))} />
+                                </div>
+                            </div>
+                            <div className="mb-3">
+                                <label className="text-sm font-medium block mb-1">Sarlavha</label>
+                                <input className="input" placeholder="Masalan: DTM 2023 - Kvadrat tenglama"
+                                    value={knowledgeForm.title}
+                                    onChange={e => setKnowledgeForm(f => ({ ...f, title: e.target.value }))} />
+                            </div>
+                            <div className="mb-4">
+                                <label className="text-sm font-medium block mb-1">
+                                    Mazmun <span style={{ color: 'var(--text-muted)' }}>(savollar, formulalar, qoidalar)</span>
+                                </label>
+                                <textarea className="input" rows={8}
+                                    placeholder="Savollar va javoblarni kiriting. AI shu ma'lumotlardan foydalanadi..."
+                                    value={knowledgeForm.content}
+                                    onChange={e => setKnowledgeForm(f => ({ ...f, content: e.target.value }))}
+                                    style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: '13px' }} />
+                            </div>
+                            <div className="flex gap-2">
+                                <button className="btn btn-primary" onClick={saveKnowledge}>
+                                    {editingKnowledge ? 'Saqlash' : "Qo'shish"}
+                                </button>
+                                {editingKnowledge && (
+                                    <button className="btn btn-outline" onClick={() => {
+                                        setEditingKnowledge(null)
+                                        setKnowledgeForm({ subject: 'Matematika', title: '', content: '', source: '' })
+                                    }}>Bekor qilish</button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Filter */}
+                        <div className="flex gap-2 mb-4 flex-wrap">
+                            <button className={`btn btn-sm ${knowledgeFilter === 'all' ? 'btn-primary' : 'btn-outline'}`}
+                                onClick={() => setKnowledgeFilter('all')}>Barchasi</button>
+                            {KNOWLEDGE_SUBJECTS.map(s => (
+                                <button key={s}
+                                    className={`btn btn-sm ${knowledgeFilter === s ? 'btn-primary' : 'btn-outline'}`}
+                                    onClick={() => setKnowledgeFilter(s)}>{s}</button>
+                            ))}
+                        </div>
+
+                        {/* Ro'yxat */}
+                        {knowledgeLoading ? (
+                            <div className="text-center py-8" style={mutedText}>Yuklanmoqda...</div>
+                        ) : (
+                            <div className="space-y-3">
+                                {knowledgeItems
+                                    .filter(item => knowledgeFilter === 'all' || item.subject === knowledgeFilter)
+                                    .map(item => (
+                                        <div key={item.id} className="rounded-xl p-4" style={cardStyle}>
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                                        <span className="text-xs font-semibold px-2 py-0.5 rounded"
+                                                            style={{ background: 'color-mix(in srgb, var(--brand) 12%, transparent)', color: 'var(--brand)' }}>
+                                                            {item.subject}
+                                                        </span>
+                                                        {item.source && (
+                                                            <span className="text-xs px-2 py-0.5 rounded"
+                                                                style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
+                                                                {item.source}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className="font-medium text-sm mb-1">{item.title}</p>
+                                                    <p className="text-xs" style={{ color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
+                                                        {item.content.substring(0, 200)}{item.content.length > 200 ? '...' : ''}
+                                                    </p>
+                                                    <p className="text-[10px] mt-1" style={mutedText}>
+                                                        {item.content.length} belgi · {new Date(item.createdAt).toLocaleDateString('uz')}
+                                                    </p>
+                                                </div>
+                                                <div className="flex gap-1 flex-shrink-0">
+                                                    <button className="btn btn-sm btn-outline" onClick={() => {
+                                                        setEditingKnowledge(item.id)
+                                                        setKnowledgeForm({ subject: item.subject, title: item.title, content: item.content, source: item.source || '' })
+                                                        window.scrollTo(0, 0)
+                                                    }}>Tahrir</button>
+                                                    <button className="btn btn-sm" style={{ background: 'var(--danger-light)', color: 'var(--danger)', border: 'none' }}
+                                                        onClick={() => deleteKnowledge(item.id)}>O'chir</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                {knowledgeItems.filter(i => knowledgeFilter === 'all' || i.subject === knowledgeFilter).length === 0 && (
+                                    <div className="text-center py-8" style={mutedText}>
+                                        Hali ma'lumot yo'q. Yuqoridagi forma orqali qo'shing.
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 )}
 
