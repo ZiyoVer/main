@@ -1,41 +1,32 @@
-import { Component, ReactNode } from 'react'
+import { Component, ErrorInfo, ReactNode } from 'react'
+import { BrainCircuit } from 'lucide-react'
 
 interface Props { children: ReactNode }
-interface State { hasError: boolean; message: string }
+interface State { hasError: boolean; error?: Error }
 
 export default class ErrorBoundary extends Component<Props, State> {
-    state: State = { hasError: false, message: '' }
-
-    static getDerivedStateFromError(error: Error): State {
-        return { hasError: true, message: error.message }
-    }
-
-    componentDidCatch(error: Error, info: { componentStack: string }) {
-        if (import.meta.env.DEV) {
-            console.error('ErrorBoundary:', error, info)
-        } else {
-            console.error(JSON.stringify({
-                error: error.message,
-                stack: error.stack?.slice(0, 500),
-                component: info.componentStack?.slice(0, 200),
-                time: new Date().toISOString()
-            }))
-        }
-    }
-
+    state: State = { hasError: false }
+    static getDerivedStateFromError(error: Error): State { return { hasError: true, error } }
+    componentDidCatch(error: Error, info: ErrorInfo) { console.error('ErrorBoundary:', error, info) }
     render() {
         if (this.state.hasError) {
             return (
-                <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-center px-4">
-                    <div className="text-5xl mb-4">⚠️</div>
-                    <h1 className="text-xl font-semibold text-gray-700 mb-2">Xatolik yuz berdi</h1>
-                    <p className="text-gray-500 mb-6 text-sm max-w-md">{this.state.message || 'Kutilmagan xatolik.'}</p>
-                    <button
-                        onClick={() => window.location.reload()}
-                        className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                    >
-                        Sahifani yangilash
-                    </button>
+                <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-page)', padding: '20px' }}>
+                    <div style={{ textAlign: 'center', maxWidth: '400px' }}>
+                        <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'var(--brand)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+                            <BrainCircuit style={{ width: '28px', height: '28px', color: 'white' }} />
+                        </div>
+                        <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '8px' }}>Xatolik yuz berdi</h2>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '24px', lineHeight: 1.6 }}>
+                            Kutilmagan xatolik. Sahifani yangilab ko'ring.
+                        </p>
+                        <button
+                            onClick={() => window.location.reload()}
+                            style={{ background: 'var(--brand)', color: 'white', border: 'none', borderRadius: '10px', padding: '12px 28px', fontWeight: 600, fontSize: '14px', cursor: 'pointer' }}
+                        >
+                            Sahifani yangilash
+                        </button>
+                    </div>
                 </div>
             )
         }

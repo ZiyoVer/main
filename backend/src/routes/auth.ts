@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import dns from 'dns/promises'
 import crypto from 'crypto'
+import rateLimit from 'express-rate-limit'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
 import { tokenBlacklist } from '../utils/tokenBlacklist'
@@ -10,6 +11,14 @@ import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/email'
 
 const router = Router()
 const JWT_SECRET = process.env.JWT_SECRET!
+
+const emailLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 3,
+    message: { error: 'Juda ko\'p urinish. 15 daqiqadan keyin qayta urinib ko\'ring.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+})
 
 // Register — faqat STUDENT, token qaytaradi (alohida login shart emas)
 router.post('/register', async (req, res) => {
@@ -246,7 +255,7 @@ router.get('/verify-email/:token', async (req, res) => {
 })
 
 // Verification emailni qayta yuborish
-router.post('/resend-verification', authenticate, async (req: AuthRequest, res) => {
+router.post('/resend-verification', emailLimiter, authenticate, async (req: AuthRequest, res) => {
     try {
         const user = await prisma.user.findUnique({ where: { id: req.user.id } })
         if (!user) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' })
@@ -267,7 +276,7 @@ router.post('/resend-verification', authenticate, async (req: AuthRequest, res) 
 })
 
 // Parolni unutdim — reset email yuborish
-router.post('/forgot-password', async (req, res) => {
+router.post('/forgot-password', emailLimiter, async (req, res) => {
     try {
         const { email } = req.body
         if (!email) return res.status(400).json({ error: 'Email manzil kiritilmagan' })
@@ -314,6 +323,45 @@ router.post('/reset-password', async (req, res) => {
         res.json({ message: 'Parol muvaffaqiyatli yangilandi! Endi kirish mumkin.' })
     } catch (e) {
         console.error('reset-password error:', e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+// Parolni o'zgartirish (login bo'lgan holda)
+router.put('/change-password', authenticate, async (req: AuthRequest, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body
+        if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Barcha maydonlar to\'ldirilishi shart' })
+        if (newPassword.length < 8) return res.status(400).json({ error: 'Yangi parol kamida 8 ta belgi bo\'lishi kerak' })
+        if (!/[a-zA-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+            return res.status(400).json({ error: 'Parolda kamida bitta harf va bitta raqam bo\'lishi shart' })
+        }
+        const user = await prisma.user.findUnique({ where: { id: req.user.id } })
+        if (!user) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' })
+        const valid = await bcrypt.compare(currentPassword, user.password)
+        if (!valid) return res.status(400).json({ error: 'Joriy parol noto\'g\'ri' })
+        const hashed = await bcrypt.hash(newPassword, 10)
+        await prisma.user.update({ where: { id: user.id }, data: { password: hashed } })
+        res.json({ message: 'Parol muvaffaqiyatli yangilandi' })
+    } catch (e) {
+        console.error('change-password error:', e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+// Akkauntni o'chirish
+router.delete('/account', authenticate, async (req: AuthRequest, res) => {
+    try {
+        const { password } = req.body
+        if (!password) return res.status(400).json({ error: 'Parolni kiriting' })
+        const user = await prisma.user.findUnique({ where: { id: req.user.id } })
+        if (!user) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' })
+        const valid = await bcrypt.compare(password, user.password)
+        if (!valid) return res.status(400).json({ error: 'Parol noto\'g\'ri' })
+        await prisma.user.delete({ where: { id: user.id } })
+        res.json({ message: 'Akkaunt o\'chirildi' })
+    } catch (e) {
+        console.error('delete account error:', e)
         res.status(500).json({ error: 'Server xatoligi' })
     }
 })

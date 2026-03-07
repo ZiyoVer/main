@@ -425,6 +425,14 @@ export default function ChatLayout() {
     const [notifCount, setNotifCount] = useState(0)
     const [notifications, setNotifications] = useState<any[]>([])
     const [notifLoading, setNotifLoading] = useState(false)
+    const [changePwForm, setChangePwForm] = useState({ current: '', newPw: '', confirm: '' })
+    const [changePwLoading, setChangePwLoading] = useState(false)
+    const [changePwErr, setChangePwErr] = useState('')
+    const [changePwOk, setChangePwOk] = useState(false)
+    const [showDeleteModal, setShowDeleteModal] = useState(false)
+    const [deletePassword, setDeletePassword] = useState('')
+    const [deleteLoading, setDeleteLoading] = useState(false)
+    const [deleteErr, setDeleteErr] = useState('')
     const [thinkingMode, setThinkingMode] = useState(false)
     const [thinkingText, setThinkingText] = useState('')
     const scrollRef = useRef<HTMLDivElement>(null)
@@ -1640,6 +1648,85 @@ export default function ChatLayout() {
                                 <Settings className="h-4 w-4" /> Profilni tahrirlash
                             </button>
 
+                            {/* Parolni o'zgartirish */}
+                            <div className="card p-4">
+                                <p className="text-[11px] font-semibold uppercase mb-3" style={{ color: 'var(--text-muted)' }}>Parolni o'zgartirish</p>
+                                {changePwOk && (
+                                    <div className="text-xs px-3 py-2 rounded-lg mb-3" style={{ background: '#D1FAE5', color: '#065F46' }}>
+                                        Parol muvaffaqiyatli yangilandi!
+                                    </div>
+                                )}
+                                {changePwErr && (
+                                    <div className="text-xs px-3 py-2 rounded-lg mb-3" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>
+                                        {changePwErr}
+                                    </div>
+                                )}
+                                <div className="space-y-2">
+                                    <input
+                                        type="password"
+                                        placeholder="Joriy parol"
+                                        value={changePwForm.current}
+                                        onChange={e => setChangePwForm(f => ({ ...f, current: e.target.value }))}
+                                        className="input text-sm h-9"
+                                    />
+                                    <input
+                                        type="password"
+                                        placeholder="Yangi parol (kamida 8 belgi)"
+                                        value={changePwForm.newPw}
+                                        onChange={e => setChangePwForm(f => ({ ...f, newPw: e.target.value }))}
+                                        className="input text-sm h-9"
+                                    />
+                                    <input
+                                        type="password"
+                                        placeholder="Yangi parolni tasdiqlang"
+                                        value={changePwForm.confirm}
+                                        onChange={e => setChangePwForm(f => ({ ...f, confirm: e.target.value }))}
+                                        className="input text-sm h-9"
+                                    />
+                                    <button
+                                        disabled={changePwLoading || !changePwForm.current || !changePwForm.newPw || !changePwForm.confirm}
+                                        onClick={async () => {
+                                            setChangePwErr('')
+                                            setChangePwOk(false)
+                                            if (changePwForm.newPw !== changePwForm.confirm) {
+                                                setChangePwErr('Yangi parollar mos kelmadi')
+                                                return
+                                            }
+                                            setChangePwLoading(true)
+                                            try {
+                                                await fetchApi('/auth/change-password', {
+                                                    method: 'PUT',
+                                                    body: JSON.stringify({ currentPassword: changePwForm.current, newPassword: changePwForm.newPw })
+                                                })
+                                                setChangePwOk(true)
+                                                setChangePwForm({ current: '', newPw: '', confirm: '' })
+                                            } catch (e: any) {
+                                                setChangePwErr(e.message || 'Xatolik yuz berdi')
+                                            }
+                                            setChangePwLoading(false)
+                                        }}
+                                        className="btn btn-outline w-full h-9 text-sm"
+                                    >
+                                        {changePwLoading ? 'Saqlanmoqda...' : 'Parolni yangilash'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Akkauntni o'chirish — danger zone */}
+                            <div className="card p-4" style={{ border: '1px solid var(--danger-light)' }}>
+                                <p className="text-[11px] font-semibold uppercase mb-1" style={{ color: 'var(--danger)' }}>Xavfli zona</p>
+                                <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>Akkauntni o'chirib bo'lmaydi — barcha ma'lumotlar o'chib ketadi.</p>
+                                <button
+                                    onClick={() => { setShowDeleteModal(true); setDeleteErr(''); setDeletePassword('') }}
+                                    className="w-full h-9 flex items-center justify-center gap-2 text-sm font-medium rounded-lg transition"
+                                    style={{ color: 'var(--danger)', border: '1px solid var(--danger)', background: 'transparent' }}
+                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-light)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                >
+                                    Akkauntni o'chirish
+                                </button>
+                            </div>
+
                             {/* Chiqish */}
                             <button onClick={() => { logout(); nav('/') }}
                                 className="w-full h-10 flex items-center justify-center gap-2 text-sm font-medium rounded-lg transition"
@@ -1649,6 +1736,63 @@ export default function ChatLayout() {
                             >
                                 <LogOut className="h-4 w-4" /> Tizimdan chiqish
                             </button>
+                        </div>
+                    )}
+
+                    {/* Akkaunt o'chirish modal */}
+                    {showDeleteModal && (
+                        <div
+                            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+                            onClick={e => { if (e.target === e.currentTarget) setShowDeleteModal(false) }}
+                        >
+                            <div className="card p-6" style={{ maxWidth: '360px', width: '100%' }}>
+                                <h3 className="text-base font-bold mb-1" style={{ color: 'var(--danger)' }}>Akkauntni o'chirish</h3>
+                                <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
+                                    Bu amal qaytarib bo'lmaydi. Barcha suhbatlar, test natijalari va profil ma'lumotlari o'chib ketadi.
+                                </p>
+                                {deleteErr && (
+                                    <div className="text-xs px-3 py-2 rounded-lg mb-3" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>
+                                        {deleteErr}
+                                    </div>
+                                )}
+                                <input
+                                    type="password"
+                                    placeholder="Parolingizni kiriting"
+                                    value={deletePassword}
+                                    onChange={e => setDeletePassword(e.target.value)}
+                                    className="input text-sm h-9 mb-3"
+                                />
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setShowDeleteModal(false)}
+                                        className="btn btn-outline flex-1 h-9 text-sm"
+                                    >
+                                        Bekor qilish
+                                    </button>
+                                    <button
+                                        disabled={deleteLoading || !deletePassword}
+                                        onClick={async () => {
+                                            setDeleteErr('')
+                                            setDeleteLoading(true)
+                                            try {
+                                                await fetchApi('/auth/account', {
+                                                    method: 'DELETE',
+                                                    body: JSON.stringify({ password: deletePassword })
+                                                })
+                                                logout()
+                                                nav('/')
+                                            } catch (e: any) {
+                                                setDeleteErr(e.message || 'Xatolik yuz berdi')
+                                            }
+                                            setDeleteLoading(false)
+                                        }}
+                                        className="flex-1 h-9 text-sm font-medium rounded-lg transition"
+                                        style={{ background: 'var(--danger)', color: 'white', border: 'none', cursor: deleteLoading || !deletePassword ? 'not-allowed' : 'pointer', opacity: deleteLoading || !deletePassword ? 0.6 : 1 }}
+                                    >
+                                        {deleteLoading ? 'O\'chirilmoqda...' : 'O\'chirish'}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     )}
 

@@ -358,12 +358,22 @@ export default function Landing() {
                         <span className="font-bold text-sm">DTMMax</span>
                         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>© 2026</span>
                     </div>
-                    <button
-                        className="text-xs hover:underline transition"
-                        style={{ color: 'var(--text-muted)' }}
-                    >
-                        Maxfiylik siyosati
-                    </button>
+                    <div className="flex items-center gap-4">
+                        <Link
+                            to="/shartlar"
+                            className="text-xs hover:underline transition"
+                            style={{ color: 'var(--text-muted)' }}
+                        >
+                            Foydalanish shartlari
+                        </Link>
+                        <Link
+                            to="/maxfiylik"
+                            className="text-xs hover:underline transition"
+                            style={{ color: 'var(--text-muted)' }}
+                        >
+                            Maxfiylik siyosati
+                        </Link>
+                    </div>
                 </div>
             </footer>
         </div>

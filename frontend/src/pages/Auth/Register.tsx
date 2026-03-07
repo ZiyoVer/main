@@ -296,6 +296,17 @@ export default function Register() {
                         Kirish
                     </Link>
                 </p>
+                <p className="text-center mt-3" style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                    Ro'yxatdan o'tish orqali siz{' '}
+                    <Link to="/shartlar" style={{ color: 'var(--brand)', textDecoration: 'none', fontWeight: 600 }}>
+                        Foydalanish shartlari
+                    </Link>
+                    {' '}va{' '}
+                    <Link to="/maxfiylik" style={{ color: 'var(--brand)', textDecoration: 'none', fontWeight: 600 }}>
+                        Maxfiylik siyosati
+                    </Link>
+                    {' '}ga rozilik bildirasiz.
+                </p>
             </div>
         </div>
     )

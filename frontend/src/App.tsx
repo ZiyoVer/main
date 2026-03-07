@@ -13,6 +13,8 @@ import TestPage from './pages/Student/TestPage'
 import AdminPanel from './pages/Admin/AdminPanel'
 import TeacherPanel from './pages/Teacher/TeacherPanel'
 import NotFound from './pages/NotFound'
+import Terms from './pages/Terms'
+import Privacy from './pages/Privacy'
 
 function ProtectedRoute({ children, roles }: { children: React.ReactNode, roles?: string[] }) {
     const { user, token } = useAuthStore()
@@ -53,6 +55,8 @@ export default function App() {
                 <Route path="/test/:shareLink" element={<ProtectedRoute><TestPage /></ProtectedRoute>} />
                 <Route path="/admin" element={<ProtectedRoute roles={['ADMIN']}><AdminPanel /></ProtectedRoute>} />
                 <Route path="/teacher" element={<ProtectedRoute roles={['TEACHER', 'ADMIN']}><TeacherPanel /></ProtectedRoute>} />
+                <Route path="/shartlar" element={<Terms />} />
+                <Route path="/maxfiylik" element={<Privacy />} />
                 <Route path="*" element={<NotFound />} />
             </Routes>
         </>
