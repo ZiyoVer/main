@@ -1728,7 +1728,7 @@ export default function ChatLayout() {
                             </div>
 
                             {/* Chiqish */}
-                            <button onClick={() => { logout(); nav('/') }}
+                            <button onClick={() => logout()}
                                 className="w-full h-10 flex items-center justify-center gap-2 text-sm font-medium rounded-lg transition"
                                 style={{ color: 'var(--danger)', border: '1px solid var(--danger-light)', background: 'transparent' }}
                                 onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-light)'}
@@ -1780,7 +1780,6 @@ export default function ChatLayout() {
                                                     body: JSON.stringify({ password: deletePassword })
                                                 })
                                                 logout()
-                                                nav('/')
                                             } catch (e: any) {
                                                 setDeleteErr(e.message || 'Xatolik yuz berdi')
                                             }
