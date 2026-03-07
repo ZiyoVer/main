@@ -83,7 +83,7 @@ export default function Register() {
                     <div className="h-9 w-9 rounded-xl flex items-center justify-center" style={{ background: 'var(--brand)' }}>
                         <BrainCircuit className="h-5 w-5 text-white" />
                     </div>
-                    <span className="font-bold text-xl tracking-tight">BallMax</span>
+                    <span className="font-bold text-xl tracking-tight">DTMMax</span>
                 </div>
 
                 {/* Step indicators */}

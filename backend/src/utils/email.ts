@@ -1,15 +1,15 @@
 import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
-const FROM = process.env.EMAIL_FROM || 'BallMax <noreply@ballmax.uz>'
-const BASE_URL = process.env.FRONTEND_URL || 'https://ballmax.uz'
+const FROM = process.env.EMAIL_FROM || 'DTMMax <noreply@dtmmax.uz>'
+const BASE_URL = process.env.FRONTEND_URL || 'https://dtmmax.uz'
 
 export async function sendVerificationEmail(to: string, name: string, token: string) {
     const link = `${BASE_URL}/email-tasdiqlash/${token}`
     await resend.emails.send({
         from: FROM,
         to,
-        subject: 'BallMax — Email manzilingizni tasdiqlang',
+        subject: 'DTMMax — Email manzilingizni tasdiqlang',
         html: `
 <!DOCTYPE html>
 <html lang="uz">
@@ -19,12 +19,12 @@ export async function sendVerificationEmail(to: string, name: string, token: str
     <tr><td align="center">
       <table width="100%" style="max-width:480px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,0.08)">
         <tr><td style="background:#c0392b;padding:28px 32px;text-align:center">
-          <span style="font-size:22px;font-weight:700;color:#fff;letter-spacing:-0.5px">BallMax</span>
+          <span style="font-size:22px;font-weight:700;color:#fff;letter-spacing:-0.5px">DTMMax</span>
         </td></tr>
         <tr><td style="padding:36px 32px">
           <h2 style="margin:0 0 12px;font-size:20px;color:#1a1a1a">Assalomu alaykum, ${name}!</h2>
           <p style="margin:0 0 24px;font-size:15px;color:#555;line-height:1.6">
-            BallMax platformasiga xush kelibsiz! Email manzilingizni tasdiqlash uchun quyidagi tugmani bosing:
+            DTMMax platformasiga xush kelibsiz! Email manzilingizni tasdiqlash uchun quyidagi tugmani bosing:
           </p>
           <a href="${link}" style="display:inline-block;background:#c0392b;color:#fff;font-weight:600;font-size:15px;padding:14px 32px;border-radius:10px;text-decoration:none;margin-bottom:24px">
             Email manzilni tasdiqlash
@@ -40,7 +40,7 @@ export async function sendVerificationEmail(to: string, name: string, token: str
           </p>
         </td></tr>
         <tr><td style="background:#fafafa;padding:20px 32px;border-top:1px solid #eee;text-align:center">
-          <p style="margin:0;font-size:12px;color:#bbb">© ${new Date().getFullYear()} BallMax. Barcha huquqlar himoyalangan.</p>
+          <p style="margin:0;font-size:12px;color:#bbb">© ${new Date().getFullYear()} DTMMax. Barcha huquqlar himoyalangan.</p>
         </td></tr>
       </table>
     </td></tr>
@@ -55,7 +55,7 @@ export async function sendPasswordResetEmail(to: string, name: string, token: st
     await resend.emails.send({
         from: FROM,
         to,
-        subject: 'BallMax — Parolni tiklash',
+        subject: 'DTMMax — Parolni tiklash',
         html: `
 <!DOCTYPE html>
 <html lang="uz">
@@ -65,7 +65,7 @@ export async function sendPasswordResetEmail(to: string, name: string, token: st
     <tr><td align="center">
       <table width="100%" style="max-width:480px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,0.08)">
         <tr><td style="background:#c0392b;padding:28px 32px;text-align:center">
-          <span style="font-size:22px;font-weight:700;color:#fff;letter-spacing:-0.5px">BallMax</span>
+          <span style="font-size:22px;font-weight:700;color:#fff;letter-spacing:-0.5px">DTMMax</span>
         </td></tr>
         <tr><td style="padding:36px 32px">
           <h2 style="margin:0 0 12px;font-size:20px;color:#1a1a1a">Parolni tiklash</h2>
@@ -73,7 +73,7 @@ export async function sendPasswordResetEmail(to: string, name: string, token: st
             Salom, ${name}!
           </p>
           <p style="margin:0 0 24px;font-size:15px;color:#555;line-height:1.6">
-            BallMax akkauntingiz uchun parolni tiklash so'rovi olindi. Quyidagi tugmani bosing:
+            DTMMax akkauntingiz uchun parolni tiklash so'rovi olindi. Quyidagi tugmani bosing:
           </p>
           <a href="${link}" style="display:inline-block;background:#c0392b;color:#fff;font-weight:600;font-size:15px;padding:14px 32px;border-radius:10px;text-decoration:none;margin-bottom:24px">
             Yangi parol o'rnatish
@@ -89,7 +89,7 @@ export async function sendPasswordResetEmail(to: string, name: string, token: st
           </p>
         </td></tr>
         <tr><td style="background:#fafafa;padding:20px 32px;border-top:1px solid #eee;text-align:center">
-          <p style="margin:0;font-size:12px;color:#bbb">© ${new Date().getFullYear()} BallMax. Barcha huquqlar himoyalangan.</p>
+          <p style="margin:0;font-size:12px;color:#bbb">© ${new Date().getFullYear()} DTMMax. Barcha huquqlar himoyalangan.</p>
         </td></tr>
       </table>
     </td></tr>
