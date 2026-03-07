@@ -7,7 +7,7 @@ import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
 import { tokenBlacklist } from '../utils/tokenBlacklist'
 
 const router = Router()
-const JWT_SECRET = process.env.JWT_SECRET || 'ballmax-dev-secret'
+const JWT_SECRET = process.env.JWT_SECRET!
 
 // Register — faqat STUDENT, token qaytaradi (alohida login shart emas)
 router.post('/register', async (req, res) => {

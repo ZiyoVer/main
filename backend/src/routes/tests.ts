@@ -5,7 +5,7 @@ import mammoth from 'mammoth'
 import OpenAI from 'openai'
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
 import prisma from '../utils/db'
-import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
+import { authenticate, AuthRequest, requireRole, optionalAuthenticate } from '../middleware/auth'
 import { updateAbility } from '../utils/rasch'
 import { uploadToS3 } from '../utils/s3'
 
@@ -131,7 +131,7 @@ router.get('/public', authenticate, async (req: AuthRequest, res) => {
 })
 
 // Test olish (link bo'yicha ham)
-router.get('/by-link/:shareLink', authenticate, testReadLimiter, async (req: AuthRequest, res) => {
+router.get('/by-link/:shareLink', optionalAuthenticate, testReadLimiter, async (req: AuthRequest, res) => {
     try {
         const shareLink = req.params.shareLink as string
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -452,6 +452,31 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
             return res.status(400).json({ error: 'Test nomi va savollar kerak' })
         }
 
+        // Har bir savol validatsiyasi
+        for (let i = 0; i < questions.length; i++) {
+            const q = questions[i]
+            const hasText = q.text && typeof q.text === 'string' && q.text.trim().length > 0
+            const hasImage = q.imageUrl && typeof q.imageUrl === 'string' && q.imageUrl.trim().length > 0
+            if (!hasText && !hasImage) {
+                return res.status(400).json({ error: `${i + 1}-savol: savol matni yoki rasmi bo'lishi shart` })
+            }
+            if (q.questionType !== 'open') {
+                let opts: any[]
+                try {
+                    opts = Array.isArray(q.options) ? q.options : JSON.parse(q.options)
+                } catch {
+                    return res.status(400).json({ error: `${i + 1}-savol: options to'g'ri format emas` })
+                }
+                if (!Array.isArray(opts) || opts.length < 2) {
+                    return res.status(400).json({ error: `${i + 1}-savol: kamida 2 ta variant bo'lishi kerak` })
+                }
+                const idx = q.correctIdx ?? 0
+                if (typeof idx !== 'number' || idx < 0 || idx >= opts.length) {
+                    return res.status(400).json({ error: `${i + 1}-savol: correctIdx 0 dan ${opts.length - 1} gacha bo'lishi kerak` })
+                }
+            }
+        }
+
         const test = await prisma.test.create({
             data: {
                 title,
@@ -757,7 +782,9 @@ router.get('/:testId/analytics', authenticate, requireRole('TEACHER', 'ADMIN'), 
             for (const attempt of test.attempts) {
                 let answers: any[] = []
                 try {
-                    answers = JSON.parse(attempt.answers as string)
+                    answers = typeof attempt.answers === 'string'
+                        ? JSON.parse(attempt.answers)
+                        : attempt.answers as any[]
                 } catch (e) {
                     console.error("Noto'g'ri JSON format saqlangan:", e)
                     continue

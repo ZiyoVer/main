@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import { tokenBlacklist } from '../utils/tokenBlacklist'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'ballmax-dev-secret'
+const JWT_SECRET = process.env.JWT_SECRET!
 
 export interface AuthRequest extends Request {
     user?: any
@@ -26,6 +26,17 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
     } catch {
         res.status(401).json({ error: 'Token yaroqsiz' })
     }
+}
+
+export const optionalAuthenticate = (req: AuthRequest, res: Response, next: NextFunction) => {
+    const header = req.headers.authorization
+    if (!header?.startsWith('Bearer ')) return next()
+    try {
+        const token = header.split(' ')[1]
+        const decoded = jwt.verify(token, JWT_SECRET) as any
+        if (!tokenBlacklist.has(token)) req.user = decoded
+    } catch { /* ignore */ }
+    next()
 }
 
 export function requireRole(...roles: string[]) {

@@ -141,32 +141,34 @@ router.post('/:id/review', async (req: any, res) => {
         const nextReview = new Date()
         nextReview.setDate(nextReview.getDate() + interval)
 
-        const updated = await prisma.flashcard.update({
-            where: { id },
-            data: { ease, interval, repetitions, nextReview },
-        })
-
-        // XP qo'shish
-        let progress = await prisma.userProgress.findUnique({
-            where: { userId }
-        })
-
-        if (!progress) {
-            await prisma.userProgress.create({
-                data: {
-                    userId,
-                    xp: 5,
-                    streak: 0,
-                    longestStreak: 0,
-                    lastActiveDate: new Date()
-                }
+        const { updated } = await prisma.$transaction(async (tx) => {
+            const updatedCard = await tx.flashcard.update({
+                where: { id },
+                data: { ease, interval, repetitions, nextReview },
             })
-        } else {
-            await prisma.userProgress.update({
-                where: { userId },
-                data: { xp: progress.xp + 5, lastActiveDate: new Date() }
-            })
-        }
+
+            // XP qo'shish
+            const progress = await tx.userProgress.findUnique({ where: { userId } })
+
+            if (!progress) {
+                await tx.userProgress.create({
+                    data: {
+                        userId,
+                        xp: 5,
+                        streak: 0,
+                        longestStreak: 0,
+                        lastActiveDate: new Date()
+                    }
+                })
+            } else {
+                await tx.userProgress.update({
+                    where: { userId },
+                    data: { xp: progress.xp + 5, lastActiveDate: new Date() }
+                })
+            }
+
+            return { updated: updatedCard }
+        })
 
         res.json({
             interval,

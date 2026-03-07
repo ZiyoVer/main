@@ -102,7 +102,8 @@ router.get('/me', async (req: any, res) => {
 router.post('/activity', async (req: any, res) => {
     try {
         const userId = req.user.id
-        const { xpGained = 10 } = req.body
+        const XP_PER_ACTIVITY = 10
+        const xpGained = XP_PER_ACTIVITY
 
         const now = new Date()
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -163,31 +164,11 @@ router.post('/topic', async (req: any, res) => {
             return res.status(400).json({ error: 'subject, topic, total majburiy' })
         }
 
-        let stat = await prisma.topicStat.findUnique({
-            where: { userId_subject_topic: { userId, subject, topic } }
+        const stat = await prisma.topicStat.upsert({
+            where: { userId_subject_topic: { userId, subject, topic } },
+            create: { userId, subject, topic, correct: correct || 0, total, lastPracticed: new Date() },
+            update: { correct: { increment: correct || 0 }, total: { increment: total }, lastPracticed: new Date() }
         })
-
-        if (!stat) {
-            stat = await prisma.topicStat.create({
-                data: {
-                    userId,
-                    subject,
-                    topic,
-                    correct: correct || 0,
-                    total,
-                    lastPracticed: new Date(),
-                }
-            })
-        } else {
-            stat = await prisma.topicStat.update({
-                where: { userId_subject_topic: { userId, subject, topic } },
-                data: {
-                    correct: { increment: correct || 0 },
-                    total: { increment: total },
-                    lastPracticed: new Date(),
-                }
-            })
-        }
 
         res.json(stat)
     } catch (e) {
