@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, Sun, Moon, Search, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, Sun, Moon, Search, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import remarkGfm from 'remark-gfm'
@@ -193,7 +193,7 @@ const MdMessage = memo(({ content, isStreaming }: {
 export default function ChatLayout() {
     const { chatId } = useParams()
     const nav = useNavigate()
-    const { user, logout } = useAuthStore()
+    const { user, logout, token } = useAuthStore()
     const [chats, setChats] = useState<Chat[]>([])
     const [messages, setMessages] = useState<Msg[]>([])
     const [input, setInput] = useState('')
@@ -219,10 +219,13 @@ export default function ChatLayout() {
     const [flashIsReview, setFlashIsReview] = useState(false)
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
     const [onboardingForm, setOnboardingForm] = useState({
-        subject: 'Matematika', targetScore: 80, examDate: '',
+        subject: 'Matematika', subject2: '', targetScore: 80, examDate: '',
         weakTopics: '', strongTopics: '', concerns: ''
     })
     const [savingProfile, setSavingProfile] = useState(false)
+    const [notifCount, setNotifCount] = useState(0)
+    const [notifications, setNotifications] = useState<any[]>([])
+    const [notifLoading, setNotifLoading] = useState(false)
     const [thinkingMode, setThinkingMode] = useState(false)
     const [thinkingText, setThinkingText] = useState('')
     const scrollRef = useRef<HTMLDivElement>(null)
@@ -259,6 +262,7 @@ export default function ChatLayout() {
         flashDragRef, flashWidthRef, openFlashPanel,
     } = useFlashPanel()
 
+    const loadControllerRef = useRef<AbortController | null>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const [sidebarWidth, setSidebarWidth] = useState(() => {
         const w = window.innerWidth
@@ -354,6 +358,20 @@ export default function ChatLayout() {
         if (!testPanel) { setTestTimeLeft(null); setRaschFeedback(null) }
     }, [testPanel])
 
+    // Notification count — har daqiqa yangilanadi
+    useEffect(() => {
+        if (!token) return
+        const fetchCount = async () => {
+            try {
+                const data = await fetchApi('/notifications?count=true')
+                setNotifCount(data.count || 0)
+            } catch { }
+        }
+        fetchCount()
+        const interval = setInterval(fetchCount, 60000)
+        return () => clearInterval(interval)
+    }, [token])
+
     // Timer countdown (setInterval — har sekund 1 ta kamayadi)
     useEffect(() => {
         if (testTimeLeft === null || testTimeLeft <= 0) return
@@ -361,7 +379,7 @@ export default function ChatLayout() {
             setTestTimeLeft(t => (t !== null && t > 0) ? t - 1 : null)
         }, 1000)
         return () => clearInterval(id)
-    }, [testTimeLeft !== null && testTimeLeft > 0 ? 'running' : 'stopped'])
+    }, [testTimeLeft])
 
     // Vaqt tugaganda avtomatik topshirish
     useEffect(() => {
@@ -385,6 +403,7 @@ export default function ChatLayout() {
                 try { strong = p.strongTopics ? JSON.parse(p.strongTopics) : [] } catch { /* invalid JSON */ }
                 setOnboardingForm({
                     subject: p.subject || 'Matematika',
+                    subject2: (p as any).subject2 || '',
                     targetScore: p.targetScore || 80,
                     examDate: p.examDate ? new Date(p.examDate).toISOString().split('T')[0] : '',
                     weakTopics: weak.join(', '),
@@ -420,6 +439,16 @@ export default function ChatLayout() {
         } catch (err) { console.error('loadDueFlashcards:', err) }
     }
 
+    const loadNotifications = async () => {
+        setNotifLoading(true)
+        try {
+            const data = await fetchApi('/notifications')
+            setNotifications(data)
+            setNotifCount(0)
+            await fetchApi('/notifications/read-all', { method: 'PATCH' })
+        } catch { } finally { setNotifLoading(false) }
+    }
+
     async function logActivity(xpGained = 5) {
         try { await fetchApi('/progress/activity', { method: 'POST', body: JSON.stringify({ xpGained }) }) } catch (err) { console.error('logActivity:', err) }
     }
@@ -429,6 +458,7 @@ export default function ChatLayout() {
         try {
             const data = {
                 ...onboardingForm,
+                subject2: onboardingForm.subject2 || null,
                 weakTopics: onboardingForm.weakTopics ? onboardingForm.weakTopics.split(',').map(s => s.trim()).filter(Boolean) : [],
                 strongTopics: onboardingForm.strongTopics ? onboardingForm.strongTopics.split(',').map(s => s.trim()).filter(Boolean) : [],
                 onboardingDone: true,
@@ -462,8 +492,12 @@ export default function ChatLayout() {
     }
 
     async function loadMessages(id: string) {
+        loadControllerRef.current?.abort()
+        const controller = new AbortController()
+        loadControllerRef.current = controller
         try {
             const data = await fetchApi(`/chat/${id}/messages`)
+            if (controller.signal.aborted) return
             setMessages(data.messages)
             setCurrentChat(data.chat)
             // Yangi chatga kirganda pastga scroll qilish
@@ -471,7 +505,10 @@ export default function ChatLayout() {
                 const el = scrollRef.current
                 if (el) el.scrollTop = el.scrollHeight
             }, 50)
-        } catch (err) { console.error('loadMessages:', err) }
+        } catch (err: any) {
+            if (err?.name === 'AbortError') return
+            console.error('loadMessages:', err)
+        }
     }
 
     const adjustTextareaHeight = useCallback(() => {
@@ -519,48 +556,52 @@ export default function ChatLayout() {
             const decoder = new TextDecoder()
             let thinkBuf = ''
             if (reader) {
-                while (true) {
-                    const { done, value } = await reader.read()
-                    if (done) break
-                    const chunk = decoder.decode(value, { stream: true })
-                    for (const line of chunk.split('\n')) {
-                        if (line.startsWith('data: ')) {
-                            try {
-                                const d = JSON.parse(line.slice(6))
-                                if (d.error) {
-                                    setMessages(prev => {
-                                        const filtered = prev.filter(m => m.id !== 'temp-u')
-                                        return [...filtered,
-                                        { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() },
-                                        { id: 'err-' + Date.now(), role: 'assistant', content: `⚠️ ${d.error}`, createdAt: new Date().toISOString() }
-                                        ]
-                                    })
-                                    setStreaming(''); setThinkingText('')
-                                    break
-                                }
-                                if (d.thinking) { thinkBuf += d.thinking; setThinkingText(thinkBuf) }
-                                if (d.content) { fullText += d.content; setStreaming(fullText) }
-                                if (d.done) {
-                                    setMessages(prev => {
-                                        const filtered = prev.filter(m => m.id !== 'temp-u')
-                                        return [...filtered,
-                                        { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() },
-                                        { id: d.id || 'a-' + Date.now(), role: 'assistant', content: fullText, createdAt: new Date().toISOString() }
-                                        ]
-                                    })
-                                    setStreaming(''); setThinkingText(''); loadChats()
-                                    // Test avtomatik ochish
-                                    const testMatch = fullText.match(/```test\n([\s\S]*?)```/)
-                                    if (testMatch) {
-                                        try {
-                                            JSON.parse(testMatch[1].trim())
-                                            setTimeout(() => openTestPanel(testMatch[1].trim()), 400)
-                                        } catch { }
+                try {
+                    while (true) {
+                        const { done, value } = await reader.read()
+                        if (done) break
+                        const chunk = decoder.decode(value, { stream: true })
+                        for (const line of chunk.split('\n')) {
+                            if (line.startsWith('data: ')) {
+                                try {
+                                    const d = JSON.parse(line.slice(6))
+                                    if (d.error) {
+                                        setMessages(prev => {
+                                            const filtered = prev.filter(m => m.id !== 'temp-u')
+                                            return [...filtered,
+                                            { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() },
+                                            { id: 'err-' + Date.now(), role: 'assistant', content: `⚠️ ${d.error}`, createdAt: new Date().toISOString() }
+                                            ]
+                                        })
+                                        setStreaming(''); setThinkingText('')
+                                        break
                                     }
-                                }
-                            } catch { }
+                                    if (d.thinking) { thinkBuf += d.thinking; setThinkingText(thinkBuf) }
+                                    if (d.content) { fullText += d.content; setStreaming(fullText) }
+                                    if (d.done) {
+                                        setMessages(prev => {
+                                            const filtered = prev.filter(m => m.id !== 'temp-u')
+                                            return [...filtered,
+                                            { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() },
+                                            { id: d.id || 'a-' + Date.now(), role: 'assistant', content: fullText, createdAt: new Date().toISOString() }
+                                            ]
+                                        })
+                                        setStreaming(''); setThinkingText(''); loadChats()
+                                        // Test avtomatik ochish
+                                        const testMatch = fullText.match(/```test\n([\s\S]*?)```/)
+                                        if (testMatch) {
+                                            try {
+                                                JSON.parse(testMatch[1].trim())
+                                                setTimeout(() => openTestPanel(testMatch[1].trim()), 400)
+                                            } catch { }
+                                        }
+                                    }
+                                } catch { }
+                            }
                         }
                     }
+                } finally {
+                    try { reader?.cancel() } catch { }
                 }
             }
         } catch (err: any) {
@@ -857,11 +898,11 @@ export default function ChatLayout() {
                     // Animatsiya: streaming state orqali xarakter-xarakter chiqarish
                     let idx = 0
                     const CHUNK = 8
-                    const interval = setInterval(() => {
+                    const intervalId = setInterval(() => {
                         idx += CHUNK
                         setStreaming(fullText.slice(0, idx))
                         if (idx >= fullText.length) {
-                            clearInterval(interval)
+                            clearInterval(intervalId)
                             setStreaming('')
                             setLoading(false)
                             setMessages(prev => [...prev, {
@@ -991,6 +1032,15 @@ export default function ChatLayout() {
                             <select value={onboardingForm.subject} onChange={e => setOnboardingForm({ ...onboardingForm, subject: e.target.value })} className="input" style={{ cursor: 'pointer' }}>
                                 {['Matematika', 'Fizika', 'Kimyo', 'Biologiya', 'Ona tili', 'Ingliz tili', 'Tarix', 'Geografiya'].map(f => <option key={f} value={f}>{f}</option>)}
                             </select></div>
+                        <div>
+                            <label className="text-sm font-medium block mb-1.5">2-fan <span style={{ color: 'var(--text-muted)' }}>(ixtiyoriy)</span></label>
+                            <select value={onboardingForm.subject2} onChange={e => setOnboardingForm(f => ({ ...f, subject2: e.target.value }))} className="input" style={{ cursor: 'pointer' }}>
+                                <option value="">— Tanlang —</option>
+                                {['Matematika', 'Fizika', 'Kimyo', 'Biologiya', 'Ona tili va adabiyoti', 'Ingliz tili', 'Tarix', 'Geografiya']
+                                    .filter(s => s !== onboardingForm.subject)
+                                    .map(s => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                        </div>
                         <div><label className="text-sm font-medium block mb-1.5">Imtihon sanasi</label>
                             <input type="date" value={onboardingForm.examDate} onChange={e => setOnboardingForm({ ...onboardingForm, examDate: e.target.value })} className="input" /></div>
                         <div><label className="text-sm font-medium block mb-1.5">Maqsad ball (0-100)</label>
@@ -1048,12 +1098,20 @@ export default function ChatLayout() {
                             { k: 'flashcards' as const, l: 'Karta', Icon: Brain },
                             { k: 'settings' as const, l: 'Sozlama', Icon: Settings },
                         ].map(t => (
-                            <button key={t.k} onClick={() => setSideTab(t.k)}
-                                className="flex-1 py-1.5 text-xs font-medium rounded-md transition flex flex-col items-center gap-0.5"
+                            <button key={t.k} onClick={() => { setSideTab(t.k); if (t.k === 'settings') loadNotifications() }}
+                                className="flex-1 py-1.5 text-xs font-medium rounded-md transition flex flex-col items-center gap-0.5 relative"
                                 style={sideTab === t.k ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { color: 'var(--text-secondary)' }}
                                 title={t.l}
                             >
-                                <t.Icon className="h-4 w-4" />
+                                <span className="relative">
+                                    <t.Icon className="h-4 w-4" />
+                                    {t.k === 'settings' && notifCount > 0 && (
+                                        <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full text-white text-[9px] flex items-center justify-center font-bold"
+                                            style={{ background: 'var(--danger)' }}>
+                                            {notifCount > 9 ? '9+' : notifCount}
+                                        </span>
+                                    )}
+                                </span>
                                 <span className="text-[10px]">{t.l}</span>
                             </button>
                         ))}
@@ -1143,6 +1201,16 @@ export default function ChatLayout() {
 
                     {sideTab === 'progress' && (
                         <div className="flex-1 overflow-y-auto px-3 space-y-3">
+                            {/* Fan badge */}
+                            {profile?.subject && (
+                                <div className="flex items-center gap-2 pt-1">
+                                    <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{user?.name}</span>
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                                        style={{ background: 'var(--brand-light)', color: 'var(--brand-hover)' }}>
+                                        {profile.subject}{(profile as any).subject2 ? ` + ${(profile as any).subject2}` : ''}
+                                    </span>
+                                </div>
+                            )}
                             {/* Streak va XP (API dan) */}
                             {progressData && (
                                 <div className="grid grid-cols-2 gap-2">
@@ -1400,7 +1468,7 @@ export default function ChatLayout() {
                                         <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
                                     </div>
                                 </div>
-                                {profile?.subject && <p className="text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>📚 Fan: <span className="font-medium">{profile.subject}</span></p>}
+                                {profile?.subject && <p className="text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>📚 Fan: <span className="font-medium">{profile.subject}{(profile as any).subject2 ? ` va ${(profile as any).subject2}` : ''}</span></p>}
                                 {profile?.examDate && <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>📅 Sana: <span className="font-medium">{new Date(profile.examDate).toLocaleDateString('uz-UZ')}</span></p>}
                             </div>
 
@@ -1423,6 +1491,30 @@ export default function ChatLayout() {
                                         <span className="absolute top-1 h-5 w-5 rounded-full transition-all duration-300" style={{ background: 'white', left: darkMode ? '26px' : '2px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
                                     </button>
                                 </div>
+                            </div>
+
+                            {/* Bildirishnomalar */}
+                            <div className="card p-4">
+                                <div className="flex items-center justify-between mb-3">
+                                    <p className="text-[11px] font-semibold uppercase flex items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
+                                        <Bell className="h-3.5 w-3.5" /> Bildirishnomalar
+                                    </p>
+                                    {notifLoading && <div className="h-3 w-3 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--brand)', borderTopColor: 'transparent' }} />}
+                                </div>
+                                {notifications.length === 0 ? (
+                                    <p className="text-xs text-center py-4" style={{ color: 'var(--text-muted)' }}>
+                                        Bildirishnomalar yo'q
+                                    </p>
+                                ) : notifications.map((n: any) => (
+                                    <div key={n.id} className="p-3 rounded-lg mb-2"
+                                        style={{ background: n.isRead ? 'var(--bg-muted)' : 'var(--brand-light)', border: '1px solid var(--border)' }}>
+                                        <p className="text-xs font-semibold mb-0.5">{n.title}</p>
+                                        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{n.message}</p>
+                                        <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                            {n.sender?.name} · {new Date(n.createdAt).toLocaleDateString('uz')}
+                                        </p>
+                                    </div>
+                                ))}
                             </div>
 
                             {/* Profilni tahrirlash */}
