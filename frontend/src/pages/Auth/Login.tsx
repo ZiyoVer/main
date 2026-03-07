@@ -88,12 +88,7 @@ export default function Login() {
                         </div>
 
                         <div>
-                            <div className="flex items-center justify-between mb-1.5">
-                                <label className="text-sm font-medium">Parol</label>
-                                <Link to="/parolni-tiklash" className="text-xs" style={{ color: 'var(--brand)' }}>
-                                    Parolni unutdingizmi?
-                                </Link>
-                            </div>
+                            <label className="text-sm font-medium block mb-1.5">Parol</label>
                             <div style={{ position: 'relative' }}>
                                 <input
                                     type={showPw ? 'text' : 'password'}
@@ -119,6 +114,11 @@ export default function Login() {
                                         : <Eye className="h-4 w-4" />
                                     }
                                 </button>
+                            </div>
+                            <div className="flex justify-end mt-1.5">
+                                <Link to="/parolni-tiklash" className="text-xs" style={{ color: 'var(--brand)' }}>
+                                    Parolni unutdingizmi?
+                                </Link>
                             </div>
                         </div>
 

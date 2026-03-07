@@ -104,14 +104,29 @@ export default function ResetPassword() {
 
                                 <div>
                                     <label className="text-sm font-medium block mb-1.5">Parolni tasdiqlash</label>
-                                    <input
-                                        type={showPw ? 'text' : 'password'}
-                                        required
-                                        value={confirm}
-                                        onChange={e => setConfirm(e.target.value)}
-                                        placeholder="••••••••"
-                                        className="input"
-                                    />
+                                    <div style={{ position: 'relative' }}>
+                                        <input
+                                            type={showPw ? 'text' : 'password'}
+                                            required
+                                            value={confirm}
+                                            onChange={e => setConfirm(e.target.value)}
+                                            placeholder="••••••••"
+                                            className="input"
+                                            style={{ paddingRight: '2.75rem' }}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPw(!showPw)}
+                                            style={{
+                                                position: 'absolute', right: '0.75rem', top: '50%',
+                                                transform: 'translateY(-50%)', color: 'var(--text-muted)',
+                                                background: 'none', border: 'none', cursor: 'pointer',
+                                                display: 'flex', alignItems: 'center'
+                                            }}
+                                        >
+                                            {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <button
