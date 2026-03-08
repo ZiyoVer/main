@@ -45,7 +45,7 @@ export default function AdminPanel() {
     const [usersSearch, setUsersSearch] = useState('')
     const USERS_PER_PAGE = 50
 
-    useEffect(() => { loadStats() }, [tab])
+    useEffect(() => { loadStats() }, []) // faqat birinchi marta yuklanadi
     useEffect(() => { if (tab === 'users') loadUsers() }, [tab, usersPage, usersSearch])
     useEffect(() => { if (tab === 'knowledge') loadKnowledge() }, [tab])
 

@@ -399,7 +399,21 @@ router.delete('/account', authenticate, async (req: AuthRequest, res) => {
         if (user.role === 'ADMIN') return res.status(403).json({ error: 'Admin akkauntni o\'chirish mumkin emas' })
         const valid = await bcrypt.compare(password, user.password)
         if (!valid) return res.status(400).json({ error: 'Parol noto\'g\'ri' })
-        await prisma.user.delete({ where: { id: user.id } })
+        const uid = user.id
+        const userChats = await prisma.chat.findMany({ where: { userId: uid }, select: { id: true } })
+        const chatIds = userChats.map((c: { id: string }) => c.id)
+        await prisma.$transaction([
+            prisma.notification.deleteMany({ where: { userId: uid } }),
+            prisma.visitLog.deleteMany({ where: { userId: uid } }),
+            prisma.message.deleteMany({ where: { chatId: { in: chatIds } } }),
+            prisma.chat.deleteMany({ where: { userId: uid } }),
+            prisma.testAttempt.deleteMany({ where: { userId: uid } }),
+            prisma.flashcard.deleteMany({ where: { userId: uid } }),
+            prisma.topicStat.deleteMany({ where: { userId: uid } }),
+            prisma.userProgress.deleteMany({ where: { userId: uid } }),
+            prisma.studentProfile.deleteMany({ where: { userId: uid } }),
+            prisma.user.delete({ where: { id: uid } })
+        ])
         res.json({ message: 'Akkaunt o\'chirildi' })
     } catch (e) {
         console.error('delete account error:', e)

@@ -12,7 +12,7 @@ export default function Register() {
 
     useEffect(() => {
         if (token && user) nav('/suhbat', { replace: true })
-    }, [])
+    }, [token, user])
 
     const [step, setStep] = useState(1)
     const [form, setForm] = useState({ name: '', email: '', password: '' })
@@ -26,7 +26,7 @@ export default function Register() {
     const [loading, setLoading] = useState(false)
     const [checkingEmail, setCheckingEmail] = useState(false)
 
-    const step1Valid = form.name.trim() && form.email.trim() && form.password.length >= 8 && /[a-zA-Z]/.test(form.password)
+    const step1Valid = form.name.trim() && form.email.trim() && form.password.length >= 8 && /[a-zA-Z]/.test(form.password) && /[0-9]/.test(form.password)
 
     const goToStep2 = async () => {
         setErr('')

@@ -18,7 +18,7 @@ export default function Login() {
             else if (user.role === 'TEACHER') nav('/oqituvchi', { replace: true })
             else nav('/suhbat', { replace: true })
         }
-    }, [])
+    }, [token, user])
 
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')

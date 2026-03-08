@@ -625,7 +625,11 @@ export default function ChatLayout() {
                     concerns: p.concerns || ''
                 })
             }
-        } catch (err) { console.error('loadProfile:', err); setShowOnboarding(true) }
+        } catch (err: any) {
+            console.error('loadProfile:', err)
+            // Faqat 404 (profil yo'q) da onboarding ko'rsatish — network xatosida emas
+            if (err?.status === 404 || err?.message?.includes('404')) setShowOnboarding(true)
+        }
     }
 
     async function loadPublicTests() {
@@ -898,7 +902,7 @@ export default function ChatLayout() {
             await fetchApi(`/chat/${id}`, { method: 'DELETE' })
             if (chatId === id) { nav('/suhbat'); setMessages([]); setCurrentChat(null) }
             loadChats()
-        } catch (err) { console.error('deleteChat:', err) }
+        } catch (err) { console.error('deleteChat:', err); toast.error("Suhbatni o'chirishda xatolik") }
     }
 
     // Days until exam
