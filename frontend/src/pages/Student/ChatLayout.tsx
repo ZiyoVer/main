@@ -882,10 +882,10 @@ export default function ChatLayout() {
             })
             if (text) { promptText += `\n\n${text}`; displayText += `\n\n${text}` }
             setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: displayText.trim(), createdAt: new Date().toISOString() }])
-            await streamToChat(targetChatId, promptText.trim(), displayText.trim())
+            await streamToChat(targetChatId!, promptText.trim(), displayText.trim())
         } else {
             setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: text, createdAt: new Date().toISOString() }])
-            await streamToChat(targetChatId, text)
+            await streamToChat(targetChatId!, text)
         }
     }, [chatId, loading, profile])
 
