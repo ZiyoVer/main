@@ -60,22 +60,30 @@ router.get('/stats', authenticate, requireRole('ADMIN'), async (req: AuthRequest
 router.get('/login-trend', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
     try {
         const now = new Date()
+        const sevenDaysAgo = new Date(now)
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
+        sevenDaysAgo.setHours(0, 0, 0, 0)
+
+        const logs = await prisma.visitLog.findMany({
+            where: { action: 'login', createdAt: { gte: sevenDaysAgo } },
+            select: { createdAt: true }
+        })
+
+        // Kunlar bo'yicha guruhlash
+        const countMap: Record<string, number> = {}
+        for (const log of logs) {
+            const key = log.createdAt.toISOString().split('T')[0]
+            countMap[key] = (countMap[key] || 0) + 1
+        }
+
         const days: { day: string; count: number }[] = []
-
         for (let i = 6; i >= 0; i--) {
-            const from = new Date(now)
-            from.setDate(from.getDate() - i)
-            from.setHours(0, 0, 0, 0)
-
-            const to = new Date(from)
-            to.setHours(23, 59, 59, 999)
-
-            const count = await prisma.visitLog.count({
-                where: { action: 'login', createdAt: { gte: from, lte: to } }
-            })
-
-            const label = from.toLocaleDateString('uz-UZ', { weekday: 'short', day: 'numeric' })
-            days.push({ day: label, count })
+            const d = new Date(now)
+            d.setDate(d.getDate() - i)
+            d.setHours(0, 0, 0, 0)
+            const key = d.toISOString().split('T')[0]
+            const label = d.toLocaleDateString('uz-UZ', { weekday: 'short', day: 'numeric' })
+            days.push({ day: label, count: countMap[key] || 0 })
         }
 
         res.json(days)
@@ -118,21 +126,27 @@ router.get('/register-trend', authenticate, requireRole('ADMIN'), async (req: Au
 router.get('/new-users-24h', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
     try {
         const now = new Date()
+        const h24Ago = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+        h24Ago.setMinutes(0, 0, 0)
+
+        const users = await prisma.user.findMany({
+            where: { createdAt: { gte: h24Ago } },
+            select: { createdAt: true }
+        })
+
+        // Soatlar bo'yicha guruhlash
+        const countMap: Record<number, number> = {}
+        for (const u of users) {
+            const h = u.createdAt.getHours()
+            countMap[h] = (countMap[h] || 0) + 1
+        }
+
         const hours: { hour: string; count: number }[] = []
-
         for (let i = 23; i >= 0; i--) {
-            const from = new Date(now)
-            from.setHours(from.getHours() - i, 0, 0, 0)
-
-            const to = new Date(from)
-            to.setMinutes(59, 59, 999)
-
-            const count = await prisma.user.count({
-                where: { createdAt: { gte: from, lte: to } }
-            })
-
-            const label = `${from.getHours()}:00`
-            hours.push({ hour: label, count })
+            const d = new Date(now)
+            d.setHours(d.getHours() - i, 0, 0, 0)
+            const label = `${d.getHours()}:00`
+            hours.push({ hour: label, count: countMap[d.getHours()] || 0 })
         }
 
         res.json(hours)

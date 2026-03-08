@@ -118,7 +118,10 @@ router.post('/chat-upload', authenticate, uploadSingle, async (req: AuthRequest,
         if (!req.file) return res.status(400).json({ error: 'Fayl topilmadi' })
 
         const ext = path.extname(req.file.originalname).toLowerCase()
-        const isImage = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'].includes(ext)
+        const isImage = ['.png', '.jpg', '.jpeg', '.gif', '.webp'].includes(ext)
+        if (ext === '.svg') {
+            return res.status(400).json({ error: 'SVG fayl turi ruxsat etilmagan' })
+        }
         const folder = isImage ? 'chat-images' : 'chat-files'
 
         const s3Result = await uploadToS3(req.file.buffer, req.file.originalname, folder)

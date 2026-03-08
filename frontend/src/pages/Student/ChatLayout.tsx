@@ -49,7 +49,7 @@ const MdMessage = memo(({ content, isStreaming }: {
     const { onOpenTest, onProfileUpdate, onOpenFlash } = useChatContext()
     const processedContent = preprocessMath(content)
     return (
-        <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeSanitize, rehypeKatex]} components={{
+        <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} components={{
             img: ({ src, alt }) => <img src={src} alt={alt || ''} className="max-h-48 max-w-[90%] sm:max-w-sm md:max-w-md rounded-xl object-contain my-1" style={{ border: '1px solid var(--border)' }} />,
             p: ({ children }) => <p className="mb-2.5 last:mb-0 leading-relaxed">{children}</p>,
             strong: ({ children }) => <strong className="font-semibold" style={{ color: 'var(--text-primary)' }}>{children}</strong>,
@@ -467,6 +467,7 @@ export default function ChatLayout() {
     } = useFlashPanel()
 
     const loadControllerRef = useRef<AbortController | null>(null)
+    const isSubmittingRef = useRef(false)
     const [sidebarWidth, setSidebarWidth] = useState(() => {
         const w = window.innerWidth
         if (w < 768) return 288
@@ -716,7 +717,7 @@ export default function ChatLayout() {
         const controller = new AbortController()
         loadControllerRef.current = controller
         try {
-            const data = await fetchApi(`/chat/${id}/messages`)
+            const data = await fetchApi(`/chat/${id}/messages`, { signal: controller.signal })
             if (controller.signal.aborted) return
             setMessages(data.messages)
             setCurrentChat(data.chat)
@@ -981,8 +982,10 @@ export default function ChatLayout() {
 
     function submitTestPanel() {
         if (!testPanel) return
+        if (isSubmittingRef.current) return
+        isSubmittingRef.current = true
         let questions: any[] = []
-        try { questions = JSON.parse(testPanel) } catch { return }
+        try { questions = JSON.parse(testPanel) } catch { isSubmittingRef.current = false; return }
         setTestSubmitted(true)
         const results = questions.map((q: any, i: number) => {
             const correct = testAnswers[i] === q.correct
@@ -1145,6 +1148,7 @@ export default function ChatLayout() {
                 body: JSON.stringify({ score: scorePercent, totalQuestions: questions.length, results: raschResults })
             }).then(() => { loadProfile(); loadMyResults() }).catch(() => { })
         }
+        isSubmittingRef.current = false
     }
 
     // Onboarding
@@ -1863,7 +1867,7 @@ export default function ChatLayout() {
                     {!emailVerified && !verifBannerDismissed && (
                         <div className="flex items-center gap-2 px-4 py-2 flex-shrink-0 text-sm" style={{ background: '#FEF3C7', borderBottom: '1px solid #FCD34D', color: '#92400E' }}>
                             <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-                            <span className="flex-1 min-w-0">Email manzilingiz tasdiqlanmagan. Pochtangizni tekshiring.</span>
+                            <span className="flex-1 min-w-0">Email tasdiqlash xati yuborildi. Spam/Junk papkasini ham tekshiring!</span>
                             <button
                                 onClick={resendVerification}
                                 disabled={resendingVerif}

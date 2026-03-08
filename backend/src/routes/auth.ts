@@ -20,6 +20,14 @@ const emailLimiter = rateLimit({
     legacyHeaders: false,
 })
 
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+    message: { error: 'Juda ko\'p urinish. 15 daqiqadan keyin qayta urinib ko\'ring.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+})
+
 // Register — faqat STUDENT, token qaytaradi (alohida login shart emas)
 router.post('/register', async (req, res) => {
     try {
@@ -117,7 +125,7 @@ router.post('/register', async (req, res) => {
 })
 
 // Email mavjudligini tekshirish (register step 1 uchun)
-router.get('/check-email', async (req, res) => {
+router.get('/check-email', authLimiter, async (req, res) => {
     try {
         const email = (req.query.email as string)?.trim().toLowerCase()
         if (!email) return res.json({ available: true })
@@ -356,6 +364,7 @@ router.delete('/account', authenticate, async (req: AuthRequest, res) => {
         if (!password) return res.status(400).json({ error: 'Parolni kiriting' })
         const user = await prisma.user.findUnique({ where: { id: req.user.id } })
         if (!user) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' })
+        if (user.role === 'ADMIN') return res.status(403).json({ error: 'Admin akkauntni o\'chirish mumkin emas' })
         const valid = await bcrypt.compare(password, user.password)
         if (!valid) return res.status(400).json({ error: 'Parol noto\'g\'ri' })
         await prisma.user.delete({ where: { id: user.id } })

@@ -39,7 +39,16 @@ const gptClient = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY || ''
 })
 
+// AI Settings in-memory cache (5 daqiqa TTL)
+let aiSettingsCache: { temperature: number; maxTokens: number; extraRules: string; promptOverrides: Record<string, string> } | null = null
+let aiSettingsCacheTime = 0
+const AI_SETTINGS_TTL = 5 * 60 * 1000
+
 async function getAISettings(): Promise<{ temperature: number; maxTokens: number; extraRules: string; promptOverrides: Record<string, string> }> {
+    const now = Date.now()
+    if (aiSettingsCache && now - aiSettingsCacheTime < AI_SETTINGS_TTL) {
+        return aiSettingsCache
+    }
     const defaults = { temperature: 0.7, maxTokens: 4096, extraRules: '', promptOverrides: {} as Record<string, string> }
     try {
         const settings = await prisma.aISetting.findMany()
@@ -50,6 +59,8 @@ async function getAISettings(): Promise<{ temperature: number; maxTokens: number
             if (s.key.startsWith('prompt_')) defaults.promptOverrides[s.key] = s.value
         }
     } catch (e) { console.warn('AI settings fetch failed:', e) }
+    aiSettingsCache = defaults
+    aiSettingsCacheTime = now
     return defaults
 }
 

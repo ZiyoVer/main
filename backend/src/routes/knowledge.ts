@@ -34,7 +34,8 @@ router.post('/', authenticate, requireRole('ADMIN'), async (req: AuthRequest, re
     })
     res.json(item)
   } catch (e: any) {
-    res.status(500).json({ error: e.message })
+    console.error('knowledge POST error:', e)
+    res.status(500).json({ error: 'Server xatoligi' })
   }
 })
 
@@ -53,7 +54,8 @@ router.put('/:id', authenticate, requireRole('ADMIN'), async (req: AuthRequest, 
     })
     res.json(item)
   } catch (e: any) {
-    res.status(500).json({ error: e.message })
+    console.error('knowledge PUT error:', e)
+    res.status(500).json({ error: 'Server xatoligi' })
   }
 })
 

@@ -103,10 +103,33 @@ router.post('/activity', async (req: any, res) => {
     try {
         const userId = req.user.id
         const XP_PER_ACTIVITY = 10
-        const xpGained = XP_PER_ACTIVITY
 
         const now = new Date()
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+        // Bugun allaqachon faollik bo'lganmi?
+        const startOfDay = new Date()
+        startOfDay.setHours(0, 0, 0, 0)
+        const alreadyActive = await prisma.visitLog.findFirst({
+            where: {
+                userId,
+                action: 'activity',
+                createdAt: { gte: startOfDay }
+            }
+        })
+        if (alreadyActive) {
+            const current = await prisma.userProgress.findUnique({ where: { userId } })
+            return res.json({
+                xp: current?.xp || 0,
+                streak: current?.streak || 0,
+                longestStreak: current?.longestStreak || 0,
+                xpGained: 0,
+                alreadyDone: true,
+                message: 'Bugun allaqachon faollik qayd etildi'
+            })
+        }
+
+        const xpGained = XP_PER_ACTIVITY
 
         // Bitta UPSERT orqali xavfsiz qilib yozish (race-condition ni oldini oladi)
         const updated = await prisma.$transaction(async (tx) => {

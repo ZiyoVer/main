@@ -6,10 +6,12 @@ const BASE_URL = process.env.FRONTEND_URL || 'https://dtmmax.uz'
 
 export async function sendVerificationEmail(to: string, name: string, token: string) {
     const link = `${BASE_URL}/email-tasdiqlash/${token}`
+    const year = new Date().getFullYear()
     await resend.emails.send({
         from: FROM,
         to,
-        subject: 'DTMMax — Email manzilingizni tasdiqlang',
+        subject: 'DTMMax akkauntingizni faollashtiring',
+        text: `DTMMax — Email tasdiqlash\n\nSalom, ${name}!\n\nDTMMax platformasiga xush kelibsiz!\nEmail manzilingizni tasdiqlash uchun quyidagi havolaga o'ting:\n\n${link}\n\nHavola 24 soat davomida amal qiladi.\n\nAgar siz ro'yxatdan o'tmagan bo'lsangiz, ushbu xatni e'tiborsiz qoldiring.\n\n© ${year} DTMMax`,
         html: `
 <!DOCTYPE html>
 <html lang="uz">
@@ -40,22 +42,28 @@ export async function sendVerificationEmail(to: string, name: string, token: str
           </p>
         </td></tr>
         <tr><td style="background:#fafafa;padding:20px 32px;border-top:1px solid #eee;text-align:center">
-          <p style="margin:0;font-size:12px;color:#bbb">© ${new Date().getFullYear()} DTMMax. Barcha huquqlar himoyalangan.</p>
+          <p style="margin:0;font-size:12px;color:#bbb">© ${year} DTMMax. Barcha huquqlar himoyalangan.</p>
         </td></tr>
       </table>
     </td></tr>
   </table>
 </body>
-</html>`
+</html>`,
+        tags: [{ name: 'category', value: 'transactional' }],
+        headers: {
+            'X-Entity-Ref-ID': token.substring(0, 16),
+        }
     })
 }
 
 export async function sendPasswordResetEmail(to: string, name: string, token: string) {
     const link = `${BASE_URL}/parol-tiklash/${token}`
+    const year = new Date().getFullYear()
     await resend.emails.send({
         from: FROM,
         to,
-        subject: 'DTMMax — Parolni tiklash',
+        subject: 'DTMMax — Parol tiklash so\'rovi',
+        text: `DTMMax — Parol tiklash\n\nSalom, ${name}!\n\nDTMMax akkauntingiz uchun parol tiklash so'rovi olindi.\nYangi parol o'rnatish uchun quyidagi havolaga o'ting:\n\n${link}\n\nHavola 1 soat davomida amal qiladi.\nAgar siz so'rov yubormagan bo'lsangiz, ushbu xatni e'tiborsiz qoldiring.\n\n© ${year} DTMMax`,
         html: `
 <!DOCTYPE html>
 <html lang="uz">
@@ -89,12 +97,16 @@ export async function sendPasswordResetEmail(to: string, name: string, token: st
           </p>
         </td></tr>
         <tr><td style="background:#fafafa;padding:20px 32px;border-top:1px solid #eee;text-align:center">
-          <p style="margin:0;font-size:12px;color:#bbb">© ${new Date().getFullYear()} DTMMax. Barcha huquqlar himoyalangan.</p>
+          <p style="margin:0;font-size:12px;color:#bbb">© ${year} DTMMax. Barcha huquqlar himoyalangan.</p>
         </td></tr>
       </table>
     </td></tr>
   </table>
 </body>
-</html>`
+</html>`,
+        tags: [{ name: 'category', value: 'transactional' }],
+        headers: {
+            'X-Entity-Ref-ID': token.substring(0, 16),
+        }
     })
 }

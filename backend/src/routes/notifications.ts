@@ -74,7 +74,8 @@ router.post('/send', requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, r
 
     res.json({ ok: true, sent: targetIds.length })
   } catch (e: any) {
-    res.status(500).json({ error: e.message })
+    console.error('notifications send error:', e)
+    res.status(500).json({ error: 'Server xatoligi' })
   }
 })
 

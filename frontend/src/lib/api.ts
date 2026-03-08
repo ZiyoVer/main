@@ -2,14 +2,14 @@ import toast from 'react-hot-toast'
 
 export const API = '/api'
 
-export async function fetchApi(endpoint: string, options: RequestInit = {}) {
+export async function fetchApi(endpoint: string, options: RequestInit & { signal?: AbortSignal } = {}) {
     const token = localStorage.getItem('token')
     const headers = new Headers(options.headers || {})
     headers.set('Content-Type', 'application/json')
     if (token) headers.set('Authorization', `Bearer ${token}`)
 
     try {
-        const res = await fetch(`${API}${endpoint}`, { ...options, headers })
+        const res = await fetch(`${API}${endpoint}`, { ...options, headers, signal: options.signal })
         const text = await res.text()
         let data: any
         try { data = text ? JSON.parse(text) : {} } catch { data = text }
