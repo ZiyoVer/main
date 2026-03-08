@@ -7,12 +7,11 @@ const router = Router()
 // GET /public-stats — autentifikatsiya talab qilinmaydi (landing page uchun)
 router.get('/public-stats', async (_req, res) => {
     try {
-        const [totalStudents, totalPublicTests, totalKnowledgeItems] = await Promise.all([
-            prisma.user.count({ where: { role: 'STUDENT' } }),
+        const [totalUsers, totalPublicTests] = await Promise.all([
+            prisma.user.count(),
             prisma.test.count({ where: { isPublic: true } }),
-            prisma.knowledgeItem.count()
         ])
-        res.json({ totalStudents, totalPublicTests, totalKnowledgeItems })
+        res.json({ totalStudents: totalUsers, totalPublicTests })
     } catch {
         res.json({ totalStudents: 0, totalPublicTests: 0 })
     }

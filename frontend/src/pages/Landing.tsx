@@ -2,8 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
     BrainCircuit, ArrowRight, ChevronDown, ChevronUp,
-    MessageSquare, Target, BarChart3, FileText, Zap, BookOpen,
-    ChevronLeft, ChevronRight
+    MessageSquare, Target, BarChart3, FileText, Zap, BookOpen
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 
@@ -129,24 +128,16 @@ const TESTIMONIALS = [
 function TestimonialsCarousel() {
     const [idx, setIdx] = useState(0)
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+    const pausedRef = useRef(false)
     const total = TESTIMONIALS.length
 
-    const startTimer = () => {
-        if (timerRef.current) clearInterval(timerRef.current)
-        timerRef.current = setInterval(() => {
-            setIdx(i => (i + 1) % total)
-        }, 4000)
-    }
-
     useEffect(() => {
-        startTimer()
+        timerRef.current = setInterval(() => {
+            if (!pausedRef.current) setIdx(i => (i + 1) % total)
+        }, 3500)
         return () => { if (timerRef.current) clearInterval(timerRef.current) }
     }, [])
 
-    const prev = () => { setIdx(i => (i - 1 + total) % total); startTimer() }
-    const next = () => { setIdx(i => (i + 1) % total); startTimer() }
-
-    // Desktop: 3 ta, mobile: 1 ta
     const visible = [
         TESTIMONIALS[idx % total],
         TESTIMONIALS[(idx + 1) % total],
@@ -154,49 +145,28 @@ function TestimonialsCarousel() {
     ]
 
     return (
-        <div>
-            <div className="grid sm:grid-cols-3 gap-4 mb-5">
-                {visible.map((t, i) => (
-                    <div key={`${idx}-${i}`} className="card p-5" style={{ animation: 'fadeIn 0.4s ease' }}>
-                        <div className="flex gap-0.5 mb-3">
-                            {Array(5).fill(0).map((_, j) => (
-                                <span key={j} style={{ color: j < t.stars ? '#f59e0b' : 'var(--border)', fontSize: '14px' }}>★</span>
-                            ))}
-                        </div>
-                        <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--text-secondary)' }}>"{t.text}"</p>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-semibold">{t.name}</p>
-                                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{t.role}</p>
-                            </div>
-                            <span className="text-[11px] font-medium px-2 py-0.5 rounded-full" style={{ background: 'var(--brand-light)', color: 'var(--brand-hover)' }}>{t.subject}</span>
-                        </div>
+        <div
+            className="grid sm:grid-cols-3 gap-4"
+            onMouseEnter={() => { pausedRef.current = true }}
+            onMouseLeave={() => { pausedRef.current = false }}
+        >
+            {visible.map((t, i) => (
+                <div key={`${idx}-${i}`} className="card p-5" style={{ animation: 'fadeIn 0.5s ease' }}>
+                    <div className="flex gap-0.5 mb-3">
+                        {Array(5).fill(0).map((_, j) => (
+                            <span key={j} style={{ color: j < t.stars ? '#f59e0b' : 'var(--border)', fontSize: '14px' }}>★</span>
+                        ))}
                     </div>
-                ))}
-            </div>
-
-            {/* Controls */}
-            <div className="flex items-center justify-center gap-3">
-                <button onClick={prev} className="h-8 w-8 rounded-full flex items-center justify-center transition"
-                    style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
-                    <ChevronLeft className="h-4 w-4" />
-                </button>
-                <div className="flex gap-1.5">
-                    {TESTIMONIALS.map((_, i) => (
-                        <button key={i} onClick={() => { setIdx(i); startTimer() }}
-                            className="rounded-full transition-all"
-                            style={{
-                                width: i === idx ? '20px' : '8px',
-                                height: '8px',
-                                background: i === idx ? 'var(--brand)' : 'var(--border)'
-                            }} />
-                    ))}
+                    <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--text-secondary)' }}>"{t.text}"</p>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-sm font-semibold">{t.name}</p>
+                            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{t.role}</p>
+                        </div>
+                        <span className="text-[11px] font-medium px-2 py-0.5 rounded-full" style={{ background: 'var(--brand-light)', color: 'var(--brand-hover)' }}>{t.subject}</span>
+                    </div>
                 </div>
-                <button onClick={next} className="h-8 w-8 rounded-full flex items-center justify-center transition"
-                    style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
-                    <ChevronRight className="h-4 w-4" />
-                </button>
-            </div>
+            ))}
         </div>
     )
 }
@@ -350,67 +320,9 @@ export default function Landing() {
                     )}
                 </div>
 
-                {/* Chat demo */}
-                <div className="max-w-2xl mx-auto mt-16 anim-up d4">
-                    <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                        {/* Window chrome */}
-                        <div
-                            className="flex items-center gap-2 px-4 py-3"
-                            style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}
-                        >
-                            <div className="flex gap-1.5">
-                                <div className="w-3 h-3 rounded-full bg-red-400" />
-                                <div className="w-3 h-3 rounded-full bg-yellow-400" />
-                                <div className="w-3 h-3 rounded-full bg-green-400" />
-                            </div>
-                            <div
-                                className="flex-1 flex justify-center text-xs rounded-md px-3 py-1"
-                                style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}
-                            >
-                                dtmmax.uz — AI Ustoz
-                            </div>
-                        </div>
-
-                        {/* Chat messages */}
-                        <div className="p-5 space-y-4" style={{ background: 'var(--bg-card)' }}>
-                            <div className="flex gap-3">
-                                <div className="h-8 w-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold" style={{ background: 'var(--brand)', flexShrink: 0 }}>
-                                    AI
-                                </div>
-                                <div className="bubble-ai">
-                                    <p>Assalomu alaykum! Bugun <strong>trigonometriya</strong> bo'yicha ishlaymiz. Qayerdan boshlashni xohlaysiz? 📐</p>
-                                </div>
-                            </div>
-
-                            <div className="flex gap-3 justify-end">
-                                <div className="bubble-user">
-                                    <p>sin(90°) nima uchun 1 ga teng?</p>
-                                </div>
-                                <div className="h-8 w-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold" style={{ background: '#6366F1' }}>
-                                    A
-                                </div>
-                            </div>
-
-                            <div className="flex gap-3">
-                                <div className="h-8 w-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold" style={{ background: 'var(--brand)' }}>
-                                    AI
-                                </div>
-                                <div className="bubble-ai">
-                                    <p>Birlik doirada 90° burchakda nuqta <strong>(0, 1)</strong> koordinatada turadi. sin — bu y-koordinata, shuning uchun sin(90°) = <strong>1</strong>. 👏</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* ── Testimonials ─────────────────────────────── */}
-            <section className="py-16 px-5" style={{ borderTop: '1px solid var(--border)' }}>
-                <div className="max-w-5xl mx-auto">
-                    <div className="text-center mb-10">
-                        <p className="section-label mb-2">Foydalanuvchilar fikri</p>
-                        <h2 className="text-3xl font-extrabold tracking-tight">O'quvchilar nima deydi?</h2>
-                    </div>
+                {/* Testimonials — chat demo o'rnida */}
+                <div className="max-w-5xl mx-auto mt-16 anim-up d4">
+                    <p className="text-center text-xs font-semibold uppercase mb-6" style={{ color: 'var(--text-muted)', letterSpacing: '0.08em' }}>O'quvchilar nima deydi</p>
                     <TestimonialsCarousel />
                 </div>
             </section>
