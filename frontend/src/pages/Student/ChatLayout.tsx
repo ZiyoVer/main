@@ -220,7 +220,10 @@ const ChatInputArea = memo(function ChatInputArea({
     }, [])
 
     async function uploadFiles(filesToUpload: File[]) {
-        if (!chatId) return
+        if (!chatId) {
+            toast.error('Avval yangi suhbat boshlang')
+            return
+        }
         setUploadingFile(true)
         try {
             const token = localStorage.getItem('token')

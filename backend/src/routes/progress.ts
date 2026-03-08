@@ -68,7 +68,8 @@ router.get('/me', async (req: any, res) => {
         const activityLogs = await prisma.visitLog.findMany({
             where: { userId, action: 'activity' },
             select: { createdAt: true },
-            orderBy: { createdAt: 'desc' }
+            orderBy: { createdAt: 'desc' },
+            take: 400
         })
 
         const sortedDays = Array.from(new Set(

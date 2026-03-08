@@ -729,6 +729,11 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
         })
         if (!test) return res.status(404).json({ error: 'Test topilmadi' })
 
+        // Student faqat public testni submit qila oladi
+        if (!test.isPublic && req.user?.role === 'STUDENT') {
+            return res.status(403).json({ error: 'Bu test uchun ruxsat yo\'q' })
+        }
+
         // Javoblarni tekshirish
         const results = await Promise.all(answers.map(async (a: any) => {
             const q = test.questions.find(q => q.id === a.questionId)

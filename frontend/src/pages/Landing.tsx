@@ -120,7 +120,7 @@ export default function Landing() {
             else if (user.role === 'TEACHER') nav('/oqituvchi', { replace: true })
             else nav('/suhbat', { replace: true })
         }
-    }, [])
+    }, [token, user])
 
     return (
         <div className="h-[100dvh] overflow-y-auto flex flex-col w-full" style={{ background: 'var(--bg-page)', color: 'var(--text-primary)' }}>

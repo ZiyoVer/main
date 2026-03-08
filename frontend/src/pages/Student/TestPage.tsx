@@ -65,6 +65,13 @@ export default function TestPage() {
 
     async function submit() {
         if (!test) return
+        if (answeredCount < total) {
+            const unanswered = total - answeredCount
+            toast(`${unanswered} ta savol javobsiz qolgan. Davom etasizmi?`, {
+                duration: 3000,
+                icon: '⚠️',
+            })
+        }
         setSubmitting(true)
         try {
             const payload = test.questions.map((q: any) => {
