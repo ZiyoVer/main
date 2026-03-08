@@ -111,7 +111,7 @@ app.get('/api/health', async (_req, res) => {
 app.use('/api/auth', authLimiter, authRoutes)
 app.use('/api/chat', apiLimiter, chatRoutes)
 app.use('/api/tests', apiLimiter, testRoutes)
-app.use('/api/documents', uploadLimiter, docRoutes)
+app.use('/api/documents', apiLimiter, docRoutes)
 app.use('/api/analytics', apiLimiter, analyticsRoutes)
 app.use('/api/profile', apiLimiter, profileRoutes)
 app.use('/api/ai-settings', apiLimiter, aiSettingsRoutes)

@@ -1,9 +1,16 @@
 import { Router } from 'express'
 import multer from 'multer'
+import rateLimit from 'express-rate-limit'
 import path from 'path'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
 import { uploadToS3, deleteFromS3 } from '../utils/s3'
+
+const uploadLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 10,
+    message: { error: 'Fayl yuklash limiti. Bir daqiqadan keyin qayta urinib ko\'ring.' },
+})
 
 const router = Router()
 
@@ -25,7 +32,7 @@ const uploadSingle = (req: any, res: any, next: any) => {
 };
 
 // Admin: Fayl yuklash va chunklarga ajratish
-router.post('/upload', authenticate, requireRole('ADMIN'), uploadSingle, async (req: AuthRequest, res) => {
+router.post('/upload', authenticate, requireRole('ADMIN'), uploadLimiter, uploadSingle, async (req: AuthRequest, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'Fayl topilmadi' })
 
