@@ -152,6 +152,14 @@ async function bootstrap() {
             data: { email: adminEmail, password: pw, name: 'Administrator', role: 'ADMIN' }
         })
         console.log('✅ Admin yaratildi')
+    } else {
+        // Parol env var bilan mos kelmasligini tekshirib, yangilaymiz
+        const passwordMatch = await bcrypt.compare(process.env.ADMIN_PASSWORD!, adminExists.password)
+        if (!passwordMatch) {
+            const pw = await bcrypt.hash(process.env.ADMIN_PASSWORD!, 10)
+            await prisma.user.update({ where: { email: adminEmail }, data: { password: pw } })
+            console.log('✅ Admin paroli yangilandi')
+        }
     }
 
     const server = app.listen(PORT, () => {

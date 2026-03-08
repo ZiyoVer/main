@@ -239,6 +239,34 @@ router.get('/users', authenticate, requireRole('ADMIN'), async (req: AuthRequest
     }
 })
 
+// Admin: Foydalanuvchini o'chirish
+router.delete('/users/:userId', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
+    try {
+        const { userId } = req.params
+        const target = await prisma.user.findUnique({ where: { id: userId } })
+        if (!target) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' })
+        if (target.role === 'ADMIN') return res.status(403).json({ error: 'Admin akkauntini o\'chirib bo\'lmaydi' })
+
+        // Cascade: barcha bog'liq ma'lumotlarni o'chirish
+        await prisma.$transaction([
+            prisma.notification.deleteMany({ where: { userId } }),
+            prisma.visitLog.deleteMany({ where: { userId } }),
+            prisma.message.deleteMany({ where: { chat: { userId } } }),
+            prisma.chat.deleteMany({ where: { userId } }),
+            prisma.testAttempt.deleteMany({ where: { userId } }),
+            prisma.flashcard.deleteMany({ where: { userId } }),
+            prisma.activityLog.deleteMany({ where: { userId } }),
+            prisma.studentProfile.deleteMany({ where: { userId } }),
+            prisma.user.delete({ where: { id: userId } })
+        ])
+
+        res.json({ message: 'Foydalanuvchi o\'chirildi' })
+    } catch (e: any) {
+        console.error('delete user error:', e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
 // Email tasdiqlash — token orqali
 router.get('/verify-email/:token', async (req, res) => {
     try {

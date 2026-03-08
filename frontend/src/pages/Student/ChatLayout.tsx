@@ -275,7 +275,7 @@ const ChatInputArea = memo(function ChatInputArea({
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault()
-        if ((!input.trim() && attachedFiles.length === 0) || !chatId || loading) return
+        if ((!input.trim() && attachedFiles.length === 0) || loading) return
         const text = input.trim()
         const files = [...attachedFiles]
         files.forEach(f => { if (f.previewUrl) blobUrlsRef.current.push(f.previewUrl) })
@@ -851,8 +851,28 @@ export default function ChatLayout() {
     }
 
     const handleSend = useCallback(async (text: string, files: AttachedFile[]) => {
-        if (!chatId || loading) return
+        if (loading) return
         logActivity(5)
+
+        // chatId yo'q bo'lsa yangi chat yaratib, unga o'tamiz
+        let targetChatId = chatId
+        if (!targetChatId) {
+            try {
+                const data = await fetchApi('/chat/new', {
+                    method: 'POST',
+                    body: JSON.stringify({ title: text.substring(0, 50) || 'Yangi suhbat', subject: profile?.subject, forceNew: true })
+                })
+                await loadChats()
+                nav(`/suhbat/${data.id}`)
+                targetChatId = data.id
+                // Nav animatsiyasi uchun kichik kechikish
+                await new Promise(r => setTimeout(r, 100))
+            } catch (err) {
+                console.error('Chat yaratishda xato:', err)
+                return
+            }
+        }
+
         if (files.length > 0) {
             let promptText = ''
             let displayText = ''
@@ -862,12 +882,12 @@ export default function ChatLayout() {
             })
             if (text) { promptText += `\n\n${text}`; displayText += `\n\n${text}` }
             setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: displayText.trim(), createdAt: new Date().toISOString() }])
-            await streamToChat(chatId, promptText.trim(), displayText.trim())
+            await streamToChat(targetChatId, promptText.trim(), displayText.trim())
         } else {
             setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: text, createdAt: new Date().toISOString() }])
-            await streamToChat(chatId, text)
+            await streamToChat(targetChatId, text)
         }
-    }, [chatId, loading])
+    }, [chatId, loading, profile])
 
     async function deleteChat(id: string, e: React.MouseEvent) {
         e.stopPropagation()
@@ -2077,19 +2097,17 @@ export default function ChatLayout() {
                         )}
                     </div>
 
-                    {/* Input + Quick Actions */}
-                    {chatId && (
-                        <ChatInputArea
-                            chatId={chatId}
-                            loading={loading}
-                            thinkingMode={thinkingMode}
-                            setThinkingMode={setThinkingMode}
-                            onSend={handleSend}
-                            onStop={stopGeneration}
-                            blobUrlsRef={blobUrlsRef}
-                            messagesCount={messages.length}
-                        />
-                    )}
+                    {/* Input + Quick Actions — har doim ko'rinadi */}
+                    <ChatInputArea
+                        chatId={chatId}
+                        loading={loading}
+                        thinkingMode={thinkingMode}
+                        setThinkingMode={setThinkingMode}
+                        onSend={handleSend}
+                        onStop={stopGeneration}
+                        blobUrlsRef={blobUrlsRef}
+                        messagesCount={messages.length}
+                    />
                 </div>
 
 

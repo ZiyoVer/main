@@ -74,6 +74,17 @@ export default function AdminPanel() {
         } catch { setUsers([]) }
     }
 
+    async function deleteUser(userId: string, userName: string) {
+        if (!confirm(`"${userName}" foydalanuvchisini o'chirishni tasdiqlaysizmi? Bu amalni qaytarib bo'lmaydi.`)) return
+        try {
+            await fetchApi(`/auth/users/${userId}`, { method: 'DELETE' })
+            toast.success(`${userName} o'chirildi`)
+            loadUsers()
+        } catch (e: any) {
+            toast.error(e.message || 'O\'chirishda xatolik')
+        }
+    }
+
     // loadAll ni boshqa joylarda ishlatish uchun saqlaymiz
     async function loadAll() { await loadStats(); await loadUsers() }
 
@@ -435,6 +446,7 @@ export default function AdminPanel() {
                                         <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Email</th>
                                         <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Rol</th>
                                         <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Sana</th>
+                                        <th className="py-2.5 px-2 font-medium text-[11px] uppercase" style={mutedText}></th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -454,6 +466,18 @@ export default function AdminPanel() {
                                                     style={u.role === 'ADMIN' ? { background: 'color-mix(in srgb, var(--danger) 12%, transparent)', color: 'var(--danger)' } : u.role === 'TEACHER' ? { background: 'color-mix(in srgb, var(--brand) 12%, transparent)', color: 'var(--brand)' } : { background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>{u.role}</span>
                                             </td>
                                             <td className="py-2.5 px-4 text-[12px] tabular-nums" style={mutedText}>{new Date(u.createdAt).toLocaleDateString('uz')}</td>
+                                            <td className="py-2.5 px-2">
+                                                {u.role !== 'ADMIN' && (
+                                                    <button onClick={() => deleteUser(u.id, u.name)}
+                                                        className="h-6 w-6 flex items-center justify-center rounded transition"
+                                                        style={{ color: 'var(--border-strong)' }}
+                                                        onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.background = 'var(--danger-light)' }}
+                                                        onMouseLeave={e => { e.currentTarget.style.color = 'var(--border-strong)'; e.currentTarget.style.background = 'transparent' }}
+                                                        title="O'chirish">
+                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                    </button>
+                                                )}
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
