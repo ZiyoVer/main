@@ -144,6 +144,35 @@ export default function AdminPanel() {
         } catch (e: any) { toast.error(e.message) }
     }
 
+    const [pdfImporting, setPdfImporting] = useState(false)
+    const [pdfForm, setPdfForm] = useState({ subject: 'Tarix', title: '', source: '' })
+    const [showPdfImport, setShowPdfImport] = useState(false)
+
+    const importKnowledgePdf = async (file: File) => {
+        if (!pdfForm.title.trim()) return toast.error('Sarlavha kiriting')
+        setPdfImporting(true)
+        try {
+            const formData = new FormData()
+            formData.append('file', file)
+            formData.append('subject', pdfForm.subject)
+            formData.append('title', pdfForm.title)
+            formData.append('source', pdfForm.source || file.name)
+            const token = localStorage.getItem('token')
+            const res = await fetch('/api/knowledge/pdf-import', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+                body: formData
+            })
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.error)
+            toast.success(data.message)
+            setPdfForm({ subject: 'Tarix', title: '', source: '' })
+            setShowPdfImport(false)
+            loadKnowledge()
+        } catch (e: any) { toast.error(e.message) }
+        finally { setPdfImporting(false) }
+    }
+
     const deleteKnowledge = async (id: string) => {
         if (!confirm("O'chirishni tasdiqlaysizmi?")) return
         try {
@@ -631,10 +660,62 @@ export default function AdminPanel() {
                 {/* === KNOWLEDGE BASE === */}
                 {tab === 'knowledge' && (
                     <div>
-                        <h2 className="text-base font-bold mb-1">Bilim Bazasi — Fan bo'yicha AI Xotira</h2>
-                        <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
-                            DTM va Milliy Sertifikat savollarini, qoidalarni qo'shing. AI chat jarayonida shu ma'lumotlardan foydalanadi.
-                        </p>
+                        <div className="flex items-start justify-between mb-4 gap-4 flex-wrap">
+                            <div>
+                                <h2 className="text-base font-bold mb-1">📚 Kutubxona — Kitoblar va Materiallar</h2>
+                                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                                    Darsliklar, DTM materiallarini yuklang — AI chat jarayonida ulardan foydalanadi.
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setShowPdfImport(v => !v)}
+                                className="btn btn-primary flex items-center gap-2 flex-shrink-0"
+                            >
+                                <Upload className="h-4 w-4" />
+                                PDF/Kitob yuklash
+                            </button>
+                        </div>
+
+                        {/* PDF Import Panel */}
+                        {showPdfImport && (
+                            <div className="rounded-xl p-5 mb-5 border-2" style={{ borderColor: 'var(--brand)', background: 'color-mix(in srgb, var(--brand) 4%, var(--bg-card))' }}>
+                                <h3 className="font-semibold mb-3 flex items-center gap-2">
+                                    <Upload className="h-4 w-4" style={{ color: 'var(--brand)' }} />
+                                    Kitob / Material yuklab import qilish
+                                </h3>
+                                <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
+                                    PDF, Word yoki TXT fayl yuklang — AI uchun avtomatik bo'laklarga bo'linadi. Tarix, Biologiya darsliklari, Milliy Sertifikat materiallari va boshqalar.
+                                </p>
+                                <div className="grid grid-cols-2 gap-3 mb-3">
+                                    <div>
+                                        <label className="text-sm font-medium block mb-1">Fan</label>
+                                        <select className="input" value={pdfForm.subject} onChange={e => setPdfForm(f => ({ ...f, subject: e.target.value }))}>
+                                            {KNOWLEDGE_SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-sm font-medium block mb-1">Manba (ixtiyoriy)</label>
+                                        <input className="input" placeholder="Mas: O'zbek tarixi 10-sinf"
+                                            value={pdfForm.source} onChange={e => setPdfForm(f => ({ ...f, source: e.target.value }))} />
+                                    </div>
+                                </div>
+                                <div className="mb-4">
+                                    <label className="text-sm font-medium block mb-1">Sarlavha <span style={{ color: 'var(--danger)' }}>*</span></label>
+                                    <input className="input" placeholder="Mas: O'zbek tarixi darsligi — 10-sinf"
+                                        value={pdfForm.title} onChange={e => setPdfForm(f => ({ ...f, title: e.target.value }))} />
+                                </div>
+                                <label className={`btn flex items-center gap-2 cursor-pointer w-fit ${pdfImporting ? 'opacity-50 pointer-events-none' : ''}`}
+                                    style={{ background: 'var(--brand)', color: '#fff' }}>
+                                    <input type="file" accept=".pdf,.docx,.doc,.txt" className="hidden"
+                                        onChange={e => { const f = e.target.files?.[0]; if (f) importKnowledgePdf(f); e.target.value = '' }} />
+                                    {pdfImporting ? (
+                                        <><div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'rgba(255,255,255,0.4)', borderTopColor: 'transparent' }} /> Import qilinmoqda...</>
+                                    ) : (
+                                        <><Upload className="h-4 w-4" /> Faylni tanlang va import qiling</>
+                                    )}
+                                </label>
+                            </div>
+                        )}
 
                         {/* Yangi qo'shish / tahrirlash formasi */}
                         <div className="rounded-xl p-4 mb-6" style={cardStyle}>

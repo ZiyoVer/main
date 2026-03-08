@@ -703,60 +703,79 @@ router.get('/:chatId/messages', authenticate, async (req: AuthRequest, res) => {
     }
 })
 
-// RAG: content-based relevant chunks search
+// O'zbek va rus tillaridagi umumiy to'xtash so'zlari (stop words)
+const STOP_WORDS = new Set([
+    'va', 'bu', 'bir', 'ham', 'edi', 'bor', 'yo\'q', 'deb', 'uchun', 'bilan',
+    'dan', 'ga', 'da', 'ni', 'ning', 'lar', 'lari', 'ing', 'mi', 'nima', 'kim',
+    'qanday', 'qaysi', 'nega', 'qachon', 'qayerda', 'menga', 'sizga', 'unga',
+    'the', 'and', 'for', 'with', 'this', 'that', 'from', 'have', 'are', 'was',
+    'bir', 'ikkita', 'uchta', 'men', 'sen', 'biz', 'siz', 'ular', 'u', 'o'
+])
+
+// RAG: content-based relevant chunks search (yaxshilangan versiya)
 async function searchRAGContext(query: string, subject?: string): Promise<string> {
     try {
-        // Search relevant chunks by content similarity (keyword matching)
-        const keywords = query.toLowerCase().split(/\s+/).filter(w => w.length > 3)
+        // O'zbek tilida 2 harfli so'zlar ham muhim (er, yer, tog, suv, ion, etc.)
+        const rawWords = query.toLowerCase().split(/\s+/)
+        const keywords = rawWords.filter(w => w.length >= 2 && !STOP_WORDS.has(w))
         if (keywords.length === 0) return ''
 
-        const allChunks = await prisma.documentChunk.findMany({
-            where: {
-                document: subject ? { subject } : undefined
-            },
-            include: { document: { select: { fileName: true, subject: true } } },
-            take: 100 // get more chunks for relevance scoring
-        })
+        // Parallel qidirish: document chunks va knowledge items
+        const [allChunks, knowledgeItems] = await Promise.all([
+            prisma.documentChunk.findMany({
+                where: { document: subject ? { subject } : undefined },
+                include: { document: { select: { fileName: true, subject: true } } },
+                take: 200 // Ko'proq chunk — yaxshiroq coverage
+            }),
+            prisma.knowledgeItem.findMany({
+                where: subject ? { subject } : {},
+                take: 50,
+                orderBy: { createdAt: 'desc' }
+            })
+        ])
 
-        // Score chunks by keyword match relevance
-        const scored = allChunks.map(chunk => {
-            const lower = chunk.content.toLowerCase()
+        // TF-IDF uslubida scoring
+        const scoreText = (text: string): number => {
+            const lower = text.toLowerCase()
             let score = 0
             for (const kw of keywords) {
-                const matches = lower.split(kw).length - 1
-                score += matches
+                const count = lower.split(kw).length - 1
+                if (count > 0) {
+                    // Rarer keywords get higher weight
+                    score += count * (1 + 1 / (kw.length * 0.5))
+                }
             }
-            return { chunk, score }
-        })
+            return score
+        }
+
+        const scoredChunks = allChunks
+            .map(chunk => ({ chunk, score: scoreText(chunk.content) }))
             .filter(s => s.score > 0)
             .sort((a, b) => b.score - a.score)
-            .slice(0, 5) // top 5 most relevant
+            .slice(0, 6)
 
-        // KnowledgeItem dan ham qidirish
-        const knowledgeItems = await prisma.knowledgeItem.findMany({
-            where: subject ? { subject } : {},
-            take: 20,
-            orderBy: { createdAt: 'desc' }
-        })
-
-        const knowledgeContext = knowledgeItems
-            .filter(item => {
-                const text = (item.title + ' ' + item.content).toLowerCase()
-                return keywords.some(kw => text.includes(kw))
-            })
-            .slice(0, 5)
-            .map(item => `[${item.subject} - ${item.title}${item.source ? ' (' + item.source + ')' : ''}]\n${item.content}`)
-            .join('\n\n---\n\n')
+        const scoredKnowledge = knowledgeItems
+            .map(item => ({ item, score: scoreText(item.title + ' ' + item.content) }))
+            .filter(s => s.score > 0)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 6)
 
         let contextString = ''
 
-        if (scored.length > 0) {
-            contextString += '\n\n📚 TEGISHLI O\'QUV MATERIALLARI (RAG):\n' +
-                scored.map(s => `[${s.chunk.document.fileName}]: ${s.chunk.content} `).join('\n---\n') +
-                '\n\nYuqoridagi materiallarni o\'z so\'zlaring bilan qayta tushuntir, aynan nusxalama.'
+        if (scoredChunks.length > 0) {
+            contextString += '\n\n📚 TEGISHLI O\'QUV MATERIALLARI:\n' +
+                scoredChunks.map(s =>
+                    `[${s.chunk.document.subject || ''} — ${s.chunk.document.fileName}]:\n${s.chunk.content}`
+                ).join('\n---\n') +
+                '\n\nYuqoridagi manbalardan foydalanib, aniq va to\'g\'ri javob ber.'
         }
 
-        if (knowledgeContext) contextString += '\n\n## Bilim Bazasi:\n' + knowledgeContext
+        if (scoredKnowledge.length > 0) {
+            contextString += '\n\n## Bilim Bazasi (Kitoblar va Materiallar):\n' +
+                scoredKnowledge.map(s =>
+                    `[${s.item.subject} — ${s.item.title}${s.item.source ? ' | Manba: ' + s.item.source : ''}]:\n${s.item.content}`
+                ).join('\n---\n')
+        }
 
         return contextString
     } catch (e) {
