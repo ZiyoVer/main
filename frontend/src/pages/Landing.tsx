@@ -83,43 +83,43 @@ const FEATURES = [
 const TESTIMONIALS = [
     {
         name: "Sarvar T.",
-        role: "11-sinf, Matematika · DTM 2025",
-        text: "Trigonometriya va hosilalar bo'yicha tushunmagan joylarimni AI shu yerda tushuntirdi. Har bir savolga sabr bilan, misollar bilan javob berdi. DTM da 87 ball oldim.",
+        role: "11-sinf · Matematika",
+        text: "Integrallarni darslikdan tushunmay yurardim. GPT ga yozsam inglizcha javob beradi. Bu yerda o'zbekcha, misollar bilan, savolimni boshqa so'z bilan so'rasam ham charchamay tushuntirdi. DTM 87 ball.",
         stars: 5,
         subject: "Matematika"
     },
     {
         name: "Dilnoza A.",
-        role: "Milliy Sertifikat ishtirokchisi, Ingliz tili",
-        text: "Grammatika qoidalarini AI bilan takrorladim, har kuni yangi so'zlar o'rgandim. Flashcardlar juda qulay — yo'lda ham telefonda takrorladim. Milliy Sertifikatda B2 oldim.",
+        role: "Milliy Sertifikat · Ingliz tili",
+        text: "Past perfect bilan simple past ni aralashtirib yuborardim. Har kuni kechqurun 20 daqiqa shu yerda mashq qildim. Sertifikatda B2 chiqdi — o'zim ham kutmagan edim rostini aytganda.",
         stars: 5,
         subject: "Ingliz tili"
     },
     {
         name: "Jasur M.",
-        role: "11-sinf, Tarix · DTM 2025",
-        text: "Tarix sanalarini eslab qolish qiyin edi. Bu platforma bilan sanalar va voqealar bog'liqligini tushundim. Umuman olganda juda foydali, faqat ba'zida AI sekinroq javob beradi.",
+        role: "11-sinf · Tarix",
+        text: "Sanalarni yod olish qiyin edi. Shu yerda voqealar bog'lanib, sabab-oqibat tushuntiriladi — eslab qolish osonlashadi. Ba'zan javob biroz kechikadi lekin noto'g'ri deyilmaydi.",
         stars: 4,
         subject: "Tarix"
     },
     {
         name: "Mohira K.",
-        role: "Biologiya va Kimyo, DTM 2025",
-        text: "Ikki fandan bir vaqtda tayyorlandim. AI ikkisini ham yaxshi biladi. Kimyoviy reaksiyalarni tushuntirishda juda aniq. Test natijarim oy sayin yaxshilanib bordi.",
+        role: "DTM 2025 · Kimyo",
+        text: "Kimyo formulalari aqlimni aylantirdi. Darslik rasmini yubordim, AI darhol tushuntirdi. Repetitorga pulim yetmaydi, shu platforma o'sha bo'shliqni to'ldirdi.",
         stars: 5,
         subject: "Kimyo"
     },
     {
         name: "Bobur N.",
-        role: "11-sinf, Fizika · DTM 2025",
-        text: "Fizikadan zaif edim. Bu platforma bilan formulalar va masalalar yechishni qayta o'rgandim. Bepul ekan deb kutmagan edim bunday sifatni. Haqiqatan tavsiya qilaman.",
+        role: "11-sinf · Fizika",
+        text: "Masala yechib tushunmay qolsam, faqat javobni emas, yechish yo'lini so'rayman. Har qadamni tushuntiradi. Bepul ekan deb sifati past deb o'ylagandim — yanglishibman.",
         stars: 4,
         subject: "Fizika"
     },
     {
         name: "Zulfiya R.",
-        role: "Ona tili va adabiyot, Milliy Sertifikat",
-        text: "Ona tili imlosidan ko'p xato qilardim. AI xatolarimni ko'rsatdi va tushuntirdi. Ikki oyda sezilarli yaxshilandim. Bepul ekanligi eng katta afzalligi.",
+        role: "Milliy Sertifikat · Ona tili",
+        text: "Imlo va tinish belgilarida katta muammom bor edi. Test yechsam, har xatoni nima uchun xato ekanligi tushuntiriladi. Ikki oyda o'zim farqni sezdim, o'qituvchim ham payqadi.",
         stars: 5,
         subject: "Ona tili"
     },
@@ -167,6 +167,30 @@ function TestimonialsCarousel() {
                     </div>
                 </div>
             ))}
+        </div>
+    )
+}
+
+// Scroll reveal — element viewport ga kirganda smooth ko'rinadi
+function Reveal({ children, delay = 0, className = '' }: { children: React.ReactNode; delay?: number; className?: string }) {
+    const ref = useRef<HTMLDivElement>(null)
+    const [visible, setVisible] = useState(false)
+    useEffect(() => {
+        const el = ref.current; if (!el) return
+        const obs = new IntersectionObserver(
+            ([e]) => { if (e.isIntersecting) { setVisible(true); obs.disconnect() } },
+            { threshold: 0.08 }
+        )
+        obs.observe(el)
+        return () => obs.disconnect()
+    }, [])
+    return (
+        <div ref={ref} className={className} style={{
+            opacity: visible ? 1 : 0,
+            transform: visible ? 'translateY(0)' : 'translateY(22px)',
+            transition: `opacity 0.55s ease ${delay}s, transform 0.55s ease ${delay}s`
+        }}>
+            {children}
         </div>
     )
 }
@@ -330,29 +354,28 @@ export default function Landing() {
             {/* ── Steps ───────────────────────────────────────────── */}
             <section className="py-20 px-5">
                 <div className="max-w-5xl mx-auto">
-                    <div className="text-center mb-12">
+                    <Reveal className="text-center mb-12">
                         <p className="section-label mb-2">Qanday ishlaydi</p>
                         <h2 className="text-3xl font-extrabold tracking-tight">3 qadam, shu tamom</h2>
-                    </div>
-
+                    </Reveal>
                     <div className="grid sm:grid-cols-3 gap-6">
                         {[
                             { step: '01', title: "Fan tanlang", desc: "Qaysi fandan DTM topshirishingizni, imtihon sanasini va maqsad ballingizni kiriting." },
                             { step: '02', title: "AI bilan o'qing", desc: "Savoling bo'lsa yozing. AI mavzuni tushuntiradi, test beradi, xatoni ko'rsatadi." },
                             { step: '03', title: "Natijani ko'ring", desc: "Har bir testdan keyin zaif joylaringiz aniqlanadi va statistika yangilanadi." },
                         ].map((item, i) => (
-                            <div key={i} className="card card-hover anim-up" style={{ animationDelay: `${i * 0.1}s`, position: 'relative', overflow: 'hidden' }}>
-                                <span
-                                    className="absolute top-3 right-4 font-black select-none"
-                                    style={{ fontSize: '4.5rem', lineHeight: 1, color: 'var(--border)', userSelect: 'none' }}
-                                >
-                                    {item.step}
-                                </span>
-                                <div className="relative">
-                                    <h3 className="font-bold text-base mb-2">{item.title}</h3>
-                                    <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{item.desc}</p>
+                            <Reveal key={i} delay={i * 0.1}>
+                                <div className="card card-hover" style={{ position: 'relative', overflow: 'hidden', height: '100%' }}>
+                                    <span className="absolute top-3 right-4 font-black select-none"
+                                        style={{ fontSize: '4.5rem', lineHeight: 1, color: 'var(--border)', userSelect: 'none' }}>
+                                        {item.step}
+                                    </span>
+                                    <div className="relative">
+                                        <h3 className="font-bold text-base mb-2">{item.title}</h3>
+                                        <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{item.desc}</p>
+                                    </div>
                                 </div>
-                            </div>
+                            </Reveal>
                         ))}
                     </div>
                 </div>
@@ -361,29 +384,24 @@ export default function Landing() {
             {/* ── Features ────────────────────────────────────────── */}
             <section className="py-20 px-5" style={{ background: 'var(--bg-surface)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
                 <div className="max-w-5xl mx-auto">
-                    <div className="text-center mb-12">
+                    <Reveal className="text-center mb-12">
                         <p className="section-label mb-2">Imkoniyatlar</p>
                         <h2 className="text-3xl font-extrabold tracking-tight">
                             Tayyorgarlik uchun kerak bo'lgan hamma narsa
                         </h2>
-                    </div>
-
+                    </Reveal>
                     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                         {FEATURES.map((f, i) => (
-                            <div
-                                key={i}
-                                className="card card-hover anim-up"
-                                style={{ animationDelay: `${i * 0.08}s` }}
-                            >
-                                <div
-                                    className="h-10 w-10 rounded-xl flex items-center justify-center mb-4"
-                                    style={{ background: `${f.color}18` }}
-                                >
-                                    <f.icon className="h-5 w-5" style={{ color: f.color }} />
+                            <Reveal key={i} delay={i * 0.07}>
+                                <div className="card card-hover" style={{ height: '100%' }}>
+                                    <div className="h-10 w-10 rounded-xl flex items-center justify-center mb-4"
+                                        style={{ background: `${f.color}18` }}>
+                                        <f.icon className="h-5 w-5" style={{ color: f.color }} />
+                                    </div>
+                                    <h3 className="font-bold text-base mb-1.5">{f.title}</h3>
+                                    <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{f.desc}</p>
                                 </div>
-                                <h3 className="font-bold text-base mb-1.5">{f.title}</h3>
-                                <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{f.desc}</p>
-                            </div>
+                            </Reveal>
                         ))}
                     </div>
                 </div>
@@ -392,22 +410,23 @@ export default function Landing() {
             {/* ── FAQ ─────────────────────────────────────────────── */}
             <section className="py-20 px-5">
                 <div className="max-w-2xl mx-auto">
-                    <div className="text-center mb-12">
+                    <Reveal className="text-center mb-12">
                         <p className="section-label mb-2">Savollar</p>
                         <h2 className="text-3xl font-extrabold tracking-tight">Tez-tez so'raladigan savollar</h2>
-                    </div>
-
-                    <div className="card" style={{ padding: '0 1.5rem' }}>
-                        {FAQ_ITEMS.map((item, i) => (
-                            <FAQItem key={i} q={item.q} a={item.a} />
-                        ))}
-                    </div>
+                    </Reveal>
+                    <Reveal delay={0.1}>
+                        <div className="card" style={{ padding: '0 1.5rem' }}>
+                            {FAQ_ITEMS.map((item, i) => (
+                                <FAQItem key={i} q={item.q} a={item.a} />
+                            ))}
+                        </div>
+                    </Reveal>
                 </div>
             </section>
 
             {/* ── CTA ─────────────────────────────────────────────── */}
             <section className="py-20 px-5" style={{ background: 'var(--bg-surface)', borderTop: '1px solid var(--border)' }}>
-                <div className="max-w-xl mx-auto text-center">
+                <Reveal className="max-w-xl mx-auto text-center">
                     <h2 className="text-3xl font-extrabold tracking-tight mb-4">Tayyormisiz?</h2>
                     <p className="mb-8" style={{ color: 'var(--text-secondary)' }}>
                         Bugun boshlang — bepul, hech qanday ro'yxatdan o'tish qarori kerak emas.
@@ -441,7 +460,7 @@ export default function Landing() {
                             Support
                         </a>
                     </div>
-                </div>
+                </Reveal>
             </section>
 
             {/* ── Footer ──────────────────────────────────────────── */}
