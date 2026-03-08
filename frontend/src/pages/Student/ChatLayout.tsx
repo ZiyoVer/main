@@ -1478,8 +1478,8 @@ export default function ChatLayout() {
                             })()}
                             {/* Test statistikasi */}
                             {(() => {
-                                const abilityLevel = profile?.abilityLevel ?? 0
-                                const abilityPct = Math.round(((abilityLevel + 3) / 6) * 100)
+                                const abilityLevel = Math.max(-5, Math.min(5, profile?.abilityLevel ?? 0))
+                                const abilityPct = Math.max(0, Math.min(100, Math.round(((abilityLevel + 3) / 6) * 100)))
                                 const abilityLabel = abilityLevel >= 1.5 ? 'Yuqori' : abilityLevel >= 0 ? "O'rta" : abilityLevel >= -1.5 ? 'Past' : 'Juda past'
                                 const abilityColor = abilityLevel >= 1.5 ? 'from-emerald-500 to-teal-400' : abilityLevel >= 0 ? 'from-blue-500 to-cyan-400' : abilityLevel >= -1.5 ? 'from-amber-400 to-orange-400' : 'from-red-400 to-rose-400'
                                 return (

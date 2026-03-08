@@ -196,6 +196,12 @@ export default function TestPage() {
                             )}
                         </div>
                         <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{result.correct} / {result.total} to'g'ri</p>
+                        {result.dtmBall !== undefined && (
+                            <div className="mt-2 px-3 py-1.5 rounded-lg inline-flex items-center gap-2" style={{ background: 'color-mix(in srgb, var(--brand) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)' }}>
+                                <span className="text-[12px] font-semibold" style={{ color: 'var(--brand)' }}>DTM ball: {result.dtmBall} / {result.dtmMax}</span>
+                                <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>({result.dtmBall > 0 ? '+' : ''}{result.newAbility?.toFixed(2)} logit)</span>
+                            </div>
+                        )}
                     </div>
                 )}
 

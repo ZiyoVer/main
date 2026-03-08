@@ -19,6 +19,21 @@ function getGrade(score: number): string {
     return 'D'
 }
 
+// DTM ball hisoblash
+// Majburiy fanlar (10 savol * 1.1 = max 11 ball)
+// Ixtisoslik 1-fan (30 savol * 3.1 = max 93 ball)
+// Ixtisoslik 2-fan (30 savol * 2.1 = max 63 ball)
+// Ustoz testlari uchun: bir fan bo'lgani uchun 3.1 koeffitsient ishlatiladi
+const MANDATORY_SUBJECTS = ["Ona tili", "Tarix", "O'zbekiston tarixi"]
+function getDtmBall(subject: string | null, correct: number, total: number): { ball: number; max: number; coefficient: number } {
+    const coef = subject && MANDATORY_SUBJECTS.includes(subject) ? 1.1 : 3.1
+    return {
+        ball: Math.round(correct * coef * 10) / 10,
+        max: Math.round(total * coef * 10) / 10,
+        coefficient: coef
+    }
+}
+
 const router = Router()
 
 // Test submit uchun rate limit (brute force javob topish oldini olish)
@@ -786,7 +801,8 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
         const profile = await prisma.studentProfile.findUnique({
             where: { userId: req.user.id }
         })
-        const currentAbility = profile?.abilityLevel || 0.0
+        // Eski xato qiymatlarni tuzatish uchun clamp qilamiz
+        const currentAbility = Math.max(-5, Math.min(5, profile?.abilityLevel || 0.0))
         const newAbility = updateAbility(currentAbility, results.map((r: any) => ({
             difficulty: r.difficulty,
             isCorrect: r.isCorrect
@@ -828,6 +844,8 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
             questionType: (q as any).questionType || 'mcq'
         }))
 
+        const dtm = getDtmBall(test.subject || null, correct, test.questions.length)
+
         res.json({
             attempt,
             score: Math.round(score * 100) / 100,
@@ -835,6 +853,8 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
             correct,
             total: test.questions.length,
             newAbility,
+            dtmBall: dtm.ball,
+            dtmMax: dtm.max,
             results,
             correctAnswers
         })

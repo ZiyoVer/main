@@ -25,7 +25,8 @@ export function updateAbility(
         ability += delta
         if (Math.abs(delta) < tolerance) break
     }
-    return Math.round(ability * 1000) / 1000
+    // Logit shkalasini [-5, 5] oralig'ida ushlab turish
+    return Math.round(Math.max(-5, Math.min(5, ability)) * 1000) / 1000
 }
 
 export function updateDifficulty(
