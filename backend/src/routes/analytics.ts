@@ -4,6 +4,19 @@ import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
 
 const router = Router()
 
+// GET /public-stats — autentifikatsiya talab qilinmaydi (landing page uchun)
+router.get('/public-stats', async (_req, res) => {
+    try {
+        const [totalStudents, totalPublicTests] = await Promise.all([
+            prisma.user.count({ where: { role: 'STUDENT' } }),
+            prisma.test.count({ where: { isPublic: true } })
+        ])
+        res.json({ totalStudents, totalPublicTests })
+    } catch {
+        res.json({ totalStudents: 0, totalPublicTests: 0 })
+    }
+})
+
 // Admin: Platformaga to'liq statistikalar
 router.get('/stats', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
     try {
@@ -17,7 +30,9 @@ router.get('/stats', authenticate, requireRole('ADMIN'), async (req: AuthRequest
             last24h, lastWeek, lastMonth, totalVisits,
             totalTests, totalChats, totalMessages,
             totalDocuments, totalChunks, totalAttempts,
-            recentUsers
+            recentUsers,
+            emailVerifiedCount,
+            avgAbilityResult
         ] = await Promise.all([
             prisma.user.count(),
             prisma.user.count({ where: { role: 'STUDENT' } }),
@@ -36,7 +51,9 @@ router.get('/stats', authenticate, requireRole('ADMIN'), async (req: AuthRequest
                 take: 5,
                 orderBy: { createdAt: 'desc' },
                 select: { id: true, name: true, email: true, role: true, createdAt: true }
-            })
+            }),
+            prisma.user.count({ where: { emailVerified: true } }),
+            prisma.studentProfile.aggregate({ _avg: { abilityLevel: true } })
         ])
 
         // O'rtacha test ball
@@ -48,7 +65,9 @@ router.get('/stats', authenticate, requireRole('ADMIN'), async (req: AuthRequest
             totalTests, totalChats, totalMessages,
             totalDocuments, totalChunks, totalAttempts,
             avgScore: Math.round((avgScoreResult._avg.score || 0) * 100) / 100,
-            recentUsers
+            recentUsers,
+            emailVerifiedCount,
+            avgAbility: Math.round((avgAbilityResult._avg.abilityLevel || 0) * 100) / 100
         })
     } catch (e) {
         console.error(e)
@@ -97,22 +116,29 @@ router.get('/login-trend', authenticate, requireRole('ADMIN'), async (req: AuthR
 router.get('/register-trend', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
     try {
         const now = new Date()
+        const w7Ago = new Date(now)
+        w7Ago.setDate(w7Ago.getDate() - 6)
+        w7Ago.setHours(0, 0, 0, 0)
+
+        const users = await prisma.user.findMany({
+            where: { createdAt: { gte: w7Ago } },
+            select: { createdAt: true }
+        })
+
+        const countMap: Record<string, number> = {}
+        for (const u of users) {
+            const key = u.createdAt.toISOString().split('T')[0]
+            countMap[key] = (countMap[key] || 0) + 1
+        }
+
         const days: { day: string; count: number }[] = []
-
         for (let i = 6; i >= 0; i--) {
-            const from = new Date(now)
-            from.setDate(from.getDate() - i)
-            from.setHours(0, 0, 0, 0)
-
-            const to = new Date(from)
-            to.setHours(23, 59, 59, 999)
-
-            const count = await prisma.user.count({
-                where: { createdAt: { gte: from, lte: to } }
-            })
-
-            const label = from.toLocaleDateString('uz-UZ', { weekday: 'short', day: 'numeric' })
-            days.push({ day: label, count })
+            const d = new Date(now)
+            d.setDate(d.getDate() - i)
+            d.setHours(0, 0, 0, 0)
+            const key = d.toISOString().split('T')[0]
+            const label = d.toLocaleDateString('uz-UZ', { weekday: 'short', day: 'numeric' })
+            days.push({ day: label, count: countMap[key] || 0 })
         }
 
         res.json(days)

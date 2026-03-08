@@ -105,6 +105,14 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 export default function Landing() {
     const nav = useNavigate()
     const { token, user } = useAuthStore()
+    const [publicStats, setPublicStats] = useState<{ totalStudents: number; totalPublicTests: number } | null>(null)
+
+    useEffect(() => {
+        fetch('/api/analytics/public-stats')
+            .then(r => r.json())
+            .then(d => setPublicStats(d))
+            .catch(() => {})
+    }, [])
 
     useEffect(() => {
         if (token && user) {
@@ -197,6 +205,28 @@ export default function Landing() {
                             Kirish
                         </Link>
                     </div>
+                    {publicStats && publicStats.totalStudents > 0 && (
+                        <div className="flex items-center justify-center gap-6 mt-6 anim-up" style={{ animationDelay: '0.4s' }}>
+                            <div className="text-center">
+                                <div className="text-2xl font-extrabold" style={{ color: 'var(--text-primary)' }}>
+                                    {publicStats.totalStudents.toLocaleString()}+
+                                </div>
+                                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>ro'yxatdan o'tgan</div>
+                            </div>
+                            <div className="w-px h-8" style={{ background: 'var(--border)' }} />
+                            <div className="text-center">
+                                <div className="text-2xl font-extrabold" style={{ color: 'var(--text-primary)' }}>
+                                    {publicStats.totalPublicTests}+
+                                </div>
+                                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>public test</div>
+                            </div>
+                            <div className="w-px h-8" style={{ background: 'var(--border)' }} />
+                            <div className="text-center">
+                                <div className="text-2xl font-extrabold" style={{ color: 'var(--text-primary)' }}>8</div>
+                                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>fan</div>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Chat demo */}
@@ -345,6 +375,28 @@ export default function Landing() {
                     >
                         Bepul boshlash <ArrowRight className="h-4 w-4" />
                     </Link>
+                    <div className="flex items-center justify-center gap-4 mt-6 flex-wrap">
+                        <a
+                            href="https://t.me/+rUid8dzewCBkYTRi"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg transition"
+                            style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+                        >
+                            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.17 14.146l-2.96-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.978.413z"/></svg>
+                            Telegram kanal
+                        </a>
+                        <a
+                            href="https://t.me/uzdatalabsupport"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg transition"
+                            style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+                        >
+                            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                            Support
+                        </a>
+                    </div>
                 </div>
             </section>
 
@@ -358,7 +410,15 @@ export default function Landing() {
                         <span className="font-bold text-sm">DTMMax</span>
                         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>© 2026</span>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 flex-wrap">
+                        <a href="https://t.me/+rUid8dzewCBkYTRi" target="_blank" rel="noopener noreferrer"
+                            className="text-xs hover:underline transition" style={{ color: 'var(--text-muted)' }}>
+                            Telegram
+                        </a>
+                        <a href="https://t.me/uzdatalabsupport" target="_blank" rel="noopener noreferrer"
+                            className="text-xs hover:underline transition" style={{ color: 'var(--text-muted)' }}>
+                            Support
+                        </a>
                         <Link
                             to="/shartlar"
                             className="text-xs hover:underline transition"

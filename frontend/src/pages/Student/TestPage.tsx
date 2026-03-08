@@ -171,10 +171,22 @@ export default function TestPage() {
                 {/* Result */}
                 {submitted && result && (
                     <div className="card p-5 text-center">
-                        <div className="text-4xl font-extrabold mb-1" style={{
-                            color: result.score >= 70 ? 'var(--success)' : result.score >= 50 ? 'var(--warning)' : 'var(--danger)'
-                        }}>
-                            {result.score}%
+                        <div className="flex items-center justify-center gap-4 mb-2">
+                            <div className="text-4xl font-extrabold" style={{
+                                color: result.score >= 70 ? 'var(--success)' : result.score >= 50 ? 'var(--warning)' : 'var(--danger)'
+                            }}>
+                                {result.score}%
+                            </div>
+                            {result.grade && (
+                                <div className="flex flex-col items-center">
+                                    <div className="text-3xl font-extrabold" style={{
+                                        color: result.grade.startsWith('A') ? 'var(--success)' : result.grade.startsWith('B') ? 'var(--info)' : result.grade.startsWith('C') ? 'var(--warning)' : 'var(--danger)'
+                                    }}>
+                                        {result.grade}
+                                    </div>
+                                    <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>baho</div>
+                                </div>
+                            )}
                         </div>
                         <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{result.correct} / {result.total} to'g'ri</p>
                     </div>
@@ -209,8 +221,9 @@ export default function TestPage() {
                     const correctIdx = correct?.idx ?? -1
                     const isOpen = q.questionType === 'open'
                     const textAnswer = typeof answers[q.id] === 'string' ? answers[q.id] as string : ''
+                    const serverResult = result?.results?.find((r: any) => r.questionId === q.id)
                     const isCorrectOpen = submitted && correct?.type === 'open'
-                        ? textAnswer.trim().toLowerCase() === (correct.text || '').trim().toLowerCase()
+                        ? (serverResult ? serverResult.isCorrect : textAnswer.trim().toLowerCase() === (correct.text || '').trim().toLowerCase())
                         : false
 
                     return (

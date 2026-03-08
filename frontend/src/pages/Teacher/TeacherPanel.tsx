@@ -224,6 +224,19 @@ export default function TeacherPanel() {
         try { await fetchApi(`/tests/${id}`, { method: 'DELETE' }); loadTests() } catch { }
     }
 
+    async function toggleVisibility(testId: string, currentIsPublic: boolean) {
+        try {
+            await fetchApi(`/tests/${testId}/visibility`, {
+                method: 'PATCH',
+                body: JSON.stringify({ isPublic: !currentIsPublic })
+            })
+            toast.success(!currentIsPublic ? 'Test public qilindi! O\'quvchilarga bildirishnoma yuborildi.' : 'Test private qilindi')
+            loadTests()
+        } catch (e: any) {
+            toast.error(e.message)
+        }
+    }
+
     function copyLink(shareLink: string) {
         const url = `${window.location.origin}/test/${shareLink}`
         navigator.clipboard.writeText(url)
@@ -235,6 +248,96 @@ export default function TeacherPanel() {
         setAnalyticsId(testId); setAnalytics(null); setLoadingAnalytics(true)
         try { setAnalytics(await fetchApi(`/tests/${testId}/analytics`)) } catch { }
         setLoadingAnalytics(false)
+    }
+
+    function downloadAnalyticsPdf(analytics: any) {
+        if (!analytics) return
+        const { test, students, questionStats, totalAttempts, avgScore } = analytics
+
+        function getGrade(score: number) {
+            if (score >= 90) return 'A+'
+            if (score >= 80) return 'A'
+            if (score >= 70) return 'B+'
+            if (score >= 60) return 'B'
+            if (score >= 50) return 'C+'
+            if (score >= 40) return 'C'
+            return 'D'
+        }
+
+        const rows = (students || []).map((s: any, i: number) => `
+        <tr style="background:${i%2===0?'#fff':'#f9fafb'}">
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${i+1}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${s.name}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:600;color:${s.score>=70?'#16a34a':s.score>=50?'#d97706':'#dc2626'}">${s.score}%</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;color:${s.score>=70?'#16a34a':s.score>=50?'#d97706':'#dc2626'}">${getGrade(s.score)}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-size:12px">${new Date(s.createdAt).toLocaleDateString('uz-UZ')}</td>
+        </tr>
+    `).join('')
+
+        const questionRows = (questionStats || []).map((q: any, i: number) => `
+        <tr style="background:${i%2===0?'#fff':'#f9fafb'}">
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280">${i+1}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;max-width:300px">${q.text?.substring(0,80) || '—'}${q.text?.length>80?'...':''}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center">${q.totalAnswered}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:600;color:${q.errorRate>50?'#dc2626':q.errorRate>30?'#d97706':'#16a34a'}">${q.errorRate}%</td>
+        </tr>
+    `).join('')
+
+        const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>${test?.title || 'Test'} — Statistika</title>
+<style>
+  body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 24px; color: #111; }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .subtitle { color: #6b7280; font-size: 13px; margin-bottom: 20px; }
+  .stats { display: flex; gap: 24px; margin-bottom: 24px; }
+  .stat { background: #f3f4f6; padding: 12px 20px; border-radius: 8px; text-align: center; }
+  .stat-val { font-size: 24px; font-weight: 800; }
+  .stat-lbl { font-size: 11px; color: #6b7280; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 32px; }
+  th { background: #1e1e2e; color: #fff; padding: 10px 12px; text-align: left; font-size: 12px; }
+  h2 { font-size: 15px; margin: 24px 0 8px; }
+  @media print { body { padding: 8px; } }
+</style>
+</head>
+<body>
+<h1>${test?.title || 'Test'} — Statistika</h1>
+<div class="subtitle">${test?.subject || ''} · Sana: ${new Date().toLocaleDateString('uz-UZ')}</div>
+<div class="stats">
+  <div class="stat"><div class="stat-val">${totalAttempts}</div><div class="stat-lbl">Jami urinish</div></div>
+  <div class="stat"><div class="stat-val">${avgScore}%</div><div class="stat-lbl">O'rtacha ball</div></div>
+  <div class="stat"><div class="stat-val">${getGrade(avgScore)}</div><div class="stat-lbl">O'rtacha baho</div></div>
+</div>
+
+<h2>O'quvchilar natijalari</h2>
+<table>
+<thead><tr>
+  <th>#</th><th>Ism</th><th>Ball</th><th>Baho</th><th>Sana</th>
+</tr></thead>
+<tbody>${rows}</tbody>
+</table>
+
+<h2>Savollar tahlili</h2>
+<table>
+<thead><tr>
+  <th>#</th><th>Savol</th><th>Javob berilgan</th><th>Xato foizi</th>
+</tr></thead>
+<tbody>${questionRows}</tbody>
+</table>
+
+<div style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:center">
+  DTMMax • dtmmax.uz • ${new Date().toLocaleDateString('uz-UZ')}
+</div>
+</body>
+</html>`
+
+        const w = window.open('', '_blank')
+        if (!w) { toast.error('Popup bloklangan. Browser ruxsat bering.'); return }
+        w.document.write(html)
+        w.document.close()
+        setTimeout(() => { w.print() }, 500)
     }
 
     // Helpers
@@ -314,6 +417,18 @@ export default function TeacherPanel() {
                                         </div>
                                         <p className="text-[11px]" style={mutedText}>{t._count?.questions || 0} savol · {t._count?.attempts || 0} urinish · {t.subject}{t.timeLimit ? ` · ⏱ ${t.timeLimit} min` : ''}</p>
                                     </div>
+                                    <button
+                                        onClick={() => toggleVisibility(t.id, t.isPublic)}
+                                        className="h-7 px-2.5 flex items-center gap-1 rounded-lg text-[11px] font-medium transition flex-shrink-0"
+                                        style={t.isPublic
+                                            ? { color: 'var(--success)', background: 'var(--success-light)' }
+                                            : { color: 'var(--text-muted)', background: 'var(--bg-surface)' }
+                                        }
+                                        title={t.isPublic ? 'Private qilish' : 'Public qilish'}
+                                    >
+                                        {t.isPublic ? <Globe className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
+                                        {t.isPublic ? 'Public' : 'Private'}
+                                    </button>
                                     <button onClick={() => openAnalytics(t.id)} className="h-7 px-2.5 flex items-center gap-1 rounded-lg text-[11px] font-medium transition flex-shrink-0"
                                         style={{ color: 'var(--info)', background: 'var(--info-light)' }}>
                                         <BarChart2 className="h-3 w-3" /> Statistika
@@ -602,12 +717,22 @@ export default function TeacherPanel() {
                                     {analytics && <p className="text-[11px]" style={mutedText}>{analytics.totalAttempts} urinish · O'rtacha: {analytics.avgScore}%</p>}
                                 </div>
                             </div>
-                            <button onClick={() => setAnalyticsId(null)} className="h-7 w-7 flex items-center justify-center rounded-lg transition"
-                                style={mutedText}
-                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                <X className="h-4 w-4" />
-                            </button>
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={() => downloadAnalyticsPdf(analytics)}
+                                    className="btn btn-outline btn-sm flex items-center gap-1.5 mr-2"
+                                    style={{ fontSize: '12px' }}
+                                >
+                                    <FileText className="h-3.5 w-3.5" />
+                                    PDF yuklash
+                                </button>
+                                <button onClick={() => setAnalyticsId(null)} className="h-7 w-7 flex items-center justify-center rounded-lg transition"
+                                    style={mutedText}
+                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                    <X className="h-4 w-4" />
+                                </button>
+                            </div>
                         </div>
 
                         {loadingAnalytics ? (

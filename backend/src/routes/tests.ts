@@ -9,6 +9,16 @@ import { authenticate, AuthRequest, requireRole, optionalAuthenticate } from '..
 import { updateAbility } from '../utils/rasch'
 import { uploadToS3 } from '../utils/s3'
 
+function getGrade(score: number): string {
+    if (score >= 90) return 'A+'
+    if (score >= 80) return 'A'
+    if (score >= 70) return 'B+'
+    if (score >= 60) return 'B'
+    if (score >= 50) return 'C+'
+    if (score >= 40) return 'C'
+    return 'D'
+}
+
 const router = Router()
 
 // Test submit uchun rate limit (brute force javob topish oldini olish)
@@ -501,6 +511,29 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
             include: { questions: true }
         })
 
+        // Public test yaratilsa barcha studentlarga bildirishnoma
+        if (isPublic) {
+            try {
+                const students = await prisma.user.findMany({
+                    where: { role: 'STUDENT' },
+                    select: { id: true }
+                })
+                if (students.length > 0) {
+                    await prisma.notification.createMany({
+                        data: students.map((s: { id: string }) => ({
+                            userId: s.id,
+                            senderId: req.user.id,
+                            title: `📚 Yangi test: ${title}`,
+                            message: `"${title}" nomli yangi ${subject || ''} testi qo'shildi. Hoziroq yechib ko'ring!`
+                        }))
+                    })
+                }
+            } catch (notifErr) {
+                console.error('Notification send error:', notifErr)
+                // Bildirishnoma xatosi test yaratishni to'xtatmasin
+            }
+        }
+
         res.status(201).json(test)
     } catch (e) {
         console.error(e)
@@ -793,6 +826,7 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
         res.json({
             attempt,
             score: Math.round(score * 100) / 100,
+            grade: getGrade(Math.round(score * 100) / 100),
             correct,
             total: test.questions.length,
             newAbility,
@@ -878,6 +912,54 @@ router.get('/:testId/analytics', authenticate, requireRole('TEACHER', 'ADMIN'), 
             })),
             questionStats
         })
+    } catch (e) {
+        console.error(e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+// Test public/private o'zgartirish
+router.patch('/:testId/visibility', authenticate, requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, res) => {
+    try {
+        const { isPublic } = req.body
+        if (typeof isPublic !== 'boolean') {
+            return res.status(400).json({ error: 'isPublic boolean bo\'lishi kerak' })
+        }
+        const where = req.user.role === 'ADMIN'
+            ? { id: req.params.testId as string }
+            : { id: req.params.testId as string, creatorId: req.user.id }
+
+        const test = await prisma.test.findFirst({ where })
+        if (!test) return res.status(404).json({ error: 'Test topilmadi yoki ruxsat yo\'q' })
+
+        const updated = await prisma.test.update({
+            where: { id: test.id },
+            data: { isPublic }
+        })
+
+        // Private → Public bo'lganda barcha studentlarga bildirishnoma
+        if (isPublic && !test.isPublic) {
+            try {
+                const students = await prisma.user.findMany({
+                    where: { role: 'STUDENT' },
+                    select: { id: true }
+                })
+                if (students.length > 0) {
+                    await prisma.notification.createMany({
+                        data: students.map((s: { id: string }) => ({
+                            userId: s.id,
+                            senderId: req.user.id,
+                            title: `📚 Yangi test: ${test.title}`,
+                            message: `"${test.title}" nomli yangi public test qo'shildi. Hoziroq yechib ko'ring!`
+                        }))
+                    })
+                }
+            } catch (notifErr) {
+                console.error('Notification send error:', notifErr)
+            }
+        }
+
+        res.json(updated)
     } catch (e) {
         console.error(e)
         res.status(500).json({ error: 'Server xatoligi' })
