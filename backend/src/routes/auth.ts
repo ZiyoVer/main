@@ -242,22 +242,26 @@ router.get('/users', authenticate, requireRole('ADMIN'), async (req: AuthRequest
 // Admin: Foydalanuvchini o'chirish
 router.delete('/users/:userId', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
     try {
-        const { userId } = req.params
-        const target = await prisma.user.findUnique({ where: { id: userId } })
+        const uid = String(req.params.userId)
+        const target = await prisma.user.findUnique({ where: { id: uid } })
         if (!target) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' })
         if (target.role === 'ADMIN') return res.status(403).json({ error: 'Admin akkauntini o\'chirib bo\'lmaydi' })
 
-        // Cascade: barcha bog'liq ma'lumotlarni o'chirish
+        // Avval chatlar ID larini olamiz (message delete uchun)
+        const userChats = await prisma.chat.findMany({ where: { userId: uid }, select: { id: true } })
+        const chatIds = userChats.map(c => c.id)
+
         await prisma.$transaction([
-            prisma.notification.deleteMany({ where: { userId } }),
-            prisma.visitLog.deleteMany({ where: { userId } }),
-            prisma.message.deleteMany({ where: { chat: { userId } } }),
-            prisma.chat.deleteMany({ where: { userId } }),
-            prisma.testAttempt.deleteMany({ where: { userId } }),
-            prisma.flashcard.deleteMany({ where: { userId } }),
-            prisma.activityLog.deleteMany({ where: { userId } }),
-            prisma.studentProfile.deleteMany({ where: { userId } }),
-            prisma.user.delete({ where: { id: userId } })
+            prisma.notification.deleteMany({ where: { userId: uid } }),
+            prisma.visitLog.deleteMany({ where: { userId: uid } }),
+            prisma.message.deleteMany({ where: { chatId: { in: chatIds } } }),
+            prisma.chat.deleteMany({ where: { userId: uid } }),
+            prisma.testAttempt.deleteMany({ where: { userId: uid } }),
+            prisma.flashcard.deleteMany({ where: { userId: uid } }),
+            prisma.topicStat.deleteMany({ where: { userId: uid } }),
+            prisma.userProgress.deleteMany({ where: { userId: uid } }),
+            prisma.studentProfile.deleteMany({ where: { userId: uid } }),
+            prisma.user.delete({ where: { id: uid } })
         ])
 
         res.json({ message: 'Foydalanuvchi o\'chirildi' })
