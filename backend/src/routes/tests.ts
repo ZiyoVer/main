@@ -566,9 +566,9 @@ Matematik belgilar va formulalarni LaTeX formatida yoz ($\\frac{a}{b}$, $x^2$, $
         })
 
         const extractResult = await gptClient.chat.completions.create({
-            model: 'gpt-4o-mini',
+            model: 'gpt-4o',
             messages: [{ role: 'user', content: extractContent }],
-            max_tokens: 1500,
+            max_tokens: 2000,
             temperature: 0.1
         })
 
@@ -632,7 +632,7 @@ router.post('/analyze-result', authenticate, async (req: AuthRequest, res) => {
                 content.push({ type: 'text', text: `\nSavol ${idx+1}${q.text ? ': '+q.text : ' (rasm):'}\nVariantlar: ${opts||'—'}\nO'quvchi javobi: ${studentLabel} | Tizim to'g'ri javobi: ${correctLabel} (rasmdan mustaqil tekshir)\nRasm:` })
                 content.push({ type: 'image_url', image_url: { url: q.imageUrl, detail: 'high' } })
             })
-            const completion = await gptClient.chat.completions.create({ model: 'gpt-4o-mini', messages: [{ role: 'user', content }], max_tokens: 2000, temperature: 0.3 })
+            const completion = await gptClient.chat.completions.create({ model: 'gpt-4o', messages: [{ role: 'user', content }], max_tokens: 2000, temperature: 0.3 })
             return res.json({ analysis: completion.choices[0]?.message?.content || null, type: 'vision' })
         }
 
@@ -697,15 +697,37 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
         if (!test) return res.status(404).json({ error: 'Test topilmadi' })
 
         // Javoblarni tekshirish
-        const results = answers.map((a: any) => {
+        const results = await Promise.all(answers.map(async (a: any) => {
             const q = test.questions.find(q => q.id === a.questionId)
             let isCorrect = false
             if (q) {
                 if (q.questionType === 'open') {
-                    // Yozma javob: case-insensitive, trim bilan solishtirish
-                    const studentAns = (a.textAnswer || '').trim().toLowerCase()
-                    const correctAns = (q.correctText || '').trim().toLowerCase()
-                    isCorrect = correctAns.length > 0 && studentAns === correctAns
+                    const studentAns = (a.textAnswer || '').trim()
+                    const correctAns = (q.correctText || '').trim()
+                    if (correctAns.length === 0 || studentAns.length === 0) {
+                        isCorrect = false
+                    } else if (studentAns.toLowerCase() === correctAns.toLowerCase()) {
+                        // To'liq mos — AI ga so'ramasdan
+                        isCorrect = true
+                    } else {
+                        // AI bilan semantik tekshirish
+                        try {
+                            const aiCheck = await aiClient.chat.completions.create({
+                                model: aiModel,
+                                messages: [{
+                                    role: 'user',
+                                    content: `Test savoliga to'g'ri javob: "${correctAns}"\nO'quvchi javobi: "${studentAns}"\n\nO'quvchining javobi to'g'rimi (ma'nosi bo'yicha, yozilishi farqli bo'lsa ham)? Faqat "HA" yoki "YOQ" deb javob ber.`
+                                }],
+                                max_tokens: 5,
+                                temperature: 0
+                            })
+                            const reply = aiCheck.choices[0]?.message?.content?.trim().toUpperCase() || ''
+                            isCorrect = reply.startsWith('HA')
+                        } catch {
+                            // AI xato bo'lsa — string solishtirish fallback
+                            isCorrect = studentAns.toLowerCase() === correctAns.toLowerCase()
+                        }
+                    }
                 } else {
                     isCorrect = q.correctIdx === a.selectedIdx
                 }
@@ -717,7 +739,7 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
                 isCorrect,
                 difficulty: q?.difficulty || 0.0
             }
-        })
+        }))
 
         const correct = results.filter((r: any) => r.isCorrect).length
         const score = test.questions.length > 0 ? (correct / test.questions.length) * 100 : 0
