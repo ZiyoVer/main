@@ -345,6 +345,51 @@ export default function Landing() {
                 </div>
             </section>
 
+            {/* ── Testimonials ─────────────────────────────── */}
+            <section className="py-20 px-5" style={{ background: 'var(--bg-surface)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
+                <div className="max-w-4xl mx-auto">
+                    <div className="text-center mb-12">
+                        <p className="section-label mb-2">Foydalanuvchilar fikri</p>
+                        <h2 className="text-3xl font-extrabold tracking-tight">O'quvchilar nima deydi?</h2>
+                    </div>
+                    <div className="grid sm:grid-cols-3 gap-4">
+                        {[
+                            {
+                                name: "Sarvar T.",
+                                role: "11-sinf o'quvchisi",
+                                text: "DTMMax bilan matematikadan 89 ball oldim! AI ustozim har safar tushuntirdi, sabr qildi. Tavsiya qilaman.",
+                                stars: 5
+                            },
+                            {
+                                name: "Nilufar X.",
+                                role: "Milliy Sertifikat ishtirokchisi",
+                                text: "Biologiya va kimyodan tayyorlandim. Testlar juda foydali, AI javoblar aniq va tushunarli.",
+                                stars: 5
+                            },
+                            {
+                                name: "Jasur M.",
+                                role: "DTM 2025 bitiruvchisi",
+                                text: "Bepul platforma sifatida juda kuchli. Har kuni 1-2 soat shu yerda o'qidim, natijam yaxshi bo'ldi.",
+                                stars: 5
+                            }
+                        ].map((t, i) => (
+                            <div key={i} className="card p-5 anim-up" style={{ animationDelay: `${i * 0.1}s` }}>
+                                <div className="flex gap-0.5 mb-3">
+                                    {Array(t.stars).fill(0).map((_, j) => (
+                                        <span key={j} style={{ color: '#f59e0b', fontSize: '14px' }}>★</span>
+                                    ))}
+                                </div>
+                                <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--text-secondary)' }}>"{t.text}"</p>
+                                <div>
+                                    <p className="text-sm font-semibold">{t.name}</p>
+                                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{t.role}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+
             {/* ── FAQ ─────────────────────────────────────────────── */}
             <section className="py-20 px-5">
                 <div className="max-w-2xl mx-auto">

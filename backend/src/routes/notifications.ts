@@ -45,6 +45,15 @@ router.patch('/:id/read', async (req: AuthRequest, res) => {
   res.json({ ok: true })
 })
 
+// DELETE /api/notifications/:id — o'quvchi o'z bildirishnomасini o'chiradi
+router.delete('/:id', async (req: AuthRequest, res) => {
+  const id = String(req.params.id)
+  await prisma.notification.deleteMany({
+    where: { id, userId: req.user.id }
+  })
+  res.json({ ok: true })
+})
+
 // POST /api/notifications/send — teacher/admin xabar yuboradi
 router.post('/send', requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, res) => {
   try {

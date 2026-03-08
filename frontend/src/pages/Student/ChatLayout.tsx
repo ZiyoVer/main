@@ -406,7 +406,7 @@ export default function ChatLayout() {
     const [publicTests, setPublicTests] = useState<PublicTest[]>([])
     const [myResults, setMyResults] = useState<MyResult[]>([])
     const [stats, setStats] = useState({ chats: 0, messages: 0, streak: 0 })
-    const [progressData, setProgressData] = useState<{ xp: number; streak: number; longestStreak: number; avgScore: number; weeklyActivity: Array<{ day: string; count: number }> } | null>(null)
+    const [progressData, setProgressData] = useState<{ xp: number; streak: number; longestStreak: number; currentStreak: number; avgScore: number; weeklyActivity: Array<{ day: string; count: number }> } | null>(null)
     const [dueFlashcards, setDueFlashcards] = useState<Array<{ id: string; front: string; back: string; subject: string }>>([])
     const [dueCount, setDueCount] = useState(0)
     const [totalFlashcards, setTotalFlashcards] = useState(0)
@@ -1915,9 +1915,33 @@ export default function ChatLayout() {
                                         <h2 className="text-xl sm:text-2xl font-bold mb-2">Salom, {user?.name?.split(' ')[0]}! 👋</h2>
                                         <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Bugun nima o'rganmoqchisiz?</p>
                                     </div>
+                                    {/* Streak va Imtihon sanasi bloki */}
+                                    <div className="flex items-center justify-center gap-4 mb-6 flex-wrap">
+                                        {(progressData?.currentStreak ?? 0) > 0 && (
+                                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold"
+                                                style={{ background: 'color-mix(in srgb, #f97316 12%, transparent)', color: '#f97316', border: '1px solid color-mix(in srgb, #f97316 25%, transparent)' }}>
+                                                🔥 {progressData!.currentStreak} kunlik streak
+                                            </div>
+                                        )}
+                                        {profile?.examDate && (() => {
+                                            const days = Math.max(0, Math.ceil((new Date(profile.examDate).getTime() - Date.now()) / 86400000))
+                                            return days > 0 ? (
+                                                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold"
+                                                    style={{ background: 'color-mix(in srgb, var(--brand) 12%, transparent)', color: 'var(--brand)', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)' }}>
+                                                    📅 Imtihonga {days} kun qoldi
+                                                </div>
+                                            ) : null
+                                        })()}
+                                        {(progressData?.currentStreak ?? 0) === 0 && (
+                                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm"
+                                                style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
+                                                🎯 Bugun birinchi kunni boshlang!
+                                            </div>
+                                        )}
+                                    </div>
                                     <div className="grid grid-cols-2 gap-2 sm:gap-3">
                                         {[
-                                            { Icon: BookOpen, color: '#6366F1', title: 'Mavzu tushuntir', desc: 'Mavzuni boshidan tushuntirib ber', prompt: 'Menga bugungi mavzuni boshidan tushuntirib bering' },
+                                            { Icon: BookOpen, color: '#6366F1', title: 'Mavzu tushuntir', desc: 'Mavzuni boshidan tushuntirib ber', prompt: profile?.subject ? `${profile.subject} fanidan bugun qaysi mavzuni o'rganishimni tavsiya qilasiz? Qisqa reja tuzing va shu mavzudan 3 ta test savoli ham bering.` : 'Menga bugungi mavzuni boshidan tushuntirib bering' },
                                             { Icon: ClipboardList, color: '#D97706', title: 'Bilimimni testla', desc: 'Test savollari bilan tekshir', prompt: 'Mening bilimimni test savollari bilan tekshiring' },
                                             { Icon: Target, color: '#0891B2', title: "O'quv reja tuz", desc: "Imtihongacha bo'lgan reja", prompt: "Imtihongacha bo'lgan kunlar uchun batafsil o'quv reja tuzing." },
                                             { Icon: Lightbulb, color: '#16A34A', title: 'Formula va qoidalar', desc: 'Asosiy formulalarni ko\'rsat', prompt: 'Bu fandagi eng muhim formulalar va qoidalarni ko\'rsating.' },

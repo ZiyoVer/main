@@ -64,6 +64,63 @@ router.get('/me', async (req: any, res) => {
             return { day: DAY_NAMES[d.getDay()], count: dayMap[key] || 0 }
         })
 
+        // Streak hisoblash (barcha activity loglari asosida)
+        const activityLogs = await prisma.visitLog.findMany({
+            where: { userId, action: 'activity' },
+            select: { createdAt: true },
+            orderBy: { createdAt: 'desc' }
+        })
+
+        const sortedDays = Array.from(new Set(
+            activityLogs.map((l: any) => l.createdAt.toISOString().split('T')[0])
+        )).sort((a: string, b: string) => b.localeCompare(a))
+
+        const todayStr = new Date().toISOString().split('T')[0]
+        const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+
+        let currentStreak = 0
+        let longestStreak = 0
+        let tempStreak = 0
+        let prevDay = ''
+
+        for (const day of sortedDays) {
+            if (!prevDay) {
+                if (day === todayStr || day === yesterdayStr) {
+                    tempStreak = 1
+                } else {
+                    break
+                }
+            } else {
+                const prev = new Date(prevDay)
+                const curr = new Date(day)
+                const diff = Math.round((prev.getTime() - curr.getTime()) / 86400000)
+                if (diff === 1) {
+                    tempStreak++
+                } else {
+                    break
+                }
+            }
+            prevDay = day
+        }
+        currentStreak = tempStreak
+
+        let maxStreak = 0
+        let runStreak = 0
+        let lastDay = ''
+        for (const day of [...sortedDays].reverse()) {
+            if (!lastDay) {
+                runStreak = 1
+            } else {
+                const prev = new Date(lastDay)
+                const curr = new Date(day)
+                const diff = Math.round((curr.getTime() - prev.getTime()) / 86400000)
+                runStreak = diff === 1 ? runStreak + 1 : 1
+            }
+            if (runStreak > maxStreak) maxStreak = runStreak
+            lastDay = day
+        }
+        longestStreak = maxStreak
+
         res.json({
             xp: progress.xp,
             streak: progress.streak,
@@ -71,6 +128,7 @@ router.get('/me', async (req: any, res) => {
             lastActiveDate: progress.lastActiveDate,
             avgScore: Math.round(avgScore),
             weeklyActivity,
+            currentStreak,
             recentTests: recentTests.map(a => ({
                 id: a.id,
                 title: a.test.title,
