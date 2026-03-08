@@ -2,7 +2,7 @@ import toast from 'react-hot-toast'
 
 export const API = '/api'
 
-export async function fetchApi(endpoint: string, options: RequestInit & { signal?: AbortSignal } = {}) {
+export async function fetchApi(endpoint: string, options: RequestInit & { signal?: AbortSignal; silent?: boolean } = {}) {
     const token = localStorage.getItem('token')
     const headers = new Headers(options.headers || {})
     headers.set('Content-Type', 'application/json')
@@ -22,10 +22,9 @@ export async function fetchApi(endpoint: string, options: RequestInit & { signal
         if (!res.ok) {
             const errName = data?.error || 'Server xatoligi'
             const err = new Error(errName)
-            toast.error(err.message, {
-                duration: 4000,
-                id: 'api-error' // To prevent duplicate toasts
-            })
+            if (!options.silent) {
+                toast.error(err.message, { duration: 4000, id: 'api-error' })
+            }
             throw err
         }
         return data

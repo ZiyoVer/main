@@ -14,29 +14,50 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
         res.status(401).json({ error: 'Token topilmadi' })
         return
     }
-    try {
-        const token = authHeader.split(' ')[1]
-        if (tokenBlacklist.has(token)) {
+    const token = authHeader.split(' ')[1]
+    tokenBlacklist.has(token).then(isBlacklisted => {
+        if (isBlacklisted) {
             res.status(401).json({ error: 'Token yaroqsiz (logout qilingan)' })
             return
         }
-        const decoded = jwt.verify(token, JWT_SECRET)
-        req.user = decoded
-        next()
-    } catch {
-        res.status(401).json({ error: 'Token yaroqsiz' })
-    }
+        try {
+            const decoded = jwt.verify(token, JWT_SECRET)
+            req.user = decoded
+            next()
+        } catch {
+            res.status(401).json({ error: 'Token yaroqsiz' })
+        }
+    }).catch(() => {
+        // Redis xato — token tekshiruvisiz davom etamiz
+        try {
+            const decoded = jwt.verify(token, JWT_SECRET)
+            req.user = decoded
+            next()
+        } catch {
+            res.status(401).json({ error: 'Token yaroqsiz' })
+        }
+    })
 }
 
 export const optionalAuthenticate = (req: AuthRequest, res: Response, next: NextFunction) => {
     const header = req.headers.authorization
     if (!header?.startsWith('Bearer ')) return next()
-    try {
-        const token = header.split(' ')[1]
-        const decoded = jwt.verify(token, JWT_SECRET) as any
-        if (!tokenBlacklist.has(token)) req.user = decoded
-    } catch { /* ignore */ }
-    next()
+    const token = header.split(' ')[1]
+    tokenBlacklist.has(token).then(isBlacklisted => {
+        if (!isBlacklisted) {
+            try {
+                const decoded = jwt.verify(token, JWT_SECRET) as any
+                req.user = decoded
+            } catch { /* ignore */ }
+        }
+        next()
+    }).catch(() => {
+        try {
+            const decoded = jwt.verify(token, JWT_SECRET) as any
+            req.user = decoded
+        } catch { /* ignore */ }
+        next()
+    })
 }
 
 export function requireRole(...roles: string[]) {

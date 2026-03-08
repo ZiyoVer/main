@@ -471,6 +471,7 @@ export default function ChatLayout() {
 
     const loadControllerRef = useRef<AbortController | null>(null)
     const isSubmittingRef = useRef(false)
+    const submitTestPanelRef = useRef<() => void>(() => {})
     const [sidebarWidth, setSidebarWidth] = useState(() => {
         const w = window.innerWidth
         if (w < 768) return 288
@@ -513,15 +514,19 @@ export default function ChatLayout() {
 
     // Panel drag-to-resize (flashcard + test)
     useEffect(() => {
-        const onMove = (e: MouseEvent) => {
+        const getClientX = (e: MouseEvent | TouchEvent) =>
+            'touches' in e ? e.touches[0]?.clientX ?? 0 : e.clientX
+
+        const onMove = (e: MouseEvent | TouchEvent) => {
+            const x = getClientX(e)
             if (flashDragRef.current) {
-                const newWidth = Math.max(280, Math.min(900, window.innerWidth - e.clientX))
+                const newWidth = Math.max(280, Math.min(900, window.innerWidth - x))
                 flashWidthRef.current = newWidth
                 const el = document.querySelector('.flash-panel') as HTMLElement
                 if (el) el.style.width = newWidth + 'px'
             }
-            if (testDragRef.current) setTestWidth(Math.max(280, Math.min(900, window.innerWidth - e.clientX)))
-            if (sidebarDragRef.current) setSidebarWidth(Math.max(240, Math.min(600, e.clientX)))
+            if (testDragRef.current) setTestWidth(Math.max(280, Math.min(900, window.innerWidth - x)))
+            if (sidebarDragRef.current) setSidebarWidth(Math.max(240, Math.min(600, x)))
         }
         const onUp = () => {
             if (flashDragRef.current) setFlashWidth(flashWidthRef.current)
@@ -533,7 +538,14 @@ export default function ChatLayout() {
         }
         window.addEventListener('mousemove', onMove)
         window.addEventListener('mouseup', onUp)
-        return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+        window.addEventListener('touchmove', onMove, { passive: true })
+        window.addEventListener('touchend', onUp)
+        return () => {
+            window.removeEventListener('mousemove', onMove)
+            window.removeEventListener('mouseup', onUp)
+            window.removeEventListener('touchmove', onMove)
+            window.removeEventListener('touchend', onUp)
+        }
     }, [])
     // Scroll: user yuqoriga wheel qilsa auto-scroll to'xtatamiz, pastga qaytsa davom etadi
     useEffect(() => {
@@ -595,14 +607,13 @@ export default function ChatLayout() {
         return () => clearInterval(id)
     }, [testTimeLeft])
 
-    // Vaqt tugaganda avtomatik topshirish
+    // Vaqt tugaganda avtomatik topshirish — ref orqali stale closure oldini olamiz
     useEffect(() => {
         if (testTimeLeft === 0 && testPanel && !testSubmitted && !testReadOnly) {
-            submitTestPanel()
+            submitTestPanelRef.current()
             setTestTimeLeft(null)
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [testTimeLeft])
+    }, [testTimeLeft, testPanel, testSubmitted, testReadOnly])
 
     async function loadProfile() {
         try {
@@ -1006,6 +1017,9 @@ export default function ChatLayout() {
         } catch (err) { console.error('openPublicTest:', err) }
         setLoadingPublicTest(false)
     }
+
+    // Har render da ref ni yangilaymiz — stale closure muammosini hal qilish uchun
+    submitTestPanelRef.current = submitTestPanel
 
     function submitTestPanel() {
         if (!testPanel) return

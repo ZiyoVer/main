@@ -427,7 +427,7 @@ router.post('/logout', authenticate, async (req: AuthRequest, res) => {
         const authHeader = req.headers.authorization
         if (authHeader) {
             const token = authHeader.split(' ')[1]
-            tokenBlacklist.add(token)
+            await tokenBlacklist.add(token)
         }
         res.json({ message: 'Tizimdan chiqdingiz' })
     } catch (e) {
