@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
     BrainCircuit, ArrowRight, ChevronDown, ChevronUp,
-    MessageSquare, Target, BarChart3, FileText, Zap, BookOpen
+    MessageSquare, Target, BarChart3, FileText, Zap, BookOpen,
+    ChevronLeft, ChevronRight
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 
@@ -80,6 +81,126 @@ const FEATURES = [
     }
 ]
 
+const TESTIMONIALS = [
+    {
+        name: "Sarvar T.",
+        role: "11-sinf, Matematika · DTM 2025",
+        text: "Trigonometriya va hosilalar bo'yicha tushunmagan joylarimni AI shu yerda tushuntirdi. Har bir savolga sabr bilan, misollar bilan javob berdi. DTM da 87 ball oldim.",
+        stars: 5,
+        subject: "Matematika"
+    },
+    {
+        name: "Dilnoza A.",
+        role: "Milliy Sertifikat ishtirokchisi, Ingliz tili",
+        text: "Grammatika qoidalarini AI bilan takrorladim, har kuni yangi so'zlar o'rgandim. Flashcardlar juda qulay — yo'lda ham telefonda takrorladim. Milliy Sertifikatda B2 oldim.",
+        stars: 5,
+        subject: "Ingliz tili"
+    },
+    {
+        name: "Jasur M.",
+        role: "11-sinf, Tarix · DTM 2025",
+        text: "Tarix sanalarini eslab qolish qiyin edi. Bu platforma bilan sanalar va voqealar bog'liqligini tushundim. Umuman olganda juda foydali, faqat ba'zida AI sekinroq javob beradi.",
+        stars: 4,
+        subject: "Tarix"
+    },
+    {
+        name: "Mohira K.",
+        role: "Biologiya va Kimyo, DTM 2025",
+        text: "Ikki fandan bir vaqtda tayyorlandim. AI ikkisini ham yaxshi biladi. Kimyoviy reaksiyalarni tushuntirishda juda aniq. Test natijarim oy sayin yaxshilanib bordi.",
+        stars: 5,
+        subject: "Kimyo"
+    },
+    {
+        name: "Bobur N.",
+        role: "11-sinf, Fizika · DTM 2025",
+        text: "Fizikadan zaif edim. Bu platforma bilan formulalar va masalalar yechishni qayta o'rgandim. Bepul ekan deb kutmagan edim bunday sifatni. Haqiqatan tavsiya qilaman.",
+        stars: 4,
+        subject: "Fizika"
+    },
+    {
+        name: "Zulfiya R.",
+        role: "Ona tili va adabiyot, Milliy Sertifikat",
+        text: "Ona tili imlosidan ko'p xato qilardim. AI xatolarimni ko'rsatdi va tushuntirdi. Ikki oyda sezilarli yaxshilandim. Bepul ekanligi eng katta afzalligi.",
+        stars: 5,
+        subject: "Ona tili"
+    },
+]
+
+function TestimonialsCarousel() {
+    const [idx, setIdx] = useState(0)
+    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+    const total = TESTIMONIALS.length
+
+    const startTimer = () => {
+        if (timerRef.current) clearInterval(timerRef.current)
+        timerRef.current = setInterval(() => {
+            setIdx(i => (i + 1) % total)
+        }, 4000)
+    }
+
+    useEffect(() => {
+        startTimer()
+        return () => { if (timerRef.current) clearInterval(timerRef.current) }
+    }, [])
+
+    const prev = () => { setIdx(i => (i - 1 + total) % total); startTimer() }
+    const next = () => { setIdx(i => (i + 1) % total); startTimer() }
+
+    // Desktop: 3 ta, mobile: 1 ta
+    const visible = [
+        TESTIMONIALS[idx % total],
+        TESTIMONIALS[(idx + 1) % total],
+        TESTIMONIALS[(idx + 2) % total],
+    ]
+
+    return (
+        <div>
+            <div className="grid sm:grid-cols-3 gap-4 mb-5">
+                {visible.map((t, i) => (
+                    <div key={`${idx}-${i}`} className="card p-5" style={{ animation: 'fadeIn 0.4s ease' }}>
+                        <div className="flex gap-0.5 mb-3">
+                            {Array(5).fill(0).map((_, j) => (
+                                <span key={j} style={{ color: j < t.stars ? '#f59e0b' : 'var(--border)', fontSize: '14px' }}>★</span>
+                            ))}
+                        </div>
+                        <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--text-secondary)' }}>"{t.text}"</p>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-semibold">{t.name}</p>
+                                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{t.role}</p>
+                            </div>
+                            <span className="text-[11px] font-medium px-2 py-0.5 rounded-full" style={{ background: 'var(--brand-light)', color: 'var(--brand-hover)' }}>{t.subject}</span>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Controls */}
+            <div className="flex items-center justify-center gap-3">
+                <button onClick={prev} className="h-8 w-8 rounded-full flex items-center justify-center transition"
+                    style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+                    <ChevronLeft className="h-4 w-4" />
+                </button>
+                <div className="flex gap-1.5">
+                    {TESTIMONIALS.map((_, i) => (
+                        <button key={i} onClick={() => { setIdx(i); startTimer() }}
+                            className="rounded-full transition-all"
+                            style={{
+                                width: i === idx ? '20px' : '8px',
+                                height: '8px',
+                                background: i === idx ? 'var(--brand)' : 'var(--border)'
+                            }} />
+                    ))}
+                </div>
+                <button onClick={next} className="h-8 w-8 rounded-full flex items-center justify-center transition"
+                    style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+                    <ChevronRight className="h-4 w-4" />
+                </button>
+            </div>
+        </div>
+    )
+}
+
 function FAQItem({ q, a }: { q: string; a: string }) {
     const [open, setOpen] = useState(false)
     return (
@@ -108,10 +229,10 @@ export default function Landing() {
     const [publicStats, setPublicStats] = useState<{ totalStudents: number; totalPublicTests: number } | null>(null)
 
     useEffect(() => {
-        fetch('/api/analytics/public-stats')
-            .then(r => r.json())
-            .then(d => setPublicStats(d))
-            .catch(() => {})
+        const load = () => fetch('/api/analytics/public-stats').then(r => r.json()).then(d => setPublicStats(d)).catch(() => {})
+        load()
+        const timer = setInterval(load, 30000) // har 30 soniyada yangilash
+        return () => clearInterval(timer)
     }, [])
 
     useEffect(() => {
@@ -283,6 +404,17 @@ export default function Landing() {
                 </div>
             </section>
 
+            {/* ── Testimonials ─────────────────────────────── */}
+            <section className="py-16 px-5" style={{ borderTop: '1px solid var(--border)' }}>
+                <div className="max-w-5xl mx-auto">
+                    <div className="text-center mb-10">
+                        <p className="section-label mb-2">Foydalanuvchilar fikri</p>
+                        <h2 className="text-3xl font-extrabold tracking-tight">O'quvchilar nima deydi?</h2>
+                    </div>
+                    <TestimonialsCarousel />
+                </div>
+            </section>
+
             {/* ── Steps ───────────────────────────────────────────── */}
             <section className="py-20 px-5">
                 <div className="max-w-5xl mx-auto">
@@ -339,51 +471,6 @@ export default function Landing() {
                                 </div>
                                 <h3 className="font-bold text-base mb-1.5">{f.title}</h3>
                                 <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{f.desc}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </section>
-
-            {/* ── Testimonials ─────────────────────────────── */}
-            <section className="py-20 px-5" style={{ background: 'var(--bg-surface)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
-                <div className="max-w-4xl mx-auto">
-                    <div className="text-center mb-12">
-                        <p className="section-label mb-2">Foydalanuvchilar fikri</p>
-                        <h2 className="text-3xl font-extrabold tracking-tight">O'quvchilar nima deydi?</h2>
-                    </div>
-                    <div className="grid sm:grid-cols-3 gap-4">
-                        {[
-                            {
-                                name: "Sarvar T.",
-                                role: "11-sinf o'quvchisi",
-                                text: "DTMMax bilan matematikadan 89 ball oldim! AI ustozim har safar tushuntirdi, sabr qildi. Tavsiya qilaman.",
-                                stars: 5
-                            },
-                            {
-                                name: "Nilufar X.",
-                                role: "Milliy Sertifikat ishtirokchisi",
-                                text: "Biologiya va kimyodan tayyorlandim. Testlar juda foydali, AI javoblar aniq va tushunarli.",
-                                stars: 5
-                            },
-                            {
-                                name: "Jasur M.",
-                                role: "DTM 2025 bitiruvchisi",
-                                text: "Bepul platforma sifatida juda kuchli. Har kuni 1-2 soat shu yerda o'qidim, natijam yaxshi bo'ldi.",
-                                stars: 5
-                            }
-                        ].map((t, i) => (
-                            <div key={i} className="card p-5 anim-up" style={{ animationDelay: `${i * 0.1}s` }}>
-                                <div className="flex gap-0.5 mb-3">
-                                    {Array(t.stars).fill(0).map((_, j) => (
-                                        <span key={j} style={{ color: '#f59e0b', fontSize: '14px' }}>★</span>
-                                    ))}
-                                </div>
-                                <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--text-secondary)' }}>"{t.text}"</p>
-                                <div>
-                                    <p className="text-sm font-semibold">{t.name}</p>
-                                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{t.role}</p>
-                                </div>
                             </div>
                         ))}
                     </div>
