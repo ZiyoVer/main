@@ -11,7 +11,7 @@ import bcrypt from 'bcryptjs'
 dotenv.config()
 
 // Muhim env varlarni tekshirish
-const REQUIRED_ENV = ['DATABASE_URL', 'JWT_SECRET', 'ADMIN_PASSWORD']
+const REQUIRED_ENV = ['DATABASE_URL', 'JWT_SECRET', 'ADMIN_PASSWORD', 'ADMIN_EMAIL']
 for (const key of REQUIRED_ENV) {
     if (!process.env[key]) {
         console.error(`❌ Muhim env var topilmadi: ${key}`)
@@ -144,11 +144,12 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 const PORT = process.env.PORT || 8080
 
 async function bootstrap() {
-    const adminExists = await prisma.user.findUnique({ where: { email: 'admin@dtmmax.uz' } })
+    const adminEmail = process.env.ADMIN_EMAIL!
+    const adminExists = await prisma.user.findUnique({ where: { email: adminEmail } })
     if (!adminExists) {
         const pw = await bcrypt.hash(process.env.ADMIN_PASSWORD!, 10)
         await prisma.user.create({
-            data: { email: 'admin@dtmmax.uz', password: pw, name: 'Administrator', role: 'ADMIN' }
+            data: { email: adminEmail, password: pw, name: 'Administrator', role: 'ADMIN' }
         })
         console.log('✅ Admin yaratildi')
     }
