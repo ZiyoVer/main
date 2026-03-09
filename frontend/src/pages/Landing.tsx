@@ -98,7 +98,7 @@ const TESTIMONIALS = [
     {
         name: "Jasur M.",
         role: "11-sinf · Tarix",
-        text: "Sanalarni yod olish qiyin edi. Shu yerda voqealar bog'lanib, sabab-oqibat tushuntiriladi — eslab qolish osonlashadi. Ba'zan javob biroz kechikadi lekin noto'g'ri deyilmaydi.",
+        text: "Tarix sanalarini yod olish azob edi. Shu yerda voqealar o'zaro bog'lanib tushuntiriladi, sabab nima, oqibat nima — hammasi birikib ketadi. Endi kitobga qaramasam ham eslab qolaman.",
         stars: 4,
         subject: "Tarix"
     },
