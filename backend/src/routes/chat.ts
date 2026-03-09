@@ -252,66 +252,113 @@ function getExamSection(subject?: string): string {
 
 ---
 
-## 📊 MILLIY SERTIFIKAT MOCK TEST — PATTERN TAHLILI
+## 📊 MILLIY SERTIFIKAT — PATTERN TAHLILI (Mock test yoki savol so'ralganda)
 
-O'quvchi mock test savollari yuklasa YOKI "qaysi mavzular ko'p chiqadi?" deb so'rasa — quyidagi bilimlarni ishlat:
+O'quvchi mock test savollari yuklasa YOKI "qaysi mavzular ko'p chiqadi?", "nimani ko'proq o'qisam bo'ladi?" deb so'rasa — quyidagi bilimlarni ishlat.
 
-### Grammatika — ENG KO'P CHIQADIGAN mavzular (tartibi bilan):
-1. **Tense usage** — aralash zamonlar (mixed tenses gap filling) — ~25% savollar
-2. **Conditionals** (ayniqsa 2nd va 3rd) — ~15%
-3. **Passive Voice** (barcha zamonlarda) — ~12%
-4. **Articles** (a/an/the/zero article) — ~10%
-5. **Modal verbs** (must/have to/should/might) — ~8%
-6. **Relative clauses** (defining vs non-defining) — ~7%
-7. **Gerund vs Infinitive** — ~6%
-8. **Word formation** (suffixes/prefixes) — ~10%
-9. **Reported speech** — ~7%
+---
 
-### Vocabulary — ENG KO'P TAKRORLАNADIGAN so'z guruhlari:
+### WRITING — RASMIY TUZILMA (Multilevel/CEFR):
+
+**Task 1** (~15 daqiqa, ~150 so'z) — XAT/EMAIL:
+- Formal email: professor, direktor, tashkilotga
+- Informal email: do'st, tanishga
+- Mavzular: kurs haqida shikoyat/taklif, sog'lik muammosi, sayohat rejalari, ta'til, taklif/tabriklash
+- Baholash: vazifani bajarish, ton (formal/informal), tuzilma, leksika, grammatika
+
+**Task 2** (~30 daqiqa, ~220-260 so'z) — ESSE:
+- Essay turlari: opinion (fikr), discuss both views (ikki tomon), problem-solution, advantages-disadvantages
+- Baholash: task achievement, coherence & cohesion, lexical resource, grammatical range
+
+---
+
+### TASK 2 — 10 TA RASMIY MAVZU KATEGORIYASI (tasdiqlangan):
+1. **Education** — an'anaviy vs online ta'lim, imtihon tizimi, yoshlar va o'qish
+2. **Environment** — iflosllanish, iqlim o'zgarishi, qayta ishlash, yashil energiya
+3. **Health** — sog'lom turmush tarzi, fast food, sport, mental health
+4. **Technology** — ijtimoiy tarmoqlar, sun'iy intellekt, gadgetlar, shaxsiy ma'lumotlar xavfsizligi
+5. **Globalization** — madaniyat aralashuvi, ingliz tili dominansi, xalqaro savdo
+6. **Social Issues** — kambag'allik, tengsizlik, shaharlashish, oila
+7. **Crime & Punishment** — yosh jinoyatchilar, qamoq islohoti, kamera-nazorat
+8. **Work & Career** — masofaviy ish, kasbiy rivojlanish, yoshlar va ishsizlik
+9. **Culture & Tradition** — milliy an'analar, globallashuv ta'siri, madaniy meros
+10. **Transport & Urban Life** — jamoat transporti, avtomobillar, shahar muammolari
+
+**Qaysi kategoriyalar ENG KO'P keladi:**
+- Technology va Education — har 2-3 imtihonda 1 ta
+- Environment — doimiy ravishda tez-tez
+- Social Issues va Health — tez-tez
+- Crime, Transport — kamroq, lekin chiqadi
+
+---
+
+### REAL CHIQGAN ESSAY MAVZULARI (namunaviy):
+- "Some people think that technology makes learning easier. Others believe it creates more problems. Discuss both views and give your opinion."
+- "Many young people today prefer watching videos online to reading books. Is this a positive or negative development?"
+- "Some people believe that governments should invest more in public transport rather than building new roads. Do you agree or disagree?"
+- "The internet has made it easier to share information, but it has also made it easier to spread false information. What are the causes of this problem and how can it be solved?"
+- "In many countries, people are living longer. What are the advantages and disadvantages of an ageing population?"
+- "Some believe that cultural traditions should be preserved. Others think they need to change with time. Discuss both views."
+- "Many students find it difficult to concentrate on studying due to social media. Discuss the causes and suggest solutions."
+- "Some people prefer to work from home. Others prefer to work in an office. What are the advantages and disadvantages of each?"
+
+---
+
+### GRAMMATIKA — ENG KO'P CHIQADIGAN (tartibi bilan):
+1. **Zamonlar** (gap filling) — Present Perfect vs Past Simple, Mixed tenses — ~25%
+2. **Conditionals** — 2nd va 3rd conditional — ~15%
+3. **Passive Voice** — barcha zamonlarda — ~12%
+4. **Articles** — a/an/the/zero — ~10%
+5. **Word formation** — suffixes/prefixes — ~10%
+6. **Modal verbs** — must/have to/should/might/could — ~8%
+7. **Relative clauses** — who/which/that/where/whose — ~7%
+8. **Reported speech** — ~7%
+9. **Gerund vs Infinitive** — ~6%
+
+### VOCABULARY — ENG KO'P TAKRORLАNADIGAN:
 **Phrasal verbs** (har imtihonda 5-8 ta):
-- carry out, give up, look forward to, bring about, come across, take over, put off, go through, turn down, set up
-
-**Academic vocabulary** (tez-tez chiqadi):
-- significant, considerable, demonstrate, establish, indicate, maintain, obtain, provide, require, suggest
-- consequence, approach, aspect, context, factor, issue, process, result, source, structure
+- carry out (bajarmoq), give up (voz kechmoq), look forward to (intizor bo'lmoq)
+- bring about (sabab bo'lmoq), come across (uchramoq), take over (egallamoq)
+- put off (kechiktirmoq), go through (boshdan o'tkazmoq), turn down (rad etmoq), set up (tashkil etmoq)
 
 **Collocations** (gap filling da juda ko'p):
-- make a decision/effort/progress/mistake
-- take action/notes/part/care
-- have an impact/influence/effect
-- pay attention/a visit/respect
+- make: a decision, an effort, progress, a mistake, a difference
+- take: action, notes, part, care, a risk
+- have: an impact, an influence, an effect, fun, a break
+- pay: attention, a visit, respect
 
 **Confusing pairs** (error correction da):
 - affect/effect, advice/advise, rise/raise, borrow/lend, lay/lie
 
-### Essay mavzulari — ENG KO'P KELGAN:
-1. Technology & Social Media (ijtimoiy tarmoqlar ta'siri)
-2. Environment & Climate Change (atrof-muhit muammolari)
-3. Education (an'anaviy vs zamonaviy ta'lim)
-4. Health & Lifestyle (sog'lom turmush tarzi)
-5. Globalization & Culture (globallashuv)
-6. Youth & Work (yoshlar va ish)
-7. Transport & Urban Life (shahar muammolari)
+---
 
-### Essay yozishda eng kuchli strategiya:
-**Opinion essay tuzilmasi (30 daqiqada):**
-- Intro (3-4 gap): paraphrase + thesis — 3 daqiqa
-- Body 1 (5-6 gap): asosiy fikr + konkret misol — 10 daqiqa
-- Body 2 (5-6 gap): qarshi tomonni tan olish + refutatsiya — 10 daqiqa
-- Conclusion (3-4 gap): restate thesis + kengaytirish — 4 daqiqa
+### ESSAY YOZISH — ENG SAMARALI STRATEGIYA:
+
+**Opinion essay (30 daqiqada):**
+- Intro (3-4 gap, 3 daqiqa): mavzuni qayta so'zlash + o'z fikrini aytish
+- Body 1 (5-6 gap, 10 daqiqa): asosiy argument + konkret misol
+- Body 2 (5-6 gap, 10 daqiqa): qarshi tomonni tan olish + refutatsiya
+- Conclusion (3-4 gap, 4 daqiqa): thesis ni qaytarish + kengaytirish
 - 3 daqiqa tekshiruv
 
-**Band ko'taruvchi iboralar (Lexical Resource uchun):**
-- Intro: "The issue of X has become increasingly controversial in recent years."
-- Claim: "It is widely acknowledged that...", "There is no denying that..."
-- Contrast: "Notwithstanding this...", "Be that as it may...", "While it is true that..."
+**Discuss both views:**
+- Body 1: birinchi nuqtai nazar + dalil
+- Body 2: ikkinchi nuqtai nazar + dalil
+- Conclusion: shaxsiy pozitsiya
+
+**Ball ko'taruvchi iboralar:**
+- Intro: "The issue of X has become increasingly prominent in recent years."
+- Fikr: "It is widely acknowledged that...", "There is no denying that..."
+- Qarama-qarshi: "However, it could be argued that...", "On the other hand..."
 - Conclusion: "Taking everything into account...", "All things considered..."
 
-### O'quvchiga mock test tahlili qilganda:
-1. Qaysi grammar mavzudan eng ko'p xato qilgan — aniqlа va shu mavzudan mini-mashq ber
-2. Vocabulary savollarida qaysi so'z guruhlari (phrasal verb? collocation? word formation?) zaif — ayt
-3. Reading da True/False/Not Given savollaridagi xatolar ko'p bo'lsa — "Not Given" strategiyasini o'rgat
-4. Writing bandni oshirish uchun: avval Coherence & Cohesion → keyin Lexical Resource`
+---
+
+### MOCK TEST TAHLILI (o'quvchi test natijalari yuklasa):
+1. Qaysi grammar mavzudan ko'p xato → o'sha mavzudan mini-mashq ber
+2. Vocabulary zaif bo'lsa → phrasal verb, collocation, word formation dan aniqla
+3. Reading da True/False/Not Given xatolar → "Not Given" strategiyasini o'rgat
+4. Writing uchun: avval Coherence & Cohesion (tuzilma) → keyin Lexical Resource (leksika)`
     }
 
     // DTM umumiy tuzilishi (barcha fanlarda bir xil)
