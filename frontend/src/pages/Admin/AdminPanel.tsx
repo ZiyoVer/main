@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BrainCircuit, Users, UserCheck, GraduationCap, Clock, CalendarDays, CalendarRange, BarChart3, MessageSquare, FileText, Layers, Target, LogOut, Upload, Trash2, Activity, Bot, Save, Globe, Lock, TrendingUp, UserPlus, BookOpen } from 'lucide-react'
+import { BrainCircuit, Users, UserCheck, GraduationCap, Clock, CalendarDays, CalendarRange, BarChart3, MessageSquare, FileText, Layers, Target, LogOut, Upload, Trash2, Activity, Bot, Save, Globe, Lock, TrendingUp, UserPlus, BookOpen, LogIn, RefreshCw } from 'lucide-react'
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { fetchApi, uploadFile } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
@@ -9,7 +9,7 @@ import toast from 'react-hot-toast'
 export default function AdminPanel() {
     const nav = useNavigate()
     const { logout } = useAuthStore()
-    const [tab, setTab] = useState<'stats' | 'users' | 'teachers' | 'docs' | 'tests' | 'ai' | 'knowledge'>('stats')
+    const [tab, setTab] = useState<'stats' | 'users' | 'teachers' | 'docs' | 'tests' | 'ai' | 'knowledge' | 'activity'>('stats')
     const [stats, setStats] = useState<any>(null)
     const [users, setUsers] = useState<any[]>([])
     const [docs, setDocs] = useState<any[]>([])
@@ -36,6 +36,15 @@ export default function AdminPanel() {
     const [editingKnowledge, setEditingKnowledge] = useState<string | null>(null)
     const [knowledgeFilter, setKnowledgeFilter] = useState('all')
 
+    // Activity log
+    const [activityLogs, setActivityLogs] = useState<any[]>([])
+    const [activityTotal, setActivityTotal] = useState(0)
+    const [activityPages, setActivityPages] = useState(1)
+    const [activityPage, setActivityPage] = useState(1)
+    const [activityFilter, setActivityFilter] = useState('all')
+    const [activityLoading, setActivityLoading] = useState(false)
+    const activityTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
     const KNOWLEDGE_SUBJECTS = ['Matematika', 'Fizika', 'Kimyo', 'Biologiya', 'Ona tili', 'Tarix', 'Ingliz tili', 'Geografiya']
 
     // Users pagination
@@ -48,6 +57,15 @@ export default function AdminPanel() {
     useEffect(() => { loadStats() }, []) // faqat birinchi marta yuklanadi
     useEffect(() => { if (tab === 'users') loadUsers() }, [tab, usersPage, usersSearch])
     useEffect(() => { if (tab === 'knowledge') loadKnowledge() }, [tab])
+    useEffect(() => {
+        if (tab === 'activity') {
+            loadActivity()
+            activityTimerRef.current = setInterval(loadActivity, 30000)
+        } else {
+            if (activityTimerRef.current) clearInterval(activityTimerRef.current)
+        }
+        return () => { if (activityTimerRef.current) clearInterval(activityTimerRef.current) }
+    }, [tab, activityPage, activityFilter])
 
     async function loadStats() {
         setLoading(true)
@@ -87,6 +105,19 @@ export default function AdminPanel() {
 
     // loadAll ni boshqa joylarda ishlatish uchun saqlaymiz
     async function loadAll() { await loadStats(); await loadUsers() }
+
+    async function loadActivity() {
+        setActivityLoading(true)
+        try {
+            const params = new URLSearchParams({ page: String(activityPage) })
+            if (activityFilter !== 'all') params.set('action', activityFilter)
+            const data = await fetchApi(`/analytics/activity-log?${params}`)
+            setActivityLogs(data.logs || [])
+            setActivityTotal(data.total || 0)
+            setActivityPages(data.pages || 1)
+        } catch { setActivityLogs([]) }
+        setActivityLoading(false)
+    }
 
     async function createTeacher(e: React.FormEvent) {
         e.preventDefault()
@@ -194,6 +225,7 @@ export default function AdminPanel() {
 
     const tabs = [
         { k: 'stats' as const, l: 'Statistika', icon: BarChart3 },
+        { k: 'activity' as const, l: 'Faollik', icon: Activity },
         { k: 'users' as const, l: 'Foydalanuvchilar', icon: Users },
         { k: 'teachers' as const, l: 'O\'qituvchi', icon: UserCheck },
         { k: 'tests' as const, l: 'Testlar', icon: Layers },
@@ -654,6 +686,88 @@ export default function AdminPanel() {
                                 </button>
                             </div>
                         ))}
+                    </div>
+                )}
+
+                {/* === FAOLLIK LOGI === */}
+                {tab === 'activity' && (
+                    <div>
+                        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                            <div className="flex items-center gap-2">
+                                <p className="text-[11px]" style={mutedText}>{activityTotal} ta yozuv</p>
+                                <button onClick={loadActivity} className="btn btn-sm btn-outline flex items-center gap-1.5">
+                                    <RefreshCw className={`h-3 w-3 ${activityLoading ? 'animate-spin' : ''}`} /> Yangilash
+                                </button>
+                            </div>
+                            <div className="flex gap-1.5">
+                                {['all', 'login', 'register', 'page_view'].map(f => (
+                                    <button key={f} onClick={() => { setActivityFilter(f); setActivityPage(1) }}
+                                        className={`btn btn-sm ${activityFilter === f ? 'btn-primary' : 'btn-outline'}`}>
+                                        {f === 'all' ? 'Barchasi' : f === 'login' ? 'Kirish' : f === 'register' ? 'Ro\'yxat' : 'Sahifa'}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="rounded-xl overflow-hidden" style={cardStyle}>
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+                                        <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Foydalanuvchi</th>
+                                        <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Harakat</th>
+                                        <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>IP</th>
+                                        <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Vaqt</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {activityLoading && activityLogs.length === 0 ? (
+                                        <tr><td colSpan={4} className="text-center py-10 text-[12px]" style={mutedText}>Yuklanmoqda...</td></tr>
+                                    ) : activityLogs.length === 0 ? (
+                                        <tr><td colSpan={4} className="text-center py-10 text-[12px]" style={mutedText}>Yozuvlar yo'q</td></tr>
+                                    ) : activityLogs.map((log: any) => (
+                                        <tr key={log.id} style={{ borderBottom: '1px solid var(--border)' }} className="hover:bg-[var(--bg-surface)] transition-colors">
+                                            <td className="py-2.5 px-4">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0"
+                                                        style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>
+                                                        {log.user?.name?.[0]?.toUpperCase() || '?'}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="text-[12px] font-medium truncate">{log.user?.name || '—'}</p>
+                                                        <p className="text-[10px] truncate" style={mutedText}>{log.user?.email || 'Mehmon'}</p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="py-2.5 px-4">
+                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={
+                                                    log.action === 'login' ? { background: 'color-mix(in srgb, var(--brand) 15%, transparent)', color: 'var(--brand)' } :
+                                                    log.action === 'register' ? { background: 'color-mix(in srgb, var(--success) 15%, transparent)', color: 'var(--success)' } :
+                                                    { background: 'var(--bg-surface)', color: 'var(--text-muted)' }
+                                                }>
+                                                    {log.action === 'login' ? '🔑 kirish' : log.action === 'register' ? '✨ ro\'yxat' : log.action}
+                                                </span>
+                                                {log.user?.role && (
+                                                    <span className="ml-1.5 text-[10px]" style={mutedText}>{log.user.role}</span>
+                                                )}
+                                            </td>
+                                            <td className="py-2.5 px-4 text-[11px]" style={mutedText}>{log.ip || '—'}</td>
+                                            <td className="py-2.5 px-4 text-[11px] tabular-nums" style={mutedText}>
+                                                {new Date(log.createdAt).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Pagination */}
+                        {activityPages > 1 && (
+                            <div className="flex items-center justify-center gap-2 mt-3">
+                                <button disabled={activityPage <= 1} onClick={() => setActivityPage(p => p - 1)} className="btn btn-sm btn-outline">← Oldingi</button>
+                                <span className="text-[12px]" style={mutedText}>{activityPage} / {activityPages}</span>
+                                <button disabled={activityPage >= activityPages} onClick={() => setActivityPage(p => p + 1)} className="btn btn-sm btn-outline">Keyingi →</button>
+                            </div>
+                        )}
                     </div>
                 )}
 

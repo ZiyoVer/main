@@ -198,4 +198,33 @@ router.get('/recent-registrations', authenticate, requireRole('ADMIN'), async (r
     }
 })
 
+// Admin: Faollik logi — kim qachon kirdi/chiqdi
+router.get('/activity-log', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
+    try {
+        const page = Math.max(1, parseInt(req.query.page as string) || 1)
+        const limit = 50
+        const action = req.query.action as string | undefined
+
+        const where = action ? { action } : {}
+
+        const [logs, total] = await Promise.all([
+            prisma.visitLog.findMany({
+                where,
+                orderBy: { createdAt: 'desc' },
+                take: limit,
+                skip: (page - 1) * limit,
+                include: {
+                    user: { select: { name: true, email: true, role: true } }
+                }
+            }),
+            prisma.visitLog.count({ where })
+        ])
+
+        res.json({ logs, total, pages: Math.ceil(total / limit) })
+    } catch (e) {
+        console.error(e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
 export default router

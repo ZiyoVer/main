@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, Sun, Moon, Search, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, Sun, Moon, Search, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, Timer, Sparkles } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import remarkGfm from 'remark-gfm'
@@ -1391,16 +1391,16 @@ export default function ChatLayout() {
                             {/* Streak va XP (API dan) */}
                             {progressData && (
                                 <div className="grid grid-cols-2 gap-2">
-                                    <div className="rounded-xl p-3 text-center text-white" style={{ background: 'linear-gradient(135deg, #F59E0B, #F97316)' }}>
+                                    <div className="rounded-xl p-3 text-center text-white" style={{ background: 'linear-gradient(135deg, #F59E0B, #EF4444)' }}>
                                         <div className="flex items-center justify-center gap-1.5 mb-0.5">
-                                            <Flame className="h-5 w-5" />
+                                            <Trophy className="h-5 w-5 drop-shadow" />
                                             <p className="text-2xl font-bold leading-none">{progressData.streak}</p>
                                         </div>
-                                        <p className="text-[10px] opacity-80 mt-1">kun ketma-ket</p>
+                                        <p className="text-[10px] opacity-80 mt-1">kunlik seriya</p>
                                     </div>
-                                    <div className="rounded-xl p-3 text-center text-white" style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6)' }}>
+                                    <div className="rounded-xl p-3 text-center text-white" style={{ background: 'linear-gradient(135deg, #6366F1, #06B6D4)' }}>
                                         <div className="flex items-center justify-center gap-1.5 mb-0.5">
-                                            <Zap className="h-5 w-5" />
+                                            <Sparkles className="h-5 w-5 drop-shadow" />
                                             <p className="text-2xl font-bold leading-none">{progressData.xp}</p>
                                         </div>
                                         <p className="text-[10px] opacity-80 mt-1">XP ball</p>
@@ -1446,10 +1446,15 @@ export default function ChatLayout() {
                             )}
                             {/* Exam countdown */}
                             {daysLeft !== null && (
-                                <div className="bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl p-4 text-white">
-                                    <p className="text-[11px] opacity-80 mb-1">Imtihongacha</p>
-                                    <p className="text-3xl font-bold tabular-nums">{daysLeft} <span className="text-sm font-normal opacity-80">kun</span></p>
-                                    <p className="text-[11px] opacity-70 mt-1">{profile?.subject} · Maqsad: {profile?.targetScore} ball</p>
+                                <div className="bg-gradient-to-br from-indigo-500 via-blue-500 to-cyan-400 rounded-xl p-4 text-white shadow-lg">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.18)' }}>
+                                            <Timer className="h-4 w-4" />
+                                        </div>
+                                        <p className="text-[11px] opacity-90 font-medium">Imtihongacha</p>
+                                    </div>
+                                    <p className="text-3xl font-bold tabular-nums leading-none">{daysLeft} <span className="text-base font-normal opacity-80">kun</span></p>
+                                    <p className="text-[11px] opacity-70 mt-1.5">{profile?.subject} · Maqsad: {profile?.targetScore} ball</p>
                                 </div>
                             )}
                             {/* Stats */}
