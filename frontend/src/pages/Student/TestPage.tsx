@@ -54,6 +54,7 @@ export default function TestPage() {
     const [correctMap, setCorrectMap] = useState<Record<string, { idx: number; text?: string; type: string }>>({})
     const [analysis, setAnalysis] = useState<string | null>(null)
     const [analysisLoading, setAnalysisLoading] = useState(false)
+    const [analysisFailed, setAnalysisFailed] = useState(false)
 
     useEffect(() => {
         if (!shareLink) return
@@ -94,6 +95,7 @@ export default function TestPage() {
 
             // AI tahlil
             setAnalysisLoading(true)
+            setAnalysisFailed(false)
             const optLabels = ['a','b','c','d']
             const questionsForAnalysis = test.questions.map((q: any, i: number) => {
                 let opts: string[] = []
@@ -113,7 +115,8 @@ export default function TestPage() {
                 body: JSON.stringify({ title: test.title, subject: test.subject, score: res.correct, total: res.total, questions: questionsForAnalysis })
             }).then((data: any) => {
                 if (data?.analysis) setAnalysis(data.analysis)
-            }).catch(() => {}).finally(() => setAnalysisLoading(false))
+                else setAnalysisFailed(true)
+            }).catch(() => setAnalysisFailed(true)).finally(() => setAnalysisLoading(false))
         } catch (e: any) {
             toast.error(e.message || 'Test yuborishda xatolik yuz berdi')
         }
@@ -206,7 +209,7 @@ export default function TestPage() {
                 )}
 
                 {/* AI Tahlil */}
-                {submitted && (analysisLoading || analysis) && (
+                {submitted && (analysisLoading || analysis || analysisFailed) && (
                     <div className="card p-4" style={{ border: '1px solid color-mix(in srgb, var(--brand) 20%, transparent)' }}>
                         <div className="flex items-center gap-2 mb-3">
                             <div className="h-6 w-6 rounded-md flex items-center justify-center" style={{ background: 'var(--brand)' }}>
@@ -218,6 +221,30 @@ export default function TestPage() {
                             <div className="flex items-center gap-2 py-2">
                                 <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--border-strong)', borderTopColor: 'var(--brand)' }} />
                                 <span className="text-[13px]" style={{ color: 'var(--text-muted)' }}>Tahlil qilinmoqda...</span>
+                            </div>
+                        ) : analysisFailed ? (
+                            <div className="flex items-center justify-between gap-3 py-1">
+                                <span className="text-[13px]" style={{ color: 'var(--text-muted)' }}>Tahlil yuklanmadi. Qayta urinib ko'ring.</span>
+                                <button onClick={() => {
+                                    setAnalysisFailed(false)
+                                    setAnalysisLoading(true)
+                                    const optLabels = ['a','b','c','d']
+                                    const qs = test.questions.map((q: any, i: number) => {
+                                        let opts: string[] = []
+                                        try { opts = JSON.parse(q.options) } catch { opts = [] }
+                                        return { text: q.text, imageUrl: q.imageUrl || null, a: opts[0], b: opts[1], c: opts[2], d: opts[3] }
+                                    })
+                                    fetchApi('/tests/analyze-result', {
+                                        method: 'POST',
+                                        body: JSON.stringify({ title: test.title, subject: test.subject, score: result?.correct, total: result?.total, questions: qs })
+                                    }).then((data: any) => {
+                                        if (data?.analysis) setAnalysis(data.analysis)
+                                        else setAnalysisFailed(true)
+                                    }).catch(() => setAnalysisFailed(true)).finally(() => setAnalysisLoading(false))
+                                }} className="text-[12px] px-3 py-1.5 rounded-lg font-medium transition flex-shrink-0"
+                                    style={{ background: 'var(--brand-light)', color: 'var(--brand)', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)' }}>
+                                    Qayta urinish
+                                </button>
                             </div>
                         ) : (
                             <p className="text-[13px] leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>{analysis}</p>
