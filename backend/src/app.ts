@@ -65,7 +65,7 @@ app.use(express.json({ limit: '10mb' }))
 // Auth endpointlari uchun rate limiting (brute force himoyasi)
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 daqiqa
-    max: 5,
+    max: 200,
     message: { error: 'Juda ko\'p urinish. 15 daqiqadan keyin qayta urinib ko\'ring.' },
     standardHeaders: true,
     legacyHeaders: false,
