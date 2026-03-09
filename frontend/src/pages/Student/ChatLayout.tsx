@@ -225,36 +225,6 @@ const MdMessage = memo(({ content, isStreaming }: {
                         </div>
                     )
                 }
-                if (className?.includes('language-diff')) {
-                    const lines = String(children).split('\n')
-                    return (
-                        <div className="my-3 rounded-xl overflow-hidden text-[13px] font-mono" style={{ border: '1px solid var(--border)' }}>
-                            {lines.filter(l => l !== '').map((line, i) => {
-                                const isRemoved = line.startsWith('-')
-                                const isAdded = line.startsWith('+')
-                                return (
-                                    <div key={i} className="flex items-start px-4 py-1 leading-relaxed"
-                                        style={{
-                                            background: isRemoved ? 'rgba(239,68,68,0.1)' : isAdded ? 'rgba(16,185,129,0.1)' : 'var(--bg-surface)',
-                                            borderLeft: isRemoved ? '3px solid #ef4444' : isAdded ? '3px solid #10b981' : '3px solid transparent',
-                                        }}>
-                                        <span className="mr-3 select-none font-bold w-3 flex-shrink-0"
-                                            style={{ color: isRemoved ? '#ef4444' : isAdded ? '#10b981' : 'var(--text-muted)' }}>
-                                            {isRemoved ? '−' : isAdded ? '+' : ' '}
-                                        </span>
-                                        <span style={{
-                                            color: isRemoved ? '#ef4444' : isAdded ? '#10b981' : 'var(--text-secondary)',
-                                            textDecoration: isRemoved ? 'line-through' : 'none',
-                                            opacity: isRemoved ? 0.8 : 1,
-                                        }}>
-                                            {line.replace(/^[-+]\s?/, '')}
-                                        </span>
-                                    </div>
-                                )
-                            })}
-                        </div>
-                    )
-                }
                 const isBlock = className?.includes('language-')
                 return isBlock
                     ? <pre className="rounded-xl p-4 text-[13px] overflow-x-auto my-3 font-mono leading-relaxed" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}><code>{children}</code></pre>
