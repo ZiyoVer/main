@@ -448,7 +448,7 @@ const ChatInputArea = memo(function ChatInputArea({
     }
 
     const QUICK_ACTIONS = [
-        { Icon: ClipboardList, l: 'Testla', p: "Meni shu mavzu bo'yicha testlang. 5 ta test savol bering A, B, C, D variantlar bilan." },
+        { Icon: ClipboardList, l: 'Testla', p: "Shu mavzu bo'yicha test ber. Kamida 15 ta savol, osondan qiyinga tartibda." },
         { Icon: BookOpen, l: 'Davom et', p: "Keyingi mavzuga o'tamiz. Nimani o'rganishimiz kerak?" },
         { Icon: RotateCcw, l: 'Qayta tushuntir', p: 'Bu mavzuni boshqa usulda, oddiyroq tushuntiring' },
         { Icon: Target, l: 'Reja tuz', p: "Imtihongacha qolgan vaqtga mos o'quv reja tuzing" },
@@ -2185,40 +2185,9 @@ export default function ChatLayout() {
                                             </div>
                                         )}
                                     </div>
-                                    <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                                        {[
-                                            { Icon: BookOpen, color: '#6366F1', title: 'Mavzu tushuntir', desc: 'Mavzuni boshidan tushuntirib ber', prompt: profile?.subject ? `${profile.subject} fanidan bugun qaysi mavzuni o'rganishimni tavsiya qilasiz? Qisqa reja tuzing va shu mavzudan 3 ta test savoli ham bering.` : 'Menga bugungi mavzuni boshidan tushuntirib bering' },
-                                            { Icon: ClipboardList, color: '#D97706', title: 'Bilimimni testla', desc: 'Test savollari bilan tekshir', prompt: 'Mening bilimimni test savollari bilan tekshiring' },
-                                            { Icon: Target, color: '#0891B2', title: "O'quv reja tuz", desc: "Imtihongacha bo'lgan reja", prompt: "Imtihongacha bo'lgan kunlar uchun batafsil o'quv reja tuzing." },
-                                            { Icon: Lightbulb, color: '#16A34A', title: 'Formula va qoidalar', desc: 'Asosiy formulalarni ko\'rsat', prompt: 'Bu fandagi eng muhim formulalar va qoidalarni ko\'rsating.' },
-                                            { Icon: Search, color: '#DC2626', title: 'Zaif joylarimni aniqla', desc: 'Diagnostika qil', prompt: 'Mening bilim darajamni aniqlash uchun diagnostik savollar bering.' },
-                                            { Icon: TrendingUp, color: '#7C3AED', title: 'Imtihon strategiya', desc: 'Vaqt taktikasi', prompt: 'Milliy sertifikat imtihonida vaqt boshqarish strategiyasini o\'rgating' },
-                                        ].map((s, i) => (
-                                            <button key={i} onClick={async () => {
-                                                if (creating) return; setCreating(true)
-                                                try {
-                                                    const data = await fetchApi('/chat/new', {
-                                                        method: 'POST',
-                                                        body: JSON.stringify({ title: s.title, subject: profile?.subject, forceNew: true })
-                                                    })
-                                                    await loadChats()
-                                                    nav(`/suhbat/${data.id}`)
-                                                    setTimeout(() => {
-                                                        setMessages([{ id: 'temp-u', role: 'user', content: s.prompt, createdAt: new Date().toISOString() }])
-                                                        streamToChat(data.id, s.prompt)
-                                                    }, 200)
-                                                } catch (err) { console.error('quickAction chat:', err) }
-                                                setCreating(false)
-                                            }}
-                                                className="card card-hover text-left p-4">
-                                                <div className="h-9 w-9 rounded-xl flex items-center justify-center mb-3" style={{ background: s.color + '18' }}>
-                                                    <s.Icon className="h-5 w-5" style={{ color: s.color }} />
-                                                </div>
-                                                <p className="text-sm font-bold mb-1">{s.title}</p>
-                                                <p className="text-[13px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{s.desc}</p>
-                                            </button>
-                                        ))}
-                                    </div>
+                                    <p className="text-center text-sm mt-4" style={{ color: 'var(--text-muted)' }}>
+                                        Xabar yozing yoki savol bering — men yordam beraman 💬
+                                    </p>
                                 </div>
                             </div>
                         ) : (

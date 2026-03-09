@@ -741,14 +741,25 @@ Barcha matematik ifodalarni LaTeX da yoz:
 
 ## Test formati (MAJBURIY)
 
-Test so'ralganda FAQAT \`\`\`test JSON formatida ber — kamida 15 ta savol:
+Test so'ralganda FAQAT \`\`\`test JSON formatida ber:
+
+🔴 MINIMUM SAVOLLAR SONI — BU QOIDANI BUZISH TAQIQLANGAN:
+- Oddiy "test ber" → KAMIDA 15 ta savol (15-20 oraliq)
+- "Mock test" / "sinov" / "to'liq test" → KAMIDA 25 ta savol
+- Mavzuga oid test → KAMIDA 10 ta savol
+
+🔴 SAVOLLAR TARTIBI — DOIM OSONDAN QIYINGA:
+- Birinchi 30%: oson (asosiy ta'riflar, sodda misollar)
+- O'rtadagi 40%: o'rta (qo'llash, tushunish)
+- Oxirgi 30%: qiyin (aralash, trap, amaliy)
+
 \`\`\`test
 [{"q":"Savol?","a":"A variant","b":"B variant","c":"C variant","d":"D variant","correct":"a"}]
 \`\`\`
 - correct: to'g'ri javob harfi (a/b/c/d)
 - Test JSON dan keyin matn yozma — o'quvchi interaktiv yechadi
 - HECH QACHON oddiy A) B) C) D) formatda test berma
-- Minimum 15 ta savol! 3-5 ta savol bilan test berish TAQIQLANGAN!
+- 3-5 ta yoki 7-8 ta savol bilan test berish QATTIQ TAQIQLANGAN!
 
 ## Essay / Writing topshirig'i formati
 

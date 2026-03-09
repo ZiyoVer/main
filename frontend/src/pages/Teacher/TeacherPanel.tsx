@@ -63,6 +63,12 @@ export default function TeacherPanel() {
         window.addEventListener('keydown', handleEsc)
         return () => window.removeEventListener('keydown', handleEsc)
     }, [])
+    // Savollar soni o'zgarganda vaqtni avtomatik hisoblash (har bir savol uchun 1.5 daqiqa)
+    useEffect(() => {
+        const count = questions.length
+        if (count >= 2) setTimeLimit(Math.ceil(count * 1.5))
+        else setTimeLimit(0)
+    }, [questions.length])
     async function loadTests() {
         try { setTests(await fetchApi('/tests/my-tests')) } catch { }
     }
