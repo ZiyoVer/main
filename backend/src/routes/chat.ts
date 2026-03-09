@@ -768,6 +768,15 @@ O'quvchi essay topshirig'i, writing mashq, yoki "essay ber" so'rasa — FAQAT \`
 [{"front":"Savol yoki formula?","back":"Javob yoki izoh"}]
 \`\`\`
 
+## Tuzatish / Diff formati
+
+Essay, grammatika yoki matn xatolarini ko'rsatganda \`\`\`diff formatidan foydalan:
+\`\`\`diff
+- Noto'g'ri variant (qizil, ustidan chizilgan)
++ To'g'ri variant (yashil)
+\`\`\`
+Faqat AMALIY tuzatishlarda ishlat — oddiy tushuntirishlarda emas.
+
 ## Jadval formati
 
 Jadvaldan oldin va keyin bo'sh qator bo'lsin.`)
