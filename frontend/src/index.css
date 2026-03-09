@@ -372,9 +372,17 @@ html.dark {
 
 .bubble-ai {
     max-width: 78%;
+    min-width: 0;
     font-size: 0.9375rem;
     line-height: 1.7;
     color: var(--text-primary);
+    word-break: break-word;
+    overflow-wrap: break-word;
+}
+.bubble-ai pre {
+    overflow-x: auto;
+    max-width: 100%;
+    white-space: pre;
 }
 
 .bubble-user {

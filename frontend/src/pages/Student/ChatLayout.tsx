@@ -249,27 +249,36 @@ const MdMessage = memo(({ content, isStreaming }: {
                     const accentColors = ['#E07B39','#6366f1','#059669','#d97706','#0891b2','#7c3aed','#be185d','#15803d']
                     const typeLabels: Record<string, string> = { noun: 'ot', verb: 'fe\'l', adj: 'sifat', adv: 'ravish', prep: 'ko\'m', phrase: 'ibora', phrasal: 'ph.v' }
                     return (
-                        <div className="my-3 rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                        <div className="my-3 rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', minWidth: 0 }}>
                             <div className="px-4 py-2.5 flex items-center gap-2" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-card)' }}>
                                 <svg className="h-3.5 w-3.5" style={{ color: 'var(--brand)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
                                 <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>So'z boyligi — {items.length} ta</span>
                             </div>
-                            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                            <div className="grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                                 {items.map((item, i) => {
                                     const accent = accentColors[i % accentColors.length]
                                     const typeKey = (item.type || '').toLowerCase()
                                     const typeLabel = typeLabels[typeKey] || item.type
+                                    const isRightCol = i % 2 === 1
                                     return (
-                                        <div key={i} className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:opacity-80"
-                                            style={{ background: i % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.02)' }}>
-                                            <span className="text-[11px] font-mono w-5 text-right flex-shrink-0" style={{ color: 'var(--text-muted)' }}>{i + 1}</span>
-                                            <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: accent }} />
-                                            <span className="font-bold text-[14px] leading-snug min-w-[100px]" style={{ color: accent }}>{item.word}</span>
-                                            {typeLabel && (
-                                                <span className="text-[10px] px-1.5 py-0.5 rounded-md font-medium flex-shrink-0"
-                                                    style={{ background: `${accent}18`, color: accent }}>{typeLabel}</span>
-                                            )}
-                                            {item.hint && <span className="text-[13px] leading-snug ml-1" style={{ color: 'var(--text-secondary)' }}>{item.hint}</span>}
+                                        <div key={i} className="flex items-start gap-2.5 px-3 py-2.5 hover:opacity-80 transition-opacity"
+                                            style={{
+                                                background: Math.floor(i / 2) % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.02)',
+                                                borderTop: i >= 2 ? `1px solid var(--border)` : 'none',
+                                                borderLeft: isRightCol ? `1px solid var(--border)` : 'none',
+                                            }}>
+                                            <span className="text-[10px] font-mono mt-0.5 flex-shrink-0 w-4 text-right" style={{ color: 'var(--text-muted)' }}>{i + 1}</span>
+                                            <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5" style={{ background: accent }} />
+                                            <div className="flex flex-col min-w-0">
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    <span className="font-bold text-[13px] leading-snug" style={{ color: accent }}>{item.word}</span>
+                                                    {typeLabel && (
+                                                        <span className="text-[9px] px-1 py-0.5 rounded font-medium flex-shrink-0"
+                                                            style={{ background: `${accent}18`, color: accent }}>{typeLabel}</span>
+                                                    )}
+                                                </div>
+                                                {item.hint && <span className="text-[11px] leading-snug mt-0.5 break-words" style={{ color: 'var(--text-secondary)' }}>{item.hint}</span>}
+                                            </div>
                                         </div>
                                     )
                                 })}
