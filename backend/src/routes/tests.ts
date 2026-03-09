@@ -225,7 +225,7 @@ router.post('/generate-from-file', authenticate, requireRole('TEACHER', 'ADMIN')
 
 MUHIM QOIDALAR:
 - Rasmdagi mavjud savol va variantlarni AYNAN ko'chir
-- Kamida 5 ta, ko'pi 30 ta savol
+- Kamida 5 ta, ko'pi 90 ta savol
 - correctIdx: to'g'ri javob indeksi (0=A, 1=B, 2=C, 3=D)
 - Matematik ifodalarni KaTeX formatida yoz: $\\sqrt{x}$, $\\frac{a}{b}$, $x^{2}$, $a_{n}$, $\\pi$
 - Rasmdagi har qanday formula, ildiz, kasr, daraja, indeksni LaTeX bilan ifodalash SHART
@@ -255,7 +255,7 @@ MUHIM QOIDALAR:
 - Matndagi mavjud savol va variantlarni AYNAN ko'chir
 - Agar matnda savol topilmasa YOKI matn o'quv material bo'lsa — o'sha materialdan YANGI savol yaratishga ruxsat beriladi
 - correctIdx: to'g'ri javob indeksi (0=A, 1=B, 2=C, 3=D)
-- Kamida 5 ta, ko'pi 30 ta savol
+- Kamida 5 ta, ko'pi 90 ta savol
 - Matematik ifodalarni KaTeX formatida yoz: $\\sqrt{x}$, $\\frac{a}{b}$, $x^{2}$, $a_{n}$, $\\pi$
 - Har qanday formula, ildiz, kasr, daraja, indeksni LaTeX bilan ifodalash SHART
 ${truncated ? '- DIQQAT: PDF katta, faqat birinchi qism berildi\n' : ''}
@@ -280,7 +280,7 @@ ${text}`
 MUHIM QOIDALAR:
 - Matndagi mavjud savol va variantlarni AYNAN ko'chir
 - correctIdx: to'g'ri javob indeksi (0=A, 1=B, 2=C, 3=D)
-- Kamida 5 ta, ko'pi 30 ta savol
+- Kamida 5 ta, ko'pi 90 ta savol
 - Matematik ifodalarni KaTeX formatida yoz: $\\sqrt{x}$, $\\frac{a}{b}$, $x^{2}$, $a_{n}$, $\\pi$
 - Har qanday formula, ildiz, kasr, daraja, indeksni LaTeX bilan ifodalash SHART
 ${truncated ? '- DIQQAT: Fayl katta, faqat birinchi qism berildi\n' : ''}
@@ -303,7 +303,7 @@ MUHIM QOIDALAR:
 - Rasmdagi mavjud savol va variantlarni AYNAN ko'chir
 - Agar rasmda savol topilmasa — rasmda ko'rsatilgan mavzudan yangi savol yaratishga ruxsat beriladi
 - correctIdx: to'g'ri javob indeksi (0=A, 1=B, 2=C, 3=D)
-- Kamida 5 ta, ko'pi 30 ta savol
+- Kamida 5 ta, ko'pi 90 ta savol
 - Matematik ifodalarni KaTeX formatida yoz: $\\sqrt{x}$, $\\frac{a}{b}$, $x^{2}$, $a_{n}$, $\\pi$
 - Rasmdagi har qanday formula, ildiz, kasr, daraja, indeksni LaTeX bilan ifodalash SHART
 
