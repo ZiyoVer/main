@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { BrainCircuit, CheckCircle, XCircle, ArrowLeft, Sparkles } from 'lucide-react'
+import { BrainCircuit, CheckCircle, XCircle, ArrowLeft, Sparkles, LogIn } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
+import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
@@ -44,6 +45,7 @@ function TextWithMath({ text }: { text: string }) {
 export default function TestPage() {
     const { shareLink } = useParams<{ shareLink: string }>()
     const nav = useNavigate()
+    const { token, user } = useAuthStore()
     const [test, setTest] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [err, setErr] = useState('')
@@ -66,6 +68,12 @@ export default function TestPage() {
 
     async function submit() {
         if (!test) return
+        // Login talab qilinadi — natijalarni saqlash uchun
+        if (!token || !user) {
+            toast('Testni topshirish uchun akkauntga kirish kerak', { icon: '🔐', duration: 3000 })
+            nav('/kirish', { state: { from: `/test/${shareLink}` } })
+            return
+        }
         if (answeredCount < total) {
             const unanswered = total - answeredCount
             toast(`${unanswered} ta savol javobsiz qolgan. Davom etasizmi?`, {
@@ -361,21 +369,30 @@ export default function TestPage() {
 
                 {/* Submit */}
                 {!submitted && (
-                    <button
-                        onClick={submit}
-                        disabled={submitting || answeredCount === 0}
-                        className="w-full h-11 rounded-xl text-sm font-semibold text-white transition disabled:opacity-40"
-                        style={{ background: 'var(--text-primary)' }}
-                    >
-                        {submitting ? 'Tekshirilmoqda...' : `Testni yuborish (${answeredCount}/${total})`}
-                    </button>
+                    <div className="space-y-2">
+                        {!token && (
+                            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-[12px]"
+                                style={{ background: 'var(--brand-light)', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', color: 'var(--brand)' }}>
+                                <LogIn className="h-3.5 w-3.5 flex-shrink-0" />
+                                <span>Testni topshirish uchun akkauntga kirish kerak. Kirgandan keyin ushbu sahifaga qaytasiz.</span>
+                            </div>
+                        )}
+                        <button
+                            onClick={submit}
+                            disabled={submitting || answeredCount === 0}
+                            className="w-full h-11 rounded-xl text-sm font-semibold text-white transition disabled:opacity-40"
+                            style={{ background: 'var(--text-primary)' }}
+                        >
+                            {submitting ? 'Tekshirilmoqda...' : !token ? '🔐 Kirish va topshirish' : `Testni yuborish (${answeredCount}/${total})`}
+                        </button>
+                    </div>
                 )}
 
                 {submitted && (
-                    <button onClick={() => nav('/suhbat')}
+                    <button onClick={() => nav(token ? '/suhbat' : '/')}
                         className="w-full h-11 rounded-xl text-sm font-semibold transition"
                         style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
-                        Chatga qaytish
+                        {token ? 'Chatga qaytish' : 'Bosh sahifaga qaytish'}
                     </button>
                 )}
             </div>

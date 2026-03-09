@@ -73,7 +73,7 @@ export default function App() {
                 <Route path="/admin-login" element={<AdminLogin />} />
                 <Route path="/chat" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
                 <Route path="/chat/:chatId" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
-                <Route path="/test/:shareLink" element={<ProtectedRoute><TestPage /></ProtectedRoute>} />
+                <Route path="/test/:shareLink" element={<TestPage />} />
                 <Route path="/admin" element={<ProtectedRoute roles={['ADMIN']}><AdminPanel /></ProtectedRoute>} />
                 <Route path="/teacher" element={<ProtectedRoute roles={['TEACHER', 'ADMIN']}><TeacherPanel /></ProtectedRoute>} />
                 <Route path="/shartlar" element={<Terms />} />

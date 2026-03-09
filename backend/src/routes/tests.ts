@@ -666,32 +666,36 @@ router.post('/analyze-result', authenticate, async (req: AuthRequest, res) => {
 
         const hasImages = questions.some((q: any) => q.imageUrl)
 
-        // Rasmli savollar bo'lsa vision AI
+        // Rasmli savollar bo'lsa vision AI (max 8 ta rasm — API limit)
         if (hasImages && process.env.OPENAI_API_KEY) {
             const optLabels = ['A', 'B', 'C', 'D']
+            const wrongImgQs = questions.filter((q: any) => q.imageUrl && q.studentAnswer !== q.correctAnswer).slice(0, 8)
+            const imgQs = wrongImgQs.length > 0 ? wrongImgQs : questions.filter((q: any) => q.imageUrl).slice(0, 5)
             const content: any[] = [{
                 type: 'text',
-                text: `O'quvchi "${title || 'Test'}" testini yechdi. Natija: ${score}/${total}.\nHar bir rasmli savolni mustaqil tahlil qil, to'g'ri javobni rasmdan o'zing aniqlа, o'quvchi javobini solishtir.\nJavob O'zbek tilida, KaTeX ($...$ formatida) bo'lsin.`
+                text: `O'quvchi "${title || 'Test'}" testini yechdi. Natija: ${score}/${total}.\nQuyida xato yoki tekshiruv kerak bo'lgan rasmli savollar. Har birini tahlil qil, to'g'ri javobni aniqlа, o'quvchi xatosini tushuntir.\nJavob O'zbek tilida, KaTeX ($...$ formatida) bo'lsin.`
             }]
-            questions.filter((q: any) => q.imageUrl).forEach((q: any, idx: number) => {
+            imgQs.forEach((q: any, idx: number) => {
                 const opts = ['a','b','c','d'].map((k, i) => q[k] ? `${optLabels[i]}) ${q[k]}` : null).filter(Boolean).join(' | ')
                 const studentLabel = (q.studentAnswer || '?').toUpperCase()
                 const correctLabel = (q.correctAnswer || '?').toUpperCase()
-                content.push({ type: 'text', text: `\nSavol ${idx+1}${q.text ? ': '+q.text : ' (rasm):'}\nVariantlar: ${opts||'—'}\nO'quvchi javobi: ${studentLabel} | Tizim to'g'ri javobi: ${correctLabel} (rasmdan mustaqil tekshir)\nRasm:` })
-                content.push({ type: 'image_url', image_url: { url: q.imageUrl, detail: 'high' } })
+                content.push({ type: 'text', text: `\nSavol ${idx+1}${q.text ? ': '+q.text : ' (rasm):'}\nVariantlar: ${opts||'—'}\nO'quvchi: ${studentLabel} | To'g'ri: ${correctLabel}\nRasm:` })
+                content.push({ type: 'image_url', image_url: { url: q.imageUrl, detail: 'low' } })
             })
-            const completion = await gptClient.chat.completions.create({ model: 'gpt-4o', messages: [{ role: 'user', content }], max_tokens: 2000, temperature: 0.3 })
+            const completion = await gptClient.chat.completions.create({ model: 'gpt-4o-mini', messages: [{ role: 'user', content }], max_tokens: 1500, temperature: 0.3 })
             return res.json({ analysis: completion.choices[0]?.message?.content || null, type: 'vision' })
         }
 
-        // Rasmsiz — DeepSeek bilan umumiy tahlil
-        const wrongList = questions.filter((q: any) => q.studentAnswer !== q.correctAnswer)
-            .map((q: any, i: number) => `${i+1}. ${q.text || 'Savol'} — O'quvchi: ${(q.studentAnswer||'?').toUpperCase()}, To'g'ri: ${(q.correctAnswer||'?').toUpperCase()}`)
+        // Rasmsiz — DeepSeek bilan umumiy tahlil (max 25 ta xato savol)
+        const wrongList = questions
+            .filter((q: any) => q.studentAnswer !== q.correctAnswer)
+            .slice(0, 25)
+            .map((q: any, i: number) => `${i+1}. ${(q.text||'Savol').substring(0,120)} — O'quvchi: ${(q.studentAnswer||'?').toUpperCase()}, To'g'ri: ${(q.correctAnswer||'?').toUpperCase()}`)
             .join('\n')
 
         const prompt = `O'quvchi "${title||'Test'}" testini yechdi (${subject||''}). Natija: ${score}/${total} (${Math.round(score/total*100)}%).\n\n${wrongList ? 'Xato savollar:\n'+wrongList : 'Barcha savollar to\'g\'ri!'}\n\nQisqacha (3-5 gap) tahlil qil: qaysi mavzular zaif, nima o'rganish kerak. O'zbek tilida yoz.`
 
-        const completion = await aiClient.chat.completions.create({ model: aiModel, messages: [{ role: 'user', content: prompt }], max_tokens: 600, temperature: 0.4 })
+        const completion = await aiClient.chat.completions.create({ model: aiModel, messages: [{ role: 'user', content: prompt }], max_tokens: 700, temperature: 0.4 })
         res.json({ analysis: completion.choices[0]?.message?.content || null, type: 'text' })
     } catch (e: any) {
         console.error('analyze-result:', e.message)
