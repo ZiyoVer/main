@@ -302,20 +302,25 @@ const MdMessage = memo(({ content, isStreaming }: {
                                 <svg className="h-3.5 w-3.5" style={{ color: '#059669' }} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                                 <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Formulalar — {items.length} ta</span>
                             </div>
-                            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                            <div className="grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                                 {items.map((item, i) => {
                                     let rendered = ''
-                                    try { rendered = katex.renderToString(item.formula, { displayMode: true, throwOnError: false }) } catch { rendered = item.formula }
+                                    try { rendered = katex.renderToString(item.formula, { displayMode: false, throwOnError: false }) } catch { rendered = item.formula }
+                                    const isRightCol = i % 2 === 1
                                     return (
-                                        <div key={i} className="px-4 py-3 hover:opacity-80 transition-opacity"
-                                            style={{ background: i % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.02)' }}>
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <span className="text-[10px] font-mono w-5 text-right flex-shrink-0" style={{ color: 'var(--text-muted)' }}>{i + 1}</span>
+                                        <div key={i} className="flex flex-col gap-1 px-3 py-2.5 hover:opacity-80 transition-opacity"
+                                            style={{
+                                                background: Math.floor(i / 2) % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.02)',
+                                                borderTop: i >= 2 ? '1px solid var(--border)' : 'none',
+                                                borderLeft: isRightCol ? '1px solid var(--border)' : 'none',
+                                            }}>
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                <span className="text-[10px] font-mono flex-shrink-0" style={{ color: 'var(--text-muted)' }}>{i + 1}</span>
                                                 <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#059669' }} />
-                                                <span className="font-bold text-[13px]" style={{ color: '#059669' }}>{item.name}</span>
-                                                {item.hint && <span className="text-[11px] px-1.5 py-0.5 rounded-md flex-shrink-0" style={{ background: 'rgba(5,150,105,0.1)', color: '#059669' }}>{item.hint}</span>}
+                                                <span className="font-semibold text-[12px] leading-snug" style={{ color: '#059669' }}>{item.name}</span>
+                                                {item.hint && <span className="text-[9px] px-1 py-0.5 rounded flex-shrink-0" style={{ background: 'rgba(5,150,105,0.1)', color: '#059669' }}>{item.hint}</span>}
                                             </div>
-                                            <div className="pl-8 overflow-x-auto" dangerouslySetInnerHTML={{ __html: rendered }} />
+                                            <div className="pl-4 text-[13px] overflow-x-auto" dangerouslySetInnerHTML={{ __html: rendered }} />
                                         </div>
                                     )
                                 })}
