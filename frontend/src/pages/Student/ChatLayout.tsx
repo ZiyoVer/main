@@ -286,6 +286,43 @@ const MdMessage = memo(({ content, isStreaming }: {
                         </div>
                     )
                 }
+                if (className?.includes('language-formula')) {
+                    const raw = String(children).trim()
+                    let items: { name: string; formula: string; hint?: string }[] = []
+                    try {
+                        const parsed = JSON.parse(raw)
+                        items = Array.isArray(parsed)
+                            ? parsed.map((x: any) => ({ name: x.name || x.n || '', formula: x.formula || x.f || '', hint: x.hint || x.h || '' }))
+                            : []
+                    } catch { return null }
+                    if (items.length === 0) return null
+                    return (
+                        <div className="my-3 rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                            <div className="px-4 py-2.5 flex items-center gap-2" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+                                <svg className="h-3.5 w-3.5" style={{ color: '#059669' }} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                                <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Formulalar — {items.length} ta</span>
+                            </div>
+                            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                                {items.map((item, i) => {
+                                    let rendered = ''
+                                    try { rendered = katex.renderToString(item.formula, { displayMode: true, throwOnError: false }) } catch { rendered = item.formula }
+                                    return (
+                                        <div key={i} className="px-4 py-3 hover:opacity-80 transition-opacity"
+                                            style={{ background: i % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.02)' }}>
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <span className="text-[10px] font-mono w-5 text-right flex-shrink-0" style={{ color: 'var(--text-muted)' }}>{i + 1}</span>
+                                                <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#059669' }} />
+                                                <span className="font-bold text-[13px]" style={{ color: '#059669' }}>{item.name}</span>
+                                                {item.hint && <span className="text-[11px] px-1.5 py-0.5 rounded-md flex-shrink-0" style={{ background: 'rgba(5,150,105,0.1)', color: '#059669' }}>{item.hint}</span>}
+                                            </div>
+                                            <div className="pl-8 overflow-x-auto" dangerouslySetInnerHTML={{ __html: rendered }} />
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    )
+                }
                 const isBlock = className?.includes('language-')
                 return isBlock
                     ? <pre className="rounded-xl p-4 text-[13px] overflow-x-auto my-3 font-mono leading-relaxed" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}><code>{children}</code></pre>
@@ -2338,6 +2375,41 @@ export default function ChatLayout() {
                                                                         background: 'rgba(8, 145, 178, 0.18)',
                                                                         animationDelay: `${i * 0.15}s`
                                                                     }} />
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {/```formula/.test(streaming) && !/```formula[\s\S]*?```/.test(streaming) && (
+                                                <div className="mt-4 rounded-2xl overflow-hidden" style={{
+                                                    background: 'linear-gradient(135deg, rgba(5,150,105,0.12) 0%, rgba(5,150,105,0.05) 100%)',
+                                                    border: '1.5px solid rgba(5,150,105,0.25)',
+                                                }}>
+                                                    <div className="px-5 py-4">
+                                                        <div className="flex items-center gap-4 mb-4">
+                                                            <div className="h-12 w-12 rounded-2xl flex items-center justify-center flex-shrink-0 animate-pulse" style={{ background: 'rgba(5,150,105,0.18)' }}>
+                                                                <svg className="h-6 w-6" style={{ color: '#059669' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                                                </svg>
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    <span className="text-[15px] font-bold" style={{ color: '#059669' }}>Formulalar tayyorlanmoqda</span>
+                                                                    <span className="flex gap-1 items-center">
+                                                                        {[0,1,2].map(i => (
+                                                                            <span key={i} className="h-1.5 w-1.5 rounded-full" style={{ background: '#059669', animation: `bounce 1.2s ease-in-out ${i*0.2}s infinite` }} />
+                                                                        ))}
+                                                                    </span>
+                                                                </div>
+                                                                <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>AI formulalarni tayyorlamoqda, biroz kuting...</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="space-y-2.5">
+                                                            {[75, 90, 60, 85].map((w, i) => (
+                                                                <div key={i} className="flex items-center gap-3">
+                                                                    <div className="h-5 w-5 rounded flex-shrink-0 animate-pulse" style={{ background: 'rgba(5,150,105,0.15)', animationDelay: `${i*0.1}s` }} />
+                                                                    <div className="h-5 rounded-lg flex-1 animate-pulse" style={{ maxWidth: `${w}%`, background: 'rgba(5,150,105,0.12)', animationDelay: `${i*0.15}s` }} />
                                                                 </div>
                                                             ))}
                                                         </div>

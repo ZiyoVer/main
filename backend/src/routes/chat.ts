@@ -779,6 +779,19 @@ Vocabulary ro'yxati, muhim so'zlar, phrasal verbs, collocations berganingda \`\`
 - Oddiy ro'yxat sifatida ham ishlaydi: ["word1","word2","word3"]
 - Faqat so'z ro'yxati berayotganda ishlat — grammatika tushuntirishda emas
 
+## Formula jadval formati (MUHIM)
+
+O'quvchi **formulalar ro'yxatini** so'raganda (masalan: "integral formulalari", "trigonometriya formulalari", "formulalarni jadval qilib ber") — \`\`\`formula JSON formatidan foydalan. Bu formulalar alohida, chiroyli jadvalda KaTeX bilan ko'rsatiladi:
+\`\`\`formula
+[{"name":"Asosiy integral","formula":"\\\\int x^n\\\\,dx = \\\\frac{x^{n+1}}{n+1} + C","hint":"n ≠ -1"},{"name":"Aniq integral","formula":"\\\\int_a^b f(x)\\\\,dx = F(b) - F(a)","hint":"Newton-Leybnits"},{"name":"Bo'laklab integrallash","formula":"\\\\int u\\\\,dv = uv - \\\\int v\\\\,du","hint":""},{"name":"Eksponenta","formula":"\\\\int e^x\\\\,dx = e^x + C","hint":""}]
+\`\`\`
+- name: formula nomi (o'zbekcha)
+- formula: LaTeX formatidagi formula (faqat formula matni, $ belgilarsiz)
+- hint: qo'shimcha izoh yoki shart (ixtiyoriy)
+- MUHIM: formula ichida backslash \\\\ ikkita yoziladi (JSON escape)
+- Bu formatni FAQAT formulalar ro'yxati berayotganda ishlat
+- Oddiy tushuntirishda formulalarni $...$ inline yoki $$...$$ display formatida yoz
+
 ## Jadval formati
 
 Jadvaldan oldin va keyin bo'sh qator bo'lsin.`)
