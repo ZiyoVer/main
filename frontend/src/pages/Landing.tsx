@@ -84,14 +84,14 @@ const TESTIMONIALS = [
     {
         name: "Sarvar T.",
         role: "11-sinf · Matematika",
-        text: "Integrallarni darslikdan tushunmay yurardim. GPT ga yozsam inglizcha javob beradi. Bu yerda o'zbekcha, misollar bilan, savolimni boshqa so'z bilan so'rasam ham charchamay tushuntirdi. DTM 87 ball.",
+        text: "Integrallarni darslikdan tushunmay yurardim. GPT ga yozsam inglizcha javob beradi. Bu yerda o'zbekcha, misollar bilan, savolimni boshqa so'z bilan so'rasam ham charchamay tushuntirdi.",
         stars: 5,
         subject: "Matematika"
     },
     {
         name: "Dilnoza A.",
         role: "Milliy Sertifikat · Ingliz tili",
-        text: "Past perfect bilan simple past ni aralashtirib yuborardim. Har kuni kechqurun 20 daqiqa shu yerda mashq qildim. Sertifikatda B2 chiqdi — o'zim ham kutmagan edim rostini aytganda.",
+        text: "Past perfect bilan simple past ni aralashtirib yuborardim. Har kuni kechqurun 20 daqiqa shu yerda mashq qildim. O'zim ham sezmaganman qachon o'rganib ketganimni.",
         stars: 5,
         subject: "Ingliz tili"
     },
