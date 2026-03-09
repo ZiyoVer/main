@@ -286,6 +286,8 @@ const ChatInputArea = memo(function ChatInputArea({
                 return { id: Math.random().toString(), name: file.name, text: data.text, type: data.fileType, previewUrl }
             }))
             setAttachedFiles(prev => [...prev, ...newAttachments])
+            // Upload tugagach textarea ga focus qaytaramiz — Enter ishlashi uchun
+            setTimeout(() => textareaRef.current?.focus(), 50)
         } catch (e: any) {
             toast.error('Fayl yuklashda xato: ' + (e?.message || "Qayta urinib ko'ring"))
         }
@@ -337,6 +339,7 @@ const ChatInputArea = memo(function ChatInputArea({
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault()
+            if (uploadingFile) return // upload tugaguncha kuting
             if (!loading && (input.trim() || attachedFiles.length > 0)) handleSubmit(e as any)
         }
     }

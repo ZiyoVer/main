@@ -77,6 +77,97 @@ function getExamSection(subject?: string): string {
 
 ---
 
+## 📊 CEFR DARAJALARI — TO'LIQ TAVSIF
+
+CEFR (Common European Framework of Reference for Languages) — Yevropa Kengashi tomonidan ishlab chiqilgan xalqaro til bilish darajasi tizimi. O'quvchi "mening darajam qanday?", "B2 uchun nima bilish kerak?", "daraja farqi nima?" kabi savol bersa — quyidagi ma'lumotlardan foydalan.
+
+### 🔴 A1 — Boshlang'ich (Beginner)
+**Nima qila oladi:**
+- O'zini tanishtira oladi: "My name is..., I am from..."
+- Oddiy savollarni tushunadi va javob beradi: "Where do you live? How old are you?"
+- Raqamlar, ranglar, kunlar, oylarni ayta oladi
+- Oddiy buyruqlarni tushunadi (sit down, open the book)
+- 300–500 ta oddiy so'z
+
+**Grammar:** Present Simple (to be, have got), articles (a/the), basic pronouns, plural nouns
+**Milliy Sertifikat bilan bog'liq:** A1 sertifikat berish darajasi emas — tayyorgarlik bosqichi
+
+### 🟠 A2 — Elementar (Elementary)
+**Nima qila oladi:**
+- Tanish mavzularda qisqa suhbat qura oladi (oila, ish, uy)
+- Oddiy xatlarni o'qib tushunadi
+- Kundalik hayot haqida oddiy gaplar yoza oladi
+- Do'stiga qisqa xat yoza oladi
+- 1000–1500 ta so'z
+
+**Grammar:** Past Simple, Future (will/going to), comparatives, prepositions, basic modals (can/must)
+**Milliy Sertifikat:** A2 darajasida sertifikat beriladi, lekin OTMga etarli emas
+
+### 🟡 B1 — O'rta (Intermediate) — MILLIY SERTIFIKAT C DARAJASI
+**Nima qila oladi:**
+- Tanish mavzularda erkin gapiradi (sayohat, hodisalar, rejalar)
+- Asosiy tushunchalar bo'yicha qisqa esse yoza oladi (180–220 so'z)
+- Gazetalardagi oddiy maqolalarni tushunadi
+- Xorijda yuzaga keladigan vaziyatlarni hal qila oladi
+- 2000–2500 ta so'z
+
+**Grammar:** Present Perfect, conditionals (1st, 2nd), passive voice (basic), reported speech (basic), relative clauses (basic)
+**Milliy Sertifikat C/C+ darajasi**: 46–54.9% ball — OTMga kamroq imtiyoz beradi
+
+### 🟢 B2 — O'rta-yuqori (Upper Intermediate) — ASOSIY MAQSAD
+**Nima qila oladi:**
+- Murakkab matnlarni tushunadi (texnik va abstrakt mavzular)
+- Ona tilida gaplashuvchi kishi bilan qiyinchiliksiz suhbatlashadi
+- Keng mavzularda aniq va batafsil gapira oladi
+- Fikrni asoslab, turli nuqtai nazarlarni ifodalaydi
+- 3500–4500 ta so'z
+
+**Grammar:** All tenses mastered, 3rd conditional, mixed conditionals, passive (all tenses), reported speech (complex), inversion, emphasis structures, subjunctive, participle clauses
+**Milliy Sertifikat B/B+ darajasi**: 55–64.9% ball — OTMga maksimal imtiyoz beradi (ko'pchilik talabalik uchun yetarli)
+
+### 🔵 C1 — Ilg'or (Advanced)
+**Nima qila oladi:**
+- Qiyin, uzun matnlarni tushunadi va yashirin ma'nolarni ilg'aydi
+- O'ylab turmasdan ravon va tabiiy gapiradi
+- Ijtimoiy, akademik va professional maqsadlarda samarali til ishlatadi
+- Murakkab va aniq esse, tahlil va ma'ruza yoza oladi
+- 6000–8000 ta so'z
+
+**Grammar:** Sophisticated structures: inversion (Not only... but also), cleft sentences (It was...), fronting, colloquial + formal register control
+**Milliy Sertifikat A/A+ darajasi**: 65–70%+ — filologiya magistratura uchun zarur
+
+### 🟣 C2 — Mukammal (Mastery/Proficiency)
+**Nima qila oladi:**
+- Eshitgan yoki o'qigan deyarli hamma narsani tushunadi
+- Og'zaki va yozma ravishda o'z fikrini aniq va ta'sirchan ifodalaydi
+- Juda murakkab vaziyatlarda ham so'z topa oladi
+- Idiomalar, yumoristik va subtil matnlarni tushunadi
+- 10,000+ ta so'z (passiv)
+
+**Milliy Sertifikat** C2 daraja bermaydi — bu IELTS 8.5+, CPE (Cambridge) darajasi
+
+---
+
+### 📈 DARAJALAR ORASIDAGI TAFOVUT (O'quvchilarga tushuntirish uchun):
+
+| Daraja | Taqqoslash | O'qish vaqti (oldingi darajadan) |
+|--------|------------|----------------------------------|
+| A1 → A2 | Ingliz alifbosini bilishdan oddiy suhbatga | 150–200 soat |
+| A2 → B1 | Oddiy suhbatdan mustaqil gapirishga | 180–200 soat |
+| B1 → B2 | Mustaqillikdan keng mavzularga | 200–250 soat |
+| B2 → C1 | Keng mavzulardan kasbiy mukammallikka | 250–300 soat |
+| C1 → C2 | Kasbiy darajadan ona tilisiga yaqinlashish | 300+ soat |
+
+### 🎯 O'zbek o'quvchilari uchun eng tez-tez muammo:
+- **B1 → B2 o'tish** — eng qiyin qadam: conditionals, passive, collocations
+- **Grammar vs Vocabulary balans**: ko'pchilik grammatikani biladi, lekin so'z boyligi (vocabulary) yetishmaydi
+- **Speaking fluency**: yozuvda B2, gapirishda B1 darajasida qolib ketish odatiy holat
+- **Reading speed**: B2 uchun 200–250 so'z/daqiqa o'qish kerak
+
+---
+
+---
+
 ## 5 ta bo'lim (Section):
 
 ### 1️⃣ LISTENING — Eshitib tushunish
