@@ -226,7 +226,6 @@ const MdMessage = memo(({ content, isStreaming }: {
                     )
                 }
                 if (className?.includes('language-vocab')) {
-                    // So'zlar uzunligiga qarab o'lchamdagi shablon
                     const raw = String(children).trim()
                     let items: { word: string; hint?: string }[] = []
                     try {
@@ -236,41 +235,32 @@ const MdMessage = memo(({ content, isStreaming }: {
                             : []
                     } catch { return null }
                     if (items.length === 0) return null
-                    const lengths = items.map(i => i.word.length)
-                    const minL = Math.min(...lengths)
-                    const maxL = Math.max(...lengths)
-                    const range = maxL - minL || 1
-                    // Font o'lchami: 13px (qisqa) → 28px (uzun)
-                    const getSize = (len: number) => Math.round(13 + ((len - minL) / range) * 15)
-                    const colors = ['var(--brand)', '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#8b5cf6', '#ec4899']
+                    const palettes = [
+                        { bg: 'rgba(224,123,57,0.12)', border: 'rgba(224,123,57,0.35)', text: 'var(--brand)' },
+                        { bg: 'rgba(99,102,241,0.1)', border: 'rgba(99,102,241,0.3)', text: '#6366f1' },
+                        { bg: 'rgba(16,185,129,0.1)', border: 'rgba(16,185,129,0.3)', text: '#059669' },
+                        { bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.3)', text: '#d97706' },
+                        { bg: 'rgba(6,182,212,0.1)', border: 'rgba(6,182,212,0.3)', text: '#0891b2' },
+                        { bg: 'rgba(139,92,246,0.1)', border: 'rgba(139,92,246,0.3)', text: '#7c3aed' },
+                        { bg: 'rgba(236,72,153,0.1)', border: 'rgba(236,72,153,0.3)', text: '#be185d' },
+                        { bg: 'rgba(34,197,94,0.1)', border: 'rgba(34,197,94,0.3)', text: '#15803d' },
+                    ]
                     return (
-                        <div className="my-3 rounded-2xl p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
-                            <p className="text-[10px] font-bold uppercase tracking-wider mb-4" style={{ color: 'var(--text-muted)' }}>
+                        <div className="my-3 rounded-2xl p-4" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                            <p className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)' }}>
                                 📚 So'z boyligi — {items.length} ta
                             </p>
-                            <div className="flex flex-wrap gap-x-4 gap-y-3 items-end">
-                                {items.map((item, i) => (
-                                    <div key={i} className="group relative cursor-default">
-                                        <span
-                                            className="font-semibold leading-none transition-all duration-150 select-none"
-                                            style={{
-                                                fontSize: getSize(item.word.length) + 'px',
-                                                color: colors[i % colors.length],
-                                                opacity: 0.85,
-                                            }}
-                                            onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
-                                            onMouseLeave={e => (e.currentTarget.style.opacity = '0.85')}
-                                        >
-                                            {item.word}
-                                        </span>
-                                        {item.hint && (
-                                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded-lg text-[11px] font-medium whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                                                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)', boxShadow: '0 4px 12px rgba(0,0,0,0.12)' }}>
-                                                {item.hint}
-                                            </span>
-                                        )}
-                                    </div>
-                                ))}
+                            <div className="flex flex-wrap gap-2">
+                                {items.map((item, i) => {
+                                    const p = palettes[i % palettes.length]
+                                    return (
+                                        <div key={i} className="flex flex-col items-center rounded-xl px-3 py-2 transition-transform hover:scale-105 cursor-default"
+                                            style={{ background: p.bg, border: `1.5px solid ${p.border}`, minWidth: 64 }}>
+                                            <span className="text-[13px] font-bold leading-snug text-center" style={{ color: p.text }}>{item.word}</span>
+                                            {item.hint && <span className="text-[10px] mt-0.5 text-center leading-tight" style={{ color: 'var(--text-muted)' }}>{item.hint}</span>}
+                                        </div>
+                                    )
+                                })}
                             </div>
                         </div>
                     )
