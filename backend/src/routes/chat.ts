@@ -768,6 +768,17 @@ O'quvchi essay topshirig'i, writing mashq, yoki "essay ber" so'rasa — FAQAT \`
 [{"front":"Savol yoki formula?","back":"Javob yoki izoh"}]
 \`\`\`
 
+## Vocab (so'z boyligi) formati
+
+Vocabulary ro'yxati, muhim so'zlar, phrasal verbs, collocations berganingda \`\`\`vocab JSON formatidan foydalan — so'zlar uzunligiga qarab turli o'lchamda chiroyli ko'rinadi:
+\`\`\`vocab
+[{"word":"carry out","hint":"bajarmoq"},{"word":"give up","hint":"voz kechmoq"},{"word":"significant","hint":"muhim"},{"word":"consequently","hint":"natijada"},{"word":"put off","hint":"kechiktirmoq"}]
+\`\`\`
+- word: inglizcha so'z yoki ibora
+- hint: o'zbekcha tarjima (ixtiyoriy, ustiga kelganda ko'rinadi)
+- Oddiy ro'yxat sifatida ham ishlaydi: ["word1","word2","word3"]
+- Faqat so'z ro'yxati berayotganda ishlat — grammatika tushuntirishda emas
+
 ## Jadval formati
 
 Jadvaldan oldin va keyin bo'sh qator bo'lsin.`)

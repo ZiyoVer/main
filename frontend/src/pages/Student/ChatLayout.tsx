@@ -225,6 +225,56 @@ const MdMessage = memo(({ content, isStreaming }: {
                         </div>
                     )
                 }
+                if (className?.includes('language-vocab')) {
+                    // So'zlar uzunligiga qarab o'lchamdagi shablon
+                    const raw = String(children).trim()
+                    let items: { word: string; hint?: string }[] = []
+                    try {
+                        const parsed = JSON.parse(raw)
+                        items = Array.isArray(parsed)
+                            ? parsed.map((x: any) => typeof x === 'string' ? { word: x } : { word: x.word || x.w, hint: x.hint || x.h || x.translation || x.t })
+                            : []
+                    } catch { return null }
+                    if (items.length === 0) return null
+                    const lengths = items.map(i => i.word.length)
+                    const minL = Math.min(...lengths)
+                    const maxL = Math.max(...lengths)
+                    const range = maxL - minL || 1
+                    // Font o'lchami: 13px (qisqa) → 28px (uzun)
+                    const getSize = (len: number) => Math.round(13 + ((len - minL) / range) * 15)
+                    const colors = ['var(--brand)', '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#8b5cf6', '#ec4899']
+                    return (
+                        <div className="my-3 rounded-2xl p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                            <p className="text-[10px] font-bold uppercase tracking-wider mb-4" style={{ color: 'var(--text-muted)' }}>
+                                📚 So'z boyligi — {items.length} ta
+                            </p>
+                            <div className="flex flex-wrap gap-x-4 gap-y-3 items-end">
+                                {items.map((item, i) => (
+                                    <div key={i} className="group relative cursor-default">
+                                        <span
+                                            className="font-semibold leading-none transition-all duration-150 select-none"
+                                            style={{
+                                                fontSize: getSize(item.word.length) + 'px',
+                                                color: colors[i % colors.length],
+                                                opacity: 0.85,
+                                            }}
+                                            onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                                            onMouseLeave={e => (e.currentTarget.style.opacity = '0.85')}
+                                        >
+                                            {item.word}
+                                        </span>
+                                        {item.hint && (
+                                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded-lg text-[11px] font-medium whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)', boxShadow: '0 4px 12px rgba(0,0,0,0.12)' }}>
+                                                {item.hint}
+                                            </span>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )
+                }
                 const isBlock = className?.includes('language-')
                 return isBlock
                     ? <pre className="rounded-xl p-4 text-[13px] overflow-x-auto my-3 font-mono leading-relaxed" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}><code>{children}</code></pre>
