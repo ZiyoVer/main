@@ -1,6 +1,8 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import { Toaster } from 'react-hot-toast'
 import { useAuthStore } from './store/authStore'
+import { fetchApi } from './lib/api'
 import Landing from './pages/Landing'
 import Login from './pages/Auth/Login'
 import Register from './pages/Auth/Register'
@@ -17,8 +19,27 @@ import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
 
 function ProtectedRoute({ children, roles }: { children: React.ReactNode, roles?: string[] }) {
-    const { user, token } = useAuthStore()
+    const { user, token, login } = useAuthStore()
     const location = useLocation()
+
+    // Token bor lekin user store da yo'q — /auth/me orqali tiklaymiz
+    const storedToken = localStorage.getItem('token')
+    const [checking, setChecking] = useState(!user && !!storedToken)
+
+    useEffect(() => {
+        if (!user && storedToken) {
+            fetchApi('/auth/me')
+                .then(data => { login(storedToken, data); setChecking(false) })
+                .catch(() => {
+                    localStorage.removeItem('token')
+                    localStorage.removeItem('user')
+                    setChecking(false)
+                })
+        }
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Tekshiruv davomida bo'sh sahifa — login flicker oldini oladi
+    if (checking) return <div className="h-screen w-full" style={{ background: 'var(--bg-main)' }} />
     if (!token || !user) return <Navigate to="/kirish" state={{ from: location.pathname }} replace />
     if (roles && !roles.includes(user.role)) return <Navigate to="/" replace />
     return <>{children}</>
