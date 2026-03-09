@@ -83,44 +83,44 @@ const FEATURES = [
 const TESTIMONIALS = [
     {
         name: "Sarvar T.",
-        role: "11-sinf · Matematika",
-        text: "Integrallarni darslikdan tushunmay yurardim. GPT ga yozsam inglizcha javob beradi. Bu yerda o'zbekcha, misollar bilan, savolimni boshqa so'z bilan so'rasam ham charchamay tushuntirdi.",
+        role: "11-sinf · DTM tayyorgarlik",
+        text: "Men DTM imtihoniga tayyorlanish uchun ishlatdim. AI juda yaxshi ishlarkan — testlar tuzib beradi, xatolarimni darhol ko'rsatadi. Qaysi mavzuda sust ekanimni ham aniq ko'rsatib berdi. Tayyorgarligim ancha tezlashdi.",
         stars: 5,
         subject: "Matematika"
     },
     {
         name: "Dilnoza A.",
         role: "Milliy Sertifikat · Ingliz tili",
-        text: "Past perfect bilan simple past ni aralashtirib yuborardim. Har kuni kechqurun 20 daqiqa shu yerda mashq qildim. O'zim ham sezmaganman qachon o'rganib ketganimni.",
+        text: "Milliy sertifikat uchun tayyorlanayotgan edim. Eng yoqqan tomoni — AI testlarni tekshiradi va tushuntirib ham beradi. Oddiy test platformalardan ko'ra ancha foydali ekan.",
         stars: 5,
         subject: "Ingliz tili"
     },
     {
         name: "Jasur M.",
-        role: "11-sinf · Tarix",
-        text: "Tarix sanalarini yod olish azob edi. Shu yerda voqealar o'zaro bog'lanib tushuntiriladi, sabab nima, oqibat nima — hammasi birikib ketadi. Endi kitobga qaramasam ham eslab qolaman.",
-        stars: 4,
+        role: "11-sinf · Umumiy foydalanuvchi",
+        text: "Platforma menga juda yoqdi. AI orqali yangi testlar avtomatik tuziladi, shu sababli zerikib qolmaysiz. Natijalar statistikasi ham bor, o'z rivojlanishingizni ko'rib borasiz.",
+        stars: 5,
         subject: "Tarix"
     },
     {
         name: "Mohira K.",
-        role: "DTM 2025 · Kimyo",
-        text: "Kimyo formulalari aqlimni aylantirdi. Darslik rasmini yubordim, AI darhol tushuntirdi. Repetitorga pulim yetmaydi, shu platforma o'sha bo'shliqni to'ldirdi.",
+        role: "11-sinf · DTM tayyorgarlik",
+        text: "DTM ga tayyorlanayotganlar uchun yaxshi yechim deb o'ylayman. AI qaysi mavzuni ko'proq ishlash kerakligini ko'rsatib beradi. Testlar ham real imtihonga juda o'xshash.",
         stars: 5,
         subject: "Kimyo"
     },
     {
         name: "Bobur N.",
         role: "11-sinf · Fizika",
-        text: "Masala yechib tushunmay qolsam, faqat javobni emas, yechish yo'lini so'rayman. Har qadamni tushuntiradi. Bepul ekan deb sifati past deb o'ylagandim — yanglishibman.",
+        text: "Avval turli test kitoblari ishlatardim, lekin bu platforma ancha qulay. AI savollarni tekshiradi va xatolar ustida ishlashga yordam beradi. Tayyorlanish jarayoni tizimli bo'lib qoldi.",
         stars: 4,
         subject: "Fizika"
     },
     {
         name: "Zulfiya R.",
         role: "Milliy Sertifikat · Ona tili",
-        text: "Imlo va tinish belgilarida katta muammom bor edi. Test yechsam, har xatoni nima uchun xato ekanligi tushuntiriladi. Ikki oyda o'zim farqni sezdim, o'qituvchim ham payqadi.",
-        stars: 5,
+        text: "Milliy sertifikatga tayyorlanishda juda foydali bo'ldi. AI testlarni tez tekshiradi, izoh beradi va yangi savollar generatsiya qiladi. Shu sabab ko'proq mashq qilish imkoniyati bor.",
+        stars: 4,
         subject: "Ona tili"
     },
 ]
