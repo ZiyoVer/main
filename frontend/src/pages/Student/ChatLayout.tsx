@@ -36,8 +36,15 @@ function MathText({ text }: { text: string }) {
 // DeepSeek \[...\] va \(...\) formatini $$...$$ va $...$ ga o'giradi
 function preprocessMath(text: string): string {
     return text
-        .replace(/\\\[(\s*[\s\S]*?\s*)\\\]/g, (_, m) => `$$${m}$$`)
-        .replace(/\\\((\s*[\s\S]*?\s*)\\\)/g, (_, m) => `$${m}$`)
+        .replace(/\\\[(\s*[\s\S]*?\s*)\\\]/g, (_, m) => `\n$$\n${m.trim()}\n$$\n`)
+        .replace(/\\\((\s*[\s\S]*?\s*)\\\)/g, (_, m) => {
+            const inner = m.trim()
+            // Murakkab inline formulalarni display math ga o'tkazish
+            if (/\\int|\\sum|\\prod|\\lim|\\infty|\\frac\{[^}]{3,}/.test(inner)) {
+                return `\n$$\n${inner}\n$$\n`
+            }
+            return `$${inner}$`
+        })
 }
 
 // MdMessage komponentni tashqarida va memo bilan ta'riflaymiz —
@@ -227,37 +234,42 @@ const MdMessage = memo(({ content, isStreaming }: {
                 }
                 if (className?.includes('language-vocab')) {
                     const raw = String(children).trim()
-                    let items: { word: string; hint?: string }[] = []
+                    let items: { word: string; type?: string; hint?: string }[] = []
                     try {
                         const parsed = JSON.parse(raw)
                         items = Array.isArray(parsed)
-                            ? parsed.map((x: any) => typeof x === 'string' ? { word: x } : { word: x.word || x.w, hint: x.hint || x.h || x.translation || x.t })
+                            ? parsed.map((x: any) => typeof x === 'string' ? { word: x } : {
+                                word: x.word || x.w,
+                                type: x.type || x.pos || '',
+                                hint: x.hint || x.h || x.translation || x.t || ''
+                            })
                             : []
                     } catch { return null }
                     if (items.length === 0) return null
-                    const palettes = [
-                        { bg: 'rgba(224,123,57,0.12)', border: 'rgba(224,123,57,0.35)', text: 'var(--brand)' },
-                        { bg: 'rgba(99,102,241,0.1)', border: 'rgba(99,102,241,0.3)', text: '#6366f1' },
-                        { bg: 'rgba(16,185,129,0.1)', border: 'rgba(16,185,129,0.3)', text: '#059669' },
-                        { bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.3)', text: '#d97706' },
-                        { bg: 'rgba(6,182,212,0.1)', border: 'rgba(6,182,212,0.3)', text: '#0891b2' },
-                        { bg: 'rgba(139,92,246,0.1)', border: 'rgba(139,92,246,0.3)', text: '#7c3aed' },
-                        { bg: 'rgba(236,72,153,0.1)', border: 'rgba(236,72,153,0.3)', text: '#be185d' },
-                        { bg: 'rgba(34,197,94,0.1)', border: 'rgba(34,197,94,0.3)', text: '#15803d' },
-                    ]
+                    const accentColors = ['#E07B39','#6366f1','#059669','#d97706','#0891b2','#7c3aed','#be185d','#15803d']
+                    const typeLabels: Record<string, string> = { noun: 'ot', verb: 'fe\'l', adj: 'sifat', adv: 'ravish', prep: 'ko\'m', phrase: 'ibora', phrasal: 'ph.v' }
                     return (
-                        <div className="my-3 rounded-2xl p-4" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
-                            <p className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)' }}>
-                                📚 So'z boyligi — {items.length} ta
-                            </p>
-                            <div className="flex flex-wrap gap-2">
+                        <div className="my-3 rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                            <div className="px-4 py-2.5 flex items-center gap-2" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+                                <svg className="h-3.5 w-3.5" style={{ color: 'var(--brand)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                                <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>So'z boyligi — {items.length} ta</span>
+                            </div>
+                            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
                                 {items.map((item, i) => {
-                                    const p = palettes[i % palettes.length]
+                                    const accent = accentColors[i % accentColors.length]
+                                    const typeKey = (item.type || '').toLowerCase()
+                                    const typeLabel = typeLabels[typeKey] || item.type
                                     return (
-                                        <div key={i} className="flex flex-col items-center rounded-xl px-3 py-2 transition-transform hover:scale-105 cursor-default"
-                                            style={{ background: p.bg, border: `1.5px solid ${p.border}`, minWidth: 64 }}>
-                                            <span className="text-[13px] font-bold leading-snug text-center" style={{ color: p.text }}>{item.word}</span>
-                                            {item.hint && <span className="text-[10px] mt-0.5 text-center leading-tight" style={{ color: 'var(--text-muted)' }}>{item.hint}</span>}
+                                        <div key={i} className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:opacity-80"
+                                            style={{ background: i % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.02)' }}>
+                                            <span className="text-[11px] font-mono w-5 text-right flex-shrink-0" style={{ color: 'var(--text-muted)' }}>{i + 1}</span>
+                                            <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: accent }} />
+                                            <span className="font-bold text-[14px] leading-snug min-w-[100px]" style={{ color: accent }}>{item.word}</span>
+                                            {typeLabel && (
+                                                <span className="text-[10px] px-1.5 py-0.5 rounded-md font-medium flex-shrink-0"
+                                                    style={{ background: `${accent}18`, color: accent }}>{typeLabel}</span>
+                                            )}
+                                            {item.hint && <span className="text-[13px] leading-snug ml-1" style={{ color: 'var(--text-secondary)' }}>{item.hint}</span>}
                                         </div>
                                     )
                                 })}
@@ -2275,6 +2287,49 @@ export default function ChatLayout() {
                                                                     background: 'rgba(99, 102, 241, 0.18)',
                                                                     animationDelay: `${i * 0.15}s`
                                                                 }} />
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {/```vocab/.test(streaming) && !/```vocab[\s\S]*?```/.test(streaming) && (
+                                                <div className="mt-4 rounded-2xl overflow-hidden" style={{
+                                                    background: 'linear-gradient(135deg, rgba(8, 145, 178, 0.12) 0%, rgba(8, 145, 178, 0.05) 100%)',
+                                                    border: '1.5px solid rgba(8, 145, 178, 0.25)',
+                                                }}>
+                                                    <div className="px-5 py-4">
+                                                        <div className="flex items-center gap-4 mb-4">
+                                                            <div className="h-12 w-12 rounded-2xl flex items-center justify-center flex-shrink-0 animate-pulse"
+                                                                style={{ background: 'rgba(8, 145, 178, 0.18)' }}>
+                                                                <svg className="h-6 w-6" style={{ color: '#0891b2' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                                                                </svg>
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    <span className="text-[15px] font-bold" style={{ color: '#0891b2' }}>So'zlar tayyorlanmoqda</span>
+                                                                    <span className="flex gap-1 items-center">
+                                                                        {[0, 1, 2].map(i => (
+                                                                            <span key={i} className="h-1.5 w-1.5 rounded-full" style={{
+                                                                                background: '#0891b2',
+                                                                                animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite`
+                                                                            }} />
+                                                                        ))}
+                                                                    </span>
+                                                                </div>
+                                                                <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>AI so'z boyligini tayyorlamoqda, biroz kuting...</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            {[90, 60, 75, 45, 80].map((w, i) => (
+                                                                <div key={i} className="flex items-center gap-3">
+                                                                    <div className="h-2 w-2 rounded-full flex-shrink-0 animate-pulse" style={{ background: 'rgba(8, 145, 178, 0.4)', animationDelay: `${i * 0.1}s` }} />
+                                                                    <div className="h-2 rounded-full animate-pulse flex-1" style={{
+                                                                        maxWidth: `${w}%`,
+                                                                        background: 'rgba(8, 145, 178, 0.18)',
+                                                                        animationDelay: `${i * 0.15}s`
+                                                                    }} />
+                                                                </div>
                                                             ))}
                                                         </div>
                                                     </div>
