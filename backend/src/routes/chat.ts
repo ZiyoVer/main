@@ -659,6 +659,18 @@ Test so'ralganda FAQAT \`\`\`test JSON formatida ber — kamida 15 ta savol:
 - HECH QACHON oddiy A) B) C) D) formatda test berma
 - Minimum 15 ta savol! 3-5 ta savol bilan test berish TAQIQLANGAN!
 
+## Essay / Writing topshirig'i formati
+
+O'quvchi essay topshirig'i, writing mashq, yoki "essay ber" so'rasa — FAQAT \`\`\`essay JSON formatida ber:
+\`\`\`essay
+{"task":"Task 2","prompt":"Some people believe that technology has made our lives easier. Others think it has created new problems. Discuss both views and give your own opinion.","time":30,"minWords":220,"maxWords":260}
+\`\`\`
+- task: "Task 1" (email/xat) yoki "Task 2" (esse)
+- prompt: essay topshirig'i matni
+- time: daqiqada vaqt (Task 1 = 15, Task 2 = 30)
+- minWords / maxWords: so'z limiti (Task 1: 140–180, Task 2: 220–260)
+- Essay blokidan OLDIN yoki KEYIN hech qanday qo'shimcha matn YOZMA — o'quvchi o'z oynasida yozadi va baholash so'raganda AI baholaydi
+
 ## Flashcard formati
 
 \`\`\`flashcard

@@ -12,7 +12,7 @@ import katex from 'katex'
 import toast from 'react-hot-toast'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
-import ChatContext, { useChatContext } from '../../contexts/ChatContext'
+import ChatContext, { useChatContext, EssayPanel } from '../../contexts/ChatContext'
 import { useTestPanel } from '../../hooks/useTestPanel'
 import { useFlashPanel } from '../../hooks/useFlashPanel'
 
@@ -46,7 +46,7 @@ const MdMessage = memo(({ content, isStreaming }: {
     content: string
     isStreaming?: boolean
 }) => {
-    const { onOpenTest, onProfileUpdate, onOpenFlash } = useChatContext()
+    const { onOpenTest, onProfileUpdate, onOpenFlash, onOpenEssay } = useChatContext()
     const processedContent = preprocessMath(content)
     return (
         <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} components={{
@@ -101,6 +101,52 @@ const MdMessage = memo(({ content, isStreaming }: {
                                             onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
                                         >
                                             <BookOpen className="h-4 w-4" /> Boshlash
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )
+                }
+                if (className?.includes('language-essay')) {
+                    const jsonStr = String(children).trim()
+                    let data: any = null
+                    try { data = JSON.parse(jsonStr) } catch { }
+                    if (!data?.prompt) return null
+                    const essayData = { task: data.task || 'Task 2', prompt: data.prompt, time: data.time || 30, minWords: data.minWords || 200, maxWords: data.maxWords || 280 }
+                    return (
+                        <div className="my-3 rounded-2xl overflow-hidden" style={{
+                            background: 'linear-gradient(135deg, rgba(16,185,129,0.1) 0%, rgba(16,185,129,0.04) 100%)',
+                            border: '1.5px solid rgba(16,185,129,0.3)',
+                        }}>
+                            <div className="p-4">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="flex items-start gap-3 min-w-0">
+                                        <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: '#10b981' }}>
+                                            <PenLine className="h-5 w-5 text-white" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                                                <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Writing — {essayData.task}</p>
+                                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: '#10b981', color: '#fff' }}>
+                                                    {essayData.minWords}–{essayData.maxWords} so'z
+                                                </span>
+                                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
+                                                    ⏱ {essayData.time} daqiqa
+                                                </span>
+                                            </div>
+                                            <p className="text-[12px] leading-relaxed line-clamp-2" style={{ color: 'var(--text-secondary)' }}>{essayData.prompt}</p>
+                                        </div>
+                                    </div>
+                                    {!isStreaming && (
+                                        <button
+                                            onClick={() => onOpenEssay(essayData)}
+                                            className="flex-shrink-0 h-9 px-4 rounded-xl text-[13px] font-bold text-white flex items-center gap-2 transition-all"
+                                            style={{ background: '#10b981' }}
+                                            onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+                                            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+                                        >
+                                            <PenLine className="h-4 w-4" /> Yozishni boshlash
                                         </button>
                                     )}
                                 </div>
@@ -469,6 +515,15 @@ export default function ChatLayout() {
         flashDragRef, flashWidthRef, openFlashPanel,
     } = useFlashPanel()
 
+    // Essay panel states
+    const [essayPanel, setEssayPanel] = useState<EssayPanel | null>(null)
+    const [essayText, setEssayText] = useState('')
+    const [essaySubmitted, setEssaySubmitted] = useState(false)
+    const [essayTimeLeft, setEssayTimeLeft] = useState<number | null>(null)
+    const [essayMaximized, setEssayMaximized] = useState(false)
+    const [essayWidth, setEssayWidth] = useState(520)
+    const essayDragRef = useRef(false)
+
     const loadControllerRef = useRef<AbortController | null>(null)
     const isSubmittingRef = useRef(false)
     const submitTestPanelRef = useRef<() => void>(() => {})
@@ -614,6 +669,35 @@ export default function ChatLayout() {
             setTestTimeLeft(null)
         }
     }, [testTimeLeft, testPanel, testSubmitted, testReadOnly])
+
+    // Essay timer
+    useEffect(() => {
+        if (essayTimeLeft === null || essayTimeLeft <= 0) return
+        const id = setInterval(() => {
+            setEssayTimeLeft(t => (t !== null && t > 0) ? t - 1 : 0)
+        }, 1000)
+        return () => clearInterval(id)
+    }, [essayTimeLeft])
+
+    useEffect(() => {
+        if (essayTimeLeft === 0 && essayPanel && !essaySubmitted) {
+            toast.error('Vaqt tugadi! Essay avtomatik topshirildi.')
+            submitEssay()
+        }
+    }, [essayTimeLeft]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Essay drag resize
+    useEffect(() => {
+        const onMove = (e: MouseEvent) => {
+            if (!essayDragRef.current) return
+            const newW = Math.max(380, Math.min(900, window.innerWidth - e.clientX))
+            setEssayWidth(newW)
+        }
+        const onUp = () => { essayDragRef.current = false }
+        window.addEventListener('mousemove', onMove)
+        window.addEventListener('mouseup', onUp)
+        return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+    }, [])
 
     async function loadProfile() {
         try {
@@ -961,6 +1045,31 @@ export default function ChatLayout() {
         } catch (err) { console.error('openFlashPanel:', err) }
     }, [openFlashPanel]) // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Essay panel ochish
+    const handleOpenEssay = useCallback((data: EssayPanel) => {
+        setTestPanel(null)
+        setFlashPanel(null)
+        setEssayPanel(data)
+        setEssayText('')
+        setEssaySubmitted(false)
+        setEssayMaximized(false)
+        setEssayTimeLeft(data.time * 60)
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Essay submit — AI ga baholash uchun yuborish
+    async function submitEssay() {
+        if (!essayPanel || essaySubmitted) return
+        const wordCount = essayText.trim().split(/\s+/).filter(Boolean).length
+        if (wordCount < essayPanel.minWords) {
+            toast.error(`Kamida ${essayPanel.minWords} ta so'z yozing (hozir: ${wordCount})`)
+            return
+        }
+        setEssaySubmitted(true)
+        setEssayTimeLeft(null)
+        const prompt = `📝 **Writing topshirig'i — ${essayPanel.task}:**\n"${essayPanel.prompt}"\n\n**Mening essayim (${wordCount} so'z):**\n${essayText}\n\n---\nIltimos, ushbu essayni Milliy Sertifikat (Multilevel) mezonlari bo'yicha baholang:\n1. **Task Achievement** — vazifani to'liq bajardimmi?\n2. **Coherence & Cohesion** — tuzilma va bog'liqlik\n3. **Lexical Resource** — leksik boylik\n4. **Grammatical Range & Accuracy** — grammatik to'g'rilik\n\nHar bir mezon uchun 30 balldan baho bering, jami 120 dan. Asosiy xatolarni ko'rsating va yaxshilash bo'yicha aniq tavsiyalar bering.`
+        handleSend(prompt, [])
+    }
+
     // Public test ochish (sidebar dan)
     async function openPublicTest(t: any) {
         setLoadingPublicTest(true)
@@ -1239,7 +1348,7 @@ export default function ChatLayout() {
     }
 
     return (
-        <ChatContext.Provider value={{ onOpenTest: openTestPanel, onProfileUpdate: handleProfileUpdate, onOpenFlash: handleOpenFlash }}>
+        <ChatContext.Provider value={{ onOpenTest: openTestPanel, onProfileUpdate: handleProfileUpdate, onOpenFlash: handleOpenFlash, onOpenEssay: handleOpenEssay }}>
             <div className="min-h-[100dvh] h-[100dvh] flex overflow-hidden relative" style={{ background: 'var(--bg-page)' }}>
                 {/* Mobile backdrop */}
                 {sideOpen && isMobile && (
@@ -2303,6 +2412,127 @@ export default function ChatLayout() {
                         )
                     })()
                 }
+
+                {/* Essay Panel */}
+                {essayPanel && (() => {
+                    const wordCount = essayText.trim().split(/\s+/).filter(Boolean).length
+                    const wordOk = wordCount >= essayPanel.minWords
+                    const wordOver = wordCount > essayPanel.maxWords
+                    const wordColor = wordOver ? '#ef4444' : wordOk ? '#10b981' : 'var(--text-muted)'
+                    return (
+                        <div className={(essayMaximized || isMobile) ? 'fixed inset-0 z-50 flex flex-col' : 'relative flex flex-col flex-shrink-0'}
+                            style={(essayMaximized || isMobile) ? { background: 'var(--bg-card)' } : { width: essayWidth, background: 'var(--bg-card)', borderLeft: '1px solid var(--border)' }}>
+
+                            {/* Drag handle */}
+                            {!essayMaximized && !isMobile && (
+                                <div onMouseDown={e => { essayDragRef.current = true; e.preventDefault() }}
+                                    className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize z-10 transition-colors"
+                                    style={{ background: 'transparent' }}
+                                    onMouseEnter={e => e.currentTarget.style.background = '#10b98144'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'} />
+                            )}
+
+                            {/* Header */}
+                            <div className="h-14 flex items-center justify-between px-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+                                <div className="flex items-center gap-2">
+                                    <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: '#10b981' }}>
+                                        <PenLine className="h-3.5 w-3.5 text-white" />
+                                    </div>
+                                    <span className="text-sm font-semibold">Writing — {essayPanel.task}</span>
+                                    {essayTimeLeft !== null && !essaySubmitted && (
+                                        <span className={`text-sm font-mono tabular-nums ml-1 px-2 py-0.5 rounded-md ${essayTimeLeft < 120 ? 'animate-pulse' : ''}`}
+                                            style={essayTimeLeft < 120 ? { color: '#ef4444', background: '#fef2f2' } : { color: 'var(--text-secondary)', background: 'var(--bg-muted)' }}>
+                                            ⏱ {String(Math.floor(essayTimeLeft / 60)).padStart(2, '0')}:{String(essayTimeLeft % 60).padStart(2, '0')}
+                                        </span>
+                                    )}
+                                    {essaySubmitted && (
+                                        <span className="text-[10px] px-2 py-0.5 rounded-md font-medium" style={{ background: '#d1fae5', color: '#065f46' }}>Topshirildi ✓</span>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <button onClick={() => setEssayMaximized(!essayMaximized)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                        {essayMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                                    </button>
+                                    <button onClick={() => { setEssayPanel(null); setEssayText(''); setEssaySubmitted(false); setEssayTimeLeft(null) }} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                        <X className="h-4 w-4" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Body */}
+                            <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ scrollbarWidth: 'thin' }}>
+                                <div className={essayMaximized ? 'max-w-2xl mx-auto space-y-4' : 'space-y-4'}>
+                                    {/* Prompt */}
+                                    <div className="rounded-xl p-4" style={{ background: 'rgba(16,185,129,0.08)', border: '1.5px solid rgba(16,185,129,0.25)' }}>
+                                        <p className="text-[11px] font-bold uppercase mb-2" style={{ color: '#10b981' }}>Topshiriq — {essayPanel.task}</p>
+                                        <p className="text-[13px] leading-relaxed" style={{ color: 'var(--text-primary)' }}>{essayPanel.prompt}</p>
+                                        <div className="flex gap-3 mt-3">
+                                            <span className="text-[11px] px-2 py-0.5 rounded-full font-medium" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
+                                                {essayPanel.minWords}–{essayPanel.maxWords} so'z
+                                            </span>
+                                            <span className="text-[11px] px-2 py-0.5 rounded-full font-medium" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
+                                                ⏱ {essayPanel.time} daqiqa
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Textarea */}
+                                    <div className="relative">
+                                        <textarea
+                                            value={essayText}
+                                            onChange={e => !essaySubmitted && setEssayText(e.target.value)}
+                                            readOnly={essaySubmitted}
+                                            placeholder="Essayingizni shu yerga yozing..."
+                                            className="w-full rounded-xl p-4 text-[13px] leading-relaxed resize-none outline-none transition-all"
+                                            style={{
+                                                minHeight: 280,
+                                                height: essayMaximized ? '50vh' : 280,
+                                                background: essaySubmitted ? 'var(--bg-surface)' : 'var(--bg-card)',
+                                                border: `1.5px solid ${essaySubmitted ? 'var(--border)' : 'rgba(16,185,129,0.3)'}`,
+                                                color: 'var(--text-primary)',
+                                                fontFamily: 'inherit',
+                                            }}
+                                        />
+                                        {/* Word count badge */}
+                                        <div className="absolute bottom-3 right-3 flex items-center gap-1.5">
+                                            <span className="text-[11px] font-mono px-2 py-0.5 rounded-full font-semibold"
+                                                style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: wordColor }}>
+                                                {wordCount} / {essayPanel.minWords}–{essayPanel.maxWords}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Progress bar */}
+                                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-muted)' }}>
+                                        <div className="h-full rounded-full transition-all duration-300"
+                                            style={{
+                                                width: `${Math.min(100, (wordCount / essayPanel.maxWords) * 100)}%`,
+                                                background: wordOver ? '#ef4444' : wordOk ? '#10b981' : '#10b981aa'
+                                            }} />
+                                    </div>
+
+                                    {!essaySubmitted ? (
+                                        <button onClick={submitEssay} disabled={!wordOk || wordOver}
+                                            className="w-full h-11 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 transition-all"
+                                            style={{
+                                                background: wordOk && !wordOver ? '#10b981' : 'var(--bg-muted)',
+                                                color: wordOk && !wordOver ? '#fff' : 'var(--text-muted)',
+                                                cursor: wordOk && !wordOver ? 'pointer' : 'not-allowed'
+                                            }}>
+                                            <CheckCircle className="h-4 w-4" />
+                                            {wordOk ? 'Topshirish va baholash' : `Yana ${essayPanel.minWords - wordCount} ta so'z yozing`}
+                                        </button>
+                                    ) : (
+                                        <div className="rounded-xl p-3 flex items-center gap-3" style={{ background: '#d1fae5', border: '1px solid #10b981' }}>
+                                            <CheckCircle className="h-5 w-5 flex-shrink-0" style={{ color: '#065f46' }} />
+                                            <p className="text-[13px]" style={{ color: '#065f46' }}>Essay topshirildi. Chatda baho va tavsiyalarni kuting.</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )
+                })()}
 
                 {/* Flashcard Panel */}
                 {
