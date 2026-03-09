@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BrainCircuit, Users, UserCheck, GraduationCap, Clock, CalendarDays, CalendarRange, BarChart3, MessageSquare, FileText, Layers, Target, LogOut, Upload, Trash2, Activity, Bot, Save, Globe, Lock, TrendingUp, UserPlus, BookOpen, LogIn, RefreshCw } from 'lucide-react'
+import { BrainCircuit, Users, UserCheck, GraduationCap, Clock, CalendarDays, CalendarRange, BarChart3, MessageSquare, FileText, Layers, Target, LogOut, Upload, Trash2, Activity, Bot, Save, Globe, Lock, TrendingUp, UserPlus, BookOpen, LogIn, RefreshCw, Wifi } from 'lucide-react'
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { fetchApi, uploadFile } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
@@ -36,6 +36,10 @@ export default function AdminPanel() {
     const [editingKnowledge, setEditingKnowledge] = useState<string | null>(null)
     const [knowledgeFilter, setKnowledgeFilter] = useState('all')
 
+    // Online users
+    const [onlineUsers, setOnlineUsers] = useState<any[]>([])
+    const onlineTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
     // Activity log
     const [activityLogs, setActivityLogs] = useState<any[]>([])
     const [activityTotal, setActivityTotal] = useState(0)
@@ -54,7 +58,14 @@ export default function AdminPanel() {
     const [usersSearch, setUsersSearch] = useState('')
     const USERS_PER_PAGE = 50
 
-    useEffect(() => { loadStats() }, []) // faqat birinchi marta yuklanadi
+    useEffect(() => {
+        loadStats()
+        // Online users — darhol va har 30 soniyada yangilanadi
+        const loadOnline = () => fetchApi('/analytics/online-users').then(setOnlineUsers).catch(() => {})
+        loadOnline()
+        onlineTimerRef.current = setInterval(loadOnline, 30000)
+        return () => { if (onlineTimerRef.current) clearInterval(onlineTimerRef.current) }
+    }, []) // faqat birinchi marta yuklanadi
     useEffect(() => { if (tab === 'users') loadUsers() }, [tab, usersPage, usersSearch])
     useEffect(() => { if (tab === 'knowledge') loadKnowledge() }, [tab])
     useEffect(() => {
@@ -283,6 +294,42 @@ export default function AdminPanel() {
                 )}
                 {tab === 'stats' && !loading && stats && (
                     <div className="space-y-4">
+                        {/* === HOZIR ONLAYN === */}
+                        <div className="rounded-xl overflow-hidden" style={{ border: '1.5px solid rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.04)' }}>
+                            <div className="px-4 py-2.5 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(16,185,129,0.15)' }}>
+                                <div className="flex items-center gap-2">
+                                    <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                                    <span className="text-[12px] font-bold" style={{ color: '#059669' }}>Hozir onlayn — {onlineUsers.length} ta</span>
+                                </div>
+                                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>30s yangilanadi</span>
+                            </div>
+                            {onlineUsers.length === 0 ? (
+                                <div className="px-4 py-3 text-[12px]" style={{ color: 'var(--text-muted)' }}>Hozircha hech kim onlayn emas</div>
+                            ) : (
+                                <div className="divide-y" style={{ borderColor: 'rgba(16,185,129,0.1)' }}>
+                                    {onlineUsers.map((u: any, i: number) => {
+                                        const ago = Math.round((Date.now() - u.lastSeen) / 1000)
+                                        const agoStr = ago < 60 ? `${ago}s oldin` : `${Math.round(ago/60)}min oldin`
+                                        const roleColor = u.role === 'ADMIN' ? '#6366f1' : u.role === 'TEACHER' ? '#d97706' : '#059669'
+                                        return (
+                                            <div key={i} className="flex items-center gap-3 px-4 py-2">
+                                                <div className="h-7 w-7 rounded-full flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0" style={{ background: roleColor }}>{u.name?.[0]?.toUpperCase() || '?'}</div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-[12px] font-semibold truncate">{u.name}</p>
+                                                    <p className="text-[10px] truncate" style={{ color: 'var(--text-muted)' }}>{u.email}</p>
+                                                </div>
+                                                <div className="flex items-center gap-2 flex-shrink-0">
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: `${roleColor}18`, color: roleColor }}>{u.role}</span>
+                                                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{agoStr}</span>
+                                                    <Wifi className="h-3 w-3" style={{ color: '#059669' }} />
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
                         <div>
                             <p className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={mutedText}>Kirish statistikasi</p>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">

@@ -8,6 +8,7 @@ import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
 import { tokenBlacklist } from '../utils/tokenBlacklist'
 import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/email'
+import { updateOnline } from '../utils/onlineTracker'
 
 const router = Router()
 const JWT_SECRET = process.env.JWT_SECRET!
@@ -162,6 +163,13 @@ router.post('/login', async (req, res) => {
         console.error('Login error:', e)
         res.status(500).json({ error: 'Server xatoligi. Qayta urinib ko\'ring.' })
     }
+})
+
+// Ping — real-time online tracking (har 60 soniyada frontend chaqiradi)
+router.post('/ping', authenticate, async (req: AuthRequest, res) => {
+    const { page } = req.body
+    updateOnline(req.user.id, req.user.name, req.user.email, req.user.role, page)
+    res.json({ ok: true })
 })
 
 // Me

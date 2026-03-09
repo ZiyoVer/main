@@ -666,7 +666,12 @@ export default function ChatLayout() {
 
     useEffect(() => {
         loadChats(); loadProfile(); loadPublicTests(); loadMyResults(); loadProgress(); loadDueFlashcards(); logActivity()
+        // Real-time online tracking — har 60 soniyada ping
+        const sendPing = () => fetchApi('/auth/ping', { method: 'POST', body: JSON.stringify({ page: 'chat' }) }).catch(() => {})
+        sendPing()
+        const pingInterval = setInterval(sendPing, 60000)
         return () => {
+            clearInterval(pingInterval)
             blobUrlsRef.current.forEach(url => URL.revokeObjectURL(url))
             blobUrlsRef.current = []
         }

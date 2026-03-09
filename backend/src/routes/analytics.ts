@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
+import { getOnlineUsers } from '../utils/onlineTracker'
 
 const router = Router()
 
@@ -223,6 +224,15 @@ router.get('/activity-log', authenticate, requireRole('ADMIN'), async (req: Auth
         res.json({ logs, total, pages: Math.ceil(total / limit) })
     } catch (e) {
         console.error(e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+// Admin: Hozir online foydalanuvchilar (so'nggi 5 daqiqada ping yuborgan)
+router.get('/online-users', authenticate, requireRole('ADMIN'), async (_req, res) => {
+    try {
+        res.json(getOnlineUsers())
+    } catch (e) {
         res.status(500).json({ error: 'Server xatoligi' })
     }
 })
