@@ -161,8 +161,8 @@ export default function TeacherPanel() {
             const data = await res.json()
             if (!res.ok) throw new Error(data.error || 'Xatolik')
             const mapped: Question[] = data.questions.map((q: any) => {
-                // options: backend allaqachon validatsiya qilgan, lekin 4 ta bo'lmasa to'ldiramiz
-                let opts = Array.isArray(q.options) ? q.options.map(String) : []
+                // options: bo'sh qiymatlarni filter qilib, 4 taga to'ldiramiz
+                let opts = Array.isArray(q.options) ? q.options.map(String).filter((o: string) => o.trim().length > 0) : []
                 while (opts.length < 4) opts.push('')
                 return {
                     text: q.text || '',

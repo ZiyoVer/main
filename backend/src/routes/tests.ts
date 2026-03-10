@@ -383,19 +383,28 @@ DIQQAT: Formulalarda bo'sh joylar yoki ortiqcha belgilarni qoldirmang, aynan ras
         const validatedQuestions = questions
             .filter((q: any) => q && q.text && q.options && Array.isArray(q.options))
             .map((q: any) => {
-                const options = Array.isArray(q.options) ? q.options.filter((o: any) => typeof o === 'string') : []
+                // Bo'sh option stringlarni ham filter qilish
+                const options = Array.isArray(q.options)
+                    ? q.options.filter((o: any) => typeof o === 'string' && o.trim().length > 0)
+                    : []
                 if (options.length < 2) return null
 
-                // correctIdx: raqam yoki harf ('A','B','C','D' yoki 'a','b','c','d') bo'lishi mumkin
+                // correctIdx: raqam, harf ('a'/'b'/'c'/'d'), yoki turli field nomlari bo'lishi mumkin
+                const letterToIdx = (s: string) => ['a', 'b', 'c', 'd'].indexOf(s.trim().toLowerCase())
                 let correctIdx = 0
                 if (typeof q.correctIdx === 'number') {
                     correctIdx = q.correctIdx
                 } else if (typeof q.correctIdx === 'string') {
-                    const letterIdx = ['a', 'b', 'c', 'd'].indexOf(q.correctIdx.toLowerCase())
-                    correctIdx = letterIdx >= 0 ? letterIdx : 0
-                } else if (typeof q.correct === 'string') {
-                    const letterIdx = ['a', 'b', 'c', 'd'].indexOf(q.correct.toLowerCase())
-                    correctIdx = letterIdx >= 0 ? letterIdx : 0
+                    const i = letterToIdx(q.correctIdx)
+                    correctIdx = i >= 0 ? i : 0
+                } else {
+                    // AI turli field nomlari qaytarishi mumkin
+                    const raw = q.correct ?? q.correctAnswer ?? q.answer ?? q.correct_answer ?? null
+                    if (typeof raw === 'number') correctIdx = raw
+                    else if (typeof raw === 'string') {
+                        const i = letterToIdx(raw)
+                        correctIdx = i >= 0 ? i : 0
+                    }
                 }
 
                 if (correctIdx < 0 || correctIdx >= options.length) correctIdx = 0
@@ -494,6 +503,12 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
                 }
                 if (!Array.isArray(opts) || opts.length < 2) {
                     return res.status(400).json({ error: `${i + 1}-savol: kamida 2 ta variant bo'lishi kerak` })
+                }
+                // Bo'sh option tekshiruvi
+                for (let j = 0; j < opts.length; j++) {
+                    if (typeof opts[j] !== 'string' || !opts[j].trim()) {
+                        return res.status(400).json({ error: `${i + 1}-savol: ${String.fromCharCode(65 + j)} variant bo'sh bo'lishi mumkin emas` })
+                    }
                 }
                 const idx = q.correctIdx ?? 0
                 if (typeof idx !== 'number' || idx < 0 || idx >= opts.length) {
