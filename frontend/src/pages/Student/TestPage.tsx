@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { BrainCircuit, CheckCircle, XCircle, ArrowLeft, Sparkles, LogIn, Lock } from 'lucide-react'
+import { BrainCircuit, CheckCircle, XCircle, ArrowLeft, Sparkles, LogIn, Lock, MessageSquare } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
@@ -53,9 +53,7 @@ export default function TestPage() {
     const [result, setResult] = useState<any>(null)
     const [submitting, setSubmitting] = useState(false)
     const [correctMap, setCorrectMap] = useState<Record<string, { idx: number; text?: string; type: string }>>({})
-    const [analysis, setAnalysis] = useState<string | null>(null)
-    const [analysisLoading, setAnalysisLoading] = useState(false)
-    const [analysisFailed, setAnalysisFailed] = useState(false)
+    const [analysisReady, setAnalysisReady] = useState(false)
 
     // isGuest: foydalanuvchi login qilmagan
     const isGuest = !token || !user
@@ -94,9 +92,8 @@ export default function TestPage() {
             setCorrectMap(map)
             setSubmitted(true)
 
-            // Login bo'lgan user uchun AI tahlil avtomatik boshlanadi
-            setAnalysisLoading(true)
-            setAnalysisFailed(false)
+            // Natijani ChatLayout uchun localStorage ga saqlaymiz
+            // (chatga o'tganda ?analyzeTest=true bilan AI tahlil triggerlanadi)
             const optLabels = ['a', 'b', 'c', 'd']
             const questionsForAnalysis = test.questions.map((q: any, i: number) => {
                 let opts: string[] = []
@@ -111,13 +108,14 @@ export default function TestPage() {
                     a: opts[0], b: opts[1], c: opts[2], d: opts[3]
                 }
             })
-            fetchApi('/tests/analyze-result', {
-                method: 'POST',
-                body: JSON.stringify({ title: test.title, subject: test.subject, score: res.correct, total: res.total, questions: questionsForAnalysis })
-            }).then((data: any) => {
-                if (data?.analysis) setAnalysis(data.analysis)
-                else setAnalysisFailed(true)
-            }).catch(() => setAnalysisFailed(true)).finally(() => setAnalysisLoading(false))
+            localStorage.setItem('dtmmax_guest_test_result', JSON.stringify({
+                title: test.title,
+                subject: test.subject,
+                score: res.correct,
+                total: res.total,
+                questions: questionsForAnalysis
+            }))
+            setAnalysisReady(true)
 
         } catch (e: any) {
             toast.error(e.message || 'Test yuborishda xatolik yuz berdi')
@@ -255,59 +253,26 @@ export default function TestPage() {
                     </div>
                 )}
 
-                {/* AI Tahlil */}
-                {submitted && (analysisLoading || analysis || analysisFailed) && (
-                    <div className="card p-4" style={{ border: '1px solid color-mix(in srgb, var(--brand) 20%, transparent)' }}>
+                {/* AI Tahlil — chatga o'tish */}
+                {submitted && analysisReady && (
+                    <div className="card p-5" style={{ border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)' }}>
                         <div className="flex items-center gap-2 mb-3">
                             <div className="h-6 w-6 rounded-md flex items-center justify-center" style={{ background: 'var(--brand)' }}>
                                 <Sparkles className="h-3.5 w-3.5 text-white" />
                             </div>
-                            <span className="text-[13px] font-semibold">AI Tahlil</span>
+                            <span className="text-[13px] font-semibold">AI Tahlil tayyor</span>
                         </div>
-                        {analysisLoading ? (
-                            <div className="flex items-center gap-2 py-2">
-                                <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--border-strong)', borderTopColor: 'var(--brand)' }} />
-                                <span className="text-[13px]" style={{ color: 'var(--text-muted)' }}>Tahlil qilinmoqda...</span>
-                            </div>
-                        ) : analysisFailed ? (
-                            <div className="flex items-center justify-between gap-3 py-1">
-                                <span className="text-[13px]" style={{ color: 'var(--text-muted)' }}>Tahlil yuklanmadi. Qayta urinib ko'ring.</span>
-                                <button onClick={() => {
-                                    setAnalysisFailed(false)
-                                    setAnalysisLoading(true)
-                                    const optLabels = ['a', 'b', 'c', 'd']
-                                    const payload = test.questions.map((q: any) => {
-                                        if (q.questionType === 'open') return { questionId: q.id, selectedIdx: -1, textAnswer: answers[q.id] ?? '' }
-                                        return { questionId: q.id, selectedIdx: answers[q.id] ?? -1 }
-                                    })
-                                    const qs = test.questions.map((q: any, i: number) => {
-                                        let opts: string[] = []
-                                        try { opts = JSON.parse(q.options) } catch { opts = [] }
-                                        const ca = result?.correctAnswers?.find((c: any) => c.id === q.id)
-                                        const studentIdx = payload[i]?.selectedIdx ?? -1
-                                        return {
-                                            text: q.text,
-                                            imageUrl: q.imageUrl || null,
-                                            studentAnswer: studentIdx >= 0 ? optLabels[studentIdx] : (payload[i]?.textAnswer || null),
-                                            correctAnswer: ca ? (ca.correctIdx >= 0 ? optLabels[ca.correctIdx] : ca.correctText) : null,
-                                            a: opts[0], b: opts[1], c: opts[2], d: opts[3]
-                                        }
-                                    })
-                                    fetchApi('/tests/analyze-result', {
-                                        method: 'POST',
-                                        body: JSON.stringify({ title: test.title, subject: test.subject, score: result?.correct, total: result?.total, questions: qs })
-                                    }).then((data: any) => {
-                                        if (data?.analysis) setAnalysis(data.analysis)
-                                        else setAnalysisFailed(true)
-                                    }).catch(() => setAnalysisFailed(true)).finally(() => setAnalysisLoading(false))
-                                }} className="text-[12px] px-3 py-1.5 rounded-lg font-medium transition flex-shrink-0"
-                                    style={{ background: 'var(--brand-light)', color: 'var(--brand)', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)' }}>
-                                    Qayta urinish
-                                </button>
-                            </div>
-                        ) : (
-                            <p className="text-[13px] leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>{analysis}</p>
-                        )}
+                        <p className="text-[13px] mb-4" style={{ color: 'var(--text-secondary)' }}>
+                            AI har bir savolni batafsil tahlil qilib beradi — qayerda xato qilganingizni va nima o'rganish kerakligini tushuntiradi.
+                        </p>
+                        <button
+                            onClick={() => nav('/suhbat?analyzeTest=true')}
+                            className="w-full h-11 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition"
+                            style={{ background: 'var(--brand)' }}
+                        >
+                            <MessageSquare className="h-4 w-4" />
+                            Chatda AI tahlilni ko'rish
+                        </button>
                     </div>
                 )}
 
