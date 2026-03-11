@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, Sun, Moon, Search, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, Timer, Sparkles } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
@@ -246,7 +246,7 @@ const MdMessage = memo(({ content, isStreaming }: {
                             : []
                     } catch { return null }
                     if (items.length === 0) return null
-                    const accentColors = ['#E07B39','#6366f1','#059669','#d97706','#0891b2','#7c3aed','#be185d','#15803d']
+                    const accentColors = ['#E07B39', '#6366f1', '#059669', '#d97706', '#0891b2', '#7c3aed', '#be185d', '#15803d']
                     const typeLabels: Record<string, string> = { noun: 'ot', verb: 'fe\'l', adj: 'sifat', adv: 'ravish', prep: 'ko\'m', phrase: 'ibora', phrasal: 'ph.v' }
                     return (
                         <div className="my-3 rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', minWidth: 0 }}>
@@ -543,6 +543,7 @@ const ChatInputArea = memo(function ChatInputArea({
 export default function ChatLayout() {
     const { chatId } = useParams()
     const nav = useNavigate()
+    const location = useLocation()
     const { user, logout, token } = useAuthStore()
     const [chats, setChats] = useState<Chat[]>([])
     const [messages, setMessages] = useState<Msg[]>([])
@@ -632,7 +633,7 @@ export default function ChatLayout() {
 
     const loadControllerRef = useRef<AbortController | null>(null)
     const isSubmittingRef = useRef(false)
-    const submitTestPanelRef = useRef<() => void>(() => {})
+    const submitTestPanelRef = useRef<() => void>(() => { })
     const [sidebarWidth, setSidebarWidth] = useState(() => {
         const w = window.innerWidth
         if (w < 768) return 288
@@ -667,7 +668,7 @@ export default function ChatLayout() {
     useEffect(() => {
         loadChats(); loadProfile(); loadPublicTests(); loadMyResults(); loadProgress(); loadDueFlashcards(); logActivity()
         // Real-time online tracking — har 60 soniyada ping
-        const sendPing = () => fetchApi('/auth/ping', { method: 'POST', body: JSON.stringify({ page: 'chat' }) }).catch(() => {})
+        const sendPing = () => fetchApi('/auth/ping', { method: 'POST', body: JSON.stringify({ page: 'chat' }) }).catch(() => { })
         sendPing()
         const pingInterval = setInterval(sendPing, 60000)
         return () => {
@@ -677,6 +678,46 @@ export default function ChatLayout() {
         }
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
     useEffect(() => { if (chatId) loadMessages(chatId) }, [chatId])
+
+    // Guest test natijasini AI bilan tahlil qilish — login yoki ro'yxatdan o'tgandan keyin
+    useEffect(() => {
+        const params = new URLSearchParams(location.search)
+        if (!params.get('analyzeTest')) return
+        const raw = localStorage.getItem('dtmmax_guest_test_result')
+        if (!raw) return
+        let guestData: any
+        try { guestData = JSON.parse(raw) } catch { return }
+        // URL dan flag ni olib tashlaymiz
+        window.history.replaceState({}, '', location.pathname)
+        localStorage.removeItem('dtmmax_guest_test_result')
+
+        // Yangi chat ochib AI ga test tahlil so'rovini yuboramiz
+        const triggerAnalysis = async () => {
+            try {
+                const chatData = await fetchApi('/chat/new', {
+                    method: 'POST',
+                    body: JSON.stringify({ title: `Test tahlili: ${guestData.title || 'Test'}`, subject: guestData.subject, forceNew: true })
+                })
+                await loadChats()
+                nav(`/suhbat/${chatData.id}`)
+
+                // Kichik kechiktirishdan keyin AI ga yuboramiz (chat load uchun)
+                setTimeout(() => {
+                    const optLabels = ['a', 'b', 'c', 'd']
+                    const wrongList = (guestData.questions || [])
+                        .filter((q: any) => q.studentAnswer !== q.correctAnswer)
+                        .slice(0, 20)
+                        .map((q: any, i: number) =>
+                            `${i + 1}. ${(q.text || 'Savol').substring(0, 100)} — Men: ${(q.studentAnswer || '?').toUpperCase()}, To'g'ri: ${(q.correctAnswer || '?').toUpperCase()}`
+                        ).join('\n')
+                    const prompt = `Men "${guestData.title || 'Test'}" testini yechtim. Natija: ${guestData.score}/${guestData.total} to'g'ri.\n\n${wrongList ? 'Xato savollar:\n' + wrongList + '\n\n' : ''}Iltimos, xatolarimni birma-bir tahlil qilib ber, qaysi mavzularda zaifligimni tushuntir va nima o'rganishim kerakligini ayt.`
+                    const displayText = `📊 "${guestData.title}" testi tahlili (${guestData.score}/${guestData.total} to'g'ri)`
+                    streamToChat(chatData.id, prompt, displayText)
+                }, 600)
+            } catch (e) { console.error('analyzeTest error:', e) }
+        }
+        triggerAnalysis()
+    }, [location.search]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Panel drag-to-resize (flashcard + test)
     useEffect(() => {
@@ -1813,7 +1854,7 @@ export default function ChatLayout() {
                             )}
                             {totalFlashcards > 0 && (
                                 <button onClick={() => {
-                                    fetchApi('/flashcards', { method: 'DELETE' }).then(() => loadDueFlashcards()).catch(() => {})
+                                    fetchApi('/flashcards', { method: 'DELETE' }).then(() => loadDueFlashcards()).catch(() => { })
                                 }} className="w-full h-8 rounded-lg text-[12px] font-medium transition flex items-center justify-center gap-1.5"
                                     style={{ background: 'var(--danger-light)', color: 'var(--danger)', border: '1px solid color-mix(in srgb, var(--danger) 25%, transparent)' }}>
                                     <Trash2 className="h-3.5 w-3.5" /> Hammasini o'chirish
@@ -1844,7 +1885,7 @@ export default function ChatLayout() {
                                                     <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{card.subject}</p>
                                                 </div>
                                                 <button onClick={() => {
-                                                    fetchApi(`/flashcards/${card.id}`, { method: 'DELETE' }).then(() => loadDueFlashcards()).catch(() => {})
+                                                    fetchApi(`/flashcards/${card.id}`, { method: 'DELETE' }).then(() => loadDueFlashcards()).catch(() => { })
                                                 }} className="flex-shrink-0 h-6 w-6 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 transition"
                                                     style={{ color: 'var(--danger)' }}>
                                                     <Trash2 className="h-3.5 w-3.5" />
@@ -2376,8 +2417,8 @@ export default function ChatLayout() {
                                                                 <div className="flex items-center gap-2 mb-1">
                                                                     <span className="text-[15px] font-bold" style={{ color: '#059669' }}>Formulalar tayyorlanmoqda</span>
                                                                     <span className="flex gap-1 items-center">
-                                                                        {[0,1,2].map(i => (
-                                                                            <span key={i} className="h-1.5 w-1.5 rounded-full" style={{ background: '#059669', animation: `bounce 1.2s ease-in-out ${i*0.2}s infinite` }} />
+                                                                        {[0, 1, 2].map(i => (
+                                                                            <span key={i} className="h-1.5 w-1.5 rounded-full" style={{ background: '#059669', animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite` }} />
                                                                         ))}
                                                                     </span>
                                                                 </div>
@@ -2387,8 +2428,8 @@ export default function ChatLayout() {
                                                         <div className="space-y-2.5">
                                                             {[75, 90, 60, 85].map((w, i) => (
                                                                 <div key={i} className="flex items-center gap-3">
-                                                                    <div className="h-5 w-5 rounded flex-shrink-0 animate-pulse" style={{ background: 'rgba(5,150,105,0.15)', animationDelay: `${i*0.1}s` }} />
-                                                                    <div className="h-5 rounded-lg flex-1 animate-pulse" style={{ maxWidth: `${w}%`, background: 'rgba(5,150,105,0.12)', animationDelay: `${i*0.15}s` }} />
+                                                                    <div className="h-5 w-5 rounded flex-shrink-0 animate-pulse" style={{ background: 'rgba(5,150,105,0.15)', animationDelay: `${i * 0.1}s` }} />
+                                                                    <div className="h-5 rounded-lg flex-1 animate-pulse" style={{ maxWidth: `${w}%`, background: 'rgba(5,150,105,0.12)', animationDelay: `${i * 0.15}s` }} />
                                                                 </div>
                                                             ))}
                                                         </div>

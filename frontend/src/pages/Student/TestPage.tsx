@@ -23,7 +23,6 @@ function MathPreview({ text, inline }: { text: string; inline?: boolean }) {
     } catch { return null }
 }
 
-// Savol matni ichidagi formulalarni inline render qiladi — raw $...$ ko'rinmaydi
 function TextWithMath({ text }: { text: string }) {
     if (!text) return null
     if (!text.includes('$')) return <>{text}</>
@@ -57,6 +56,7 @@ export default function TestPage() {
     const [analysis, setAnalysis] = useState<string | null>(null)
     const [analysisLoading, setAnalysisLoading] = useState(false)
     const [analysisFailed, setAnalysisFailed] = useState(false)
+    const [guestResult, setGuestResult] = useState<any>(null) // Guest uchun localStorage da saqlanadi
 
     useEffect(() => {
         if (!shareLink) return
@@ -68,18 +68,8 @@ export default function TestPage() {
 
     async function submit() {
         if (!test) return
-        // Login talab qilinadi — natijalarni saqlash uchun
-        if (!token || !user) {
-            toast('Testni topshirish uchun akkauntga kirish kerak', { icon: '🔐', duration: 3000 })
-            nav('/kirish', { state: { from: `/test/${shareLink}` } })
-            return
-        }
         if (answeredCount < total) {
-            const unanswered = total - answeredCount
-            toast(`${unanswered} ta savol javobsiz qolgan. Davom etasizmi?`, {
-                duration: 3000,
-                icon: '⚠️',
-            })
+            toast(`${total - answeredCount} ta savol javobsiz qolgan. Davom etasizmi?`, { duration: 3000, icon: '⚠️' })
         }
         setSubmitting(true)
         try {
@@ -89,7 +79,13 @@ export default function TestPage() {
                 }
                 return { questionId: q.id, selectedIdx: answers[q.id] ?? -1 }
             })
-            const res = await fetchApi(`/tests/${test.id}/submit`, {
+
+            // Login bo'lgan → /submit, guest → /submit-guest
+            const endpoint = token && user
+                ? `/tests/${test.id}/submit`
+                : `/tests/${test.id}/submit-guest`
+
+            const res = await fetchApi(endpoint, {
                 method: 'POST',
                 body: JSON.stringify({ answers: payload })
             })
@@ -101,34 +97,67 @@ export default function TestPage() {
             setCorrectMap(map)
             setSubmitted(true)
 
-            // AI tahlil
-            setAnalysisLoading(true)
-            setAnalysisFailed(false)
-            const optLabels = ['a','b','c','d']
-            const questionsForAnalysis = test.questions.map((q: any, i: number) => {
-                let opts: string[] = []
-                try { opts = JSON.parse(q.options) } catch { opts = [] }
-                const ca = res.correctAnswers?.find((c: any) => c.id === q.id)
-                const studentIdx = payload[i]?.selectedIdx ?? -1
-                return {
-                    text: q.text,
-                    imageUrl: q.imageUrl || null,
-                    studentAnswer: studentIdx >= 0 ? optLabels[studentIdx] : (payload[i]?.textAnswer || null),
-                    correctAnswer: ca ? (ca.correctIdx >= 0 ? optLabels[ca.correctIdx] : ca.correctText) : null,
-                    a: opts[0], b: opts[1], c: opts[2], d: opts[3]
+            // Guest uchun natijani localStorage ga saqlaymiz (keyinchalik AI tahlil uchun)
+            if (!token || !user) {
+                const optLabels = ['a', 'b', 'c', 'd']
+                const questionsForSave = test.questions.map((q: any, i: number) => {
+                    let opts: string[] = []
+                    try { opts = JSON.parse(q.options) } catch { opts = [] }
+                    const ca = res.correctAnswers?.find((c: any) => c.id === q.id)
+                    const studentIdx = payload[i]?.selectedIdx ?? -1
+                    return {
+                        text: q.text,
+                        imageUrl: q.imageUrl || null,
+                        studentAnswer: studentIdx >= 0 ? optLabels[studentIdx] : (payload[i]?.textAnswer || null),
+                        correctAnswer: ca ? (ca.correctIdx >= 0 ? optLabels[ca.correctIdx] : ca.correctText) : null,
+                        a: opts[0], b: opts[1], c: opts[2], d: opts[3]
+                    }
+                })
+                const guestData = {
+                    title: test.title,
+                    subject: test.subject,
+                    score: res.correct,
+                    total: res.total,
+                    questions: questionsForSave
                 }
-            })
-            fetchApi('/tests/analyze-result', {
-                method: 'POST',
-                body: JSON.stringify({ title: test.title, subject: test.subject, score: res.correct, total: res.total, questions: questionsForAnalysis })
-            }).then((data: any) => {
-                if (data?.analysis) setAnalysis(data.analysis)
-                else setAnalysisFailed(true)
-            }).catch(() => setAnalysisFailed(true)).finally(() => setAnalysisLoading(false))
+                setGuestResult(guestData)
+                // localStorage da saqlab qo'yamiz — login bo'lgandan keyin ChatLayout o'qiydi
+                localStorage.setItem('dtmmax_guest_test_result', JSON.stringify(guestData))
+            } else {
+                // Login bo'lgan user uchun AI tahlil
+                setAnalysisLoading(true)
+                setAnalysisFailed(false)
+                const optLabels = ['a', 'b', 'c', 'd']
+                const questionsForAnalysis = test.questions.map((q: any, i: number) => {
+                    let opts: string[] = []
+                    try { opts = JSON.parse(q.options) } catch { opts = [] }
+                    const ca = res.correctAnswers?.find((c: any) => c.id === q.id)
+                    const studentIdx = payload[i]?.selectedIdx ?? -1
+                    return {
+                        text: q.text,
+                        imageUrl: q.imageUrl || null,
+                        studentAnswer: studentIdx >= 0 ? optLabels[studentIdx] : (payload[i]?.textAnswer || null),
+                        correctAnswer: ca ? (ca.correctIdx >= 0 ? optLabels[ca.correctIdx] : ca.correctText) : null,
+                        a: opts[0], b: opts[1], c: opts[2], d: opts[3]
+                    }
+                })
+                fetchApi('/tests/analyze-result', {
+                    method: 'POST',
+                    body: JSON.stringify({ title: test.title, subject: test.subject, score: res.correct, total: res.total, questions: questionsForAnalysis })
+                }).then((data: any) => {
+                    if (data?.analysis) setAnalysis(data.analysis)
+                    else setAnalysisFailed(true)
+                }).catch(() => setAnalysisFailed(true)).finally(() => setAnalysisLoading(false))
+            }
         } catch (e: any) {
             toast.error(e.message || 'Test yuborishda xatolik yuz berdi')
         }
         setSubmitting(false)
+    }
+
+    function goLoginForAnalysis() {
+        // natija allaqachon localStorage ga saqlangan (submit da)
+        nav('/kirish', { state: { from: '/suhbat', analyzeTest: true } })
     }
 
     if (loading) return (
@@ -144,7 +173,7 @@ export default function TestPage() {
         <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-page)' }}>
             <div className="text-center">
                 <p className="text-sm mb-3" style={{ color: 'var(--danger)' }}>{err}</p>
-                <button onClick={() => nav('/suhbat')} className="text-sm" style={{ color: 'var(--brand)' }}>Bosh sahifaga qaytish</button>
+                <button onClick={() => nav('/')} className="text-sm" style={{ color: 'var(--brand)' }}>Bosh sahifaga qaytish</button>
             </div>
         </div>
     )
@@ -155,6 +184,7 @@ export default function TestPage() {
         return typeof a === 'number'
     }).length ?? 0
     const total = test?.questions?.length || 0
+    const isGuest = !token || !user
 
     return (
         <div className="h-screen overflow-y-auto w-full" style={{ background: 'var(--bg-page)' }}>
@@ -162,7 +192,7 @@ export default function TestPage() {
             <header className="sticky top-0 z-40" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', backdropFilter: 'blur(12px)' }}>
                 <div className="max-w-2xl mx-auto flex items-center justify-between py-3 px-5">
                     <div className="flex items-center gap-2">
-                        <button onClick={() => nav('/suhbat')} className="h-7 w-7 flex items-center justify-center rounded-lg transition"
+                        <button onClick={() => nav(token ? '/suhbat' : '/')} className="h-7 w-7 flex items-center justify-center rounded-lg transition"
                             style={{ color: 'var(--text-muted)' }}
                             onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
@@ -207,17 +237,51 @@ export default function TestPage() {
                             )}
                         </div>
                         <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{result.correct} / {result.total} to'g'ri</p>
-                        {result.dtmBall !== undefined && (
-                            <div className="mt-2 px-3 py-1.5 rounded-lg inline-flex items-center gap-2" style={{ background: 'color-mix(in srgb, var(--brand) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)' }}>
-                                <span className="text-[12px] font-semibold" style={{ color: 'var(--brand)' }}>DTM ball: {result.dtmBall} / {result.dtmMax}</span>
-                                <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>({result.dtmBall > 0 ? '+' : ''}{result.newAbility?.toFixed(2)} logit)</span>
-                            </div>
-                        )}
+
+                        {/* DTM va MS ballar */}
+                        <div className="mt-3 flex items-center justify-center gap-2 flex-wrap">
+                            {result.dtmBall !== undefined && (
+                                <div className="px-3 py-1.5 rounded-lg inline-flex items-center gap-2" style={{ background: 'color-mix(in srgb, var(--brand) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)' }}>
+                                    <span className="text-[12px] font-semibold" style={{ color: 'var(--brand)' }}>DTM: {result.dtmBall} / {result.dtmMax}</span>
+                                </div>
+                            )}
+                            {result.msBall !== undefined && (
+                                <div className="px-3 py-1.5 rounded-lg inline-flex items-center gap-2" style={{ background: 'color-mix(in srgb, #059669 10%, transparent)', border: '1px solid color-mix(in srgb, #059669 25%, transparent)' }}>
+                                    <span className="text-[12px] font-semibold" style={{ color: '#059669' }}>MS: {result.msBall} / {result.msMax}</span>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
 
-                {/* AI Tahlil */}
-                {submitted && (analysisLoading || analysis || analysisFailed) && (
+                {/* Guest uchun AI tahlil CTA */}
+                {submitted && isGuest && (
+                    <div className="card p-5" style={{ border: '1px solid color-mix(in srgb, var(--brand) 20%, transparent)' }}>
+                        <div className="flex items-center gap-2 mb-3">
+                            <div className="h-6 w-6 rounded-md flex items-center justify-center" style={{ background: 'var(--brand)' }}>
+                                <Sparkles className="h-3.5 w-3.5 text-white" />
+                            </div>
+                            <span className="text-[13px] font-semibold">AI Tahlil</span>
+                        </div>
+                        <p className="text-[13px] mb-3" style={{ color: 'var(--text-secondary)' }}>
+                            AI xatolaringizni birma-bir tahlil qilib beradi. Buning uchun akkauntga kirish kerak.
+                        </p>
+                        <button
+                            onClick={goLoginForAnalysis}
+                            className="w-full h-11 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition"
+                            style={{ background: 'var(--brand)' }}
+                        >
+                            <LogIn className="h-4 w-4" />
+                            Kirish va AI tahlil olish
+                        </button>
+                        <p className="text-[11px] mt-2 text-center" style={{ color: 'var(--text-muted)' }}>
+                            Yangi foydalanuvchi bo'lsangiz — bepul ro'yxatdan o'ting
+                        </p>
+                    </div>
+                )}
+
+                {/* Login bo'lgan user uchun AI Tahlil */}
+                {submitted && !isGuest && (analysisLoading || analysis || analysisFailed) && (
                     <div className="card p-4" style={{ border: '1px solid color-mix(in srgb, var(--brand) 20%, transparent)' }}>
                         <div className="flex items-center gap-2 mb-3">
                             <div className="h-6 w-6 rounded-md flex items-center justify-center" style={{ background: 'var(--brand)' }}>
@@ -236,8 +300,8 @@ export default function TestPage() {
                                 <button onClick={() => {
                                     setAnalysisFailed(false)
                                     setAnalysisLoading(true)
-                                    const optLabels = ['a','b','c','d']
-                                    const qs = test.questions.map((q: any, i: number) => {
+                                    const optLabels = ['a', 'b', 'c', 'd']
+                                    const qs = test.questions.map((q: any) => {
                                         let opts: string[] = []
                                         try { opts = JSON.parse(q.options) } catch { opts = [] }
                                         return { text: q.text, imageUrl: q.imageUrl || null, a: opts[0], b: opts[1], c: opts[2], d: opts[3] }
@@ -294,7 +358,6 @@ export default function TestPage() {
                             )}
 
                             {isOpen ? (
-                                /* Yozma javob maydoni */
                                 <div className="mt-3 space-y-2">
                                     <textarea
                                         disabled={submitted}
@@ -324,7 +387,6 @@ export default function TestPage() {
                                     )}
                                 </div>
                             ) : (
-                                /* MCQ variantlari */
                                 <div className="space-y-2 mt-3">
                                     {opts.map((opt, oi) => {
                                         const sel = answers[q.id]
@@ -369,23 +431,14 @@ export default function TestPage() {
 
                 {/* Submit */}
                 {!submitted && (
-                    <div className="space-y-2">
-                        {!token && (
-                            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-[12px]"
-                                style={{ background: 'var(--brand-light)', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', color: 'var(--brand)' }}>
-                                <LogIn className="h-3.5 w-3.5 flex-shrink-0" />
-                                <span>Testni topshirish uchun akkauntga kirish kerak. Kirgandan keyin ushbu sahifaga qaytasiz.</span>
-                            </div>
-                        )}
-                        <button
-                            onClick={submit}
-                            disabled={submitting || answeredCount === 0}
-                            className="w-full h-11 rounded-xl text-sm font-semibold text-white transition disabled:opacity-40"
-                            style={{ background: 'var(--text-primary)' }}
-                        >
-                            {submitting ? 'Tekshirilmoqda...' : !token ? '🔐 Kirish va topshirish' : `Testni yuborish (${answeredCount}/${total})`}
-                        </button>
-                    </div>
+                    <button
+                        onClick={submit}
+                        disabled={submitting || answeredCount === 0}
+                        className="w-full h-11 rounded-xl text-sm font-semibold text-white transition disabled:opacity-40"
+                        style={{ background: 'var(--text-primary)' }}
+                    >
+                        {submitting ? 'Tekshirilmoqda...' : `Testni yuborish (${answeredCount}/${total})`}
+                    </button>
                 )}
 
                 {submitted && (

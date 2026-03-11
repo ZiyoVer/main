@@ -34,6 +34,16 @@ function getDtmBall(subject: string | null, correct: number, total: number): { b
     }
 }
 
+// MS (Milliy Sertifikat) ball hisoblash
+// Har bir fan 20 balldan — foizga mutanosib
+function getMsBall(correct: number, total: number): { ball: number; max: number } {
+    if (total === 0) return { ball: 0, max: 20 }
+    return {
+        ball: Math.round(correct / total * 20 * 10) / 10,
+        max: 20
+    }
+}
+
 const router = Router()
 
 // Test submit uchun rate limit (brute force javob topish oldini olish)
@@ -620,7 +630,7 @@ Matematik belgilar va formulalarni LaTeX formatida yoz ($\\frac{a}{b}$, $x^2$, $
         }]
 
         imageQs.forEach((q: any, idx: number) => {
-            const opts = ['a','b','c','d'].map((k, i) => q[k] ? `${optLabels[i]}) ${q[k]}` : null).filter(Boolean).join(' | ')
+            const opts = ['a', 'b', 'c', 'd'].map((k, i) => q[k] ? `${optLabels[i]}) ${q[k]}` : null).filter(Boolean).join(' | ')
             extractContent.push({
                 type: 'text',
                 text: `\nSavol ${idx + 1}${q.text ? ': ' + q.text : ' (rasm):'}${opts ? '\nVariantlar: ' + opts : ''}\nRasm:`
@@ -674,7 +684,7 @@ Javoblar O'zbek tilida, KaTeX formulalar bilan ($\\frac{a}{b}$ formatida) bo'lsi
 })
 
 // Test natijasini AI bilan tahlil qilish (TestPage uchun)
-router.post('/analyze-result', authenticate, async (req: AuthRequest, res) => {
+router.post('/analyze-result', optionalAuthenticate, async (req: AuthRequest, res) => {
     try {
         const { title, subject, score, total, questions } = req.body
         if (!Array.isArray(questions)) return res.json({ analysis: null })
@@ -691,10 +701,10 @@ router.post('/analyze-result', authenticate, async (req: AuthRequest, res) => {
                 text: `O'quvchi "${title || 'Test'}" testini yechdi. Natija: ${score}/${total}.\nQuyida xato yoki tekshiruv kerak bo'lgan rasmli savollar. Har birini tahlil qil, to'g'ri javobni aniqlа, o'quvchi xatosini tushuntir.\nJavob O'zbek tilida, KaTeX ($...$ formatida) bo'lsin.`
             }]
             imgQs.forEach((q: any, idx: number) => {
-                const opts = ['a','b','c','d'].map((k, i) => q[k] ? `${optLabels[i]}) ${q[k]}` : null).filter(Boolean).join(' | ')
+                const opts = ['a', 'b', 'c', 'd'].map((k, i) => q[k] ? `${optLabels[i]}) ${q[k]}` : null).filter(Boolean).join(' | ')
                 const studentLabel = (q.studentAnswer || '?').toUpperCase()
                 const correctLabel = (q.correctAnswer || '?').toUpperCase()
-                content.push({ type: 'text', text: `\nSavol ${idx+1}${q.text ? ': '+q.text : ' (rasm):'}\nVariantlar: ${opts||'—'}\nO'quvchi: ${studentLabel} | To'g'ri: ${correctLabel}\nRasm:` })
+                content.push({ type: 'text', text: `\nSavol ${idx + 1}${q.text ? ': ' + q.text : ' (rasm):'}\nVariantlar: ${opts || '—'}\nO'quvchi: ${studentLabel} | To'g'ri: ${correctLabel}\nRasm:` })
                 content.push({ type: 'image_url', image_url: { url: q.imageUrl, detail: 'low' } })
             })
             const completion = await gptClient.chat.completions.create({ model: 'gpt-4o-mini', messages: [{ role: 'user', content }], max_tokens: 1500, temperature: 0.3 })
@@ -705,10 +715,10 @@ router.post('/analyze-result', authenticate, async (req: AuthRequest, res) => {
         const wrongList = questions
             .filter((q: any) => q.studentAnswer !== q.correctAnswer)
             .slice(0, 25)
-            .map((q: any, i: number) => `${i+1}. ${(q.text||'Savol').substring(0,120)} — O'quvchi: ${(q.studentAnswer||'?').toUpperCase()}, To'g'ri: ${(q.correctAnswer||'?').toUpperCase()}`)
+            .map((q: any, i: number) => `${i + 1}. ${(q.text || 'Savol').substring(0, 120)} — O'quvchi: ${(q.studentAnswer || '?').toUpperCase()}, To'g'ri: ${(q.correctAnswer || '?').toUpperCase()}`)
             .join('\n')
 
-        const prompt = `O'quvchi "${title||'Test'}" testini yechdi (${subject||''}). Natija: ${score}/${total} (${Math.round(score/total*100)}%).\n\n${wrongList ? 'Xato savollar:\n'+wrongList : 'Barcha savollar to\'g\'ri!'}\n\nQisqacha (3-5 gap) tahlil qil: qaysi mavzular zaif, nima o'rganish kerak. O'zbek tilida yoz.`
+        const prompt = `O'quvchi "${title || 'Test'}" testini yechdi (${subject || ''}). Natija: ${score}/${total} (${Math.round(score / total * 100)}%).\n\n${wrongList ? 'Xato savollar:\n' + wrongList : 'Barcha savollar to\'g\'ri!'}\n\nQisqacha (3-5 gap) tahlil qil: qaysi mavzular zaif, nima o'rganish kerak. O'zbek tilida yoz.`
 
         const completion = await aiClient.chat.completions.create({ model: aiModel, messages: [{ role: 'user', content: prompt }], max_tokens: 700, temperature: 0.4 })
         res.json({ analysis: completion.choices[0]?.message?.content || null, type: 'text' })
@@ -744,6 +754,108 @@ router.post('/submit-ai', authenticate, submitLimiter, async (req: AuthRequest, 
         })
 
         res.json({ newAbility, prevAbility: currentAbility })
+    } catch (e) {
+        console.error(e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+// Guest (login qilmagan) test yechish — DB ga saqlanmaydi, faqat natija qaytariladi
+router.post('/:testId/submit-guest', optionalAuthenticate, submitLimiter, async (req: AuthRequest, res) => {
+    try {
+        const { answers } = req.body
+        if (!Array.isArray(answers)) {
+            return res.status(400).json({ error: 'answers massiv bo\'lishi kerak' })
+        }
+        const test = await prisma.test.findUnique({
+            where: { id: req.params.testId as string },
+            include: { questions: true }
+        })
+        if (!test) return res.status(404).json({ error: 'Test topilmadi' })
+
+        // Javoblarni tekshirish (AI open-answer tekshiruvisiz — guest uchun tezroq)
+        const results = answers.map((a: any) => {
+            const q = test.questions.find(q => q.id === a.questionId)
+            let isCorrect = false
+            if (q) {
+                if (q.questionType === 'open') {
+                    const studentAns = (a.textAnswer || '').trim().toLowerCase()
+                    const correctAns = (q.correctText || '').trim().toLowerCase()
+                    isCorrect = correctAns.length > 0 && studentAns === correctAns
+                } else {
+                    isCorrect = q.correctIdx === a.selectedIdx
+                }
+            }
+            return {
+                questionId: a.questionId,
+                selectedIdx: a.selectedIdx ?? -1,
+                textAnswer: a.textAnswer || null,
+                isCorrect,
+                difficulty: q?.difficulty || 0.0
+            }
+        })
+
+        const correct = results.filter((r: any) => r.isCorrect).length
+        const total = test.questions.length
+        const score = total > 0 ? (correct / total) * 100 : 0
+        const finalScore = Math.round(score * 100) / 100
+
+        const correctAnswers = test.questions.map(q => ({
+            id: q.id,
+            correctIdx: q.correctIdx,
+            correctText: (q as any).questionType === 'open' ? (q as any).correctText : undefined,
+            questionType: (q as any).questionType || 'mcq'
+        }))
+
+        const dtm = getDtmBall(test.subject || null, correct, total)
+        const ms = getMsBall(correct, total)
+
+        // Agar user login qilgan bo'lsa — attempt saqlaymiz va Rasch yangilaymiz
+        let attempt = null
+        if (req.user) {
+            const profile = await prisma.studentProfile.findUnique({ where: { userId: req.user.id } })
+            const currentAbility = Math.max(-5, Math.min(5, profile?.abilityLevel || 0.0))
+            const newAbility = updateAbility(currentAbility, results.map((r: any) => ({
+                difficulty: r.difficulty,
+                isCorrect: r.isCorrect
+            })))
+            attempt = await prisma.$transaction(async (tx) => {
+                const att = await tx.testAttempt.create({
+                    data: {
+                        testId: test.id,
+                        userId: req.user!.id,
+                        answers: JSON.stringify(results),
+                        score: finalScore,
+                        raschAbility: newAbility
+                    }
+                })
+                if (profile) {
+                    await tx.studentProfile.update({
+                        where: { userId: req.user!.id },
+                        data: {
+                            abilityLevel: newAbility,
+                            totalTests: { increment: 1 },
+                            avgScore: Math.round(((profile.avgScore * profile.totalTests + score) / (profile.totalTests + 1)) * 100) / 100
+                        }
+                    })
+                }
+                return att
+            })
+        }
+
+        res.json({
+            attempt,
+            score: finalScore,
+            grade: getGrade(finalScore),
+            correct,
+            total,
+            dtmBall: dtm.ball,
+            dtmMax: dtm.max,
+            msBall: ms.ball,
+            msMax: ms.max,
+            results,
+            correctAnswers
+        })
     } catch (e) {
         console.error(e)
         res.status(500).json({ error: 'Server xatoligi' })
@@ -864,6 +976,7 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
         }))
 
         const dtm = getDtmBall(test.subject || null, correct, test.questions.length)
+        const ms = getMsBall(correct, test.questions.length)
 
         res.json({
             attempt,
@@ -874,6 +987,8 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
             newAbility,
             dtmBall: dtm.ball,
             dtmMax: dtm.max,
+            msBall: ms.ball,
+            msMax: ms.max,
             results,
             correctAnswers
         })

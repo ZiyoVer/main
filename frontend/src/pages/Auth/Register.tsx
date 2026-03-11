@@ -44,6 +44,8 @@ export default function Register() {
         setCheckingEmail(false)
     }
 
+    const hasGuestTestResult = () => !!localStorage.getItem('dtmmax_guest_test_result')
+
     const submit = async (e: React.FormEvent) => {
         e.preventDefault()
         setLoading(true)
@@ -64,7 +66,12 @@ export default function Register() {
             })
             // Register javobidan to'g'ridan-to'g'ri token — alohida login shart emas
             login(data.token, data.user)
-            nav('/suhbat', { replace: true })
+            // Guest test natijasi bor bo'lsa — AI tahlil uchun yo'naltiramiz
+            if (hasGuestTestResult()) {
+                nav('/suhbat?analyzeTest=1', { replace: true })
+            } else {
+                nav('/suhbat', { replace: true })
+            }
         } catch (e: any) {
             setErr(e.message)
         }
