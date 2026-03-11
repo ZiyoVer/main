@@ -691,36 +691,70 @@ router.post('/analyze-result', optionalAuthenticate, async (req: AuthRequest, re
 
         const hasImages = questions.some((q: any) => q.imageUrl)
 
-        // Rasmli savollar bo'lsa vision AI (max 8 ta rasm — API limit)
+        // Rasmli savollar bo'lsa vision AI (max 10 ta rasm — API limit)
         if (hasImages && process.env.OPENAI_API_KEY) {
             const optLabels = ['A', 'B', 'C', 'D']
-            const wrongImgQs = questions.filter((q: any) => q.imageUrl && q.studentAnswer !== q.correctAnswer).slice(0, 8)
-            const imgQs = wrongImgQs.length > 0 ? wrongImgQs : questions.filter((q: any) => q.imageUrl).slice(0, 5)
+            const imgQs = questions.filter((q: any) => q.imageUrl).slice(0, 10)
             const content: any[] = [{
                 type: 'text',
-                text: `O'quvchi "${title || 'Test'}" testini yechdi. Natija: ${score}/${total}.\nQuyida xato yoki tekshiruv kerak bo'lgan rasmli savollar. Har birini tahlil qil, to'g'ri javobni aniqlа, o'quvchi xatosini tushuntir.\nJavob O'zbek tilida, KaTeX ($...$ formatida) bo'lsin.`
+                text: `O'quvchi "${title || 'Test'}" testini yechdi (${subject || ''}). Natija: ${score}/${total}.
+
+MUHIM: Har bir savolni tahlil qil:
+- ✅ To'g'ri yechgan savollarni: "Ajoyib! Bu savolni to'g'ri yechdingiz" deb ta'rifla, qisqacha nima uchun to'g'ri ekanini tushuntir
+- ❌ Xato yechgan savollarni: savol mazmunini AYNAN rasmdan o'qi, xato sababini tushuntir, to'g'ri yechimni batafsil ko'rsat
+- Oxirida umumiy xulosa — qaysi mavzular zaif, nima o'rganish kerak
+
+DIQQAT: Rasmni DIQQAT bilan o'qi, savol matnini AYNAN tiklа! Testda YO'Q bo'lgan savolni o'ylab chiqarma!
+Javob O'zbek tilida, KaTeX ($...$ formatida) bo'lsin.`
             }]
             imgQs.forEach((q: any, idx: number) => {
                 const opts = ['a', 'b', 'c', 'd'].map((k, i) => q[k] ? `${optLabels[i]}) ${q[k]}` : null).filter(Boolean).join(' | ')
                 const studentLabel = (q.studentAnswer || '?').toUpperCase()
                 const correctLabel = (q.correctAnswer || '?').toUpperCase()
-                content.push({ type: 'text', text: `\nSavol ${idx + 1}${q.text ? ': ' + q.text : ' (rasm):'}\nVariantlar: ${opts || '—'}\nO'quvchi: ${studentLabel} | To'g'ri: ${correctLabel}\nRasm:` })
-                content.push({ type: 'image_url', image_url: { url: q.imageUrl, detail: 'low' } })
+                const isCorrect = q.studentAnswer === q.correctAnswer
+                const status = isCorrect ? '✅ TO\'G\'RI' : '❌ XATO'
+                content.push({ type: 'text', text: `\n${status} — Savol ${idx + 1}${q.text ? ': ' + q.text : ' (rasm):'}${opts ? '\nVariantlar: ' + opts : ''}\nO'quvchi: ${studentLabel} | To'g'ri javob: ${correctLabel}\nRasm:` })
+                content.push({ type: 'image_url', image_url: { url: q.imageUrl, detail: 'high' } })
             })
-            const completion = await gptClient.chat.completions.create({ model: 'gpt-4o-mini', messages: [{ role: 'user', content }], max_tokens: 1500, temperature: 0.3 })
+
+            // Rasmsiz savollar ham bo'lsa — ularni matn sifatida qo'shamiz
+            const textQs = questions.filter((q: any) => !q.imageUrl)
+            if (textQs.length > 0) {
+                const textList = textQs.map((q: any, idx: number) => {
+                    const isCorrect = q.studentAnswer === q.correctAnswer
+                    const status = isCorrect ? '✅' : '❌'
+                    return `${status} ${idx + 1}. ${(q.text || 'Savol').substring(0, 120)} — O'quvchi: ${(q.studentAnswer || '?').toUpperCase()}, To'g'ri: ${(q.correctAnswer || '?').toUpperCase()}`
+                }).join('\n')
+                content.push({ type: 'text', text: `\n\nQo'shimcha matnsiz savollar:\n${textList}` })
+            }
+
+            const completion = await gptClient.chat.completions.create({ model: 'gpt-4o-mini', messages: [{ role: 'user', content }], max_tokens: 3000, temperature: 0.3 })
             return res.json({ analysis: completion.choices[0]?.message?.content || null, type: 'vision' })
         }
 
-        // Rasmsiz — DeepSeek bilan umumiy tahlil (max 25 ta xato savol)
-        const wrongList = questions
-            .filter((q: any) => q.studentAnswer !== q.correctAnswer)
-            .slice(0, 25)
-            .map((q: any, i: number) => `${i + 1}. ${(q.text || 'Savol').substring(0, 120)} — O'quvchi: ${(q.studentAnswer || '?').toUpperCase()}, To'g'ri: ${(q.correctAnswer || '?').toUpperCase()}`)
+        // Rasmsiz — DeepSeek bilan BARCHA savollar tahlili
+        const allList = questions
+            .slice(0, 30)
+            .map((q: any, i: number) => {
+                const isCorrect = q.studentAnswer === q.correctAnswer
+                const status = isCorrect ? '✅' : '❌'
+                return `${status} ${i + 1}. ${(q.text || 'Savol').substring(0, 150)} — O'quvchi: ${(q.studentAnswer || '?').toUpperCase()}, To'g'ri: ${(q.correctAnswer || '?').toUpperCase()}`
+            })
             .join('\n')
 
-        const prompt = `O'quvchi "${title || 'Test'}" testini yechdi (${subject || ''}). Natija: ${score}/${total} (${Math.round(score / total * 100)}%).\n\n${wrongList ? 'Xato savollar:\n' + wrongList : 'Barcha savollar to\'g\'ri!'}\n\nQisqacha (3-5 gap) tahlil qil: qaysi mavzular zaif, nima o'rganish kerak. O'zbek tilida yoz.`
+        const prompt = `O'quvchi "${title || 'Test'}" testini yechdi (${subject || ''}). Natija: ${score}/${total} (${total > 0 ? Math.round(score / total * 100) : 0}%).
 
-        const completion = await aiClient.chat.completions.create({ model: aiModel, messages: [{ role: 'user', content: prompt }], max_tokens: 700, temperature: 0.4 })
+Barcha savollar:
+${allList}
+
+Har bir savolni tahlil qil:
+- ✅ To'g'ri yechganlarni: "To'g'ri!" deb ta'rifla, qisqacha tushuntir
+- ❌ Xato yechganlarni: batafsil yechimini ko'rsat, nima uchun xato va to'g'ri javob nima uchun to'g'ri
+- Oxirida xulosa: qaysi mavzular zaif, nima o'rganish kerak
+
+O'zbek tilida yoz. Matematik formulalar uchun KaTeX ($...$ formatda) ishlat.`
+
+        const completion = await aiClient.chat.completions.create({ model: aiModel, messages: [{ role: 'user', content: prompt }], max_tokens: 3000, temperature: 0.3 })
         res.json({ analysis: completion.choices[0]?.message?.content || null, type: 'text' })
     } catch (e: any) {
         console.error('analyze-result:', e.message)

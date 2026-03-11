@@ -691,7 +691,9 @@ export default function ChatLayout() {
         window.history.replaceState({}, '', location.pathname)
         localStorage.removeItem('dtmmax_guest_test_result')
 
-        // Yangi chat ochib AI ga test tahlil so'rovini yuboramiz
+        // 2 bosqichli tahlil:
+        // 1) /tests/analyze-result endpointini chaqiramiz (GPT-4o vision rasmlar uchun, DeepSeek matn uchun)
+        // 2) Natijani yangi chatga saqlaymiz
         const triggerAnalysis = async () => {
             try {
                 const chatData = await fetchApi('/chat/new', {
@@ -701,20 +703,75 @@ export default function ChatLayout() {
                 await loadChats()
                 nav(`/suhbat/${chatData.id}`)
 
-                // Kichik kechiktirishdan keyin AI ga yuboramiz (chat load uchun)
-                setTimeout(() => {
-                    const optLabels = ['a', 'b', 'c', 'd']
-                    const wrongList = (guestData.questions || [])
-                        .filter((q: any) => q.studentAnswer !== q.correctAnswer)
-                        .slice(0, 20)
-                        .map((q: any, i: number) =>
-                            `${i + 1}. ${(q.text || 'Savol').substring(0, 100)} — Men: ${(q.studentAnswer || '?').toUpperCase()}, To'g'ri: ${(q.correctAnswer || '?').toUpperCase()}`
-                        ).join('\n')
-                    const prompt = `Men "${guestData.title || 'Test'}" testini yechtim. Natija: ${guestData.score}/${guestData.total} to'g'ri.\n\n${wrongList ? 'Xato savollar:\n' + wrongList + '\n\n' : ''}Iltimos, xatolarimni birma-bir tahlil qilib ber, qaysi mavzularda zaifligimni tushuntir va nima o'rganishim kerakligini ayt.`
-                    const displayText = `📊 "${guestData.title}" testi tahlili (${guestData.score}/${guestData.total} to'g'ri)`
-                    streamToChat(chatData.id, prompt, displayText)
-                }, 600)
-            } catch (e) { console.error('analyzeTest error:', e) }
+                // Chatga user xabarini qo'shamiz
+                const displayText = `📊 "${guestData.title}" testi tahlili (${guestData.score}/${guestData.total} to'g'ri)`
+                setMessages([{ id: 'u-analyze', role: 'user', content: displayText, createdAt: new Date().toISOString() }])
+                setLoading(true)
+                setStreaming('')
+
+                // BARCHA savollarni yuboramiz (to'g'ri + xato, har birining statusi bilan)
+                const questions = (guestData.questions || []).map((q: any) => ({
+                    text: q.text || '',
+                    imageUrl: q.imageUrl || null,
+                    studentAnswer: q.studentAnswer || null,
+                    correctAnswer: q.correctAnswer || null,
+                    a: q.a, b: q.b, c: q.c, d: q.d
+                }))
+
+                // /tests/analyze-result — GPT-4o vision rasmli savollar uchun ishlaydi
+                const analysisRes = await fetchApi('/tests/analyze-result', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        title: guestData.title,
+                        subject: guestData.subject,
+                        score: guestData.score,
+                        total: guestData.total,
+                        questions
+                    })
+                })
+
+                let analysisText = analysisRes?.analysis || null
+
+                // Agar analyze-result ishlamasa — fallback: streamToChat orqali
+                if (!analysisText) {
+                    const allList = (guestData.questions || [])
+                        .slice(0, 30)
+                        .map((q: any, i: number) => {
+                            const isCorrect = q.studentAnswer === q.correctAnswer
+                            const status = isCorrect ? '✅' : '❌'
+                            return `${status} ${i + 1}. ${(q.text || 'Savol').substring(0, 120)} — Men: ${(q.studentAnswer || '—').toUpperCase()}, To'g'ri: ${(q.correctAnswer || '—').toUpperCase()}`
+                        }).join('\n')
+                    const prompt = `Men "${guestData.title || 'Test'}" testini yechtim (${guestData.subject || ''}).\nNatija: ${guestData.score}/${guestData.total} to'g'ri.\n\nBarcha savollar:\n${allList}\n\nIltimos, har bir savolni tahlil qilib ber:\n- ✅ To'g'ri yechganlarni qisqacha ta'rifla\n- ❌ Xato yechganlarni batafsil tushuntir, nima uchun xato va to'g'ri javob nima uchun to'g'ri\n- Qaysi mavzularda zaifligimni va nima o'rganishim kerakligini ayt`
+                    setLoading(false)
+                    setTimeout(() => streamToChat(chatData.id, prompt, displayText), 300)
+                    return
+                }
+
+                // Tahlil olingan — chatga saqlaymiz
+                // User xabarini va AI javobini chatga yozamiz
+                await fetchApi(`/chat/${chatData.id}/stream`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                    body: JSON.stringify({
+                        content: `"${guestData.title}" testini yechtim. ${guestData.score}/${guestData.total} to'g'ri. Tahlil qilib ber.`,
+                        displayText,
+                        saveOnly: true,
+                        aiResponse: analysisText
+                    })
+                }).catch(() => { })
+
+                setStreaming('')
+                setLoading(false)
+                setMessages(prev => [
+                    ...prev.filter(m => m.id !== 'u-analyze'),
+                    { id: 'u-' + Date.now(), role: 'user', content: displayText, createdAt: new Date().toISOString() },
+                    { id: 'a-' + Date.now(), role: 'assistant', content: analysisText, createdAt: new Date().toISOString() }
+                ])
+
+            } catch (e) {
+                console.error('analyzeTest error:', e)
+                setLoading(false)
+            }
         }
         triggerAnalysis()
     }, [location.search]) // eslint-disable-line react-hooks/exhaustive-deps
