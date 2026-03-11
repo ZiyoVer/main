@@ -751,7 +751,6 @@ export default function ChatLayout() {
                 // User xabarini va AI javobini chatga yozamiz
                 await fetchApi(`/chat/${chatData.id}/stream`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
                     body: JSON.stringify({
                         content: `"${guestData.title}" testini yechtim. ${guestData.score}/${guestData.total} to'g'ri. Tahlil qilib ber.`,
                         displayText,

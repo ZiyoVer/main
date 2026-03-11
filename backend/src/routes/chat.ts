@@ -1163,6 +1163,17 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
         })
         if (!chat) return res.status(404).json({ error: 'Chat topilmadi' })
 
+        // saveOnly rejimi: AI chaqirmasdan faqat xabarlarni saqlash (guest test tahlili uchun)
+        if (req.body.saveOnly && req.body.aiResponse) {
+            const savedUserContent = displayText?.trim() || content
+            await prisma.message.create({ data: { chatId: chat.id, role: 'user', content: savedUserContent } })
+            const savedAi = await prisma.message.create({ data: { chatId: chat.id, role: 'assistant', content: req.body.aiResponse } })
+            // Chat title yangilash
+            const shortTitle = savedUserContent.substring(0, 40) + (savedUserContent.length > 40 ? '...' : '')
+            await prisma.chat.update({ where: { id: chat.id }, data: { title: shortTitle } })
+            return res.json({ success: true, id: savedAi.id })
+        }
+
         // Foydalanuvchi xabarini saqlash (displayText — foydalanuvchiga ko'rinadigan matn)
         const savedUserContent = displayText?.trim() || content
         await prisma.message.create({
