@@ -739,7 +739,7 @@ QOIDALAR:
                     { role: 'system', content: systemMsg },
                     { role: 'user', content }
                 ],
-                max_tokens: 8000,
+                max_tokens: 16000,
                 temperature: 0.2
             })
             return res.json({ analysis: completion.choices[0]?.message?.content || null, type: 'vision' })
@@ -767,7 +767,7 @@ Har bir savolni tahlil qil:
 
 O'zbek tilida yoz. Matematik formulalar uchun KaTeX ($...$ formatda) ishlat.`
 
-        const completion = await aiClient.chat.completions.create({ model: aiModel, messages: [{ role: 'user', content: prompt }], max_tokens: 3000, temperature: 0.3 })
+        const completion = await aiClient.chat.completions.create({ model: aiModel, messages: [{ role: 'user', content: prompt }], max_tokens: 16000, temperature: 0.3 })
         res.json({ analysis: completion.choices[0]?.message?.content || null, type: 'text' })
     } catch (e: any) {
         console.error('analyze-result:', e.message)

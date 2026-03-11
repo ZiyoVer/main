@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { BrainCircuit, CheckCircle, XCircle, ArrowLeft, Sparkles, LogIn } from 'lucide-react'
+import { BrainCircuit, CheckCircle, XCircle, ArrowLeft, Sparkles, LogIn, Lock } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
@@ -56,7 +56,9 @@ export default function TestPage() {
     const [analysis, setAnalysis] = useState<string | null>(null)
     const [analysisLoading, setAnalysisLoading] = useState(false)
     const [analysisFailed, setAnalysisFailed] = useState(false)
-    const [guestResult, setGuestResult] = useState<any>(null) // Guest uchun localStorage da saqlanadi
+
+    // isGuest: foydalanuvchi login qilmagan
+    const isGuest = !token || !user
 
     useEffect(() => {
         if (!shareLink) return
@@ -80,11 +82,7 @@ export default function TestPage() {
                 return { questionId: q.id, selectedIdx: answers[q.id] ?? -1 }
             })
 
-            // Link orqali yechilgan testlar uchun DOIM submit-guest ishlatiladi
-            // (submit-guest logged-in userlar uchun ham attempt saqlaydi, lekin isPublic tekshirmaydi)
-            const endpoint = `/tests/${test.id}/submit-guest`
-
-            const res = await fetchApi(endpoint, {
+            const res = await fetchApi(`/tests/${test.id}/submit-guest`, {
                 method: 'POST',
                 body: JSON.stringify({ answers: payload })
             })
@@ -96,67 +94,39 @@ export default function TestPage() {
             setCorrectMap(map)
             setSubmitted(true)
 
-            // Guest uchun natijani localStorage ga saqlaymiz (keyinchalik AI tahlil uchun)
-            if (!token || !user) {
-                const optLabels = ['a', 'b', 'c', 'd']
-                const questionsForSave = test.questions.map((q: any, i: number) => {
-                    let opts: string[] = []
-                    try { opts = JSON.parse(q.options) } catch { opts = [] }
-                    const ca = res.correctAnswers?.find((c: any) => c.id === q.id)
-                    const studentIdx = payload[i]?.selectedIdx ?? -1
-                    return {
-                        text: q.text,
-                        imageUrl: q.imageUrl || null,
-                        studentAnswer: studentIdx >= 0 ? optLabels[studentIdx] : (payload[i]?.textAnswer || null),
-                        correctAnswer: ca ? (ca.correctIdx >= 0 ? optLabels[ca.correctIdx] : ca.correctText) : null,
-                        a: opts[0], b: opts[1], c: opts[2], d: opts[3]
-                    }
-                })
-                const guestData = {
-                    title: test.title,
-                    subject: test.subject,
-                    score: res.correct,
-                    total: res.total,
-                    questions: questionsForSave
+            // Login bo'lgan user uchun AI tahlil avtomatik boshlanadi
+            setAnalysisLoading(true)
+            setAnalysisFailed(false)
+            const optLabels = ['a', 'b', 'c', 'd']
+            const questionsForAnalysis = test.questions.map((q: any, i: number) => {
+                let opts: string[] = []
+                try { opts = JSON.parse(q.options) } catch { opts = [] }
+                const ca = res.correctAnswers?.find((c: any) => c.id === q.id)
+                const studentIdx = payload[i]?.selectedIdx ?? -1
+                return {
+                    text: q.text,
+                    imageUrl: q.imageUrl || null,
+                    studentAnswer: studentIdx >= 0 ? optLabels[studentIdx] : (payload[i]?.textAnswer || null),
+                    correctAnswer: ca ? (ca.correctIdx >= 0 ? optLabels[ca.correctIdx] : ca.correctText) : null,
+                    a: opts[0], b: opts[1], c: opts[2], d: opts[3]
                 }
-                setGuestResult(guestData)
-                // localStorage da saqlab qo'yamiz — login bo'lgandan keyin ChatLayout o'qiydi
-                localStorage.setItem('dtmmax_guest_test_result', JSON.stringify(guestData))
-            } else {
-                // Login bo'lgan user uchun AI tahlil
-                setAnalysisLoading(true)
-                setAnalysisFailed(false)
-                const optLabels = ['a', 'b', 'c', 'd']
-                const questionsForAnalysis = test.questions.map((q: any, i: number) => {
-                    let opts: string[] = []
-                    try { opts = JSON.parse(q.options) } catch { opts = [] }
-                    const ca = res.correctAnswers?.find((c: any) => c.id === q.id)
-                    const studentIdx = payload[i]?.selectedIdx ?? -1
-                    return {
-                        text: q.text,
-                        imageUrl: q.imageUrl || null,
-                        studentAnswer: studentIdx >= 0 ? optLabels[studentIdx] : (payload[i]?.textAnswer || null),
-                        correctAnswer: ca ? (ca.correctIdx >= 0 ? optLabels[ca.correctIdx] : ca.correctText) : null,
-                        a: opts[0], b: opts[1], c: opts[2], d: opts[3]
-                    }
-                })
-                fetchApi('/tests/analyze-result', {
-                    method: 'POST',
-                    body: JSON.stringify({ title: test.title, subject: test.subject, score: res.correct, total: res.total, questions: questionsForAnalysis })
-                }).then((data: any) => {
-                    if (data?.analysis) setAnalysis(data.analysis)
-                    else setAnalysisFailed(true)
-                }).catch(() => setAnalysisFailed(true)).finally(() => setAnalysisLoading(false))
-            }
+            })
+            fetchApi('/tests/analyze-result', {
+                method: 'POST',
+                body: JSON.stringify({ title: test.title, subject: test.subject, score: res.correct, total: res.total, questions: questionsForAnalysis })
+            }).then((data: any) => {
+                if (data?.analysis) setAnalysis(data.analysis)
+                else setAnalysisFailed(true)
+            }).catch(() => setAnalysisFailed(true)).finally(() => setAnalysisLoading(false))
+
         } catch (e: any) {
             toast.error(e.message || 'Test yuborishda xatolik yuz berdi')
         }
         setSubmitting(false)
     }
 
-    function goLoginForAnalysis() {
-        // natija allaqachon localStorage ga saqlangan (submit da)
-        nav('/kirish', { state: { from: '/suhbat', analyzeTest: true } })
+    function goLogin() {
+        nav('/kirish', { state: { from: `/test/${shareLink}` } })
     }
 
     if (loading) return (
@@ -183,7 +153,6 @@ export default function TestPage() {
         return typeof a === 'number'
     }).length ?? 0
     const total = test?.questions?.length || 0
-    const isGuest = !token || !user
 
     return (
         <div className="h-screen overflow-y-auto w-full" style={{ background: 'var(--bg-page)' }}>
@@ -202,8 +171,15 @@ export default function TestPage() {
                         </div>
                         <span className="text-sm font-bold truncate max-w-[200px]">{test?.title}</span>
                     </div>
-                    {!submitted && (
+                    {!isGuest && !submitted && (
                         <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>{answeredCount}/{total} javoblandi</span>
+                    )}
+                    {isGuest && (
+                        <button onClick={goLogin} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-white transition"
+                            style={{ background: 'var(--brand)' }}>
+                            <LogIn className="h-3.5 w-3.5" />
+                            Kirish
+                        </button>
                     )}
                 </div>
             </header>
@@ -214,6 +190,32 @@ export default function TestPage() {
                     <p className="text-sm font-semibold">{test?.title}</p>
                     <p className="text-[12px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{test?.subject} · {total} savol · O'qituvchi: {test?.creator?.name}</p>
                 </div>
+
+                {/* Guest uchun login CTA */}
+                {isGuest && !submitted && (
+                    <div className="card p-5" style={{ border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)' }}>
+                        <div className="flex items-center gap-2 mb-3">
+                            <div className="h-6 w-6 rounded-md flex items-center justify-center" style={{ background: 'var(--brand)' }}>
+                                <Lock className="h-3.5 w-3.5 text-white" />
+                            </div>
+                            <span className="text-[13px] font-semibold">Testni yechish uchun kiring</span>
+                        </div>
+                        <p className="text-[13px] mb-4" style={{ color: 'var(--text-secondary)' }}>
+                            Test savollarini ko'rishingiz mumkin. Yechish va AI tahlil olish uchun akkauntga kirish kerak.
+                        </p>
+                        <button
+                            onClick={goLogin}
+                            className="w-full h-11 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition"
+                            style={{ background: 'var(--brand)' }}
+                        >
+                            <LogIn className="h-4 w-4" />
+                            Yechishni boshlash uchun kiring
+                        </button>
+                        <p className="text-[11px] mt-2 text-center" style={{ color: 'var(--text-muted)' }}>
+                            Yangi foydalanuvchi bo'lsangiz — bepul ro'yxatdan o'ting
+                        </p>
+                    </div>
+                )}
 
                 {/* Result */}
                 {submitted && result && (
@@ -253,34 +255,8 @@ export default function TestPage() {
                     </div>
                 )}
 
-                {/* Guest uchun AI tahlil CTA */}
-                {submitted && isGuest && (
-                    <div className="card p-5" style={{ border: '1px solid color-mix(in srgb, var(--brand) 20%, transparent)' }}>
-                        <div className="flex items-center gap-2 mb-3">
-                            <div className="h-6 w-6 rounded-md flex items-center justify-center" style={{ background: 'var(--brand)' }}>
-                                <Sparkles className="h-3.5 w-3.5 text-white" />
-                            </div>
-                            <span className="text-[13px] font-semibold">AI Tahlil</span>
-                        </div>
-                        <p className="text-[13px] mb-3" style={{ color: 'var(--text-secondary)' }}>
-                            AI xatolaringizni birma-bir tahlil qilib beradi. Buning uchun akkauntga kirish kerak.
-                        </p>
-                        <button
-                            onClick={goLoginForAnalysis}
-                            className="w-full h-11 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition"
-                            style={{ background: 'var(--brand)' }}
-                        >
-                            <LogIn className="h-4 w-4" />
-                            Kirish va AI tahlil olish
-                        </button>
-                        <p className="text-[11px] mt-2 text-center" style={{ color: 'var(--text-muted)' }}>
-                            Yangi foydalanuvchi bo'lsangiz — bepul ro'yxatdan o'ting
-                        </p>
-                    </div>
-                )}
-
-                {/* Login bo'lgan user uchun AI Tahlil */}
-                {submitted && !isGuest && (analysisLoading || analysis || analysisFailed) && (
+                {/* AI Tahlil */}
+                {submitted && (analysisLoading || analysis || analysisFailed) && (
                     <div className="card p-4" style={{ border: '1px solid color-mix(in srgb, var(--brand) 20%, transparent)' }}>
                         <div className="flex items-center gap-2 mb-3">
                             <div className="h-6 w-6 rounded-md flex items-center justify-center" style={{ background: 'var(--brand)' }}>
@@ -300,10 +276,22 @@ export default function TestPage() {
                                     setAnalysisFailed(false)
                                     setAnalysisLoading(true)
                                     const optLabels = ['a', 'b', 'c', 'd']
-                                    const qs = test.questions.map((q: any) => {
+                                    const payload = test.questions.map((q: any) => {
+                                        if (q.questionType === 'open') return { questionId: q.id, selectedIdx: -1, textAnswer: answers[q.id] ?? '' }
+                                        return { questionId: q.id, selectedIdx: answers[q.id] ?? -1 }
+                                    })
+                                    const qs = test.questions.map((q: any, i: number) => {
                                         let opts: string[] = []
                                         try { opts = JSON.parse(q.options) } catch { opts = [] }
-                                        return { text: q.text, imageUrl: q.imageUrl || null, a: opts[0], b: opts[1], c: opts[2], d: opts[3] }
+                                        const ca = result?.correctAnswers?.find((c: any) => c.id === q.id)
+                                        const studentIdx = payload[i]?.selectedIdx ?? -1
+                                        return {
+                                            text: q.text,
+                                            imageUrl: q.imageUrl || null,
+                                            studentAnswer: studentIdx >= 0 ? optLabels[studentIdx] : (payload[i]?.textAnswer || null),
+                                            correctAnswer: ca ? (ca.correctIdx >= 0 ? optLabels[ca.correctIdx] : ca.correctText) : null,
+                                            a: opts[0], b: opts[1], c: opts[2], d: opts[3]
+                                        }
                                     })
                                     fetchApi('/tests/analyze-result', {
                                         method: 'POST',
@@ -359,20 +347,22 @@ export default function TestPage() {
                             {isOpen ? (
                                 <div className="mt-3 space-y-2">
                                     <textarea
-                                        disabled={submitted}
+                                        disabled={submitted || isGuest}
                                         value={textAnswer}
                                         onChange={e => setAnswers(a => ({ ...a, [q.id]: e.target.value }))}
-                                        placeholder="Javobingizni shu yerga yozing..."
+                                        placeholder={isGuest ? "Yechish uchun kiring..." : "Javobingizni shu yerga yozing..."}
                                         rows={3}
                                         className="w-full rounded-lg border px-3 py-2 text-[13px] resize-none outline-none transition"
                                         style={{
                                             background: submitted
                                                 ? isCorrectOpen ? 'var(--success-light)' : 'var(--danger-light)'
-                                                : 'var(--bg-surface)',
+                                                : isGuest ? 'var(--bg-surface)' : 'var(--bg-surface)',
                                             borderColor: submitted
                                                 ? isCorrectOpen ? 'var(--success)' : 'var(--danger)'
                                                 : textAnswer.trim() ? 'var(--brand)' : 'var(--border)',
-                                            color: 'var(--text-primary)'
+                                            color: isGuest ? 'var(--text-muted)' : 'var(--text-primary)',
+                                            cursor: isGuest ? 'not-allowed' : 'text',
+                                            opacity: isGuest ? 0.6 : 1
                                         }}
                                     />
                                     {submitted && (
@@ -391,9 +381,9 @@ export default function TestPage() {
                                         const sel = answers[q.id]
                                         let bg = 'var(--bg-surface)'
                                         let border = 'var(--border)'
-                                        let color = 'var(--text-primary)'
+                                        let color = isGuest ? 'var(--text-muted)' : 'var(--text-primary)'
 
-                                        if (!submitted && sel === oi) {
+                                        if (!submitted && !isGuest && sel === oi) {
                                             bg = 'var(--brand-light)'; border = 'var(--brand)'; color = 'var(--brand-hover)'
                                         }
                                         if (submitted) {
@@ -405,10 +395,16 @@ export default function TestPage() {
                                         return (
                                             <button
                                                 key={oi}
-                                                disabled={submitted}
-                                                onClick={() => setAnswers(a => ({ ...a, [q.id]: oi }))}
+                                                disabled={submitted || isGuest}
+                                                onClick={() => !isGuest && setAnswers(a => ({ ...a, [q.id]: oi }))}
                                                 className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border text-left text-[13px] transition"
-                                                style={{ background: bg, borderColor: border, color }}
+                                                style={{
+                                                    background: bg,
+                                                    borderColor: border,
+                                                    color,
+                                                    cursor: isGuest ? 'not-allowed' : 'pointer',
+                                                    opacity: isGuest ? 0.7 : 1
+                                                }}
                                             >
                                                 <span className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 text-[10px] font-bold border-current">
                                                     {['A', 'B', 'C', 'D'][oi]}
@@ -428,23 +424,34 @@ export default function TestPage() {
                     )
                 })}
 
-                {/* Submit */}
+                {/* Submit yoki Login button */}
                 {!submitted && (
-                    <button
-                        onClick={submit}
-                        disabled={submitting || answeredCount === 0}
-                        className="w-full h-11 rounded-xl text-sm font-semibold text-white transition disabled:opacity-40"
-                        style={{ background: 'var(--text-primary)' }}
-                    >
-                        {submitting ? 'Tekshirilmoqda...' : `Testni yuborish (${answeredCount}/${total})`}
-                    </button>
+                    isGuest ? (
+                        <button
+                            onClick={goLogin}
+                            className="w-full h-11 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition"
+                            style={{ background: 'var(--brand)' }}
+                        >
+                            <LogIn className="h-4 w-4" />
+                            Yechishni boshlash uchun kiring
+                        </button>
+                    ) : (
+                        <button
+                            onClick={submit}
+                            disabled={submitting || answeredCount === 0}
+                            className="w-full h-11 rounded-xl text-sm font-semibold text-white transition disabled:opacity-40"
+                            style={{ background: 'var(--text-primary)' }}
+                        >
+                            {submitting ? 'Tekshirilmoqda...' : `Testni yuborish (${answeredCount}/${total})`}
+                        </button>
+                    )
                 )}
 
                 {submitted && (
-                    <button onClick={() => nav(token ? '/suhbat' : '/')}
+                    <button onClick={() => nav('/suhbat')}
                         className="w-full h-11 rounded-xl text-sm font-semibold transition"
                         style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
-                        {token ? 'Chatga qaytish' : 'Bosh sahifaga qaytish'}
+                        Chatga qaytish
                     </button>
                 )}
             </div>
