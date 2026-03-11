@@ -767,7 +767,9 @@ Har bir savolni tahlil qil:
 
 O'zbek tilida yoz. Matematik formulalar uchun KaTeX ($...$ formatda) ishlat.`
 
-        const completion = await aiClient.chat.completions.create({ model: aiModel, messages: [{ role: 'user', content: prompt }], max_tokens: 16000, temperature: 0.3 })
+        // DeepSeek-chat max output: 8192 tokens; GPT modellari ko'proq qo'llab-quvvatlaydi
+        const maxTok = hasDeepseek ? 8000 : 16000
+        const completion = await aiClient.chat.completions.create({ model: aiModel, messages: [{ role: 'user', content: prompt }], max_tokens: maxTok, temperature: 0.3 })
         res.json({ analysis: completion.choices[0]?.message?.content || null, type: 'text' })
     } catch (e: any) {
         console.error('analyze-result:', e.message)
