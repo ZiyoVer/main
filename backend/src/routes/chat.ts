@@ -32,7 +32,7 @@ const chatClient = new OpenAI({
     baseURL: hasDeepseek ? 'https://api.deepseek.com' : undefined,
     apiKey: process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY || ''
 })
-const chatModel = hasDeepseek ? 'deepseek-chat' : 'gpt-4o-mini'
+const chatModel = hasDeepseek ? 'deepseek-chat' : 'gpt-4.1-mini'
 
 // OpenAI client — rasm tahlili uchun (GPT-4o Vision)
 const gptClient = new OpenAI({
@@ -1110,7 +1110,7 @@ router.post('/:chatId/upload-file', authenticate, uploadSingle, async (req: Auth
                 // GPT-4o Vision orqali rasmni to'liq tahlil qilish
                 const base64Image = buffer.toString('base64')
                 const visionResponse = await gptClient.chat.completions.create({
-                    model: 'gpt-4o-mini',
+                    model: 'gpt-4.1',
                     messages: [{
                         role: 'user',
                         content: [
@@ -1215,7 +1215,7 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
         ]
 
         // Model tanlash: thinking=true -> deepseek-reasoner (R1), aks holda deepseek-chat (V3)
-        // Agar umuman DeepSeek ulangan bo'lmasa, gpt-4o-mini ga fallback qilamiz
+        // Agar umuman DeepSeek ulangan bo'lmasa, gpt-4.1-mini ga fallback qilamiz
         const model = hasDeepseek ? (thinking ? 'deepseek-reasoner' : 'deepseek-chat') : chatModel
 
         // SSE headers
@@ -1259,7 +1259,7 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
                 // DeepSeek ishlamadi → GPT-4o-mini ga fallback
                 console.warn('DeepSeek xatosi, GPT-4o-mini ga fallback:', firstErr.message)
                 activeClient = gptClient
-                activeModel = 'gpt-4o-mini'
+                activeModel = 'gpt-4.1-mini'
                 const fallbackOpts = { ...streamOptions, model: activeModel }
                 delete fallbackOpts.temperature // OpenAI uchun ham qo'llaymiz
                 fallbackOpts.temperature = 0.7

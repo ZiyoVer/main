@@ -98,7 +98,7 @@ const aiClient = new OpenAI({
     baseURL: hasDeepseek ? 'https://api.deepseek.com' : undefined,
     apiKey: process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY || ''
 })
-const aiModel = hasDeepseek ? 'deepseek-chat' : 'gpt-4o-mini'
+const aiModel = hasDeepseek ? 'deepseek-chat' : 'gpt-4.1-mini'
 
 const gptClient = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY || ''
@@ -332,7 +332,7 @@ ${jsonFormat}`
             return res.status(400).json({ error: 'Rasm/screenshot tahlili uchun OpenAI API kalit kerak. Iltimos, matnli PDF yoki Word fayl yuklang.' })
         }
         const client = isVision ? gptClient : aiClient;
-        const model = isVision ? 'gpt-4o-mini' : aiModel;
+        const model = isVision ? 'gpt-4.1' : aiModel;
 
         const completion = await client.chat.completions.create({
             model: model,
@@ -734,7 +734,7 @@ QOIDALAR:
             content.push({ type: 'text', text: `\n\nOxirida umumiy xulosa yoz: qaysi mavzularda kuchli, qayerda zaif, nima o'rganish kerak.` })
 
             const completion = await gptClient.chat.completions.create({
-                model: 'gpt-4o',
+                model: 'gpt-4.1',
                 messages: [
                     { role: 'system', content: systemMsg },
                     { role: 'user', content }

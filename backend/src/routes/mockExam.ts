@@ -22,7 +22,7 @@ const aiClient = new OpenAI({
     baseURL: hasDeepseek ? 'https://api.deepseek.com' : undefined,
     apiKey: process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY || ''
 })
-const aiModel = hasDeepseek ? 'deepseek-chat' : 'gpt-4o-mini'
+const aiModel = hasDeepseek ? 'deepseek-chat' : 'gpt-4.1-mini'
 
 // DTM va Milliy Sertifikat mock exam formatini aniqlash
 function getMockExamConfig(subject: string, examType: 'DTM' | 'MS'): { count: number; timeMinutes: number; prompt: string } {
