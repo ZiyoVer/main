@@ -691,21 +691,24 @@ router.post('/analyze-result', optionalAuthenticate, async (req: AuthRequest, re
 
         const hasImages = questions.some((q: any) => q.imageUrl)
 
-        // Rasmli savollar bo'lsa vision AI (max 10 ta rasm — API limit)
+        // Rasmli savollar bo'lsa vision AI (GPT-4o — rasmni aniq o'qiydi va matematikani to'g'ri yechadi)
         if (hasImages && process.env.OPENAI_API_KEY) {
             const optLabels = ['A', 'B', 'C', 'D']
             const imgQs = questions.filter((q: any) => q.imageUrl).slice(0, 10)
+            const systemMsg = `Sen tajribali matematika o'qituvchisisiz. O'quvchi test yechdi va natijasini tahlil qilishingiz kerak.
+
+QOIDALAR:
+1. Har bir savol uchun AVVAL rasmni diqqat bilan o'qi va savolni AYNAN qayta yoz
+2. Keyin masalani BOSQICHMA-BOSQICH to'g'ri yech
+3. O'quvchi to'g'ri yechgan bo'lsa — "✅ To'g'ri!" deb ta'rifla
+4. O'quvchi xato qilgan bo'lsa — "❌ Xato" deb, nima uchun xato ekanini va to'g'ri yechimni ko'rsat
+5. Testda YO'Q bo'lgan savolni O'YLAB CHIQARMA
+6. Matematik formulalarni LaTeX formatida yoz: $formula$ (inline) yoki $$formula$$ (block)
+7. O'zbek tilida yoz`
+
             const content: any[] = [{
                 type: 'text',
-                text: `O'quvchi "${title || 'Test'}" testini yechdi (${subject || ''}). Natija: ${score}/${total}.
-
-MUHIM: Har bir savolni tahlil qil:
-- ✅ To'g'ri yechgan savollarni: "Ajoyib! Bu savolni to'g'ri yechdingiz" deb ta'rifla, qisqacha nima uchun to'g'ri ekanini tushuntir
-- ❌ Xato yechgan savollarni: savol mazmunini AYNAN rasmdan o'qi, xato sababini tushuntir, to'g'ri yechimni batafsil ko'rsat
-- Oxirida umumiy xulosa — qaysi mavzular zaif, nima o'rganish kerak
-
-DIQQAT: Rasmni DIQQAT bilan o'qi, savol matnini AYNAN tiklа! Testda YO'Q bo'lgan savolni o'ylab chiqarma!
-Javob O'zbek tilida, KaTeX ($...$ formatida) bo'lsin.`
+                text: `Test: "${title || 'Test'}" (${subject || ''}). Natija: ${score}/${total}.\n\nQuyidagi savollarni tahlil qil:`
             }]
             imgQs.forEach((q: any, idx: number) => {
                 const opts = ['a', 'b', 'c', 'd'].map((k, i) => q[k] ? `${optLabels[i]}) ${q[k]}` : null).filter(Boolean).join(' | ')
@@ -713,7 +716,7 @@ Javob O'zbek tilida, KaTeX ($...$ formatida) bo'lsin.`
                 const correctLabel = (q.correctAnswer || '?').toUpperCase()
                 const isCorrect = q.studentAnswer === q.correctAnswer
                 const status = isCorrect ? '✅ TO\'G\'RI' : '❌ XATO'
-                content.push({ type: 'text', text: `\n${status} — Savol ${idx + 1}${q.text ? ': ' + q.text : ' (rasm):'}${opts ? '\nVariantlar: ' + opts : ''}\nO'quvchi: ${studentLabel} | To'g'ri javob: ${correctLabel}\nRasm:` })
+                content.push({ type: 'text', text: `\n---\n${status} — Savol ${idx + 1}${q.text ? ': ' + q.text : ''}${opts ? '\nVariantlar: ' + opts : ''}\nO'quvchi javobi: ${studentLabel} | To'g'ri javob: ${correctLabel}\nRasmni diqqat bilan o'qi:` })
                 content.push({ type: 'image_url', image_url: { url: q.imageUrl, detail: 'high' } })
             })
 
@@ -723,12 +726,22 @@ Javob O'zbek tilida, KaTeX ($...$ formatida) bo'lsin.`
                 const textList = textQs.map((q: any, idx: number) => {
                     const isCorrect = q.studentAnswer === q.correctAnswer
                     const status = isCorrect ? '✅' : '❌'
-                    return `${status} ${idx + 1}. ${(q.text || 'Savol').substring(0, 120)} — O'quvchi: ${(q.studentAnswer || '?').toUpperCase()}, To'g'ri: ${(q.correctAnswer || '?').toUpperCase()}`
+                    return `${status} ${idx + 1}. ${(q.text || 'Savol').substring(0, 150)} — O'quvchi: ${(q.studentAnswer || '?').toUpperCase()}, To'g'ri: ${(q.correctAnswer || '?').toUpperCase()}`
                 }).join('\n')
-                content.push({ type: 'text', text: `\n\nQo'shimcha matnsiz savollar:\n${textList}` })
+                content.push({ type: 'text', text: `\n\nMatnsiz savollar:\n${textList}` })
             }
 
-            const completion = await gptClient.chat.completions.create({ model: 'gpt-4o-mini', messages: [{ role: 'user', content }], max_tokens: 3000, temperature: 0.3 })
+            content.push({ type: 'text', text: `\n\nOxirida umumiy xulosa yoz: qaysi mavzularda kuchli, qayerda zaif, nima o'rganish kerak.` })
+
+            const completion = await gptClient.chat.completions.create({
+                model: 'gpt-4o',
+                messages: [
+                    { role: 'system', content: systemMsg },
+                    { role: 'user', content }
+                ],
+                max_tokens: 4000,
+                temperature: 0.2
+            })
             return res.json({ analysis: completion.choices[0]?.message?.content || null, type: 'vision' })
         }
 
