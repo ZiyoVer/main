@@ -858,10 +858,12 @@ router.post('/:testId/submit-guest', optionalAuthenticate, submitLimiter, async 
         if (req.user) {
             const profile = await prisma.studentProfile.findUnique({ where: { userId: req.user.id } })
             const currentAbility = Math.max(-5, Math.min(5, profile?.abilityLevel || 0.0))
-            const newAbility = updateAbility(currentAbility, results.map((r: any) => ({
-                difficulty: r.difficulty,
-                isCorrect: r.isCorrect
-            })))
+            // Degenerate case: 0/n yoki n/n bo'lsa, yoki savollar < 3 ta bo'lsa
+            // Rasch MLE diverge qiladi (±∞) — ability yangilanmasin
+            const canUpdateRasch = results.length >= 3 && score > 0 && score < 100
+            const newAbility = canUpdateRasch
+                ? updateAbility(currentAbility, results.map((r: any) => ({ difficulty: r.difficulty, isCorrect: r.isCorrect })))
+                : currentAbility
             attempt = await prisma.$transaction(async (tx) => {
                 const att = await tx.testAttempt.create({
                     data: {
@@ -975,12 +977,13 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
         const profile = await prisma.studentProfile.findUnique({
             where: { userId: req.user.id }
         })
-        // Eski xato qiymatlarni tuzatish uchun clamp qilamiz
         const currentAbility = Math.max(-5, Math.min(5, profile?.abilityLevel || 0.0))
-        const newAbility = updateAbility(currentAbility, results.map((r: any) => ({
-            difficulty: r.difficulty,
-            isCorrect: r.isCorrect
-        })))
+        // Degenerate case: 0/n yoki n/n bo'lsa, yoki savollar < 3 ta bo'lsa
+        // Rasch MLE diverge qiladi (±∞) — ability yangilanmasin
+        const canUpdateRasch = results.length >= 3 && score > 0 && score < 100
+        const newAbility = canUpdateRasch
+            ? updateAbility(currentAbility, results.map((r: any) => ({ difficulty: r.difficulty, isCorrect: r.isCorrect })))
+            : currentAbility
 
         // $transaction yordamida ACID ta'minlash
         const finalScore = Math.round(score * 100) / 100
