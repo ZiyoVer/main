@@ -597,6 +597,8 @@ export default function ChatLayout() {
     const abortRef = useRef<AbortController | null>(null)
     const profileRef = useRef<Profile | null>(null)
     const [testsLoading, setTestsLoading] = useState(false)
+    // Ko'rilgan test IDlari (localStorage) — yangi testlarni aniqlash uchun
+    const [newTestIds, setNewTestIds] = useState<Set<string>>(new Set())
     // Yechilgan testlar IDlarini localStorage da saqlaymiz
     const completedTestIdsRef = useRef<Set<string>>((() => {
         try { return new Set(JSON.parse(localStorage.getItem('dtmmax_done_tests') || '[]')) } catch { return new Set() }
@@ -937,7 +939,25 @@ export default function ChatLayout() {
 
     async function loadPublicTests() {
         setTestsLoading(true)
-        try { setPublicTests(await fetchApi('/tests/public')) } catch (err) { console.error('loadPublicTests:', err) } finally { setTestsLoading(false) }
+        try {
+            const data = await fetchApi('/tests/public')
+            setPublicTests(data)
+            // Ko'rilgan test IDlarini localStorage dan olish
+            let seenIds: string[] = []
+            try { seenIds = JSON.parse(localStorage.getItem('dtmmax_seen_tests') || '[]') } catch { }
+            const seenSet = new Set(seenIds)
+            // Yangi testlar = ko'rilmaganlar
+            const newIds = new Set<string>(data.filter((t: any) => !seenSet.has(t.id)).map((t: any) => t.id))
+            setNewTestIds(newIds)
+        } catch (err) { console.error('loadPublicTests:', err) } finally { setTestsLoading(false) }
+    }
+
+    function markTestsSeen() {
+        try {
+            const allIds = publicTests.map((t: any) => t.id)
+            localStorage.setItem('dtmmax_seen_tests', JSON.stringify(allIds))
+        } catch { }
+        setNewTestIds(new Set())
     }
 
     async function loadMyResults() {
@@ -1587,12 +1607,16 @@ export default function ChatLayout() {
                     <div className="flex mx-3 mb-2 mt-2 p-0.5 rounded-lg flex-shrink-0" style={{ background: 'var(--bg-muted)' }}>
                         {[
                             { k: 'chats' as const, l: 'Suhbat', Icon: MessageSquare },
-                            { k: 'tests' as const, l: 'Testlar', Icon: ClipboardList },
+                            { k: 'tests' as const, l: 'Testlar', Icon: ClipboardList, badge: newTestIds.size },
                             { k: 'progress' as const, l: 'Natija', Icon: TrendingUp },
                             { k: 'flashcards' as const, l: 'Karta', Icon: Brain },
                             { k: 'settings' as const, l: 'Sozlama', Icon: Settings },
                         ].map(t => (
-                            <button key={t.k} onClick={() => { setSideTab(t.k); if (t.k === 'settings') loadNotifications() }}
+                            <button key={t.k} onClick={() => {
+                                setSideTab(t.k)
+                                if (t.k === 'settings') loadNotifications()
+                                if (t.k === 'tests') markTestsSeen()
+                            }}
                                 className="flex-1 py-1.5 text-xs font-medium rounded-md transition flex flex-col items-center gap-0.5 relative"
                                 style={sideTab === t.k ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { color: 'var(--text-secondary)' }}
                                 title={t.l}
@@ -1603,6 +1627,12 @@ export default function ChatLayout() {
                                         <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full text-white text-[9px] flex items-center justify-center font-bold"
                                             style={{ background: 'var(--danger)' }}>
                                             {notifCount > 9 ? '9+' : notifCount}
+                                        </span>
+                                    )}
+                                    {t.k === 'tests' && (t as any).badge > 0 && (
+                                        <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full text-white text-[9px] flex items-center justify-center font-bold"
+                                            style={{ background: '#f97316' }}>
+                                            {(t as any).badge > 9 ? '9+' : (t as any).badge}
                                         </span>
                                     )}
                                 </span>
@@ -1663,13 +1693,23 @@ export default function ChatLayout() {
                                     <div className="h-4 w-4 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--brand)', borderTopColor: 'transparent' }} />
                                 </div>
                             )}
-                            {publicTests.map((t: any) => (
-                                <div key={t.id} onClick={() => openPublicTest(t)}
-                                    className="card card-hover p-3 cursor-pointer">
-                                    <p className="text-[13px] font-medium truncate">{t.title}</p>
-                                    <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{t._count?.questions || 0} savol · {t.creator?.name} · {t.subject}</p>
-                                </div>
-                            ))}
+                            {publicTests.map((t: any) => {
+                                const isNew = newTestIds.has(t.id)
+                                return (
+                                    <div key={t.id} onClick={() => openPublicTest(t)}
+                                        className="card card-hover p-3 cursor-pointer relative overflow-hidden"
+                                        style={isNew ? { borderColor: 'color-mix(in srgb, #f97316 35%, transparent)' } : {}}>
+                                        {isNew && (
+                                            <span className="absolute top-2 right-2 text-[10px] font-bold px-1.5 py-0.5 rounded-md"
+                                                style={{ background: '#f97316', color: '#fff', letterSpacing: '0.5px' }}>
+                                                NEW
+                                            </span>
+                                        )}
+                                        <p className="text-[13px] font-medium truncate pr-10">{t.title}</p>
+                                        <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{t._count?.questions || 0} savol · {t.creator?.name} · {t.subject}</p>
+                                    </div>
+                                )
+                            })}
                             {/* AI testlarim tarixi (localStorage dan) */}
                             {(() => {
                                 let aiKeys: string[] = []
