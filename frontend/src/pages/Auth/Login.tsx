@@ -11,10 +11,15 @@ export default function Login() {
     const login = useAuthStore(s => s.login)
     const { token, user } = useAuthStore()
 
+    const hasGuestTestResult = () => !!localStorage.getItem('dtmmax_guest_test_result')
+
     useEffect(() => {
         if (token && user) {
-            if (from) nav(from, { replace: true })
-            else if (user.role === 'ADMIN') nav('/boshqaruv', { replace: true })
+            if (hasGuestTestResult()) {
+                nav('/suhbat?analyzeTest=1', { replace: true })
+            } else if (from && from !== '/kirish') {
+                nav(from, { replace: true })
+            } else if (user.role === 'ADMIN') nav('/boshqaruv', { replace: true })
             else if (user.role === 'TEACHER') nav('/oqituvchi', { replace: true })
             else nav('/suhbat', { replace: true })
         }
@@ -26,8 +31,6 @@ export default function Login() {
     const [err, setErr] = useState('')
     const [loading, setLoading] = useState(false)
 
-    const hasGuestTestResult = () => !!localStorage.getItem('dtmmax_guest_test_result')
-
     const submit = async (e: React.FormEvent) => {
         e.preventDefault()
         setLoading(true)
@@ -35,14 +38,8 @@ export default function Login() {
         try {
             const data = await fetchApi('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
             login(data.token, data.user)
-            // Guest test natijasi bor bo'lsa — AI tahlil uchun /suhbat ga yo'naltiramiz
-            if (hasGuestTestResult()) {
-                nav('/suhbat?analyzeTest=1', { replace: true })
-            } else if (from && from !== '/kirish') {
-                nav(from, { replace: true })
-            } else if (data.user.role === 'ADMIN') nav('/boshqaruv')
-            else if (data.user.role === 'TEACHER') nav('/oqituvchi')
-            else nav('/suhbat')
+            // useEffect ham ishlaydi, u yerda ham hasGuestTestResult tekshiriladi
+            // Bu yerda qo'shimcha nav chaqirmaymiz — useEffect bajaradi
         } catch (e: any) {
             setErr(e.message)
         }
