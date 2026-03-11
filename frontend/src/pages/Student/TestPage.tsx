@@ -80,10 +80,9 @@ export default function TestPage() {
                 return { questionId: q.id, selectedIdx: answers[q.id] ?? -1 }
             })
 
-            // Login bo'lgan → /submit, guest → /submit-guest
-            const endpoint = token && user
-                ? `/tests/${test.id}/submit`
-                : `/tests/${test.id}/submit-guest`
+            // Link orqali yechilgan testlar uchun DOIM submit-guest ishlatiladi
+            // (submit-guest logged-in userlar uchun ham attempt saqlaydi, lekin isPublic tekshirmaydi)
+            const endpoint = `/tests/${test.id}/submit-guest`
 
             const res = await fetchApi(endpoint, {
                 method: 'POST',

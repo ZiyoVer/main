@@ -739,7 +739,7 @@ QOIDALAR:
                     { role: 'system', content: systemMsg },
                     { role: 'user', content }
                 ],
-                max_tokens: 4000,
+                max_tokens: 8000,
                 temperature: 0.2
             })
             return res.json({ analysis: completion.choices[0]?.message?.content || null, type: 'vision' })
