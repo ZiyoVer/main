@@ -775,7 +775,7 @@ O'zbek tilida yoz. Matematik formulalar uchun KaTeX ($...$ formatda) ishlat.`
     }
 })
 
-// AI test natijasi — faqat Rasch abilityLevel yangilash (test entity saqlanmaydi)
+// AI test natijasi — faqat avgScore/totalTests yangilash (Rasch YO'Q — AI testlar ability o'zgartirmasin)
 router.post('/submit-ai', authenticate, submitLimiter, async (req: AuthRequest, res) => {
     try {
         const { score, totalQuestions, results } = req.body
@@ -785,22 +785,16 @@ router.post('/submit-ai', authenticate, submitLimiter, async (req: AuthRequest, 
         const profile = await prisma.studentProfile.findUnique({ where: { userId: req.user.id } })
         if (!profile) return res.status(404).json({ error: 'Profil topilmadi' })
 
-        const currentAbility = profile.abilityLevel
-        const newAbility = updateAbility(currentAbility, results.map((r: any) => ({
-            difficulty: r.difficulty || 0.0,
-            isCorrect: r.isCorrect
-        })))
-
+        // AI testlar uchun Rasch yangilanmaydi — faqat statistika
         await prisma.studentProfile.update({
             where: { userId: req.user.id },
             data: {
-                abilityLevel: newAbility,
                 totalTests: { increment: 1 },
                 avgScore: Math.round(((profile.avgScore * profile.totalTests + (score || 0)) / (profile.totalTests + 1)) * 100) / 100
             }
         })
 
-        res.json({ newAbility, prevAbility: currentAbility })
+        res.json({ ok: true })
     } catch (e) {
         console.error(e)
         res.status(500).json({ error: 'Server xatoligi' })
@@ -1108,14 +1102,35 @@ router.get('/:testId/analytics', authenticate, requireRole('TEACHER', 'ADMIN'), 
             ? Math.round(test.attempts.reduce((s: number, a: any) => s + a.score, 0) / totalAttempts * 10) / 10
             : 0
 
-        res.json({
-            test: { id: test.id, title: test.title, subject: test.subject },
-            totalAttempts, avgScore,
-            students: test.attempts.map((a: any) => ({
+        // Har bir urinish uchun to'liq statistika (reyting uchun)
+        const studentRows = test.attempts.map((a: any) => {
+            let answers: any[] = []
+            try { answers = typeof a.answers === 'string' ? JSON.parse(a.answers) : (a.answers || []) } catch { }
+            const correctCount = answers.filter((r: any) => r.isCorrect).length
+            const total = test.questions.length
+            const scoreVal = Math.round(a.score * 10) / 10
+            const dtm = getDtmBall(test.subject || null, correctCount, total)
+            const ms = getMsBall(correctCount, total)
+            return {
                 name: a.user?.name || 'Noma\'lum',
-                score: a.score,
+                email: a.user?.email || '',
+                score: scoreVal,
+                correct: correctCount,
+                total,
+                dtmBall: dtm.ball,
+                dtmMax: dtm.max,
+                msBall: ms.ball,
+                msMax: ms.max,
+                grade: getGrade(scoreVal),
+                raschAbility: a.raschAbility ?? null,
                 createdAt: a.createdAt
-            })),
+            }
+        }).sort((a: any, b: any) => b.score - a.score)
+
+        res.json({
+            test: { id: test.id, title: test.title, subject: test.subject, createdAt: test.createdAt },
+            totalAttempts, avgScore,
+            students: studentRows,
             questionStats
         })
     } catch (e) {

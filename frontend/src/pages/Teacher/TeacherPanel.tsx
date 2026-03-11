@@ -260,90 +260,116 @@ export default function TeacherPanel() {
         if (!analytics) return
         const { test, students, questionStats, totalAttempts, avgScore } = analytics
 
-        function getGrade(score: number) {
-            if (score >= 90) return 'A+'
-            if (score >= 80) return 'A'
-            if (score >= 70) return 'B+'
-            if (score >= 60) return 'B'
-            if (score >= 50) return 'C+'
-            if (score >= 40) return 'C'
-            return 'D'
+        function gradeColor(score: number) {
+            if (score >= 90) return '#15803d'
+            if (score >= 80) return '#16a34a'
+            if (score >= 70) return '#65a30d'
+            if (score >= 60) return '#d97706'
+            if (score >= 50) return '#ea580c'
+            if (score >= 40) return '#dc2626'
+            return '#9f1239'
+        }
+        function rowBg(score: number) {
+            if (score >= 90) return '#f0fdf4'
+            if (score >= 80) return '#f0fdf4'
+            if (score >= 70) return '#fefce8'
+            if (score >= 60) return '#fffbeb'
+            if (score >= 50) return '#fff7ed'
+            return '#fef2f2'
         }
 
-        const rows = (students || []).map((s: any, i: number) => `
-        <tr style="background:${i%2===0?'#fff':'#f9fafb'}">
-            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${i+1}</td>
-            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${s.name}</td>
-            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:600;color:${s.score>=70?'#16a34a':s.score>=50?'#d97706':'#dc2626'}">${s.score}%</td>
-            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;color:${s.score>=70?'#16a34a':s.score>=50?'#d97706':'#dc2626'}">${getGrade(s.score)}</td>
-            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-size:12px">${new Date(s.createdAt).toLocaleDateString('uz-UZ')}</td>
-        </tr>
-    `).join('')
+        const dateStr = test?.createdAt
+            ? new Date(test.createdAt).toLocaleDateString('uz-UZ')
+            : new Date().toLocaleDateString('uz-UZ')
+
+        const rows = (students || []).map((s: any, i: number) => {
+            const ball = s.dtmBall ?? s.score
+            const foiz = s.score
+            const daraja = s.grade || '—'
+            const bg = rowBg(foiz)
+            const col = gradeColor(foiz)
+            return `<tr style="background:${bg}">
+            <td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#374151">${i + 1}</td>
+            <td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;font-weight:500">${s.name}</td>
+            <td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;color:${col}">${ball}</td>
+            <td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;text-align:center;color:#374151">${foiz}%</td>
+            <td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:800;color:${col}">${daraja}</td>
+        </tr>`
+        }).join('')
 
         const questionRows = (questionStats || []).map((q: any, i: number) => `
-        <tr style="background:${i%2===0?'#fff':'#f9fafb'}">
-            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280">${i+1}</td>
-            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;max-width:300px">${q.text?.substring(0,80) || '—'}${q.text?.length>80?'...':''}</td>
+        <tr style="background:${i % 2 === 0 ? '#fff' : '#f9fafb'}">
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280">${i + 1}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${q.text?.substring(0, 100) || '—'}${(q.text?.length || 0) > 100 ? '...' : ''}</td>
             <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center">${q.totalAnswered}</td>
-            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:600;color:${q.errorRate>50?'#dc2626':q.errorRate>30?'#d97706':'#16a34a'}">${q.errorRate}%</td>
-        </tr>
-    `).join('')
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:600;color:${q.errorRate > 50 ? '#dc2626' : q.errorRate > 30 ? '#d97706' : '#16a34a'}">${q.errorRate}%</td>
+        </tr>`).join('')
 
         const html = `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
-<title>${test?.title || 'Test'} — Statistika</title>
+<title>${test?.title || 'Test'} — Natijalar</title>
 <style>
-  body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 24px; color: #111; }
-  h1 { font-size: 20px; margin-bottom: 4px; }
-  .subtitle { color: #6b7280; font-size: 13px; margin-bottom: 20px; }
-  .stats { display: flex; gap: 24px; margin-bottom: 24px; }
-  .stat { background: #f3f4f6; padding: 12px 20px; border-radius: 8px; text-align: center; }
-  .stat-val { font-size: 24px; font-weight: 800; }
-  .stat-lbl { font-size: 11px; color: #6b7280; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 32px; }
-  th { background: #1e1e2e; color: #fff; padding: 10px 12px; text-align: left; font-size: 12px; }
-  h2 { font-size: 15px; margin: 24px 0 8px; }
-  @media print { body { padding: 8px; } }
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 28px; color: #111; background: #fff; }
+  .header { text-align: center; margin-bottom: 24px; }
+  .title { font-size: 17px; font-weight: 700; color: #111; margin-bottom: 4px; }
+  .subtitle { color: #6b7280; font-size: 13px; }
+  .stats-row { display: flex; gap: 16px; margin-bottom: 20px; justify-content: center; }
+  .stat { background: #f3f4f6; padding: 10px 18px; border-radius: 8px; text-align: center; min-width: 100px; }
+  .stat-val { font-size: 22px; font-weight: 800; color: #111; }
+  .stat-lbl { font-size: 11px; color: #6b7280; margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 28px; border-radius: 8px; overflow: hidden; box-shadow: 0 0 0 1px #e5e7eb; }
+  thead tr { background: #1e293b; }
+  th { color: #fff; padding: 10px 14px; text-align: left; font-size: 12px; font-weight: 600; letter-spacing: 0.5px; }
+  th:not(:first-child) { text-align: center; }
+  td { font-size: 13px; }
+  h2 { font-size: 14px; font-weight: 700; margin: 20px 0 8px; color: #374151; }
+  .footer { margin-top: 28px; padding-top: 14px; border-top: 1px solid #e5e7eb; font-size: 11px; color: #9ca3af; text-align: center; }
+  @media print { body { padding: 12px; } @page { margin: 1cm; } }
 </style>
 </head>
 <body>
-<h1>${test?.title || 'Test'} — Statistika</h1>
-<div class="subtitle">${test?.subject || ''} · Sana: ${new Date().toLocaleDateString('uz-UZ')}</div>
-<div class="stats">
-  <div class="stat"><div class="stat-val">${totalAttempts}</div><div class="stat-lbl">Jami urinish</div></div>
-  <div class="stat"><div class="stat-val">${avgScore}%</div><div class="stat-lbl">O'rtacha ball</div></div>
-  <div class="stat"><div class="stat-val">${getGrade(avgScore)}</div><div class="stat-lbl">O'rtacha baho</div></div>
+<div class="header">
+  <div class="title">${dateStr} imtihon natijalari</div>
+  <div class="subtitle">${test?.title || 'Test'} ${test?.subject ? '· ' + test.subject : ''} · Jami: ${totalAttempts} o'quvchi</div>
+</div>
+<div class="stats-row">
+  <div class="stat"><div class="stat-val">${totalAttempts}</div><div class="stat-lbl">Ishtirokchi</div></div>
+  <div class="stat"><div class="stat-val">${avgScore}%</div><div class="stat-lbl">O'rtacha foiz</div></div>
+  <div class="stat"><div class="stat-val">${(students || []).filter((s: any) => s.score >= 70).length}</div><div class="stat-lbl">O'tdi (≥70%)</div></div>
+  <div class="stat"><div class="stat-val">${(students || []).filter((s: any) => s.score < 70).length}</div><div class="stat-lbl">O'tmadi</div></div>
 </div>
 
-<h2>O'quvchilar natijalari</h2>
 <table>
 <thead><tr>
-  <th>#</th><th>Ism</th><th>Ball</th><th>Baho</th><th>Sana</th>
+  <th style="width:40px">#</th>
+  <th>F.I.SH</th>
+  <th style="width:80px">BALL</th>
+  <th style="width:70px">FOIZ</th>
+  <th style="width:80px">DARAJA</th>
 </tr></thead>
 <tbody>${rows}</tbody>
 </table>
 
-<h2>Savollar tahlili</h2>
+<h2>Savollar tahlili (xato foizi bo'yicha)</h2>
 <table>
 <thead><tr>
-  <th>#</th><th>Savol</th><th>Javob berilgan</th><th>Xato foizi</th>
+  <th style="width:40px">#</th><th>Savol</th><th style="width:90px">Javob berildi</th><th style="width:90px">Xato foizi</th>
 </tr></thead>
 <tbody>${questionRows}</tbody>
 </table>
 
-<div style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:center">
-  DTMMax • dtmmax.uz • ${new Date().toLocaleDateString('uz-UZ')}
-</div>
+<div class="footer">DTMMax · dtmmax.pro · ${new Date().toLocaleDateString('uz-UZ')}</div>
 </body>
 </html>`
 
         const w = window.open('', '_blank')
-        if (!w) { toast.error('Popup bloklangan. Browser ruxsat bering.'); return }
+        if (!w) { toast.error('Popup bloklangan. Brauzer ruxsat bering.'); return }
         w.document.write(html)
         w.document.close()
-        setTimeout(() => { w.print() }, 500)
+        setTimeout(() => { w.print() }, 600)
     }
 
     // Helpers
@@ -771,23 +797,36 @@ export default function TeacherPanel() {
 
                                 {analytics?.students?.length > 0 && (
                                     <div>
-                                        <h3 className="text-[11px] font-semibold uppercase tracking-wide mb-2" style={mutedText}>O'quvchilar natijalari</h3>
-                                        <div className="space-y-1">
-                                            {analytics.students.map((s: any, i: number) => (
-                                                <div key={i} className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: 'var(--bg-surface)' }}>
-                                                    <div>
-                                                        <p className="text-[13px] font-medium">{s.name}</p>
-                                                        <p className="text-[10px]" style={mutedText}>{new Date(s.createdAt).toLocaleDateString('uz')}</p>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-20 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
-                                                            <div className="h-full rounded-full transition-all"
-                                                                style={{ width: `${s.score}%`, background: s.score >= 70 ? 'var(--success)' : s.score >= 50 ? '#f59e0b' : 'var(--danger)' }} />
-                                                        </div>
-                                                        <span className="text-[13px] font-bold w-9 text-right">{s.score}%</span>
-                                                    </div>
-                                                </div>
-                                            ))}
+                                        <h3 className="text-[11px] font-semibold uppercase tracking-wide mb-2" style={mutedText}>O'quvchilar reytingi</h3>
+                                        <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                                            <table className="w-full" style={{ borderCollapse: 'collapse', fontSize: '12px' }}>
+                                                <thead>
+                                                    <tr style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)' }}>
+                                                        <th className="text-left px-3 py-2 font-semibold" style={{ color: 'var(--text-muted)', width: 28 }}>#</th>
+                                                        <th className="text-left px-3 py-2 font-semibold" style={{ color: 'var(--text-muted)' }}>F.I.SH</th>
+                                                        <th className="text-center px-2 py-2 font-semibold" style={{ color: 'var(--text-muted)', width: 60 }}>BALL</th>
+                                                        <th className="text-center px-2 py-2 font-semibold" style={{ color: 'var(--text-muted)', width: 55 }}>FOIZ</th>
+                                                        <th className="text-center px-2 py-2 font-semibold" style={{ color: 'var(--text-muted)', width: 60 }}>DARAJA</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {analytics.students.map((s: any, i: number) => {
+                                                        const col = s.score >= 70 ? 'var(--success)' : s.score >= 50 ? '#f59e0b' : 'var(--danger)'
+                                                        return (
+                                                            <tr key={i} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'var(--bg-surface)' }}>
+                                                                <td className="px-3 py-2 font-bold" style={{ color: 'var(--text-muted)' }}>{i + 1}</td>
+                                                                <td className="px-3 py-2">
+                                                                    <p className="font-medium" style={{ color: 'var(--text-primary)' }}>{s.name}</p>
+                                                                    <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{new Date(s.createdAt).toLocaleDateString('uz')}</p>
+                                                                </td>
+                                                                <td className="px-2 py-2 text-center font-bold" style={{ color: col }}>{s.dtmBall ?? s.score}</td>
+                                                                <td className="px-2 py-2 text-center" style={{ color: 'var(--text-secondary)' }}>{s.score}%</td>
+                                                                <td className="px-2 py-2 text-center font-extrabold" style={{ color: col }}>{s.grade || '—'}</td>
+                                                            </tr>
+                                                        )
+                                                    })}
+                                                </tbody>
+                                            </table>
                                         </div>
                                     </div>
                                 )}
