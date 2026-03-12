@@ -9,13 +9,14 @@ import { authenticate, AuthRequest, requireRole, optionalAuthenticate } from '..
 import { updateAbility } from '../utils/rasch'
 import { uploadToS3 } from '../utils/s3'
 
+// MS (Milliy Sertifikat) Rasch model baho chegaralari — uzbmb.uz rasmiy ma'lumotlari asosida
 function getGrade(score: number): string {
-    if (score >= 90) return 'A+'
-    if (score >= 80) return 'A'
-    if (score >= 70) return 'B+'
-    if (score >= 60) return 'B'
+    if (score >= 70) return 'A+'
+    if (score >= 65) return 'A'
+    if (score >= 60) return 'B+'
+    if (score >= 55) return 'B'
     if (score >= 50) return 'C+'
-    if (score >= 40) return 'C'
+    if (score >= 46) return 'C'
     return 'D'
 }
 
