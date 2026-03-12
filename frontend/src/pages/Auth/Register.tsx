@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { BrainCircuit, Eye, EyeOff, Check } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
@@ -8,10 +8,15 @@ const SUBJECTS = ['Matematika', 'Fizika', 'Kimyo', 'Biologiya', 'Ona tili va ada
 
 export default function Register() {
     const nav = useNavigate()
+    const location = useLocation()
+    const from = (location.state as any)?.from
     const { token, user, login } = useAuthStore()
 
     useEffect(() => {
-        if (token && user) nav('/suhbat', { replace: true })
+        if (token && user) {
+            if (from && from !== '/kirish' && from !== '/royxat') nav(from, { replace: true })
+            else nav('/suhbat', { replace: true })
+        }
     }, [token, user])
 
     const [step, setStep] = useState(1)
@@ -66,8 +71,10 @@ export default function Register() {
             })
             // Register javobidan to'g'ridan-to'g'ri token — alohida login shart emas
             login(data.token, data.user)
-            // Guest test natijasi bor bo'lsa — AI tahlil uchun yo'naltiramiz
-            if (hasGuestTestResult()) {
+            // Test linki orqali kelgan bo'lsa — o'sha testga qaytamiz
+            if (from && from !== '/kirish' && from !== '/royxat') {
+                nav(from, { replace: true })
+            } else if (hasGuestTestResult()) {
                 nav('/suhbat?analyzeTest=1', { replace: true })
             } else {
                 nav('/suhbat', { replace: true })

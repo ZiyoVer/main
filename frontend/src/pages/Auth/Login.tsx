@@ -138,7 +138,7 @@ export default function Login() {
 
                 <p className="text-center text-sm mt-5" style={{ color: 'var(--text-secondary)' }}>
                     Akkaunt yo'qmi?{' '}
-                    <Link to="/royxat" className="font-semibold" style={{ color: 'var(--brand)' }}>
+                    <Link to="/royxat" state={{ from }} className="font-semibold" style={{ color: 'var(--brand)' }}>
                         Ro'yxatdan o'tish
                     </Link>
                 </p>
