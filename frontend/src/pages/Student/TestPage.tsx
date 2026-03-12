@@ -116,6 +116,10 @@ export default function TestPage() {
                 questions: questionsForAnalysis
             }))
             setAnalysisReady(true)
+            // 2.5 soniyadan keyin avtomatik chatga yo'naltirish
+            setTimeout(() => {
+                nav('/suhbat?analyzeTest=true')
+            }, 2500)
 
         } catch (e: any) {
             toast.error(e.message || 'Test yuborishda xatolik yuz berdi')
@@ -253,25 +257,23 @@ export default function TestPage() {
                     </div>
                 )}
 
-                {/* AI Tahlil — chatga o'tish */}
+                {/* AI Tahlil — chatga avtomatik o'tish */}
                 {submitted && analysisReady && (
                     <div className="card p-5" style={{ border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)' }}>
-                        <div className="flex items-center gap-2 mb-3">
-                            <div className="h-6 w-6 rounded-md flex items-center justify-center" style={{ background: 'var(--brand)' }}>
-                                <Sparkles className="h-3.5 w-3.5 text-white" />
+                        <div className="flex items-center gap-3">
+                            <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin flex-shrink-0" style={{ borderColor: 'color-mix(in srgb, var(--brand) 30%, transparent)', borderTopColor: 'var(--brand)' }} />
+                            <div>
+                                <p className="text-[13px] font-semibold">AI tahlil uchun chatga o'tilmoqda...</p>
+                                <p className="text-[12px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Yoki pastdagi tugmani bosing</p>
                             </div>
-                            <span className="text-[13px] font-semibold">AI Tahlil tayyor</span>
                         </div>
-                        <p className="text-[13px] mb-4" style={{ color: 'var(--text-secondary)' }}>
-                            AI har bir savolni batafsil tahlil qilib beradi — qayerda xato qilganingizni va nima o'rganish kerakligini tushuntiradi.
-                        </p>
                         <button
                             onClick={() => nav('/suhbat?analyzeTest=true')}
-                            className="w-full h-11 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition"
+                            className="w-full h-10 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition mt-3"
                             style={{ background: 'var(--brand)' }}
                         >
                             <MessageSquare className="h-4 w-4" />
-                            Chatda AI tahlilni ko'rish
+                            Hozir o'tish
                         </button>
                     </div>
                 )}
