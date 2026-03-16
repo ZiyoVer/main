@@ -297,30 +297,25 @@ const MdMessage = memo(({ content, isStreaming }: {
                     } catch { return null }
                     if (items.length === 0) return null
                     return (
-                        <div className="my-3 rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
-                            <div className="px-4 py-2.5 flex items-center gap-2" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-card)' }}>
-                                <svg className="h-3.5 w-3.5" style={{ color: '#059669' }} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                                <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Formulalar — {items.length} ta</span>
+                        <div className="my-3 rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                            <div className="px-4 py-2.5 flex items-center gap-2" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+                                <span className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>FORMULALAR — {items.length} TA</span>
                             </div>
-                            <div className="grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                            <div>
                                 {items.map((item, i) => {
                                     let rendered = ''
                                     try { rendered = katex.renderToString(item.formula, { displayMode: false, throwOnError: false }) } catch { rendered = item.formula }
-                                    const isRightCol = i % 2 === 1
                                     return (
-                                        <div key={i} className="flex flex-col gap-1 px-3 py-2.5 hover:opacity-80 transition-opacity"
-                                            style={{
-                                                background: Math.floor(i / 2) % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.02)',
-                                                borderTop: i >= 2 ? '1px solid var(--border)' : 'none',
-                                                borderLeft: isRightCol ? '1px solid var(--border)' : 'none',
-                                            }}>
-                                            <div className="flex items-center gap-1.5 flex-wrap">
-                                                <span className="text-[10px] font-mono flex-shrink-0" style={{ color: 'var(--text-muted)' }}>{i + 1}</span>
-                                                <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#059669' }} />
-                                                <span className="font-semibold text-[12px] leading-snug" style={{ color: '#059669' }}>{item.name}</span>
-                                                {item.hint && <span className="text-[9px] px-1 py-0.5 rounded flex-shrink-0" style={{ background: 'rgba(5,150,105,0.1)', color: '#059669' }}>{item.hint}</span>}
+                                        <div key={i} className="flex items-start gap-3 px-4 py-3"
+                                            style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: i % 2 === 1 ? 'var(--bg-surface)' : 'transparent' }}>
+                                            <span className="text-[11px] font-mono w-5 flex-shrink-0 pt-0.5 text-right" style={{ color: 'var(--text-muted)' }}>{i + 1}</span>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                                                    <span className="text-[12px] font-semibold" style={{ color: 'var(--text-primary)' }}>{item.name}</span>
+                                                    {item.hint && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>{item.hint}</span>}
+                                                </div>
+                                                <div className="text-[13px] overflow-x-auto" dangerouslySetInnerHTML={{ __html: rendered }} />
                                             </div>
-                                            <div className="pl-4 text-[13px] overflow-x-auto" dangerouslySetInnerHTML={{ __html: rendered }} />
                                         </div>
                                     )
                                 })}
