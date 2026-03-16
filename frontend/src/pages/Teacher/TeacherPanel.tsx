@@ -174,7 +174,6 @@ export default function TeacherPanel() {
             })
             setQuestions(mapped)
             setAiDone(true)
-            setShowAiSection(false)
             if (!title) setTitle(`${subject} testi`)
             if (data.truncated) {
                 setAiError('PDF katta bo\'lgani uchun faqat birinchi qism tahlil qilindi. Natijalarni tekshiring.')

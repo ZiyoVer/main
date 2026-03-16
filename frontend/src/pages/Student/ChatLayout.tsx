@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, Sun, Moon, Search, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, Timer, Sparkles, User, Shield } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, Sun, Moon, Search, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, Timer, Sparkles, User, Shield, ArrowUp, BarChart2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import remarkGfm from 'remark-gfm'
@@ -20,7 +20,7 @@ interface Chat { id: string; title: string; subject?: string; updatedAt: string 
 interface Msg { id: string; role: string; content: string; createdAt: string }
 interface Profile { onboardingDone: boolean; subject?: string; subject2?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string; totalTests?: number; avgScore?: number; abilityLevel?: number }
 interface PublicTest { id: string; title: string; subject?: string; _count?: { questions: number; attempts: number } }
-interface MyResult { id: string; testId: string; score: number; total: number; createdAt: string }
+interface MyResult { id: string; testId: string; score: number; total?: number; createdAt: string; test?: { title: string; subject?: string } }
 
 // Test paneli uchun inline KaTeX renderer (ReactMarkdown ishlatmaymiz, tez va engil)
 function MathText({ text }: { text: string }) {
@@ -328,6 +328,35 @@ const MdMessage = memo(({ content, isStreaming }: {
                         </div>
                     )
                 }
+                if (className?.includes('language-todo')) {
+                    let items: { time?: string; task: string; duration?: number; subject?: string; done?: boolean }[] = []
+                    try { items = JSON.parse(String(children).trim()) } catch { return null }
+                    if (!items.length) return null
+                    return (
+                        <div className="my-3 rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(16,185,129,0.03))', border: '1.5px solid rgba(16,185,129,0.25)' }}>
+                            <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: '1px solid rgba(16,185,129,0.15)' }}>
+                                <Target className="h-4 w-4" style={{ color: '#10b981' }} />
+                                <span className="text-[12px] font-bold" style={{ color: '#10b981' }}>Kunlik reja — {items.length} ta vazifa</span>
+                            </div>
+                            <div className="divide-y" style={{ borderColor: 'rgba(16,185,129,0.1)' }}>
+                                {items.map((item, i) => (
+                                    <div key={i} className="flex items-center gap-3 px-4 py-3">
+                                        <div className="h-5 w-5 rounded-full border-2 flex-shrink-0" style={{ borderColor: '#10b981' }} />
+                                        {item.time && <span className="text-[12px] font-bold tabular-nums flex-shrink-0" style={{ color: '#10b981', minWidth: '40px' }}>{item.time}</span>}
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[13px] font-medium">{item.task}</p>
+                                            {(item.subject || item.duration) && (
+                                                <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                                                    {item.subject}{item.subject && item.duration ? ' • ' : ''}{item.duration ? `${item.duration} daqiqa` : ''}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )
+                }
                 const isBlock = className?.includes('language-')
                 return isBlock
                     ? <pre className="rounded-xl p-4 text-[13px] overflow-x-auto my-3 font-mono leading-relaxed" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}><code>{children}</code></pre>
@@ -457,7 +486,7 @@ const ChatInputArea = memo(function ChatInputArea({
     ]
 
     return (
-        <div className="px-3 sm:px-6 pb-4 sm:pb-6 pt-2 chat-input-area">
+        <div className="px-3 sm:px-6 pb-4 sm:pb-6 pt-2 chat-input-area flex-shrink-0" style={{ background: 'var(--bg-page)' }}>
             {!loading && messagesCount > 0 && (
                 <div className="max-w-3xl mx-auto mb-2 flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
                     {QUICK_ACTIONS.map((a, i) => (
@@ -507,7 +536,7 @@ const ChatInputArea = memo(function ChatInputArea({
                         disabled={loading}
                         rows={1}
                         className="w-full bg-transparent outline-none text-sm resize-none leading-relaxed px-4"
-                        style={{ color: 'var(--text-primary)', minHeight: '52px', maxHeight: '160px', paddingTop: '14px', paddingBottom: '8px' }}
+                        style={{ color: 'var(--text-primary)', minHeight: '64px', maxHeight: '160px', paddingTop: '14px', paddingBottom: '8px' }}
                     />
                     {/* Toolbar row */}
                     <div className="flex items-center gap-2 px-3 pb-3">
@@ -545,10 +574,10 @@ const ChatInputArea = memo(function ChatInputArea({
                             </button>
                         ) : (
                             <button type="submit" disabled={!input.trim() && attachedFiles.length === 0}
-                                className="h-8 w-8 flex items-center justify-center rounded-lg transition disabled:opacity-30"
-                                style={{ background: 'var(--text-primary)', color: 'var(--text-inverse)' }}
+                                className="h-9 w-9 flex items-center justify-center rounded-xl transition disabled:opacity-30"
+                                style={{ background: 'var(--brand)', color: 'white' }}
                                 title="Yuborish">
-                                <Send className="h-3.5 w-3.5" />
+                                <ArrowUp className="h-4 w-4" />
                             </button>
                         )}
                     </div>
@@ -596,6 +625,7 @@ export default function ChatLayout() {
     const [profile, setProfile] = useState<Profile | null>(null)
     const [showOnboarding, setShowOnboarding] = useState(false)
     const [sideTab, setSideTab] = useState<'chats' | 'tests' | 'progress' | 'flashcards'>('chats')
+    const [overlayPanel, setOverlayPanel] = useState<'tests' | 'flashcards' | 'progress' | null>(null)
     const [showSettings, setShowSettings] = useState(false)
     const [settingsSection, setSettingsSection] = useState<'profile' | 'appearance' | 'notifications' | 'security' | 'account'>('profile')
     const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -679,14 +709,12 @@ export default function ChatLayout() {
     const loadControllerRef = useRef<AbortController | null>(null)
     const isSubmittingRef = useRef(false)
     const submitTestPanelRef = useRef<() => void>(() => { })
-    const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const sidebarWidth = (() => {
         const w = window.innerWidth
-        if (w < 768) return 288
-        if (w <= 1024) return 240
-        return 260
-    })
-    const sidebarDragRef = useRef(false)
-    const [isSidebarDragging, setIsSidebarDragging] = useState(false)
+        if (w < 768) return 280
+        if (w <= 1024) return 260
+        return 280
+    })()
 
     // Auto-close sidebar on mobile + isMobile track
     useEffect(() => {
@@ -790,15 +818,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                 if (el) el.style.width = newWidth + 'px'
             }
             if (testDragRef.current) setTestWidth(Math.max(280, Math.min(900, window.innerWidth - x)))
-            if (sidebarDragRef.current) setSidebarWidth(Math.max(240, Math.min(600, x)))
         }
         const onUp = () => {
             if (flashDragRef.current) setFlashWidth(flashWidthRef.current)
             flashDragRef.current = false; testDragRef.current = false;
-            if (sidebarDragRef.current) {
-                sidebarDragRef.current = false;
-                setIsSidebarDragging(false);
-            }
         }
         window.addEventListener('mousemove', onMove)
         window.addEventListener('mouseup', onUp)
@@ -1624,7 +1647,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                         borderRight: '1px solid var(--border)',
                         ...(isMobile && sideOpen ? { position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 50 } : {})
                     }}
-                    className={`flex flex-col ${isSidebarDragging ? '' : 'transition-all duration-200'} overflow-hidden flex-shrink-0 relative`}
+                    className="flex flex-col transition-all duration-200 overflow-hidden flex-shrink-0 relative"
                 >
                     <div className="p-3 flex items-center justify-between h-14 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                         <div className="flex items-center gap-2">
@@ -1648,41 +1671,42 @@ Iltimos, har bir savolni tahlil qilib ber:
                             <Plus className="h-4 w-4 flex-shrink-0" /> Yangi suhbat
                         </button>
                         {/* Testlar */}
-                        <button onClick={() => { setSideTab(sideTab === 'tests' ? 'chats' : 'tests'); markTestsSeen() }}
-                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition"
-                            style={sideTab === 'tests' ? { background: 'var(--bg-muted)', color: 'var(--text-primary)' } : { color: 'var(--text-secondary)' }}
-                            onMouseEnter={e => { if (sideTab !== 'tests') e.currentTarget.style.background = 'var(--bg-muted)' }}
-                            onMouseLeave={e => { if (sideTab !== 'tests') e.currentTarget.style.background = 'transparent' }}
+                        <button onClick={() => { setOverlayPanel(overlayPanel === 'tests' ? null : 'tests'); markTestsSeen(); if (overlayPanel !== 'tests') { loadPublicTests(); loadMyResults() } }}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition"
+                            style={overlayPanel === 'tests' ? { background: 'var(--bg-muted)', color: 'var(--text-primary)' } : { color: 'var(--text-secondary)' }}
+                            onMouseEnter={e => { if (overlayPanel !== 'tests') e.currentTarget.style.background = 'var(--bg-muted)' }}
+                            onMouseLeave={e => { if (overlayPanel !== 'tests') e.currentTarget.style.background = 'transparent' }}
                         >
                             <ClipboardList className="h-4 w-4 flex-shrink-0" />
-                            <span className="flex-1">Testlar</span>
-                            {newTestIds.size > 0 && <span className="h-4.5 px-1.5 rounded-full text-white text-[10px] flex items-center font-bold" style={{ background: '#f97316' }}>{newTestIds.size > 9 ? '9+' : newTestIds.size}</span>}
+                            Testlar
+                            {newTestIds.size > 0 && <span className="ml-auto px-1.5 rounded-full text-white text-[10px] flex items-center font-bold" style={{ background: '#f97316', height: '18px' }}>{newTestIds.size > 9 ? '9+' : newTestIds.size}</span>}
                         </button>
                         {/* Kartochkalar */}
-                        <button onClick={() => setSideTab(sideTab === 'flashcards' ? 'chats' : 'flashcards')}
-                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition"
-                            style={sideTab === 'flashcards' ? { background: 'var(--bg-muted)', color: 'var(--text-primary)' } : { color: 'var(--text-secondary)' }}
-                            onMouseEnter={e => { if (sideTab !== 'flashcards') e.currentTarget.style.background = 'var(--bg-muted)' }}
-                            onMouseLeave={e => { if (sideTab !== 'flashcards') e.currentTarget.style.background = 'transparent' }}
+                        <button onClick={() => setOverlayPanel(overlayPanel === 'flashcards' ? null : 'flashcards')}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition"
+                            style={overlayPanel === 'flashcards' ? { background: 'var(--bg-muted)', color: 'var(--text-primary)' } : { color: 'var(--text-secondary)' }}
+                            onMouseEnter={e => { if (overlayPanel !== 'flashcards') e.currentTarget.style.background = 'var(--bg-muted)' }}
+                            onMouseLeave={e => { if (overlayPanel !== 'flashcards') e.currentTarget.style.background = 'transparent' }}
                         >
                             <Brain className="h-4 w-4 flex-shrink-0" />
-                            <span className="flex-1">Kartochkalar</span>
-                            {dueCount > 0 && <span className="h-4.5 px-1.5 rounded-full text-white text-[10px] flex items-center font-bold" style={{ background: 'var(--brand)' }}>{dueCount > 9 ? '9+' : dueCount}</span>}
+                            Kartochkalar
+                            {dueCount > 0 && <span className="ml-auto px-1.5 rounded-full text-white text-[10px] flex items-center font-bold" style={{ background: 'var(--brand)', height: '18px' }}>{dueCount > 9 ? '9+' : dueCount}</span>}
                         </button>
                         {/* Natijalar */}
-                        <button onClick={() => setSideTab(sideTab === 'progress' ? 'chats' : 'progress')}
-                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition"
-                            style={sideTab === 'progress' ? { background: 'var(--bg-muted)', color: 'var(--text-primary)' } : { color: 'var(--text-secondary)' }}
-                            onMouseEnter={e => { if (sideTab !== 'progress') e.currentTarget.style.background = 'var(--bg-muted)' }}
-                            onMouseLeave={e => { if (sideTab !== 'progress') e.currentTarget.style.background = 'transparent' }}
+                        <button onClick={() => setOverlayPanel(overlayPanel === 'progress' ? null : 'progress')}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition"
+                            style={overlayPanel === 'progress' ? { background: 'var(--bg-muted)', color: 'var(--text-primary)' } : { color: 'var(--text-secondary)' }}
+                            onMouseEnter={e => { if (overlayPanel !== 'progress') e.currentTarget.style.background = 'var(--bg-muted)' }}
+                            onMouseLeave={e => { if (overlayPanel !== 'progress') e.currentTarget.style.background = 'transparent' }}
                         >
-                            <TrendingUp className="h-4 w-4 flex-shrink-0" /> <span className="flex-1">Natijalar</span>
+                            <TrendingUp className="h-4 w-4 flex-shrink-0" /> Natijalar
                         </button>
                     </div>
 
                     <div className="mx-3 flex-shrink-0" style={{ height: '1px', background: 'var(--border)' }} />
 
-                    {sideTab === 'chats' && (
+                    {/* Chat list — doim ko'rinadi */}
+                    {true && (
                         <div className="flex-1 overflow-y-auto px-2 py-2" style={{ scrollbarWidth: 'thin' }}>
                             {chats.length === 0 ? (
                                 <p className="text-xs text-center py-6" style={{ color: 'var(--text-muted)' }}>Hali suhbatlar yo'q</p>
@@ -1696,7 +1720,6 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             onMouseEnter={e => { if (chatId !== c.id) e.currentTarget.style.background = 'var(--bg-muted)' }}
                                             onMouseLeave={e => { if (chatId !== c.id) e.currentTarget.style.background = 'transparent' }}
                                             onClick={() => nav(`/suhbat/${c.id}`)}>
-                                            <div className="h-3.5 w-3.5 rounded-full border flex-shrink-0" style={{ borderColor: chatId === c.id ? 'var(--text-secondary)' : 'var(--border-strong)' }} />
                                             <span className="flex-1 truncate">{c.title}</span>
                                             <button onClick={(e) => deleteChat(c.id, e)} className="opacity-0 group-hover:opacity-100 h-5 w-5 flex items-center justify-center rounded transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)' }} onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)' }}><Trash2 className="h-3 w-3" /></button>
                                         </div>
@@ -1705,287 +1728,6 @@ Iltimos, har bir savolni tahlil qilib ber:
                             ))}
                         </div>
                     )}
-
-                    {sideTab === 'tests' && (
-                        <div className="flex-1 overflow-y-auto px-2 space-y-1">
-                            {/* O'qituvchi testlari */}
-                            {testsLoading ? (
-                                <div className="space-y-2 p-2">
-                                    {[1, 2, 3].map(i => (
-                                        <div key={i} className="h-10 rounded animate-pulse" style={{ background: 'var(--bg-muted)' }} />
-                                    ))}
-                                </div>
-                            ) : publicTests.length === 0 ? (
-                                <div className="text-center p-4">
-                                    <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>Hozircha testlar yo'q</p>
-                                    <button onClick={() => setSideTab('chats')} className="text-xs underline" style={{ color: 'var(--brand)' }}>
-                                        AI dan test so'rang
-                                    </button>
-                                </div>
-                            ) : (
-                                <p className="text-[11px] font-semibold uppercase px-1 mb-2 mt-1" style={{ color: 'var(--text-muted)' }}>O'qituvchi testlari</p>
-                            )}
-                            {loadingPublicTest && (
-                                <div className="flex justify-center py-4">
-                                    <div className="h-4 w-4 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--brand)', borderTopColor: 'transparent' }} />
-                                </div>
-                            )}
-                            {publicTests.map((t: any) => {
-                                const isNew = newTestIds.has(t.id)
-                                return (
-                                    <div key={t.id} onClick={() => openPublicTest(t)}
-                                        className="card card-hover p-3 cursor-pointer relative overflow-hidden"
-                                        style={isNew ? { borderColor: 'color-mix(in srgb, #f97316 35%, transparent)' } : {}}>
-                                        {isNew && (
-                                            <span className="absolute top-2 right-2 text-[10px] font-bold px-1.5 py-0.5 rounded-md"
-                                                style={{ background: '#f97316', color: '#fff', letterSpacing: '0.5px' }}>
-                                                NEW
-                                            </span>
-                                        )}
-                                        <p className="text-[13px] font-medium truncate pr-10">{t.title}</p>
-                                        <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{t._count?.questions || 0} savol · {t.creator?.name} · {t.subject}</p>
-                                    </div>
-                                )
-                            })}
-                            {/* AI testlarim tarixi (localStorage dan) */}
-                            {(() => {
-                                let aiKeys: string[] = []
-                                try { aiKeys = JSON.parse(localStorage.getItem('dtmmax_done_ai_tests') || '[]') } catch { }
-                                if (aiKeys.length === 0) return null
-                                return (
-                                    <div className="mt-3">
-                                        <p className="text-[11px] font-semibold uppercase px-1 mb-2" style={{ color: 'var(--text-muted)' }}>AI testlarim ({aiKeys.length})</p>
-                                        {aiKeys.map((_key, i) => (
-                                            <div key={i} className="card p-3 mb-1.5" style={{ opacity: 0.7 }}>
-                                                <div className="flex items-center gap-2">
-                                                    <CheckCircle className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--success)' }} />
-                                                    <p className="text-[12px] font-medium truncate">AI test #{i + 1}</p>
-                                                </div>
-                                                <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Yechilgan · natija saqlangan</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )
-                            })()}
-                        </div>
-                    )}
-
-                    {sideTab === 'progress' && (
-                        <div className="flex-1 overflow-y-auto px-3 space-y-3">
-                            {/* Fan badge */}
-                            {profile?.subject && (
-                                <div className="flex items-center gap-2 pt-1">
-                                    <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{user?.name}</span>
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded font-medium"
-                                        style={{ background: 'var(--brand-light)', color: 'var(--brand-hover)' }}>
-                                        {profile.subject}{(profile as any).subject2 ? ` + ${(profile as any).subject2}` : ''}
-                                    </span>
-                                </div>
-                            )}
-                            {/* Ball prognozi */}
-                            {progressData && progressData.avgScore > 0 && (
-                                <div className="rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                    <p className="text-[11px] font-semibold uppercase mb-2" style={{ color: 'var(--text-muted)' }}>Ball prognozi</p>
-                                    <div className="flex items-center gap-3">
-                                        <div className="flex-1">
-                                            <div className="h-2.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-muted)' }}>
-                                                <div className="h-full rounded-full transition-all duration-500"
-                                                    style={{ width: `${progressData.avgScore}%`, background: progressData.avgScore >= 70 ? '#10B981' : progressData.avgScore >= 50 ? '#F59E0B' : '#EF4444' }} />
-                                            </div>
-                                        </div>
-                                        <span className="text-sm font-bold tabular-nums" style={{ color: progressData.avgScore >= 70 ? '#10B981' : progressData.avgScore >= 50 ? '#F59E0B' : '#EF4444' }}>
-                                            ~{progressData.avgScore}%
-                                        </span>
-                                    </div>
-                                    <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>So'nggi testlar o'rtachasi asosida</p>
-                                </div>
-                            )}
-                            {/* Exam countdown */}
-                            {daysLeft !== null && (
-                                <div className="bg-gradient-to-br from-indigo-500 via-blue-500 to-cyan-400 rounded-xl p-4 text-white shadow-lg">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.18)' }}>
-                                            <Timer className="h-4 w-4" />
-                                        </div>
-                                        <p className="text-[11px] opacity-90 font-medium">Imtihongacha</p>
-                                    </div>
-                                    <p className="text-3xl font-bold tabular-nums leading-none">{daysLeft} <span className="text-base font-normal opacity-80">kun</span></p>
-                                    <p className="text-[11px] opacity-70 mt-1.5">{profile?.subject} · Maqsad: {profile?.targetScore} ball</p>
-                                </div>
-                            )}
-                            {/* Stats */}
-                            <div className="rounded-xl p-3 text-center" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                <Target className="h-4 w-4 text-emerald-500 mx-auto mb-1" />
-                                <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>{profile?.targetScore || 0}</p>
-                                <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Maqsad ball</p>
-                            </div>
-                            {/* Weak/Strong topics */}
-                            {profile?.weakTopics && (() => {
-                                let topics: string[] = []
-                                try { const p = JSON.parse(profile.weakTopics); topics = Array.isArray(p) ? p : [] } catch { }
-                                return topics.length > 0 ? (
-                                    <div className="rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                        <p className="text-[11px] font-semibold uppercase mb-2" style={{ color: 'var(--text-muted)' }}>Qiyin mavzular</p>
-                                        <div className="flex flex-wrap gap-1">
-                                            {topics.map((t: string, i: number) => (
-                                                <span key={i} className="text-[11px] px-2 py-0.5 rounded-md" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>{t}</span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ) : null
-                            })()}
-                            {profile?.strongTopics && (() => {
-                                let topics: string[] = []
-                                try { const p = JSON.parse(profile.strongTopics); topics = Array.isArray(p) ? p : [] } catch { }
-                                return topics.length > 0 ? (
-                                    <div className="rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                        <p className="text-[11px] font-semibold uppercase mb-2" style={{ color: 'var(--text-muted)' }}>Kuchli mavzular</p>
-                                        <div className="flex flex-wrap gap-1">
-                                            {topics.map((t: string, i: number) => (
-                                                <span key={i} className="text-[11px] px-2 py-0.5 rounded-md" style={{ background: 'var(--success-light)', color: 'var(--success)' }}>{t}</span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ) : null
-                            })()}
-                            {/* Test statistikasi */}
-                            {(() => {
-                                const abilityLevel = Math.max(-5, Math.min(5, profile?.abilityLevel ?? 0))
-                                const abilityPct = Math.max(0, Math.min(100, Math.round(((abilityLevel + 3) / 6) * 100)))
-                                const abilityLabel = abilityLevel >= 1.5 ? 'Yuqori' : abilityLevel >= 0 ? "O'rta" : abilityLevel >= -1.5 ? 'Past' : 'Juda past'
-                                const abilityColor = abilityLevel >= 1.5 ? 'from-emerald-500 to-teal-400' : abilityLevel >= 0 ? 'from-blue-500 to-cyan-400' : abilityLevel >= -1.5 ? 'from-amber-400 to-orange-400' : 'from-red-400 to-rose-400'
-                                return (
-                                    <>
-                                        {/* Bilim darajasi (Rasch) */}
-                                        <div className="rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                            <div className="flex items-center justify-between mb-2">
-                                                <p className="text-[11px] font-semibold uppercase" style={{ color: 'var(--text-muted)' }}>Bilim darajasi</p>
-                                                <span className="text-[11px] font-semibold" style={{ color: 'var(--text-secondary)' }}>{abilityLabel}</span>
-                                            </div>
-                                            <div className="h-2.5 rounded-full overflow-hidden mb-1" style={{ background: 'var(--bg-muted)' }}>
-                                                <div className={`h-full rounded-full bg-gradient-to-r ${abilityColor} transition-all duration-500`} style={{ width: `${abilityPct}%` }} />
-                                            </div>
-                                            <p className="text-[10px] text-right" style={{ color: 'var(--text-muted)' }}>{abilityPct}% · Rasch modeli</p>
-                                        </div>
-                                        {/* Testlar statistikasi */}
-                                        {(profile?.totalTests || 0) > 0 && (
-                                            <div className="rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                                <p className="text-[11px] font-semibold uppercase mb-2" style={{ color: 'var(--text-muted)' }}>Testlar natijasi</p>
-                                                <div className="grid grid-cols-2 gap-2 mb-3">
-                                                    <div className="rounded-lg p-2 text-center" style={{ background: 'var(--bg-surface)' }}>
-                                                        <p className="text-base font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>{profile?.totalTests || 0}</p>
-                                                        <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Jami testlar</p>
-                                                    </div>
-                                                    <div className="rounded-lg p-2 text-center" style={{ background: 'var(--bg-surface)' }}>
-                                                        <p className={`text-base font-bold tabular-nums ${(profile?.avgScore || 0) >= 70 ? 'text-emerald-600' : (profile?.avgScore || 0) >= 50 ? 'text-amber-600' : 'text-red-500'}`}>{Math.round(profile?.avgScore || 0)}%</p>
-                                                        <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>O'rtacha ball</p>
-                                                    </div>
-                                                </div>
-                                                {/* Score trend mini bar chart */}
-                                                {myResults.length > 1 && (
-                                                    <div>
-                                                        <p className="text-[10px] mb-1.5" style={{ color: 'var(--text-muted)' }}>So'nggi {Math.min(myResults.length, 8)} ta test trendi</p>
-                                                        <div className="flex items-end gap-1 h-10">
-                                                            {myResults.slice(0, 8).reverse().map((r: any, i: number) => {
-                                                                const barH = Math.max(3, Math.round(r.score * 0.38))
-                                                                const barColor = r.score >= 70 ? 'bg-emerald-400' : r.score >= 50 ? 'bg-amber-400' : 'bg-red-400'
-                                                                return (
-                                                                    <div key={i} className="flex-1 flex items-end" title={`${r.test?.title || 'Test'}: ${Math.round(r.score)}%`}>
-                                                                        <div className={`w-full rounded-sm ${barColor}`} style={{ height: `${barH}px` }} />
-                                                                    </div>
-                                                                )
-                                                            })}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                        {/* So'nggi testlar ro'yxati */}
-                                        {myResults.length > 0 && (
-                                            <div className="rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                                <p className="text-[11px] font-semibold uppercase mb-2" style={{ color: 'var(--text-muted)' }}>So'nggi testlar</p>
-                                                <div className="space-y-2">
-                                                    {myResults.slice(0, 5).map((r: any) => (
-                                                        <div key={r.id} className="flex items-center gap-2">
-                                                            <div className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${r.score >= 70 ? 'bg-emerald-400' : r.score >= 50 ? 'bg-amber-400' : 'bg-red-400'}`} />
-                                                            <span className="text-[12px] flex-1 truncate" style={{ color: 'var(--text-secondary)' }}>{r.test?.title || 'Test'}</span>
-                                                            <span className={`text-[11px] font-semibold tabular-nums flex-shrink-0 ${r.score >= 70 ? 'text-emerald-600' : r.score >= 50 ? 'text-amber-600' : 'text-red-500'}`}>{Math.round(r.score)}%</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </>
-                                )
-                            })()}
-                        </div>
-                    )}
-
-                    {/* Kartochkalar tab */}
-                    {sideTab === 'flashcards' && (
-                        <div className="flex-1 overflow-y-auto px-3 space-y-3">
-                            {/* Due count header */}
-                            <div className="rounded-xl p-4 text-white" style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6)' }}>
-                                <p className="text-[11px] opacity-80 mb-1">Bugun takrorlash kerak</p>
-                                <p className="text-3xl font-bold tabular-nums leading-none">{dueCount} <span className="text-sm font-normal opacity-80">ta</span></p>
-                                <p className="text-[11px] opacity-70 mt-1">Jami: {totalFlashcards} ta kartochka</p>
-                            </div>
-                            {dueCount > 0 && (
-                                <button onClick={() => {
-                                    setFlashPanel(dueFlashcards)
-                                    setFlashIdx(0)
-                                    setFlashFlipped(false)
-                                    setFlashIsReview(true)
-                                }} className="btn btn-primary w-full h-10 text-sm flex items-center justify-center gap-2">
-                                    <Layers className="h-4 w-4" /> Takrorlashni boshlash
-                                </button>
-                            )}
-                            {totalFlashcards > 0 && (
-                                <button onClick={() => {
-                                    fetchApi('/flashcards', { method: 'DELETE' }).then(() => loadDueFlashcards()).catch(() => { })
-                                }} className="w-full h-8 rounded-lg text-[12px] font-medium transition flex items-center justify-center gap-1.5"
-                                    style={{ background: 'var(--danger-light)', color: 'var(--danger)', border: '1px solid color-mix(in srgb, var(--danger) 25%, transparent)' }}>
-                                    <Trash2 className="h-3.5 w-3.5" /> Hammasini o'chirish
-                                </button>
-                            )}
-                            {totalFlashcards === 0 && (
-                                <p className="text-xs text-center py-6" style={{ color: 'var(--text-muted)' }}>Hali kartochkalar yo'q. Chatda AI dan kartochka so'rang.</p>
-                            )}
-                            {dueCount === 0 && totalFlashcards > 0 && (
-                                <div className="rounded-xl p-4 text-center" style={{ background: 'var(--success-light)', border: '1px solid var(--success)' }}>
-                                    <p className="text-sm font-semibold flex items-center justify-center gap-1.5" style={{ color: 'var(--success)' }}><CheckCircle className="h-4 w-4" /> Bugungi takrorlash tugadi!</p>
-                                    <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Ertaga yana kartochkalar bo'ladi</p>
-                                </div>
-                            )}
-                            {dueFlashcards.length > 0 && (
-                                <div>
-                                    <p className="text-[11px] font-semibold uppercase mb-2" style={{ color: 'var(--text-muted)' }}>Kutayotgan kartochkalar</p>
-                                    <div className="space-y-1.5">
-                                        {dueFlashcards.map((card, i) => (
-                                            <div key={card.id} className="card p-3 flex items-center gap-2 group">
-                                                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => {
-                                                    setFlashPanel(dueFlashcards.slice(i))
-                                                    setFlashIdx(0)
-                                                    setFlashFlipped(false)
-                                                    setFlashIsReview(true)
-                                                }}>
-                                                    <p className="text-[12px] font-medium truncate"><MathText text={card.front} /></p>
-                                                    <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{card.subject}</p>
-                                                </div>
-                                                <button onClick={() => {
-                                                    fetchApi(`/flashcards/${card.id}`, { method: 'DELETE' }).then(() => loadDueFlashcards()).catch(() => { })
-                                                }} className="flex-shrink-0 h-6 w-6 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 transition"
-                                                    style={{ color: 'var(--danger)' }}>
-                                                    <Trash2 className="h-3.5 w-3.5" />
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
 
                     {/* Akkaunt o'chirish modal */}
                     {showDeleteModal && (
@@ -2214,13 +1956,6 @@ Iltimos, har bir savolni tahlil qilib ber:
                     </div>
                 </div>
 
-                {/* Sidebar Resize Handle */}
-                {sideOpen && (
-                    <div
-                        onMouseDown={(e: React.MouseEvent) => { e.preventDefault(); sidebarDragRef.current = true; setIsSidebarDragging(true); document.body.style.cursor = 'col-resize' }}
-                        className="w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-500 transition-colors z-50 flex-shrink-0"
-                    />
-                )}
 
                 {/* Main */}
                 <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -2246,13 +1981,9 @@ Iltimos, har bir savolni tahlil qilib ber:
                                 ))}
                             </select>
                         )}
-                        {/* Dark mode toggle */}
-                        <button onClick={() => setDarkMode(!darkMode)} className="h-8 w-8 flex items-center justify-center rounded-lg transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} title={darkMode ? 'Yorug\' rejim' : 'Qorong\'i rejim'} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                            {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                        </button>
-                        {/* 👤 Profile avatar — sozlamalar modalini ochadi */}
-                        <button onClick={() => setShowSettings(true)} className="h-8 w-8 rounded-full flex items-center justify-center text-[12px] font-semibold text-white flex-shrink-0 transition" style={{ background: 'var(--brand)' }} title={user?.name || 'Profil'}>
-                            {user?.name?.[0]?.toUpperCase() || '?'}
+                        {/* Settings */}
+                        <button onClick={() => setShowSettings(true)} className="h-8 w-8 flex items-center justify-center rounded-lg transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} title="Sozlamalar" onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                            <Settings className="h-4 w-4" />
                         </button>
                     </div>
 
@@ -2320,30 +2051,24 @@ Iltimos, har bir savolni tahlil qilib ber:
                         ) : (
                             <div className="max-w-5xl mx-auto px-3 sm:px-8 py-4 sm:py-8 space-y-3 sm:space-y-6">
                                 {messages.map((m, i) => (
-                                    <div key={m.id || i} className={`flex gap-2 sm:gap-3 ${m.role === 'user' ? 'justify-end' : ''}`}>
-                                        {m.role !== 'user' && (
-                                            <div className="hidden sm:flex h-8 w-8 rounded-full flex-shrink-0 items-center justify-center mt-0.5 text-white text-xs font-bold" style={{ background: 'var(--brand)' }}>AI</div>
-                                        )}
+                                    <div key={m.id || i} className={`flex ${m.role === 'user' ? 'justify-end' : ''}`}>
                                         {m.role === 'user' ? (
                                             <div className="bubble-user">
                                                 {m.content.includes('![') ? (
                                                     <div className="flex flex-col gap-2">
                                                         <div className="flex flex-wrap gap-2">
                                                             {Array.from(m.content.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)).map((match, idx) => (
-                                                                <img key={idx} src={match[1]} alt="" className="chat-img-thumb" style={{ border: '1.5px solid rgba(255,255,255,0.3)' }} />
+                                                                <img key={idx} src={match[1]} alt="" className="chat-img-thumb" />
                                                             ))}
                                                         </div>
                                                         {m.content.replace(/!\[[^\]]*\]\([^)]+\)/g, '').trim() && (
-                                                            <p className="opacity-90 text-sm">{m.content.replace(/!\[[^\]]*\]\([^)]+\)/g, '').trim()}</p>
+                                                            <p className="text-sm">{m.content.replace(/!\[[^\]]*\]\([^)]+\)/g, '').trim()}</p>
                                                         )}
                                                     </div>
                                                 ) : m.content}
                                             </div>
                                         ) : (
                                             <div className="bubble-ai"><MdMessage content={m.content} /></div>
-                                        )}
-                                        {m.role === 'user' && (
-                                            <div className="hidden sm:flex h-8 w-8 rounded-full flex-shrink-0 items-center justify-center text-white text-xs font-bold" style={{ background: 'var(--brand)' }}>{user?.name?.[0]?.toUpperCase() || 'S'}</div>
                                         )}
                                     </div>
                                 ))}
@@ -2360,8 +2085,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                     </div>
                                 )}
                                 {streaming && (
-                                    <div className="flex gap-2 sm:gap-3">
-                                        <div className="hidden sm:flex h-8 w-8 rounded-full flex-shrink-0 items-center justify-center mt-0.5 text-white text-xs font-bold" style={{ background: 'var(--brand)' }}>AI</div>
+                                    <div className="flex">
                                         <div className="bubble-ai w-full sm:w-auto">
                                             <MdMessage content={streaming} isStreaming={true} />
                                             {/```test/.test(streaming) && !/```test[\s\S]*?```/.test(streaming) && (
@@ -2526,15 +2250,16 @@ Iltimos, har bir savolni tahlil qilib ber:
                                     </div>
                                 )}
                                 {loading && !streaming && !thinkingText && (
-                                    <div className="flex gap-2 sm:gap-3">
-                                        <div className="hidden sm:flex h-8 w-8 rounded-full flex-shrink-0 items-center justify-center text-white text-xs font-bold" style={{ background: 'var(--brand)' }}>AI</div>
+                                    <div className="flex">
                                         <div className="typing-dots"><span /><span /><span /></div>
                                     </div>
                                 )}
                                 {loading && thinkingText && !streaming && (
-                                    <div className="flex gap-2 sm:gap-3">
-                                        <div className="hidden sm:flex h-8 w-8 rounded-full flex-shrink-0 items-center justify-center text-white text-xs font-bold" style={{ background: 'var(--brand)' }}>AI</div>
-                                        <div className="text-[13px] py-3 flex items-center gap-2" style={{ color: 'var(--text-muted)' }}>Javob yozilmoqda...<span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--text-muted)' }} /></div>
+                                    <div className="flex">
+                                        <div className="text-[13px] py-3 flex items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
+                                            <span>Fikrlamoqda</span>
+                                            {[0,1,2].map(i => <span key={i} className="w-1 h-1 rounded-full animate-bounce inline-block" style={{ background: 'var(--text-muted)', animationDelay: `${i*0.2}s` }} />)}
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -2738,7 +2463,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                     <button onClick={() => setEssayMaximized(!essayMaximized)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                         {essayMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
                                     </button>
-                                    <button onClick={() => { localStorage.removeItem('dtmmax_essay_draft'); setEssayPanel(null); setEssayText(''); setEssaySubmitted(false); setEssayTimeLeft(null) }} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                    <button onClick={() => { setEssayPanel(null) }} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                         <X className="h-4 w-4" />
                                     </button>
                                 </div>
@@ -2948,6 +2673,187 @@ Iltimos, har bir savolni tahlil qilib ber:
                         )
                     })()
                 }
+
+                {/* ===== OVERLAY PANELS ===== */}
+                {overlayPanel && (
+                    <div className="fixed inset-0 z-50 flex" onClick={() => setOverlayPanel(null)}>
+                        <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(2px)' }} />
+                        <div className="relative ml-auto h-full flex flex-col overflow-hidden anim-up"
+                            style={{ width: '100%', maxWidth: '680px', background: 'var(--bg-page)', boxShadow: '-8px 0 40px rgba(0,0,0,0.15)' }}
+                            onClick={e => e.stopPropagation()}>
+
+                            {/* Header */}
+                            <div className="flex items-center gap-3 px-5 py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+                                <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                                    style={{ background: overlayPanel === 'tests' ? 'rgba(224,123,57,0.12)' : overlayPanel === 'flashcards' ? 'rgba(99,102,241,0.12)' : 'rgba(16,185,129,0.12)' }}>
+                                    {overlayPanel === 'tests' && <ClipboardList className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
+                                    {overlayPanel === 'flashcards' && <Brain className="h-5 w-5" style={{ color: '#6366f1' }} />}
+                                    {overlayPanel === 'progress' && <BarChart2 className="h-5 w-5" style={{ color: '#10b981' }} />}
+                                </div>
+                                <div className="flex-1">
+                                    <h2 className="font-semibold text-base">
+                                        {overlayPanel === 'tests' ? 'Testlar' : overlayPanel === 'flashcards' ? 'Kartochkalar' : 'Natijalar'}
+                                    </h2>
+                                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                                        {overlayPanel === 'tests' ? `${publicTests.length} ta test mavjud` : overlayPanel === 'flashcards' ? `${dueFlashcards.length} ta kartochka qaytarish kerak` : 'O\'qish tahlili'}
+                                    </p>
+                                </div>
+                                <button onClick={() => setOverlayPanel(null)} className="h-8 w-8 flex items-center justify-center rounded-lg transition"
+                                    style={{ color: 'var(--text-muted)' }}
+                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                    <X className="h-4 w-4" />
+                                </button>
+                            </div>
+
+                            {/* Content */}
+                            <div className="flex-1 overflow-y-auto px-5 py-4">
+                                {overlayPanel === 'tests' && (
+                                    <div className="space-y-3">
+                                        {publicTests.length === 0 ? (
+                                            <div className="flex flex-col items-center justify-center py-16 gap-3">
+                                                <div className="h-16 w-16 rounded-2xl flex items-center justify-center" style={{ background: 'var(--bg-muted)' }}>
+                                                    <ClipboardList className="h-8 w-8" style={{ color: 'var(--text-muted)' }} />
+                                                </div>
+                                                <p className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>Hozircha testlar yo'q</p>
+                                            </div>
+                                        ) : publicTests.map(t => {
+                                            const result = myResults.find(r => r.testId === t.id)
+                                            return (
+                                                <div key={t.id} className="rounded-2xl p-4 transition" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                                    <div className="flex items-start gap-3">
+                                                        <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                                                            style={{ background: result ? 'rgba(16,185,129,0.12)' : 'rgba(224,123,57,0.1)' }}>
+                                                            {result ? <CheckCircle className="h-5 w-5" style={{ color: '#10b981' }} /> : <ClipboardList className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="font-semibold text-sm truncate">{t.title}</p>
+                                                            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{t.subject} • {t._count?.questions ?? 0} savol</p>
+                                                        </div>
+                                                        {result ? (
+                                                            <span className="text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0" style={{ background: 'rgba(16,185,129,0.12)', color: '#10b981' }}>
+                                                                {(result.total ?? 0) > 0 ? Math.round(result.score / result.total! * 100) : result.score}%
+                                                            </span>
+                                                        ) : (
+                                                            <button onClick={() => { window.location.href = `/test/${t.id}` }}
+                                                                className="text-xs font-semibold px-3 py-1.5 rounded-xl transition flex-shrink-0"
+                                                                style={{ background: 'var(--brand)', color: 'white' }}>
+                                                                Boshlash
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                )}
+
+                                {overlayPanel === 'flashcards' && (
+                                    <div className="space-y-3">
+                                        {dueFlashcards.length > 0 && (
+                                            <div className="rounded-2xl p-4 mb-2" style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)' }}>
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <p className="font-semibold text-sm" style={{ color: '#6366f1' }}>{dueFlashcards.length} ta kartochka takrorlash vaqti keldi</p>
+                                                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Xotirani mustahkamlash uchun takrorlang</p>
+                                                    </div>
+                                                    <button onClick={() => { setOverlayPanel(null); setFlashPanel(dueFlashcards.map(f => ({ front: f.front, back: f.back }))); setFlashIdx(0); setFlashFlipped(false); setFlashIsReview(true) }}
+                                                        className="text-sm font-semibold px-4 py-2 rounded-xl transition"
+                                                        style={{ background: '#6366f1', color: 'white' }}>
+                                                        Boshlash
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {dueFlashcards.length === 0 && (
+                                            <div className="flex flex-col items-center justify-center py-16 gap-3">
+                                                <div className="h-16 w-16 rounded-2xl flex items-center justify-center" style={{ background: 'var(--bg-muted)' }}>
+                                                    <Brain className="h-8 w-8" style={{ color: 'var(--text-muted)' }} />
+                                                </div>
+                                                <p className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>Barcha kartochkalar takrorlandi</p>
+                                                <p className="text-xs text-center" style={{ color: 'var(--text-muted)' }}>Chatda "kartochkalar" deb yozing — AI yangi kartochkalar tuzadi</p>
+                                            </div>
+                                        )}
+                                        {dueFlashcards.map(f => (
+                                            <div key={f.id} className="rounded-2xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                                <p className="text-sm font-medium">{f.front}</p>
+                                                <p className="text-xs mt-2 pt-2" style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>{f.back}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {overlayPanel === 'progress' && (
+                                    <div className="space-y-4">
+                                        {/* Stats grid */}
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {[
+                                                { label: 'XP', value: progressData?.xp ?? 0, icon: <Zap className="h-5 w-5" />, color: '#f59e0b' },
+                                                { label: 'Streak', value: `${progressData?.currentStreak ?? 0} kun`, icon: <Flame className="h-5 w-5" />, color: '#ef4444' },
+                                                { label: "O'rtacha ball", value: `${Math.round(progressData?.avgScore ?? 0)}%`, icon: <Trophy className="h-5 w-5" />, color: '#10b981' },
+                                                { label: 'Eng uzun streak', value: `${progressData?.longestStreak ?? 0} kun`, icon: <Target className="h-5 w-5" />, color: '#6366f1' },
+                                            ].map((s, i) => (
+                                                <div key={i} className="rounded-2xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: `${s.color}18`, color: s.color }}>{s.icon}</div>
+                                                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{s.label}</span>
+                                                    </div>
+                                                    <p className="text-2xl font-bold">{s.value}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        {/* Weekly activity */}
+                                        {progressData?.weeklyActivity && progressData.weeklyActivity.length > 0 && (
+                                            <div className="rounded-2xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                                <p className="text-sm font-semibold mb-4">Haftalik faollik</p>
+                                                <div className="flex items-end gap-2 h-20">
+                                                    {progressData.weeklyActivity.map((d, i) => {
+                                                        const max = Math.max(...progressData.weeklyActivity.map(x => x.count), 1)
+                                                        return (
+                                                            <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                                                                <div className="w-full rounded-t-lg transition-all" style={{ height: `${(d.count / max) * 60}px`, minHeight: '4px', background: d.count > 0 ? 'var(--brand)' : 'var(--bg-muted)' }} />
+                                                                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{d.day.slice(0,2)}</span>
+                                                            </div>
+                                                        )
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {/* Test results */}
+                                        {myResults.length > 0 && (
+                                            <div>
+                                                <p className="text-sm font-semibold mb-3">So'nggi testlar</p>
+                                                <div className="space-y-2">
+                                                    {myResults.slice(0, 5).map(r => (
+                                                        <div key={r.id} className="flex items-center gap-3 rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                                            <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                                                                style={{ background: ((r.total ?? 0) > 0 ? r.score/r.total! : r.score/100) >= 0.7 ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.1)', color: ((r.total ?? 0) > 0 ? r.score/r.total! : r.score/100) >= 0.7 ? '#10b981' : '#ef4444' }}>
+                                                                <Trophy className="h-4 w-4" />
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-sm font-medium truncate">{r.test?.title || publicTests.find(t => t.id === r.testId)?.title || 'Test'}</p>
+                                                                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{new Date(r.createdAt).toLocaleDateString('uz-UZ')}</p>
+                                                            </div>
+                                                            <span className="text-sm font-bold flex-shrink-0" style={{ color: ((r.total ?? 0) > 0 ? r.score/r.total! : r.score/100) >= 0.7 ? '#10b981' : '#ef4444' }}>{(r.total ?? 0) > 0 ? Math.round(r.score/r.total!*100) : r.score}%</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {myResults.length === 0 && !progressData && (
+                                            <div className="flex flex-col items-center justify-center py-16 gap-3">
+                                                <div className="h-16 w-16 rounded-2xl flex items-center justify-center" style={{ background: 'var(--bg-muted)' }}>
+                                                    <BarChart2 className="h-8 w-8" style={{ color: 'var(--text-muted)' }} />
+                                                </div>
+                                                <p className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>Hozircha ma'lumot yo'q</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div >
         </ChatContext.Provider>
     )

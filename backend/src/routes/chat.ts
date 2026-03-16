@@ -642,8 +642,13 @@ O'quvchi mock test savollari yuklasa YOKI "qaysi mavzular ko'p chiqadi?", "niman
 - O'quvchi maqsad balliga yetishi uchun qaysi mavzular muhimroq ekanini doim hisobga ol`
 }
 
-function buildSystemPrompt(profile: any, subject?: string, extraRules?: string, ov: Record<string, string> = {}): string {
-    const now = new Date()
+function buildSystemPrompt(profile: any, subject?: string, extraRules?: string, ov: Record<string, string> = {}, isFirstMessage = false): string {
+    // Toshkent vaqti (UTC+5)
+    const now = new Date(Date.now() + 5 * 60 * 60 * 1000)
+    const tashkentHour = now.getUTCHours()
+    const tashkentTimeStr = `${String(now.getUTCHours()).padStart(2,'0')}:${String(now.getUTCMinutes()).padStart(2,'0')}`
+    const dayOfWeek = ['Yakshanba','Dushanba','Seshanba','Chorshanba','Payshanba','Juma','Shanba'][now.getUTCDay()]
+    const greeting = tashkentHour < 5 ? 'Kech bilan!' : tashkentHour < 12 ? 'Xayrli tong!' : tashkentHour < 18 ? 'Xayrli kun!' : 'Xayrli kech!'
     const get = (key: string, def: string) => ov[key]?.trim() || def
 
     let daysLeft = ''
@@ -757,6 +762,17 @@ Test so'ralganda FAQAT \`\`\`test JSON formatida ber:
 - HECH QACHON oddiy A) B) C) D) formatda test berma
 - 3-5 ta yoki 7-8 ta savol bilan test berish QATTIQ TAQIQLANGAN!
 
+### DTM test formati (maxsus)
+Agar o'quvchi aniq "DTM test", "DTM uslubida", "DTM variantida" deb so'rasa — testga quyidagi qo'shimcha metadata qo'sh:
+\`\`\`test
+[{"q":"Savol?","a":"A","b":"B","c":"C","d":"D","correct":"a","testType":"dtm","subject":"Matematika"}]
+\`\`\`
+DTM testida:
+- Matematikadan 30 ta savol (1-ixtisoslik)
+- Ingliz tilidan 30 ta savol (2-ixtisoslik / majburiy)
+- Har savol "testType":"dtm" bo'lishi kerak
+- Natija: DTM baholash tizimi bo'yicha ko'rsatiladi
+
 ## Essay / Writing topshirig'i formati
 
 O'quvchi essay topshirig'i, writing mashq, yoki "essay ber" so'rasa — FAQAT \`\`\`essay JSON formatida ber:
@@ -801,7 +817,21 @@ O'quvchi **formulalar ro'yxatini** so'raganda (masalan: "integral formulalari", 
 
 ## Jadval formati
 
-Jadvaldan oldin va keyin bo'sh qator bo'lsin.`)
+Jadvaldan oldin va keyin bo'sh qator bo'lsin.
+
+## Kun rejasi / Todo formati
+
+O'quvchi "reja tuz", "kunlik reja", "jadval qil", "bugun nima qilaman" desa — \`\`\`todo JSON formatida ber:
+\`\`\`todo
+[{"time":"09:00","task":"Trigonometriya formulalari","duration":45,"subject":"Matematika"},{"time":"10:30","task":"Present Perfect mashqlar","duration":30,"subject":"Ingliz tili"}]
+\`\`\`
+- time: Toshkent vaqti (HH:MM formatida)
+- task: nima qilish kerak
+- duration: daqiqada taxminiy vaqt
+- subject: fan nomi
+- Rejani tuzishdan OLDIN o'quvchidan so'ra: "Bugun qaysi mavzulardan ishlaysiz?" yoki "Qayerdan boshlaymiz?"
+- O'quvchining imtihon sana va vaqtini hisobga ol
+- Tungi vaqt (23:00-07:00) uchun rejalar berma`)
 
     const fileSection = get('prompt_file', `## FAYL / RASM TAHLILI QOIDALARI
 
@@ -864,12 +894,28 @@ Bu harakatlarni HECH QACHON qilma:
 
 16. ❌ Hech qanday zararli, noqulay yoki g'ayriqonuniy kontent yozma`)
 
+    const newUserSection = isFirstMessage ? `
+## 🆕 YANGI FOYDALANUVCHI — BIRINCHI XABAR
+
+Bu foydalanuvchi bilan BIRINCHI marta gaplashyapsan. Agar u "salom", "hi", "yordam" yoki qisqa narsa yozsa:
+1. ${greeting} deb boshla
+2. O'zingni tanishtir: "Men DTMMax sun'iy intellekt o'qituvchingman"
+3. Ularni fan bo'yicha qiziqtir — masalan: "Bugun ${subject || 'o\'qishni'} sinab ko'rishga tayyormisiz? Bilimingizni aniqlaymiz va birgalikda rejalaymiz!"
+4. Qisqa va iliq bo'l — uzun matn yozma
+5. Ular test yoki mavzu nomini yozsa — DARHOL yordam ber, qo'shimcha savol berma` : ''
+
     return `Sen DTMMax platformasining AI o'qituvchisan.
 
 TIL: DOIMO VA FAQAT O'ZBEK TILIDA javob ber. Ingliz tili darsida ham tushuntirishlar O'ZBEK TILIDA bo'lsin — inglizcha misollar ko'rsatish mumkin, lekin izoh O'ZBEK TILIDA.
 
+## Vaqt ma'lumoti (ichki foydalanish uchun)
+- Hozirgi Toshkent vaqti: ${tashkentTimeStr} (${dayOfWeek})
+- Bu ma'lumotni o'quvchiga ko'rsatma, lekin vaqtga bog'liq savollarda ishlat
+- Agar o'quvchi "hozir necha soat?" deb so'rasa — aytib berishing mumkin
+
 ## Sening xaraktering
 ${roleSection}
+${newUserSection}
 
 ## O'quvchi haqida
 ${[
@@ -903,7 +949,7 @@ Tez-tez taklif qilma — faqat aniq bilib olganingda.
 
 ${dontsSection}
 
-Sana: ${now.toLocaleDateString('uz-UZ')}.${extraRules ? '\n\n## Admin qo\'shimcha qoidalari\n' + extraRules : ''}`
+Sana: ${now.toLocaleDateString('uz-UZ')} (Toshkent vaqti ${tashkentTimeStr}).${extraRules ? '\n\n## Admin qo\'shimcha qoidalari\n' + extraRules : ''}`
 }
 
 // Yangi chat ochish (yoki mavjud fan chatini qaytarish)
@@ -1197,7 +1243,8 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
             ? `\n\n--- RASMIY MANBA KONTEKSTI (faqat ma'lumot uchun) ---\n${ragContext}\n--- MANBA KONTEKSTI TUGADI ---`
             : ''
 
-        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, aiSettings.extraRules, aiSettings.promptOverrides) + ragSection
+        const isFirstMessage = history.length <= 1
+        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, aiSettings.extraRules, aiSettings.promptOverrides, isFirstMessage) + ragSection
 
         // History: oxirgi user xabar (hozir saqlanganini) alohida olamiz
         // DeepSeek image_url qabul qilmaydi — OCR matni content ichida keladi

@@ -535,7 +535,7 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
                 description: description || null,
                 subject: subject || null,
                 isPublic: isPublic || false,
-                testType: validTestType,
+                ...(validTestType && { testType: validTestType } as any),
                 timeLimit: timeLimit || null,
                 creatorId: req.user.id,
                 questions: {

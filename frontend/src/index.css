@@ -1,5 +1,5 @@
 /* ---- Google Fonts (must come first) ---- */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
 
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -110,7 +110,7 @@ html.dark {
     body {
         height: 100%;
         overflow: hidden;
-        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
         background-color: var(--bg-page);
@@ -386,9 +386,8 @@ html.dark {
 }
 
 .bubble-user {
-    background-color: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 1rem 1rem 0.25rem 1rem;
+    background-color: var(--bg-muted);
+    border-radius: 1.25rem 1.25rem 0.25rem 1.25rem;
     padding: 0.625rem 0.875rem;
     max-width: 72%;
     font-size: 0.9375rem;
