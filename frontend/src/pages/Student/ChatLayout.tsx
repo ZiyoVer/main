@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, Sun, Moon, Search, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, Timer, Sparkles } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, Sun, Moon, Search, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, Timer, Sparkles, User, Shield } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import remarkGfm from 'remark-gfm'
@@ -554,7 +554,9 @@ export default function ChatLayout() {
     const [currentChat, setCurrentChat] = useState<Chat | null>(null)
     const [profile, setProfile] = useState<Profile | null>(null)
     const [showOnboarding, setShowOnboarding] = useState(false)
-    const [sideTab, setSideTab] = useState<'chats' | 'tests' | 'progress' | 'flashcards' | 'settings'>('chats')
+    const [sideTab, setSideTab] = useState<'chats' | 'tests' | 'progress' | 'flashcards'>('chats')
+    const [showSettings, setShowSettings] = useState(false)
+    const [settingsSection, setSettingsSection] = useState<'profile' | 'appearance' | 'notifications' | 'security' | 'account'>('profile')
     const [darkMode, setDarkMode] = useState<boolean>(() => {
         const saved = localStorage.getItem('darkMode')
         return saved === 'true'
@@ -640,7 +642,7 @@ export default function ChatLayout() {
         const w = window.innerWidth
         if (w < 768) return 288
         if (w <= 1024) return 240
-        return 288
+        return 260
     })
     const sidebarDragRef = useRef(false)
     const [isSidebarDragging, setIsSidebarDragging] = useState(false)
@@ -1559,18 +1561,16 @@ Iltimos, har bir savolni tahlil qilib ber:
                         <button onClick={() => setSideOpen(false)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-muted)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}><X className="h-4 w-4" /></button>
                     </div>
 
-                    {/* Side tabs — 5 ta ikonka qator */}
+                    {/* Side tabs — 4 ta ikonka qator */}
                     <div className="flex mx-3 mb-2 mt-2 p-0.5 rounded-lg flex-shrink-0" style={{ background: 'var(--bg-muted)' }}>
                         {[
                             { k: 'chats' as const, l: 'Suhbat', Icon: MessageSquare },
                             { k: 'tests' as const, l: 'Testlar', Icon: ClipboardList, badge: newTestIds.size },
                             { k: 'progress' as const, l: 'Natija', Icon: TrendingUp },
                             { k: 'flashcards' as const, l: 'Karta', Icon: Brain },
-                            { k: 'settings' as const, l: 'Sozlama', Icon: Settings },
                         ].map(t => (
                             <button key={t.k} onClick={() => {
                                 setSideTab(t.k)
-                                if (t.k === 'settings') loadNotifications()
                                 if (t.k === 'tests') markTestsSeen()
                             }}
                                 className="flex-1 py-1.5 text-xs font-medium rounded-md transition flex flex-col items-center gap-0.5 relative"
@@ -1579,12 +1579,6 @@ Iltimos, har bir savolni tahlil qilib ber:
                             >
                                 <span className="relative">
                                     <t.Icon className="h-4 w-4" />
-                                    {t.k === 'settings' && notifCount > 0 && (
-                                        <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full text-white text-[9px] flex items-center justify-center font-bold"
-                                            style={{ background: 'var(--danger)' }}>
-                                            {notifCount > 9 ? '9+' : notifCount}
-                                        </span>
-                                    )}
                                     {t.k === 'tests' && (t as any).badge > 0 && (
                                         <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full text-white text-[9px] flex items-center justify-center font-bold"
                                             style={{ background: '#f97316' }}>
@@ -1701,44 +1695,6 @@ Iltimos, har bir savolni tahlil qilib ber:
                                     </span>
                                 </div>
                             )}
-                            {/* Streak va XP (API dan) */}
-                            {progressData && (
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div className="rounded-xl p-3 text-center text-white" style={{ background: 'linear-gradient(135deg, #F59E0B, #EF4444)' }}>
-                                        <div className="flex items-center justify-center gap-1.5 mb-0.5">
-                                            <Trophy className="h-5 w-5 drop-shadow" />
-                                            <p className="text-2xl font-bold leading-none">{progressData.streak}</p>
-                                        </div>
-                                        <p className="text-[10px] opacity-80 mt-1">kunlik seriya</p>
-                                    </div>
-                                    <div className="rounded-xl p-3 text-center text-white" style={{ background: 'linear-gradient(135deg, #6366F1, #06B6D4)' }}>
-                                        <div className="flex items-center justify-center gap-1.5 mb-0.5">
-                                            <Sparkles className="h-5 w-5 drop-shadow" />
-                                            <p className="text-2xl font-bold leading-none">{progressData.xp}</p>
-                                        </div>
-                                        <p className="text-[10px] opacity-80 mt-1">XP ball</p>
-                                    </div>
-                                </div>
-                            )}
-                            {/* Haftalik faollik grafik */}
-                            {progressData?.weeklyActivity && (
-                                <div className="rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                    <p className="text-[11px] font-semibold uppercase mb-2" style={{ color: 'var(--text-muted)' }}>Haftalik faollik</p>
-                                    <div className="flex items-end gap-1 h-12">
-                                        {progressData.weeklyActivity.map((d, i) => {
-                                            const maxCount = Math.max(...progressData.weeklyActivity.map(x => x.count), 1)
-                                            const h = d.count > 0 ? Math.max(6, Math.round((d.count / maxCount) * 44)) : 4
-                                            return (
-                                                <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                                                    <div className="w-full rounded-t-sm transition-all duration-300"
-                                                        style={{ height: `${h}px`, background: d.count > 0 ? 'var(--brand)' : 'var(--bg-muted)' }} />
-                                                    <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>{d.day}</span>
-                                                </div>
-                                            )
-                                        })}
-                                    </div>
-                                </div>
-                            )}
                             {/* Ball prognozi */}
                             {progressData && progressData.avgScore > 0 && (
                                 <div className="rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
@@ -1771,17 +1727,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                                 </div>
                             )}
                             {/* Stats */}
-                            <div className="grid grid-cols-2 gap-2">
-                                <div className="rounded-xl p-3 text-center" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                    <MessageSquare className="h-4 w-4 text-blue-500 mx-auto mb-1" />
-                                    <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>{chats.length}</p>
-                                    <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Suhbatlar</p>
-                                </div>
-                                <div className="rounded-xl p-3 text-center" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                    <Target className="h-4 w-4 text-emerald-500 mx-auto mb-1" />
-                                    <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>{profile?.targetScore || 0}</p>
-                                    <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Maqsad ball</p>
-                                </div>
+                            <div className="rounded-xl p-3 text-center" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                <Target className="h-4 w-4 text-emerald-500 mx-auto mb-1" />
+                                <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>{profile?.targetScore || 0}</p>
+                                <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Maqsad ball</p>
                             </div>
                             {/* Weak/Strong topics */}
                             {profile?.weakTopics && (() => {
@@ -1950,164 +1899,6 @@ Iltimos, har bir savolni tahlil qilib ber:
                         </div>
                     )}
 
-                    {/* Sozlamalar tab */}
-                    {sideTab === 'settings' && (
-                        <div className="flex-1 overflow-y-auto px-3 space-y-3">
-                            {/* Profil ma'lumotlari */}
-                            <div className="card p-4">
-                                <p className="text-[11px] font-semibold uppercase mb-3" style={{ color: 'var(--text-muted)' }}>Profil</p>
-                                <div className="flex items-center gap-3 mb-3">
-                                    <div className="h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>{user?.name?.[0]?.toUpperCase()}</div>
-                                    <div className="min-w-0">
-                                        <p className="text-sm font-semibold truncate">{user?.name}</p>
-                                        <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
-                                    </div>
-                                </div>
-                                {profile?.subject && <p className="text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>📚 Fan: <span className="font-medium">{profile.subject}{(profile as any).subject2 ? ` va ${(profile as any).subject2}` : ''}</span></p>}
-                                {profile?.examDate && <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>📅 Sana: <span className="font-medium">{new Date(profile.examDate).toLocaleDateString('uz-UZ')}</span></p>}
-                            </div>
-
-                            {/* Interfeys */}
-                            <div className="card p-4">
-                                <p className="text-[11px] font-semibold uppercase mb-3" style={{ color: 'var(--text-muted)' }}>Ko'rinish</p>
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <div className="flex items-center gap-1.5">
-                                            {darkMode ? <Moon className="h-4 w-4" style={{ color: 'var(--brand)' }} /> : <Sun className="h-4 w-4" style={{ color: 'var(--brand)' }} />}
-                                            <p className="text-sm font-medium">{darkMode ? "Qorong'i rejim" : "Yorug' rejim"}</p>
-                                        </div>
-                                        <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Mavzu almashtirish</p>
-                                    </div>
-                                    <button
-                                        onClick={() => setDarkMode(!darkMode)}
-                                        className="relative h-7 w-12 rounded-full transition-all duration-300 flex-shrink-0"
-                                        style={{ background: darkMode ? 'var(--brand)' : 'var(--bg-muted)' }}
-                                    >
-                                        <span className="absolute top-1 h-5 w-5 rounded-full transition-all duration-300" style={{ background: 'white', left: darkMode ? '26px' : '2px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Bildirishnomalar */}
-                            <div className="card p-4">
-                                <div className="flex items-center justify-between mb-3">
-                                    <p className="text-[11px] font-semibold uppercase flex items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
-                                        <Bell className="h-3.5 w-3.5" /> Bildirishnomalar
-                                    </p>
-                                    {notifLoading && <div className="h-3 w-3 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--brand)', borderTopColor: 'transparent' }} />}
-                                </div>
-                                {notifications.length === 0 ? (
-                                    <p className="text-xs text-center py-4" style={{ color: 'var(--text-muted)' }}>
-                                        Bildirishnomalar yo'q
-                                    </p>
-                                ) : notifications.map((n: any) => (
-                                    <div key={n.id} className="p-3 rounded-lg mb-2"
-                                        style={{ background: n.isRead ? 'var(--bg-muted)' : 'var(--brand-light)', border: '1px solid var(--border)' }}>
-                                        <p className="text-xs font-semibold mb-0.5">{n.title}</p>
-                                        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{n.message}</p>
-                                        <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
-                                            {n.sender?.name} · {new Date(n.createdAt).toLocaleDateString('uz')}
-                                        </p>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {/* Profilni tahrirlash */}
-                            <button onClick={() => { setShowOnboarding(true); setSideTab('chats') }}
-                                className="btn btn-outline w-full h-10 flex items-center justify-center gap-2 text-sm">
-                                <Settings className="h-4 w-4" /> Profilni tahrirlash
-                            </button>
-
-                            {/* Parolni o'zgartirish */}
-                            <div className="card p-4">
-                                <p className="text-[11px] font-semibold uppercase mb-3" style={{ color: 'var(--text-muted)' }}>Parolni o'zgartirish</p>
-                                {changePwOk && (
-                                    <div className="text-xs px-3 py-2 rounded-lg mb-3" style={{ background: '#D1FAE5', color: '#065F46' }}>
-                                        Parol muvaffaqiyatli yangilandi!
-                                    </div>
-                                )}
-                                {changePwErr && (
-                                    <div className="text-xs px-3 py-2 rounded-lg mb-3" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>
-                                        {changePwErr}
-                                    </div>
-                                )}
-                                <div className="space-y-2">
-                                    <input
-                                        type="password"
-                                        placeholder="Joriy parol"
-                                        value={changePwForm.current}
-                                        onChange={e => setChangePwForm(f => ({ ...f, current: e.target.value }))}
-                                        className="input text-sm h-9"
-                                    />
-                                    <input
-                                        type="password"
-                                        placeholder="Yangi parol (kamida 8 belgi)"
-                                        value={changePwForm.newPw}
-                                        onChange={e => setChangePwForm(f => ({ ...f, newPw: e.target.value }))}
-                                        className="input text-sm h-9"
-                                    />
-                                    <input
-                                        type="password"
-                                        placeholder="Yangi parolni tasdiqlang"
-                                        value={changePwForm.confirm}
-                                        onChange={e => setChangePwForm(f => ({ ...f, confirm: e.target.value }))}
-                                        className="input text-sm h-9"
-                                    />
-                                    <button
-                                        disabled={changePwLoading || !changePwForm.current || !changePwForm.newPw || !changePwForm.confirm}
-                                        onClick={async () => {
-                                            setChangePwErr('')
-                                            setChangePwOk(false)
-                                            if (changePwForm.newPw !== changePwForm.confirm) {
-                                                setChangePwErr('Yangi parollar mos kelmadi')
-                                                return
-                                            }
-                                            setChangePwLoading(true)
-                                            try {
-                                                await fetchApi('/auth/change-password', {
-                                                    method: 'PUT',
-                                                    body: JSON.stringify({ currentPassword: changePwForm.current, newPassword: changePwForm.newPw })
-                                                })
-                                                setChangePwOk(true)
-                                                setChangePwForm({ current: '', newPw: '', confirm: '' })
-                                            } catch (e: any) {
-                                                setChangePwErr(e.message || 'Xatolik yuz berdi')
-                                            }
-                                            setChangePwLoading(false)
-                                        }}
-                                        className="btn btn-outline w-full h-9 text-sm"
-                                    >
-                                        {changePwLoading ? 'Saqlanmoqda...' : 'Parolni yangilash'}
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Akkauntni o'chirish — danger zone */}
-                            <div className="card p-4" style={{ border: '1px solid var(--danger-light)' }}>
-                                <p className="text-[11px] font-semibold uppercase mb-1" style={{ color: 'var(--danger)' }}>Xavfli zona</p>
-                                <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>Akkauntni o'chirib bo'lmaydi — barcha ma'lumotlar o'chib ketadi.</p>
-                                <button
-                                    onClick={() => { setShowDeleteModal(true); setDeleteErr(''); setDeletePassword('') }}
-                                    className="w-full h-9 flex items-center justify-center gap-2 text-sm font-medium rounded-lg transition"
-                                    style={{ color: 'var(--danger)', border: '1px solid var(--danger)', background: 'transparent' }}
-                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-light)'}
-                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                >
-                                    Akkauntni o'chirish
-                                </button>
-                            </div>
-
-                            {/* Chiqish */}
-                            <button onClick={() => logout()}
-                                className="w-full h-10 flex items-center justify-center gap-2 text-sm font-medium rounded-lg transition"
-                                style={{ color: 'var(--danger)', border: '1px solid var(--danger-light)', background: 'transparent' }}
-                                onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-light)'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                            >
-                                <LogOut className="h-4 w-4" /> Tizimdan chiqish
-                            </button>
-                        </div>
-                    )}
 
                     {/* Akkaunt o'chirish modal */}
                     {showDeleteModal && (
@@ -2165,19 +1956,175 @@ Iltimos, har bir savolni tahlil qilib ber:
                         </div>
                     )}
 
-                    {/* User footer (faqat settings tabida EMAS) */}
-                    {sideTab !== 'settings' && (
-                        <div className="p-3 flex-shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
-                            <div className="flex items-center gap-2.5 px-2 py-1.5">
-                                <div className="h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-semibold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>{user?.name?.[0]?.toUpperCase()}</div>
-                                <div className="flex-1 min-w-0"><p className="text-[13px] font-medium truncate">{user?.name}</p></div>
-                                <button onClick={() => setDarkMode(!darkMode)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} title={darkMode ? 'Yorug rejim' : 'Qorong\'i rejim'}>
-                                    {darkMode ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-                                </button>
-                                <button onClick={() => setSideTab('settings')} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} title="Sozlamalar"><Settings className="h-3.5 w-3.5" /></button>
+                    {/* Sozlamalar modal (ChatGPT uslubi) */}
+                    {showSettings && (
+                        <div
+                            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
+                            onClick={e => { if (e.target === e.currentTarget) setShowSettings(false) }}
+                        >
+                            <div className="card" style={{ width: '100%', maxWidth: '680px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '16px' }}>
+                                {/* Modal header */}
+                                <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+                                    <h2 className="text-base font-semibold">Sozlamalar</h2>
+                                    <button onClick={() => setShowSettings(false)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><X className="h-4 w-4" /></button>
+                                </div>
+                                {/* Modal body */}
+                                <div className="flex flex-1 overflow-hidden">
+                                    {/* Left nav */}
+                                    <div className="flex-shrink-0 p-3 space-y-0.5" style={{ width: '180px', borderRight: '1px solid var(--border)', overflowY: 'auto' }}>
+                                        {([
+                                            { k: 'profile' as const, l: 'Profil', Icon: User },
+                                            { k: 'appearance' as const, l: "Ko'rinish", Icon: darkMode ? Moon : Sun },
+                                            { k: 'notifications' as const, l: 'Bildirishnomalar', Icon: Bell, badge: notifCount },
+                                            { k: 'security' as const, l: 'Xavfsizlik', Icon: Shield },
+                                            { k: 'account' as const, l: 'Akkount', Icon: LogOut },
+                                        ] as const).map(({ k, l, Icon, badge }: { k: typeof settingsSection; l: string; Icon: React.ElementType; badge?: number }) => (
+                                            <button key={k} onClick={() => { setSettingsSection(k); if (k === 'notifications') loadNotifications() }}
+                                                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition text-left"
+                                                style={settingsSection === k ? { background: 'var(--brand-light)', color: 'var(--brand-hover)' } : { color: 'var(--text-secondary)' }}
+                                                onMouseEnter={e => { if (settingsSection !== k) e.currentTarget.style.background = 'var(--bg-muted)' }}
+                                                onMouseLeave={e => { if (settingsSection !== k) e.currentTarget.style.background = 'transparent' }}
+                                            >
+                                                <Icon className="h-4 w-4 flex-shrink-0" />
+                                                <span className="flex-1 truncate">{l}</span>
+                                                {badge != null && badge > 0 && <span className="h-4 w-4 rounded-full text-white text-[9px] flex items-center justify-center font-bold flex-shrink-0" style={{ background: 'var(--danger)' }}>{badge > 9 ? '9+' : badge}</span>}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    {/* Right content */}
+                                    <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                                        {settingsSection === 'profile' && (
+                                            <>
+                                                <div className="flex items-center gap-4">
+                                                    <div className="h-14 w-14 rounded-full flex items-center justify-center text-lg font-bold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>{user?.name?.[0]?.toUpperCase()}</div>
+                                                    <div>
+                                                        <p className="text-base font-semibold">{user?.name}</p>
+                                                        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
+                                                    </div>
+                                                </div>
+                                                {(profile?.subject || profile?.examDate) && (
+                                                    <div className="rounded-xl p-4 space-y-1.5" style={{ background: 'var(--bg-muted)' }}>
+                                                        {profile.subject && <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>📚 Fan: <span className="font-medium">{profile.subject}{(profile as any).subject2 ? ` va ${(profile as any).subject2}` : ''}</span></p>}
+                                                        {profile.examDate && <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>📅 Imtihon: <span className="font-medium">{new Date(profile.examDate).toLocaleDateString('uz-UZ')}</span></p>}
+                                                        {profile.targetScore && <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>🎯 Maqsad: <span className="font-medium">{profile.targetScore} ball</span></p>}
+                                                    </div>
+                                                )}
+                                                <button onClick={() => { setShowOnboarding(true); setShowSettings(false) }}
+                                                    className="btn btn-outline h-9 px-4 flex items-center gap-2 text-sm">
+                                                    <Settings className="h-4 w-4" /> Profilni tahrirlash
+                                                </button>
+                                            </>
+                                        )}
+                                        {settingsSection === 'appearance' && (
+                                            <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: 'var(--bg-muted)' }}>
+                                                <div className="flex items-center gap-3">
+                                                    {darkMode ? <Moon className="h-5 w-5" style={{ color: 'var(--brand)' }} /> : <Sun className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
+                                                    <div>
+                                                        <p className="text-sm font-medium">{darkMode ? "Qorong'i rejim" : "Yorug' rejim"}</p>
+                                                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Interfeys mavzusini almashtirish</p>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => setDarkMode(!darkMode)}
+                                                    className="relative h-7 w-12 rounded-full transition-all duration-300 flex-shrink-0"
+                                                    style={{ background: darkMode ? 'var(--brand)' : 'var(--bg-muted)', border: '1px solid var(--border)' }}
+                                                >
+                                                    <span className="absolute top-1 h-5 w-5 rounded-full transition-all duration-300" style={{ background: 'white', left: darkMode ? '26px' : '2px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+                                                </button>
+                                            </div>
+                                        )}
+                                        {settingsSection === 'notifications' && (
+                                            <>
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <p className="text-sm font-semibold">Bildirishnomalar</p>
+                                                    {notifLoading && <div className="h-4 w-4 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--brand)', borderTopColor: 'transparent' }} />}
+                                                </div>
+                                                {notifications.length === 0 ? (
+                                                    <div className="flex flex-col items-center justify-center py-10" style={{ color: 'var(--text-muted)' }}>
+                                                        <Bell className="h-8 w-8 mb-2 opacity-30" />
+                                                        <p className="text-sm">Bildirishnomalar yo'q</p>
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-2">
+                                                        {notifications.map((n: any) => (
+                                                            <div key={n.id} className="p-3 rounded-xl"
+                                                                style={{ background: n.isRead ? 'var(--bg-muted)' : 'var(--brand-light)', border: '1px solid var(--border)' }}>
+                                                                <p className="text-sm font-semibold mb-0.5">{n.title}</p>
+                                                                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{n.message}</p>
+                                                                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{n.sender?.name} · {new Date(n.createdAt).toLocaleDateString('uz')}</p>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
+                                        {settingsSection === 'security' && (
+                                            <div className="space-y-4">
+                                                <p className="text-sm font-semibold">Parolni o'zgartirish</p>
+                                                {changePwOk && <div className="text-sm px-3 py-2 rounded-lg" style={{ background: '#D1FAE5', color: '#065F46' }}>Parol muvaffaqiyatli yangilandi!</div>}
+                                                {changePwErr && <div className="text-sm px-3 py-2 rounded-lg" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>{changePwErr}</div>}
+                                                <div className="space-y-2">
+                                                    <input type="password" placeholder="Joriy parol" value={changePwForm.current} onChange={e => setChangePwForm(f => ({ ...f, current: e.target.value }))} className="input text-sm h-9" />
+                                                    <input type="password" placeholder="Yangi parol (kamida 8 belgi)" value={changePwForm.newPw} onChange={e => setChangePwForm(f => ({ ...f, newPw: e.target.value }))} className="input text-sm h-9" />
+                                                    <input type="password" placeholder="Yangi parolni tasdiqlang" value={changePwForm.confirm} onChange={e => setChangePwForm(f => ({ ...f, confirm: e.target.value }))} className="input text-sm h-9" />
+                                                    <button disabled={changePwLoading || !changePwForm.current || !changePwForm.newPw || !changePwForm.confirm}
+                                                        onClick={async () => {
+                                                            setChangePwErr(''); setChangePwOk(false)
+                                                            if (changePwForm.newPw !== changePwForm.confirm) { setChangePwErr('Yangi parollar mos kelmadi'); return }
+                                                            setChangePwLoading(true)
+                                                            try {
+                                                                await fetchApi('/auth/change-password', { method: 'PUT', body: JSON.stringify({ currentPassword: changePwForm.current, newPassword: changePwForm.newPw }) })
+                                                                setChangePwOk(true); setChangePwForm({ current: '', newPw: '', confirm: '' })
+                                                            } catch (e: any) { setChangePwErr(e.message || 'Xatolik yuz berdi') }
+                                                            setChangePwLoading(false)
+                                                        }}
+                                                        className="btn btn-outline w-full h-9 text-sm">{changePwLoading ? 'Saqlanmoqda...' : 'Parolni yangilash'}</button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {settingsSection === 'account' && (
+                                            <div className="space-y-4">
+                                                <button onClick={() => { setShowSettings(false); logout() }}
+                                                    className="w-full h-10 flex items-center justify-center gap-2 text-sm font-medium rounded-xl transition"
+                                                    style={{ color: 'var(--danger)', border: '1px solid var(--danger-light)', background: 'transparent' }}
+                                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-light)'}
+                                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                                    <LogOut className="h-4 w-4" /> Tizimdan chiqish
+                                                </button>
+                                                <div className="rounded-xl p-4" style={{ border: '1px solid var(--danger-light)' }}>
+                                                    <p className="text-sm font-semibold mb-1" style={{ color: 'var(--danger)' }}>Xavfli zona</p>
+                                                    <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>Akkauntni o'chirib bo'lmaydi — barcha ma'lumotlar o'chib ketadi.</p>
+                                                    <button onClick={() => { setShowDeleteModal(true); setDeleteErr(''); setDeletePassword('') }}
+                                                        className="w-full h-9 flex items-center justify-center gap-2 text-sm font-medium rounded-lg transition"
+                                                        style={{ color: 'var(--danger)', border: '1px solid var(--danger)', background: 'transparent' }}
+                                                        onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-light)'}
+                                                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                                        Akkauntni o'chirish
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
+
+                    {/* User footer */}
+                    <div className="p-3 flex-shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
+                        <div className="flex items-center gap-2.5 px-2 py-1.5">
+                            <div className="h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-semibold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>{user?.name?.[0]?.toUpperCase()}</div>
+                            <div className="flex-1 min-w-0"><p className="text-[13px] font-medium truncate">{user?.name}</p></div>
+                            <button onClick={() => setDarkMode(!darkMode)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} title={darkMode ? 'Yorug rejim' : 'Qorong\'i rejim'}>
+                                {darkMode ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+                            </button>
+                            <button onClick={() => { setSettingsSection('notifications'); loadNotifications(); setShowSettings(true) }} className="h-7 w-7 flex items-center justify-center rounded-lg transition relative" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} title="Bildirishnomalar">
+                                <Bell className="h-3.5 w-3.5" />
+                                {notifCount > 0 && <span className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 rounded-full text-white text-[8px] flex items-center justify-center font-bold" style={{ background: 'var(--danger)' }}>{notifCount > 9 ? '9+' : notifCount}</span>}
+                            </button>
+                            <button onClick={() => setShowSettings(true)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} title="Sozlamalar"><Settings className="h-3.5 w-3.5" /></button>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Sidebar Resize Handle */}
@@ -2216,8 +2163,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                         <button onClick={() => setDarkMode(!darkMode)} className="h-8 w-8 flex items-center justify-center rounded-lg transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} title={darkMode ? 'Yorug\' rejim' : 'Qorong\'i rejim'} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                             {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                         </button>
-                        {/* 👤 Profile avatar — settings tabini ochadi */}
-                        <button onClick={() => { setSideOpen(true); setSideTab('settings') }} className="h-8 w-8 rounded-full flex items-center justify-center text-[12px] font-semibold text-white flex-shrink-0 transition" style={{ background: 'var(--brand)' }} title={user?.name || 'Profil'}>
+                        {/* 👤 Profile avatar — sozlamalar modalini ochadi */}
+                        <button onClick={() => setShowSettings(true)} className="h-8 w-8 rounded-full flex items-center justify-center text-[12px] font-semibold text-white flex-shrink-0 transition" style={{ background: 'var(--brand)' }} title={user?.name || 'Profil'}>
                             {user?.name?.[0]?.toUpperCase() || '?'}
                         </button>
                     </div>
