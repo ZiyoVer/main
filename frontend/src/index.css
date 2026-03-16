@@ -386,7 +386,8 @@ html.dark {
 }
 
 .bubble-user {
-    background-color: var(--bg-muted);
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
     border-radius: 1.25rem 1.25rem 0.25rem 1.25rem;
     padding: 0.625rem 0.875rem;
     max-width: 72%;

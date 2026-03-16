@@ -122,41 +122,36 @@ const MdMessage = memo(({ content, isStreaming }: {
                     if (!data?.prompt) return null
                     const essayData = { task: data.task || 'Task 2', prompt: data.prompt, time: data.time || 30, minWords: data.minWords || 200, maxWords: data.maxWords || 280 }
                     return (
-                        <div className="my-3 rounded-2xl overflow-hidden" style={{
-                            background: 'linear-gradient(135deg, rgba(16,185,129,0.1) 0%, rgba(16,185,129,0.04) 100%)',
-                            border: '1.5px solid rgba(16,185,129,0.3)',
-                        }}>
-                            <div className="p-4">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="flex items-start gap-3 min-w-0">
-                                        <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: '#10b981' }}>
-                                            <PenLine className="h-5 w-5 text-white" />
-                                        </div>
-                                        <div className="min-w-0">
-                                            <div className="flex items-center gap-2 flex-wrap mb-1">
-                                                <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Writing — {essayData.task}</p>
-                                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: '#10b981', color: '#fff' }}>
-                                                    {essayData.minWords}–{essayData.maxWords} so'z
-                                                </span>
-                                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
-                                                    ⏱ {essayData.time} daqiqa
-                                                </span>
-                                            </div>
-                                            <p className="text-[12px] leading-relaxed line-clamp-2" style={{ color: 'var(--text-secondary)' }}>{essayData.prompt}</p>
-                                        </div>
+                        <div className="my-3 rounded-2xl overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                            <div className="p-4 flex items-start justify-between gap-3">
+                                <div className="flex items-start gap-3 min-w-0">
+                                    <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: 'var(--brand)' }}>
+                                        <PenLine className="h-4 w-4 text-white" />
                                     </div>
-                                    {!isStreaming && (
-                                        <button
-                                            onClick={() => onOpenEssay(essayData)}
-                                            className="flex-shrink-0 h-9 px-4 rounded-xl text-[13px] font-bold text-white flex items-center gap-2 transition-all"
-                                            style={{ background: '#10b981' }}
-                                            onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
-                                            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
-                                        >
-                                            <PenLine className="h-4 w-4" /> Yozishni boshlash
-                                        </button>
-                                    )}
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                                            <p className="text-[13px] font-bold" style={{ color: 'var(--text-primary)' }}>Writing — {essayData.task}</p>
+                                            <span className="text-[11px] font-medium px-2 py-0.5 rounded-full" style={{ background: 'color-mix(in srgb, var(--brand) 12%, transparent)', color: 'var(--brand)' }}>
+                                                {essayData.minWords}–{essayData.maxWords} so'z
+                                            </span>
+                                            <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
+                                                ⏱ {essayData.time} daqiqa
+                                            </span>
+                                        </div>
+                                        <p className="text-[12px] leading-relaxed line-clamp-2" style={{ color: 'var(--text-muted)' }}>{essayData.prompt}</p>
+                                    </div>
                                 </div>
+                                {!isStreaming && (
+                                    <button
+                                        onClick={() => onOpenEssay(essayData)}
+                                        className="flex-shrink-0 h-9 px-4 rounded-xl text-[13px] font-semibold text-white flex items-center gap-2 transition-opacity"
+                                        style={{ background: 'var(--brand)' }}
+                                        onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+                                        onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+                                    >
+                                        Boshlash
+                                    </button>
+                                )}
                             </div>
                         </div>
                     )
