@@ -293,16 +293,22 @@ const MdMessage = memo(({ content, isStreaming }: {
                     if (items.length === 0) return null
                     return (
                         <div className="my-3 rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-                            <div className="px-4 py-2.5 flex items-center gap-2" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+                            <div className="px-4 py-2.5" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
                                 <span className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>FORMULALAR — {items.length} TA</span>
                             </div>
-                            <div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2">
                                 {items.map((item, i) => {
                                     let rendered = ''
                                     try { rendered = katex.renderToString(item.formula, { displayMode: false, throwOnError: false }) } catch { rendered = item.formula }
+                                    const col = i % 2
+                                    const row = Math.floor(i / 2)
                                     return (
-                                        <div key={i} className="flex items-start gap-3 px-4 py-3"
-                                            style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: i % 2 === 1 ? 'var(--bg-surface)' : 'transparent' }}>
+                                        <div key={i} className="flex items-start gap-3 px-4 py-3 min-w-0"
+                                            style={{
+                                                borderTop: row > 0 || (col === 1 && items.length > 1) ? '1px solid var(--border)' : 'none',
+                                                borderLeft: col === 1 ? '1px solid var(--border)' : 'none',
+                                                background: row % 2 === 1 ? 'var(--bg-surface)' : 'transparent',
+                                            }}>
                                             <span className="text-[11px] font-mono w-5 flex-shrink-0 pt-0.5 text-right" style={{ color: 'var(--text-muted)' }}>{i + 1}</span>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2 flex-wrap mb-1.5">
