@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Copy, Check, Globe, Lock, ClipboardList, Upload, Sparkles, FileText, Image, ChevronDown, ChevronUp, BarChart2, X, Users, Bell } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Copy, Check, Globe, Lock, ClipboardList, Upload, Sparkles, FileText, Image, BarChart2, X, Users, Bell } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 import { SUBJECTS } from '../../constants'
@@ -35,6 +35,7 @@ export default function TeacherPanel() {
     const [title, setTitle] = useState('')
     const [subject, setSubject] = useState('Matematika')
     const [isPublic, setIsPublic] = useState(false)
+    const [testType, setTestType] = useState<'milliy_sertifikat' | 'dtm'>('milliy_sertifikat')
     const [timeLimit, setTimeLimit] = useState<number>(0)
     const [questions, setQuestions] = useState<Question[]>([{ text: '', options: ['', '', '', ''], correctIdx: 0, questionType: 'mcq', correctText: '' }])
     const [loading, setLoading] = useState(false)
@@ -52,7 +53,6 @@ export default function TeacherPanel() {
     const [aiGenerating, setAiGenerating] = useState(false)
     const [aiError, setAiError] = useState('')
     const [aiDone, setAiDone] = useState(false)
-    const [showAiSection, setShowAiSection] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     useEffect(() => { loadTests() }, [])
@@ -212,12 +212,12 @@ export default function TeacherPanel() {
         }
         setLoading(true); setMsg('')
         try {
-            await fetchApi('/tests/create', { method: 'POST', body: JSON.stringify({ title, subject, isPublic, timeLimit: timeLimit || null, questions: finalQuestions }) })
+            await fetchApi('/tests/create', { method: 'POST', body: JSON.stringify({ title, subject, isPublic, testType, timeLimit: timeLimit || null, questions: finalQuestions }) })
             setMsg('success')
             setTitle('')
             setQuestions([{ text: '', options: ['', '', '', ''], correctIdx: 0, questionType: 'mcq', correctText: '' }])
-            setTimeLimit(0); setIsPublic(false)
-            setAiFile(null); setAiDone(false); setShowAiSection(false)
+            setTimeLimit(0); setIsPublic(false); setTestType('milliy_sertifikat')
+            setAiFile(null); setAiDone(false)
             // fileInput ni tozalash — bir xil faylni qayta yuklash mumkin bo'lsin
             if (fileInputRef.current) fileInputRef.current.value = ''
             setTab('list'); loadTests()
@@ -447,7 +447,7 @@ export default function TeacherPanel() {
                                                 ? <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded flex-shrink-0" style={{ color: 'var(--success)', background: 'var(--success-light)' }}><Globe className="h-2.5 w-2.5" /> Public</span>
                                                 : <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded flex-shrink-0" style={{ color: 'var(--text-muted)', background: 'var(--bg-surface)' }}><Lock className="h-2.5 w-2.5" /> Private</span>}
                                         </div>
-                                        <p className="text-[11px]" style={mutedText}>{t._count?.questions || 0} savol · {t._count?.attempts || 0} urinish · {t.subject}{t.timeLimit ? ` · ⏱ ${t.timeLimit} min` : ''}</p>
+                                        <p className="text-[11px]" style={mutedText}>{t._count?.questions || 0} savol · {t._count?.attempts || 0} urinish · {t.subject}{t.timeLimit ? ` · ⏱ ${t.timeLimit} min` : ''} · <span style={{ color: t.testType === 'dtm' ? '#f59e0b' : '#8b5cf6' }}>{t.testType === 'dtm' ? 'DTM' : 'Milliy Sertifikat'}</span></p>
                                     </div>
                                     <button
                                         onClick={() => toggleVisibility(t.id, t.isPublic)}
@@ -492,6 +492,31 @@ export default function TeacherPanel() {
                                 <div className="text-[13px] px-3 py-2 rounded-lg" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>{msg}</div>
                             )}
 
+                            {/* Test turi — birinchi va eng muhim */}
+                            <div className="rounded-xl p-4" style={cardStyle}>
+                                <p className="text-[11px] font-semibold mb-2.5 uppercase tracking-wide" style={mutedText}>Test turi</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button type="button" onClick={() => setTestType('milliy_sertifikat')}
+                                        className="flex flex-col items-center gap-1 py-3 px-4 rounded-xl border-2 transition font-medium text-[13px]"
+                                        style={testType === 'milliy_sertifikat'
+                                            ? { borderColor: '#8b5cf6', background: 'color-mix(in srgb, #8b5cf6 10%, transparent)', color: '#8b5cf6' }
+                                            : { borderColor: 'var(--border)', background: 'transparent', color: 'var(--text-secondary)' }}>
+                                        <span className="text-lg">📋</span>
+                                        <span>Milliy Sertifikat</span>
+                                        <span className="text-[10px] font-normal" style={{ color: testType === 'milliy_sertifikat' ? '#8b5cf680' : 'var(--text-muted)' }}>20 ball sistema</span>
+                                    </button>
+                                    <button type="button" onClick={() => setTestType('dtm')}
+                                        className="flex flex-col items-center gap-1 py-3 px-4 rounded-xl border-2 transition font-medium text-[13px]"
+                                        style={testType === 'dtm'
+                                            ? { borderColor: '#f59e0b', background: 'color-mix(in srgb, #f59e0b 10%, transparent)', color: '#d97706' }
+                                            : { borderColor: 'var(--border)', background: 'transparent', color: 'var(--text-secondary)' }}>
+                                        <span className="text-lg">🎯</span>
+                                        <span>DTM</span>
+                                        <span className="text-[10px] font-normal" style={{ color: testType === 'dtm' ? '#f59e0b80' : 'var(--text-muted)' }}>Koeffitsient sistema</span>
+                                    </button>
+                                </div>
+                            </div>
+
                             {/* Umumiy ma'lumot */}
                             <div className="rounded-xl p-4 space-y-2.5" style={cardStyle}>
                                 <h3 className="text-[13px] font-semibold" style={secondaryText}>Umumiy ma'lumot</h3>
@@ -529,57 +554,51 @@ export default function TeacherPanel() {
                                 </div>
                             </div>
 
-                            {/* AI yordamida yaratish */}
-                            <div className="rounded-xl overflow-hidden" style={cardStyle}>
-                                <button type="button" onClick={() => setShowAiSection(!showAiSection)}
-                                    className="w-full flex items-center justify-between px-4 py-2.5 text-left transition"
-                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
-                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                    <div className="flex items-center gap-2">
-                                        <div className="h-6 w-6 bg-gradient-to-br from-violet-500 to-blue-500 rounded-md flex items-center justify-center flex-shrink-0">
-                                            <Sparkles className="h-3 w-3 text-white" />
-                                        </div>
-                                        <div>
-                                            <p className="text-[13px] font-semibold">AI bilan yaratish</p>
-                                            {aiDone && <p className="text-[11px]" style={{ color: '#8b5cf6' }}>✨ {questions.length} ta savol yaratildi</p>}
-                                            {!aiDone && <p className="text-[11px]" style={mutedText}>PDF yoki screenshot yuklang</p>}
-                                        </div>
+                            {/* AI bilan yaratish — doim ko'rinadi */}
+                            <div className="rounded-xl p-4 space-y-2.5" style={{ ...cardStyle, borderColor: aiDone ? 'color-mix(in srgb, #8b5cf6 30%, transparent)' : 'var(--border)' }}>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <div className="h-6 w-6 bg-gradient-to-br from-violet-500 to-blue-500 rounded-md flex items-center justify-center flex-shrink-0">
+                                        <Sparkles className="h-3 w-3 text-white" />
                                     </div>
-                                    {showAiSection ? <ChevronUp className="h-3.5 w-3.5" style={mutedText} /> : <ChevronDown className="h-3.5 w-3.5" style={mutedText} />}
+                                    <div>
+                                        <p className="text-[13px] font-semibold">AI bilan yaratish</p>
+                                        <p className="text-[11px]" style={aiDone ? { color: '#8b5cf6' } : mutedText}>
+                                            {aiDone ? `✨ ${questions.length} ta savol yaratildi` : 'PDF yoki screenshot yuklang — AI savollarni tayyorlaydi'}
+                                        </p>
+                                    </div>
+                                </div>
+                                <input ref={fileInputRef} type="file" accept=".pdf,image/*" className="hidden"
+                                    onChange={e => { setAiFile(e.target.files?.[0] || null); setAiError(''); setAiDone(false) }} />
+                                <div onClick={() => fileInputRef.current?.click()}
+                                    className="border-2 border-dashed rounded-lg p-3.5 text-center cursor-pointer transition-colors"
+                                    style={aiFile
+                                        ? { borderColor: 'color-mix(in srgb, var(--brand) 40%, transparent)', background: 'color-mix(in srgb, var(--brand) 5%, transparent)' }
+                                        : { borderColor: 'var(--border)', background: 'transparent' }}>
+                                    {aiFile ? (
+                                        <div className="flex items-center justify-center gap-2">
+                                            {aiFile.type.startsWith('image/') ? <Image className="h-4 w-4" style={{ color: 'var(--brand)' }} /> : <FileText className="h-4 w-4" style={{ color: 'var(--brand)' }} />}
+                                            <div className="text-left">
+                                                <p className="text-[13px] font-medium truncate max-w-[260px]">{aiFile.name}</p>
+                                                <p className="text-[11px]" style={mutedText}>{(aiFile.size / 1024).toFixed(0)} KB · O'zgartirish uchun bosing</p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center justify-center gap-2.5">
+                                            <Upload className="h-5 w-5 flex-shrink-0" style={{ color: 'var(--border-strong)' }} />
+                                            <div className="text-left">
+                                                <p className="text-[13px]" style={secondaryText}>Screenshot yoki PDF yuklash</p>
+                                                <p className="text-[11px]" style={mutedText}>PNG, JPG, PDF · max 20MB</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                                {aiError && <div className="text-[13px] px-3 py-2 rounded-lg" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>{aiError}</div>}
+                                <button type="button" onClick={generateFromFile} disabled={!aiFile || aiGenerating}
+                                    className="w-full h-9 rounded-lg text-[13px] font-semibold flex items-center justify-center gap-2 transition bg-gradient-to-r from-violet-600 to-blue-600 text-white hover:from-violet-700 hover:to-blue-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                                    {aiGenerating
+                                        ? <><div className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> AI tayyorlamoqda...</>
+                                        : <><Sparkles className="h-3.5 w-3.5" /> AI bilan savollar yaratish</>}
                                 </button>
-
-                                {showAiSection && (
-                                    <div className="px-4 pb-4 space-y-2" style={{ borderTop: '1px solid var(--border)' }}>
-                                        <input ref={fileInputRef} type="file" accept=".pdf,image/*" className="hidden"
-                                            onChange={e => { setAiFile(e.target.files?.[0] || null); setAiError(''); setAiDone(false) }} />
-                                        <div onClick={() => fileInputRef.current?.click()}
-                                            className="mt-2 border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors"
-                                            style={aiFile ? { borderColor: 'color-mix(in srgb, var(--brand) 40%, transparent)', background: 'color-mix(in srgb, var(--brand) 5%, transparent)' } : { borderColor: 'var(--border)', background: 'transparent' }}>
-                                            {aiFile ? (
-                                                <div className="flex items-center justify-center gap-2">
-                                                    {aiFile.type.startsWith('image/') ? <Image className="h-4 w-4" style={{ color: 'var(--brand)' }} /> : <FileText className="h-4 w-4" style={{ color: 'var(--brand)' }} />}
-                                                    <div className="text-left">
-                                                        <p className="text-[13px] font-medium truncate max-w-[260px]">{aiFile.name}</p>
-                                                        <p className="text-[11px]" style={mutedText}>{(aiFile.size / 1024).toFixed(0)} KB · O'zgartirish uchun bosing</p>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div>
-                                                    <Upload className="h-6 w-6 mx-auto mb-1" style={{ color: 'var(--border-strong)' }} />
-                                                    <p className="text-[13px]" style={secondaryText}>Screenshot yoki PDF yuklash uchun bosing</p>
-                                                    <p className="text-[11px] mt-0.5" style={mutedText}>PNG, JPG, PDF · max 20MB</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                        {aiError && <div className="text-[13px] px-3 py-2 rounded-lg" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>{aiError}</div>}
-                                        <button type="button" onClick={generateFromFile} disabled={!aiFile || aiGenerating}
-                                            className="w-full h-9 rounded-lg text-[13px] font-semibold flex items-center justify-center gap-2 transition bg-gradient-to-r from-violet-600 to-blue-600 text-white hover:from-violet-700 hover:to-blue-700 disabled:opacity-40 disabled:cursor-not-allowed">
-                                            {aiGenerating
-                                                ? <><div className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Tayyorlanmoqda...</>
-                                                : <><Sparkles className="h-3.5 w-3.5" /> AI bilan savollar yaratish</>}
-                                        </button>
-                                    </div>
-                                )}
                             </div>
 
                             {/* Savollar */}

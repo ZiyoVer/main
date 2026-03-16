@@ -114,6 +114,7 @@ model Test {
   isPublic    Boolean        @default(false)
   shareLink   String         @unique @default(uuid())
   subject     String?
+  testType    String         @default("milliy_sertifikat") // "milliy_sertifikat" | "dtm"
   timeLimit   Int?           // minutes, null = no limit
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt

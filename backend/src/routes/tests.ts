@@ -492,7 +492,7 @@ router.post('/:testId/questions', authenticate, requireRole('TEACHER', 'ADMIN'),
 // O'qituvchi: Test yaratish
 router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimiter, async (req: AuthRequest, res) => {
     try {
-        const { title, description, subject, isPublic, questions, timeLimit } = req.body
+        const { title, description, subject, isPublic, questions, timeLimit, testType } = req.body
         if (!title || !questions?.length) {
             return res.status(400).json({ error: 'Test nomi va savollar kerak' })
         }
@@ -528,12 +528,14 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
             }
         }
 
+        const validTestType = testType === 'dtm' ? 'dtm' : 'milliy_sertifikat'
         const test = await prisma.test.create({
             data: {
                 title,
                 description: description || null,
                 subject: subject || null,
                 isPublic: isPublic || false,
+                testType: validTestType,
                 timeLimit: timeLimit || null,
                 creatorId: req.user.id,
                 questions: {
@@ -851,6 +853,7 @@ router.post('/:testId/submit-guest', optionalAuthenticate, submitLimiter, async 
             questionType: (q as any).questionType || 'mcq'
         }))
 
+        const testType = (test as any).testType || 'milliy_sertifikat'
         const dtm = getDtmBall(test.subject || null, correct, total)
         const ms = getMsBall(correct, total)
 
@@ -895,6 +898,7 @@ router.post('/:testId/submit-guest', optionalAuthenticate, submitLimiter, async 
             grade: getGrade(finalScore),
             correct,
             total,
+            testType,
             dtmBall: dtm.ball,
             dtmMax: dtm.max,
             msBall: ms.ball,
@@ -1032,6 +1036,7 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
             correct,
             total: test.questions.length,
             newAbility,
+            testType: (test as any).testType || 'milliy_sertifikat',
             dtmBall: dtm.ball,
             dtmMax: dtm.max,
             msBall: ms.ball,
