@@ -1953,28 +1953,6 @@ Iltimos, har bir savolni tahlil qilib ber:
                         {/* ☰ doim ko'rinadi — sidebar toggle */}
                         <button onClick={() => setSideOpen(v => !v)} className="h-8 w-8 flex items-center justify-center rounded-lg transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} title="Yonpanel"><Menu className="h-4 w-4" /></button>
                         <span className="text-sm font-medium truncate flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>{currentChat?.title || ''}</span>
-                        {/* Fan tanlash dropdown */}
-                        {profile?.subject && (
-                            <select
-                                value={profile.subject}
-                                onChange={async e => {
-                                    const newSubject = e.target.value
-                                    setProfile(p => p ? { ...p, subject: newSubject } : p)
-                                    profileRef.current = profileRef.current ? { ...profileRef.current, subject: newSubject } : null
-                                    await fetchApi('/profile', { method: 'PUT', body: JSON.stringify({ subject: newSubject }) }).catch(() => { })
-                                }}
-                                className="h-7 text-[12px] font-medium rounded-lg px-2 pr-6 flex-shrink-0 cursor-pointer transition"
-                                style={{ border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-primary)', outline: 'none', maxWidth: '130px' }}
-                            >
-                                {['Matematika', 'Fizika', 'Kimyo', 'Biologiya', 'Ona tili', 'Ingliz tili', 'Tarix', 'Geografiya'].map(f => (
-                                    <option key={f} value={f}>{f}</option>
-                                ))}
-                            </select>
-                        )}
-                        {/* Settings */}
-                        <button onClick={() => setShowSettings(true)} className="h-8 w-8 flex items-center justify-center rounded-lg transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} title="Sozlamalar" onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                            <Settings className="h-4 w-4" />
-                        </button>
                     </div>
 
                     {/* Email verification banner */}
