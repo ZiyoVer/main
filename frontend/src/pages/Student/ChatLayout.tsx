@@ -2089,177 +2089,41 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         <div className="bubble-ai w-full sm:w-auto">
                                             <MdMessage content={streaming} isStreaming={true} />
                                             {/```test/.test(streaming) && !/```test[\s\S]*?```/.test(streaming) && (
-                                                <div className="mt-4 rounded-2xl overflow-hidden" style={{
-                                                    background: 'linear-gradient(135deg, rgba(224, 123, 57, 0.12) 0%, rgba(224, 123, 57, 0.05) 100%)',
-                                                    border: '1.5px solid rgba(224, 123, 57, 0.25)',
-                                                }}>
-                                                    <div className="px-5 py-4">
-                                                        <div className="flex items-center gap-4 mb-4">
-                                                            <div className="h-12 w-12 rounded-2xl flex items-center justify-center flex-shrink-0 animate-pulse"
-                                                                style={{ background: 'rgba(224, 123, 57, 0.18)' }}>
-                                                                <svg className="h-6 w-6" style={{ color: 'var(--brand)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                                                                </svg>
-                                                            </div>
-                                                            <div className="flex-1">
-                                                                <div className="flex items-center gap-2 mb-1">
-                                                                    <span className="text-[15px] font-bold" style={{ color: 'var(--brand)' }}>Test tayyorlanmoqda</span>
-                                                                    <span className="flex gap-1 items-center">
-                                                                        {[0, 1, 2].map(i => (
-                                                                            <span key={i} className="h-1.5 w-1.5 rounded-full" style={{
-                                                                                background: 'var(--brand)',
-                                                                                animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite`
-                                                                            }} />
-                                                                        ))}
-                                                                    </span>
-                                                                </div>
-                                                                <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>AI savollar yozmoqda, biroz kuting...</span>
-                                                            </div>
-                                                        </div>
-                                                        <div className="space-y-2.5">
-                                                            {[85, 65, 75, 50].map((w, i) => (
-                                                                <div key={i} className="h-2.5 rounded-full animate-pulse" style={{
-                                                                    width: `${w}%`,
-                                                                    background: 'rgba(224, 123, 57, 0.18)',
-                                                                    animationDelay: `${i * 0.15}s`
-                                                                }} />
-                                                            ))}
-                                                        </div>
-                                                    </div>
+                                                <div className="mt-3">
+                                                    <span className="ai-generating"><span className="ai-star">✳</span> Test tuzmoqda...</span>
                                                 </div>
                                             )}
                                             {/```flashcard/.test(streaming) && !/```flashcard[\s\S]*?```/.test(streaming) && (
-                                                <div className="mt-4 rounded-2xl overflow-hidden" style={{
-                                                    background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(99, 102, 241, 0.05) 100%)',
-                                                    border: '1.5px solid rgba(99, 102, 241, 0.25)',
-                                                }}>
-                                                    <div className="px-5 py-4">
-                                                        <div className="flex items-center gap-4 mb-4">
-                                                            <div className="h-12 w-12 rounded-2xl flex items-center justify-center flex-shrink-0 animate-pulse"
-                                                                style={{ background: 'rgba(99, 102, 241, 0.18)' }}>
-                                                                <svg className="h-6 w-6" style={{ color: '#6366f1' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                                                                </svg>
-                                                            </div>
-                                                            <div className="flex-1">
-                                                                <div className="flex items-center gap-2 mb-1">
-                                                                    <span className="text-[15px] font-bold" style={{ color: '#6366f1' }}>Kartochkalar tayyorlanmoqda</span>
-                                                                    <span className="flex gap-1 items-center">
-                                                                        {[0, 1, 2].map(i => (
-                                                                            <span key={i} className="h-1.5 w-1.5 rounded-full" style={{
-                                                                                background: '#6366f1',
-                                                                                animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite`
-                                                                            }} />
-                                                                        ))}
-                                                                    </span>
-                                                                </div>
-                                                                <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>AI kartochkalar yozmoqda, biroz kuting...</span>
-                                                            </div>
-                                                        </div>
-                                                        <div className="space-y-2.5">
-                                                            {[80, 55, 70, 60].map((w, i) => (
-                                                                <div key={i} className="h-2.5 rounded-full animate-pulse" style={{
-                                                                    width: `${w}%`,
-                                                                    background: 'rgba(99, 102, 241, 0.18)',
-                                                                    animationDelay: `${i * 0.15}s`
-                                                                }} />
-                                                            ))}
-                                                        </div>
-                                                    </div>
+                                                <div className="mt-3">
+                                                    <span className="ai-generating"><span className="ai-star">✳</span> Kartochkalar tayyorlanmoqda...</span>
                                                 </div>
                                             )}
                                             {/```vocab/.test(streaming) && !/```vocab[\s\S]*?```/.test(streaming) && (
-                                                <div className="mt-4 rounded-2xl overflow-hidden" style={{
-                                                    background: 'linear-gradient(135deg, rgba(8, 145, 178, 0.12) 0%, rgba(8, 145, 178, 0.05) 100%)',
-                                                    border: '1.5px solid rgba(8, 145, 178, 0.25)',
-                                                }}>
-                                                    <div className="px-5 py-4">
-                                                        <div className="flex items-center gap-4 mb-4">
-                                                            <div className="h-12 w-12 rounded-2xl flex items-center justify-center flex-shrink-0 animate-pulse"
-                                                                style={{ background: 'rgba(8, 145, 178, 0.18)' }}>
-                                                                <svg className="h-6 w-6" style={{ color: '#0891b2' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                                                                </svg>
-                                                            </div>
-                                                            <div className="flex-1">
-                                                                <div className="flex items-center gap-2 mb-1">
-                                                                    <span className="text-[15px] font-bold" style={{ color: '#0891b2' }}>So'zlar tayyorlanmoqda</span>
-                                                                    <span className="flex gap-1 items-center">
-                                                                        {[0, 1, 2].map(i => (
-                                                                            <span key={i} className="h-1.5 w-1.5 rounded-full" style={{
-                                                                                background: '#0891b2',
-                                                                                animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite`
-                                                                            }} />
-                                                                        ))}
-                                                                    </span>
-                                                                </div>
-                                                                <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>AI so'z boyligini tayyorlamoqda, biroz kuting...</span>
-                                                            </div>
-                                                        </div>
-                                                        <div className="space-y-2">
-                                                            {[90, 60, 75, 45, 80].map((w, i) => (
-                                                                <div key={i} className="flex items-center gap-3">
-                                                                    <div className="h-2 w-2 rounded-full flex-shrink-0 animate-pulse" style={{ background: 'rgba(8, 145, 178, 0.4)', animationDelay: `${i * 0.1}s` }} />
-                                                                    <div className="h-2 rounded-full animate-pulse flex-1" style={{
-                                                                        maxWidth: `${w}%`,
-                                                                        background: 'rgba(8, 145, 178, 0.18)',
-                                                                        animationDelay: `${i * 0.15}s`
-                                                                    }} />
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
+                                                <div className="mt-3">
+                                                    <span className="ai-generating"><span className="ai-star">✳</span> So'zlar tayyorlanmoqda...</span>
                                                 </div>
                                             )}
                                             {/```formula/.test(streaming) && !/```formula[\s\S]*?```/.test(streaming) && (
-                                                <div className="mt-4 rounded-2xl overflow-hidden" style={{
-                                                    background: 'linear-gradient(135deg, rgba(5,150,105,0.12) 0%, rgba(5,150,105,0.05) 100%)',
-                                                    border: '1.5px solid rgba(5,150,105,0.25)',
-                                                }}>
-                                                    <div className="px-5 py-4">
-                                                        <div className="flex items-center gap-4 mb-4">
-                                                            <div className="h-12 w-12 rounded-2xl flex items-center justify-center flex-shrink-0 animate-pulse" style={{ background: 'rgba(5,150,105,0.18)' }}>
-                                                                <svg className="h-6 w-6" style={{ color: '#059669' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                                                </svg>
-                                                            </div>
-                                                            <div className="flex-1">
-                                                                <div className="flex items-center gap-2 mb-1">
-                                                                    <span className="text-[15px] font-bold" style={{ color: '#059669' }}>Formulalar tayyorlanmoqda</span>
-                                                                    <span className="flex gap-1 items-center">
-                                                                        {[0, 1, 2].map(i => (
-                                                                            <span key={i} className="h-1.5 w-1.5 rounded-full" style={{ background: '#059669', animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite` }} />
-                                                                        ))}
-                                                                    </span>
-                                                                </div>
-                                                                <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>AI formulalarni tayyorlamoqda, biroz kuting...</span>
-                                                            </div>
-                                                        </div>
-                                                        <div className="space-y-2.5">
-                                                            {[75, 90, 60, 85].map((w, i) => (
-                                                                <div key={i} className="flex items-center gap-3">
-                                                                    <div className="h-5 w-5 rounded flex-shrink-0 animate-pulse" style={{ background: 'rgba(5,150,105,0.15)', animationDelay: `${i * 0.1}s` }} />
-                                                                    <div className="h-5 rounded-lg flex-1 animate-pulse" style={{ maxWidth: `${w}%`, background: 'rgba(5,150,105,0.12)', animationDelay: `${i * 0.15}s` }} />
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
+                                                <div className="mt-3">
+                                                    <span className="ai-generating"><span className="ai-star">✳</span> Formulalar tuzilmoqda...</span>
+                                                </div>
+                                            )}
+                                            {/```todo/.test(streaming) && !/```todo[\s\S]*?```/.test(streaming) && (
+                                                <div className="mt-3">
+                                                    <span className="ai-generating"><span className="ai-star">✳</span> Kunlik reja tuzilmoqda...</span>
                                                 </div>
                                             )}
                                         </div>
                                     </div>
                                 )}
                                 {loading && !streaming && !thinkingText && (
-                                    <div className="flex">
-                                        <div className="typing-dots"><span /><span /><span /></div>
+                                    <div className="flex py-1">
+                                        <span className="ai-generating"><span className="ai-star">✳</span> Yozmoqda...</span>
                                     </div>
                                 )}
                                 {loading && thinkingText && !streaming && (
-                                    <div className="flex">
-                                        <div className="text-[13px] py-3 flex items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
-                                            <span>Fikrlamoqda</span>
-                                            {[0,1,2].map(i => <span key={i} className="w-1 h-1 rounded-full animate-bounce inline-block" style={{ background: 'var(--text-muted)', animationDelay: `${i*0.2}s` }} />)}
-                                        </div>
+                                    <div className="flex py-1">
+                                        <span className="ai-generating"><span className="ai-star">✳</span> Fikrlamoqda...</span>
                                     </div>
                                 )}
                             </div>
