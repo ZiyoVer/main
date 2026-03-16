@@ -854,6 +854,39 @@ Iltimos, har bir savolni tahlil qilib ber:
         }
     }, [essayTimeLeft]) // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Essay draft — localStorage ga saqlash (har o'zgarishda)
+    const ESSAY_DRAFT_KEY = 'dtmmax_essay_draft'
+    useEffect(() => {
+        if (!essayPanel || essaySubmitted) return
+        localStorage.setItem(ESSAY_DRAFT_KEY, JSON.stringify({
+            panel: essayPanel,
+            text: essayText,
+            timeLeft: essayTimeLeft,
+            savedAt: Date.now()
+        }))
+    }, [essayPanel, essayText, essayTimeLeft, essaySubmitted])
+
+    // Essay draft — mount da tiklash (foydalanuvchi qaytib kelganda)
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(ESSAY_DRAFT_KEY)
+            if (!raw) return
+            const { panel, text, timeLeft, savedAt } = JSON.parse(raw)
+            if (!panel) return
+            const elapsed = Math.floor((Date.now() - savedAt) / 1000)
+            const restoredTime = timeLeft !== null ? Math.max(0, timeLeft - elapsed) : null
+            if (restoredTime !== null && restoredTime <= 0) {
+                localStorage.removeItem(ESSAY_DRAFT_KEY)
+                return
+            }
+            setEssayPanel(panel)
+            setEssayText(text || '')
+            setEssayTimeLeft(restoredTime)
+            setEssaySubmitted(false)
+            toast.success('Yozish topshirig\'i tiklandi', { duration: 3000 })
+        } catch { /* ignore */ }
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
     // Essay drag resize
     useEffect(() => {
         const onMove = (e: MouseEvent) => {
@@ -1250,6 +1283,7 @@ Iltimos, har bir savolni tahlil qilib ber:
             toast.error(`Kamida ${essayPanel.minWords} ta so'z yozing (hozir: ${wordCount})`)
             return
         }
+        localStorage.removeItem('dtmmax_essay_draft')
         setEssaySubmitted(true)
         setEssayTimeLeft(null)
         const prompt = `📝 **Writing topshirig'i — ${essayPanel.task}:**\n"${essayPanel.prompt}"\n\n**Mening essayim (${wordCount} so'z):**\n${essayText}\n\n---\nIltimos, ushbu essayni Milliy Sertifikat (Multilevel) mezonlari bo'yicha baholang:\n1. **Task Achievement** — vazifani to'liq bajardimmi?\n2. **Coherence & Cohesion** — tuzilma va bog'liqlik\n3. **Lexical Resource** — leksik boylik\n4. **Grammatical Range & Accuracy** — grammatik to'g'rilik\n\nHar bir mezon uchun 30 balldan baho bering, jami 120 dan. Asosiy xatolarni ko'rsating va yaxshilash bo'yicha aniq tavsiyalar bering.`
@@ -2651,7 +2685,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                     <button onClick={() => setEssayMaximized(!essayMaximized)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                         {essayMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
                                     </button>
-                                    <button onClick={() => { setEssayPanel(null); setEssayText(''); setEssaySubmitted(false); setEssayTimeLeft(null) }} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                    <button onClick={() => { localStorage.removeItem('dtmmax_essay_draft'); setEssayPanel(null); setEssayText(''); setEssaySubmitted(false); setEssayTimeLeft(null) }} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                         <X className="h-4 w-4" />
                                     </button>
                                 </div>
