@@ -2019,30 +2019,6 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         <h2 className="text-xl sm:text-2xl font-bold mb-2">Salom, {user?.name?.split(' ')[0]}! 👋</h2>
                                         <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Bugun nima o'rganmoqchisiz?</p>
                                     </div>
-                                    {/* Streak va Imtihon sanasi bloki */}
-                                    <div className="flex items-center justify-center gap-4 mb-6 flex-wrap">
-                                        {(progressData?.currentStreak ?? 0) > 0 && (
-                                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold"
-                                                style={{ background: 'color-mix(in srgb, #f97316 12%, transparent)', color: '#f97316', border: '1px solid color-mix(in srgb, #f97316 25%, transparent)' }}>
-                                                🔥 {progressData!.currentStreak} kunlik streak
-                                            </div>
-                                        )}
-                                        {profile?.examDate && (() => {
-                                            const days = Math.max(0, Math.ceil((new Date(profile.examDate).getTime() - Date.now()) / 86400000))
-                                            return days > 0 ? (
-                                                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold"
-                                                    style={{ background: 'color-mix(in srgb, var(--brand) 12%, transparent)', color: 'var(--brand)', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)' }}>
-                                                    📅 Imtihonga {days} kun qoldi
-                                                </div>
-                                            ) : null
-                                        })()}
-                                        {(progressData?.currentStreak ?? 0) === 0 && (
-                                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm"
-                                                style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
-                                                🎯 Bugun birinchi kunni boshlang!
-                                            </div>
-                                        )}
-                                    </div>
                                     <p className="text-center text-sm mt-4" style={{ color: 'var(--text-muted)' }}>
                                         Xabar yozing yoki savol bering — men yordam beraman 💬
                                     </p>
