@@ -457,51 +457,46 @@ const ChatInputArea = memo(function ChatInputArea({
     ]
 
     return (
-        <div className="px-3 sm:px-4 pb-4 sm:pb-5 pt-2 chat-input-area" style={{ borderTop: '1px solid var(--border)' }}>
+        <div className="px-3 sm:px-6 pb-4 sm:pb-6 pt-2 chat-input-area">
             {!loading && messagesCount > 0 && (
-                <div className="max-w-5xl mx-auto mb-2 flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+                <div className="max-w-3xl mx-auto mb-2 flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
                     {QUICK_ACTIONS.map((a, i) => (
                         <button key={i} onClick={() => { if (!chatId || loading) return; onSend(a.p, []) }}
                             className="h-7 px-3 text-[12px] font-medium rounded-full transition whitespace-nowrap flex items-center gap-1.5 flex-shrink-0"
-                            style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-strong)', background: 'var(--bg-card)' }}
+                            style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)', background: 'transparent' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                         ><a.Icon className="h-3 w-3 flex-shrink-0" />{a.l}</button>
                     ))}
                 </div>
             )}
-            <form onSubmit={handleSubmit} className="max-w-5xl mx-auto">
-                {attachedFiles.length > 0 && (
-                    <div className="mb-2 flex flex-wrap gap-2 z-10 px-2 pb-1 relative">
-                        {attachedFiles.map(file => (
-                            <div key={file.id} className="relative rounded-xl p-1.5 w-[72px] h-[72px] flex flex-col items-center justify-center" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                <button type="button" onClick={() => {
-                                    if (file.previewUrl) URL.revokeObjectURL(file.previewUrl)
-                                    setAttachedFiles(prev => prev.filter(f => f.id !== file.id))
-                                }} className="absolute -top-1.5 -right-1.5 rounded-full h-[22px] w-[22px] flex items-center justify-center shadow-sm z-10" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
-                                    <X className="h-3 w-3" />
-                                </button>
-                                {file.previewUrl ? (
-                                    <img src={file.previewUrl} alt={file.name} title={file.name} className="w-full h-full object-cover rounded-[8px]" />
-                                ) : (
-                                    <>
-                                        <FileText className="h-6 w-6 mb-1" style={{ color: 'var(--brand)' }} />
-                                        <span className="text-[10px] w-full truncate text-center px-1" style={{ color: 'var(--text-secondary)' }} title={file.name}>{file.name.substring(0, 8)}...</span>
-                                    </>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                )}
-                <div className="flex items-center gap-2 rounded-2xl px-4" style={{ background: 'var(--bg-card)', border: '1.5px solid var(--border)', boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
-                    <input ref={fileInputRef} type="file" multiple accept=".pdf,.doc,.docx,.txt,image/*" className="hidden" onChange={handleFileSelect} />
-                    <button type="button" onClick={() => fileInputRef.current?.click()} disabled={loading || uploadingFile}
-                        className="h-8 w-8 flex items-center justify-center rounded-lg transition disabled:opacity-40"
-                        style={{ color: 'var(--text-muted)' }}
-                        onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
-                        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
-                        {uploadingFile
-                            ? <div className="h-4 w-4 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--text-muted)', borderTopColor: 'transparent' }} />
-                            : <Paperclip className="h-3.5 w-3.5" />}
-                    </button>
+            <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
+                <input ref={fileInputRef} type="file" multiple accept=".pdf,.doc,.docx,.txt,image/*" className="hidden" onChange={handleFileSelect} />
+                <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                    {/* Attached files */}
+                    {attachedFiles.length > 0 && (
+                        <div className="flex flex-wrap gap-2 px-4 pt-3">
+                            {attachedFiles.map(file => (
+                                <div key={file.id} className="relative rounded-xl p-1.5 w-[64px] h-[64px] flex flex-col items-center justify-center flex-shrink-0" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                                    <button type="button" onClick={() => {
+                                        if (file.previewUrl) URL.revokeObjectURL(file.previewUrl)
+                                        setAttachedFiles(prev => prev.filter(f => f.id !== file.id))
+                                    }} className="absolute -top-1.5 -right-1.5 rounded-full h-[20px] w-[20px] flex items-center justify-center z-10" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+                                        <X className="h-2.5 w-2.5" />
+                                    </button>
+                                    {file.previewUrl ? (
+                                        <img src={file.previewUrl} alt={file.name} className="w-full h-full object-cover rounded-[8px]" />
+                                    ) : (
+                                        <>
+                                            <FileText className="h-5 w-5 mb-0.5" style={{ color: 'var(--brand)' }} />
+                                            <span className="text-[9px] w-full truncate text-center" style={{ color: 'var(--text-muted)' }}>{file.name.substring(0, 8)}…</span>
+                                        </>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    {/* Textarea */}
                     <textarea
                         ref={textareaRef}
                         value={input}
@@ -511,34 +506,80 @@ const ChatInputArea = memo(function ChatInputArea({
                         placeholder="Xabar yozing..."
                         disabled={loading}
                         rows={1}
-                        className="flex-1 bg-transparent outline-none text-sm resize-none leading-relaxed"
-                        style={{ color: 'var(--text-primary)', minHeight: '44px', maxHeight: '120px', paddingTop: '12px', paddingBottom: '12px' }}
+                        className="w-full bg-transparent outline-none text-sm resize-none leading-relaxed px-4"
+                        style={{ color: 'var(--text-primary)', minHeight: '52px', maxHeight: '160px', paddingTop: '14px', paddingBottom: '8px' }}
                     />
-                    <button type="button" onClick={() => setThinkingMode(!thinkingMode)}
-                        title={thinkingMode ? 'Chuqur fikrlash yoqilgan' : 'Chuqur fikrlash'}
-                        className="h-8 w-8 flex items-center justify-center rounded-lg transition"
-                        style={thinkingMode ? { background: 'var(--brand-light)', color: 'var(--brand)' } : { color: 'var(--text-muted)' }}>
-                        <Lightbulb className="h-3.5 w-3.5" />
-                    </button>
-                    {loading ? (
-                        <button type="button" onClick={onStop}
-                            className="h-8 w-8 flex items-center justify-center rounded-lg text-white animate-pulse"
-                            style={{ background: 'var(--danger)' }}>
-                            <Square className="h-3 w-3" />
+                    {/* Toolbar row */}
+                    <div className="flex items-center gap-2 px-3 pb-3">
+                        {/* Attach */}
+                        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={loading || uploadingFile}
+                            className="h-8 w-8 flex items-center justify-center rounded-lg transition disabled:opacity-40"
+                            style={{ color: 'var(--text-muted)' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            title="Fayl biriktirish">
+                            {uploadingFile
+                                ? <div className="h-3.5 w-3.5 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--text-muted)', borderTopColor: 'transparent' }} />
+                                : <Paperclip className="h-3.5 w-3.5" />}
                         </button>
-                    ) : (
-                        <button type="submit" disabled={!input.trim() && attachedFiles.length === 0}
-                            className="h-8 w-8 flex items-center justify-center rounded-lg text-white transition disabled:opacity-40"
-                            style={{ background: 'var(--text-primary)' }}>
-                            <Send className="h-3.5 w-3.5" />
+                        {/* Thinking mode */}
+                        <button type="button" onClick={() => setThinkingMode(!thinkingMode)}
+                            title={thinkingMode ? 'Chuqur fikrlash yoqilgan' : 'Chuqur fikrlash'}
+                            className="h-8 px-2.5 flex items-center gap-1.5 rounded-lg text-xs font-medium transition"
+                            style={thinkingMode ? { background: 'var(--brand-light)', color: 'var(--brand)' } : { color: 'var(--text-muted)' }}
+                            onMouseEnter={e => { if (!thinkingMode) e.currentTarget.style.background = 'var(--bg-surface)' }}
+                            onMouseLeave={e => { if (!thinkingMode) e.currentTarget.style.background = 'transparent' }}>
+                            <Lightbulb className="h-3.5 w-3.5" />
+                            {thinkingMode && <span>Chuqur</span>}
                         </button>
-                    )}
+                        <div className="flex-1" />
+                        {/* Model label */}
+                        <span className="text-xs font-medium select-none hidden sm:block" style={{ color: 'var(--text-muted)' }}>DTMMax</span>
+                        {/* Send / Stop */}
+                        {loading ? (
+                            <button type="button" onClick={onStop}
+                                className="h-8 w-8 flex items-center justify-center rounded-lg transition"
+                                style={{ background: 'var(--text-primary)', color: 'var(--text-inverse)' }}
+                                title="To'xtatish">
+                                <Square className="h-3 w-3" fill="currentColor" />
+                            </button>
+                        ) : (
+                            <button type="submit" disabled={!input.trim() && attachedFiles.length === 0}
+                                className="h-8 w-8 flex items-center justify-center rounded-lg transition disabled:opacity-30"
+                                style={{ background: 'var(--text-primary)', color: 'var(--text-inverse)' }}
+                                title="Yuborish">
+                                <Send className="h-3.5 w-3.5" />
+                            </button>
+                        )}
+                    </div>
                 </div>
-                <p className="text-[10px] mt-1 text-center select-none" style={{ color: 'var(--border-strong)' }}>AI xato qilishi mumkin — muhim ma'lumotlarni tekshirib ko'ring</p>
+                <p className="text-[10px] mt-1.5 text-center select-none" style={{ color: 'var(--text-muted)' }}>DTMMax xato qilishi mumkin — muhim ma'lumotlarni tekshirib ko'ring</p>
             </form>
         </div>
     )
 })
+
+// Suhbatlarni sanasi bo'yicha guruhlash
+function groupChatsByDate(chats: { id: string; title: string; updatedAt: string }[]) {
+    const now = new Date()
+    const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0)
+    const yesterdayStart = new Date(todayStart); yesterdayStart.setDate(yesterdayStart.getDate() - 1)
+    const weekStart = new Date(todayStart); weekStart.setDate(weekStart.getDate() - 7)
+    const groups: { label: string; items: typeof chats }[] = [
+        { label: 'Bugun', items: [] },
+        { label: 'Kecha', items: [] },
+        { label: 'Bu hafta', items: [] },
+        { label: 'Eski', items: [] },
+    ]
+    for (const c of chats) {
+        const d = new Date(c.updatedAt)
+        if (d >= todayStart) groups[0].items.push(c)
+        else if (d >= yesterdayStart) groups[1].items.push(c)
+        else if (d >= weekStart) groups[2].items.push(c)
+        else groups[3].items.push(c)
+    }
+    return groups.filter(g => g.items.length > 0)
+}
 
 export default function ChatLayout() {
     const { chatId } = useParams()
@@ -1595,62 +1636,74 @@ Iltimos, har bir savolni tahlil qilib ber:
                         <button onClick={() => setSideOpen(false)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-muted)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}><X className="h-4 w-4" /></button>
                     </div>
 
-                    {/* Side tabs — 4 ta ikonka qator */}
-                    <div className="flex mx-3 mb-2 mt-2 p-0.5 rounded-lg flex-shrink-0" style={{ background: 'var(--bg-muted)' }}>
-                        {[
-                            { k: 'chats' as const, l: 'Suhbat', Icon: MessageSquare },
-                            { k: 'tests' as const, l: 'Testlar', Icon: ClipboardList, badge: newTestIds.size },
-                            { k: 'progress' as const, l: 'Natija', Icon: TrendingUp },
-                            { k: 'flashcards' as const, l: 'Karta', Icon: Brain },
-                        ].map(t => (
-                            <button key={t.k} onClick={() => {
-                                setSideTab(t.k)
-                                if (t.k === 'tests') markTestsSeen()
-                            }}
-                                className="flex-1 py-1.5 text-xs font-medium rounded-md transition flex flex-col items-center gap-0.5 relative"
-                                style={sideTab === t.k ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { color: 'var(--text-secondary)' }}
-                                title={t.l}
-                            >
-                                <span className="relative">
-                                    <t.Icon className="h-4 w-4" />
-                                    {t.k === 'tests' && (t as any).badge > 0 && (
-                                        <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full text-white text-[9px] flex items-center justify-center font-bold"
-                                            style={{ background: '#f97316' }}>
-                                            {(t as any).badge > 9 ? '9+' : (t as any).badge}
-                                        </span>
-                                    )}
-                                </span>
-                                <span className="text-[10px]">{t.l}</span>
-                            </button>
-                        ))}
+                    {/* Sidebar nav — Claude uslubi */}
+                    <div className="px-2 pt-1 pb-2 flex-shrink-0 space-y-0.5">
+                        {/* Yangi suhbat */}
+                        <button onClick={createChat} disabled={creating}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition disabled:opacity-50"
+                            style={{ color: 'var(--text-secondary)' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                            <Plus className="h-4 w-4 flex-shrink-0" /> Yangi suhbat
+                        </button>
+                        {/* Testlar */}
+                        <button onClick={() => { setSideTab(sideTab === 'tests' ? 'chats' : 'tests'); markTestsSeen() }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition"
+                            style={sideTab === 'tests' ? { background: 'var(--bg-muted)', color: 'var(--text-primary)' } : { color: 'var(--text-secondary)' }}
+                            onMouseEnter={e => { if (sideTab !== 'tests') e.currentTarget.style.background = 'var(--bg-muted)' }}
+                            onMouseLeave={e => { if (sideTab !== 'tests') e.currentTarget.style.background = 'transparent' }}
+                        >
+                            <ClipboardList className="h-4 w-4 flex-shrink-0" />
+                            <span className="flex-1">Testlar</span>
+                            {newTestIds.size > 0 && <span className="h-4.5 px-1.5 rounded-full text-white text-[10px] flex items-center font-bold" style={{ background: '#f97316' }}>{newTestIds.size > 9 ? '9+' : newTestIds.size}</span>}
+                        </button>
+                        {/* Kartochkalar */}
+                        <button onClick={() => setSideTab(sideTab === 'flashcards' ? 'chats' : 'flashcards')}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition"
+                            style={sideTab === 'flashcards' ? { background: 'var(--bg-muted)', color: 'var(--text-primary)' } : { color: 'var(--text-secondary)' }}
+                            onMouseEnter={e => { if (sideTab !== 'flashcards') e.currentTarget.style.background = 'var(--bg-muted)' }}
+                            onMouseLeave={e => { if (sideTab !== 'flashcards') e.currentTarget.style.background = 'transparent' }}
+                        >
+                            <Brain className="h-4 w-4 flex-shrink-0" />
+                            <span className="flex-1">Kartochkalar</span>
+                            {dueCount > 0 && <span className="h-4.5 px-1.5 rounded-full text-white text-[10px] flex items-center font-bold" style={{ background: 'var(--brand)' }}>{dueCount > 9 ? '9+' : dueCount}</span>}
+                        </button>
+                        {/* Natijalar */}
+                        <button onClick={() => setSideTab(sideTab === 'progress' ? 'chats' : 'progress')}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition"
+                            style={sideTab === 'progress' ? { background: 'var(--bg-muted)', color: 'var(--text-primary)' } : { color: 'var(--text-secondary)' }}
+                            onMouseEnter={e => { if (sideTab !== 'progress') e.currentTarget.style.background = 'var(--bg-muted)' }}
+                            onMouseLeave={e => { if (sideTab !== 'progress') e.currentTarget.style.background = 'transparent' }}
+                        >
+                            <TrendingUp className="h-4 w-4 flex-shrink-0" /> <span className="flex-1">Natijalar</span>
+                        </button>
                     </div>
 
+                    <div className="mx-3 flex-shrink-0" style={{ height: '1px', background: 'var(--border)' }} />
+
                     {sideTab === 'chats' && (
-                        <>
-                            <div className="px-3 mb-2">
-                                <button onClick={createChat} disabled={creating}
-                                    className="w-full h-9 flex items-center justify-center gap-2 rounded-lg text-sm font-medium transition disabled:opacity-50"
-                                    style={{ border: '1.5px solid var(--border-strong)', color: 'var(--text-secondary)', background: 'transparent' }}
-                                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-card)')}
-                                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                                >
-                                    <Plus className="h-3.5 w-3.5" /> Yangi suhbat
-                                </button>
-                            </div>
-                            <div className="flex-1 overflow-y-auto px-2 space-y-0.5">
-                                {chats.map(c => (
-                                    <div key={c.id}
-                                        className="group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-[13px] transition-colors"
-                                        style={chatId === c.id ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' } : { color: 'var(--text-secondary)' }}
-                                        onMouseEnter={e => { if (chatId !== c.id) e.currentTarget.style.background = 'var(--bg-muted)' }}
-                                        onMouseLeave={e => { if (chatId !== c.id) e.currentTarget.style.background = 'transparent' }}
-                                        onClick={() => nav(`/suhbat/${c.id}`)}>
-                                        <span className="flex-1 truncate">{c.title}</span>
-                                        <button onClick={(e) => deleteChat(c.id, e)} className="opacity-0 group-hover:opacity-100 h-5 w-5 flex items-center justify-center rounded transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)' }} onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)' }}><Trash2 className="h-3 w-3" /></button>
-                                    </div>
-                                ))}
-                            </div>
-                        </>
+                        <div className="flex-1 overflow-y-auto px-2 py-2" style={{ scrollbarWidth: 'thin' }}>
+                            {chats.length === 0 ? (
+                                <p className="text-xs text-center py-6" style={{ color: 'var(--text-muted)' }}>Hali suhbatlar yo'q</p>
+                            ) : groupChatsByDate(chats).map(({ label, items }) => (
+                                <div key={label} className="mb-3">
+                                    <p className="text-[11px] font-medium px-3 mb-1" style={{ color: 'var(--text-muted)' }}>{label}</p>
+                                    {items.map(c => (
+                                        <div key={c.id}
+                                            className="group flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer text-[13px] transition-colors"
+                                            style={chatId === c.id ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' } : { color: 'var(--text-secondary)' }}
+                                            onMouseEnter={e => { if (chatId !== c.id) e.currentTarget.style.background = 'var(--bg-muted)' }}
+                                            onMouseLeave={e => { if (chatId !== c.id) e.currentTarget.style.background = 'transparent' }}
+                                            onClick={() => nav(`/suhbat/${c.id}`)}>
+                                            <div className="h-3.5 w-3.5 rounded-full border flex-shrink-0" style={{ borderColor: chatId === c.id ? 'var(--text-secondary)' : 'var(--border-strong)' }} />
+                                            <span className="flex-1 truncate">{c.title}</span>
+                                            <button onClick={(e) => deleteChat(c.id, e)} className="opacity-0 group-hover:opacity-100 h-5 w-5 flex items-center justify-center rounded transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)' }} onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)' }}><Trash2 className="h-3 w-3" /></button>
+                                        </div>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
                     )}
 
                     {sideTab === 'tests' && (
