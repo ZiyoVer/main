@@ -536,7 +536,7 @@ const ChatInputArea = memo(function ChatInputArea({
                         disabled={loading}
                         rows={1}
                         className="w-full bg-transparent outline-none text-sm resize-none leading-relaxed px-4"
-                        style={{ color: 'var(--text-primary)', minHeight: '64px', maxHeight: '160px', paddingTop: '14px', paddingBottom: '8px' }}
+                        style={{ color: 'var(--text-primary)', minHeight: '64px', maxHeight: '160px', paddingTop: '14px', paddingBottom: '8px', overflowX: 'hidden', wordBreak: 'break-word' }}
                     />
                     {/* Toolbar row */}
                     <div className="flex items-center gap-2 px-3 pb-3">
@@ -2010,7 +2010,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                     )}
 
                     {/* Messages */}
-                    <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-0">
+                    <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
                         {(!chatId || (messages.length === 0 && !loading && !streaming)) ? (
                             <div className="h-full flex items-center justify-center" style={{ background: 'var(--bg-page)' }}>
                                 <div className="max-w-2xl w-full px-4 sm:px-6 anim-up">
@@ -2049,7 +2049,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                 </div>
                             </div>
                         ) : (
-                            <div className="max-w-5xl mx-auto px-3 sm:px-8 py-4 sm:py-8 space-y-3 sm:space-y-6">
+                            <div className="max-w-3xl mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-3 sm:space-y-6">
                                 {messages.map((m, i) => (
                                     <div key={m.id || i} className={`flex ${m.role === 'user' ? 'justify-end' : ''}`}>
                                         {m.role === 'user' ? (

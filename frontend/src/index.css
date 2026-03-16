@@ -393,6 +393,8 @@ html.dark {
     font-size: 0.9375rem;
     line-height: 1.6;
     color: var(--text-primary);
+    word-break: break-word;
+    overflow-wrap: break-word;
 }
 
 /* Chat image thumbnail */
@@ -482,6 +484,29 @@ html.dark {
         transform: scale(1.1);
         opacity: 1;
     }
+}
+
+/* ---- AI Generating animation (spinning asterisk) ---- */
+@keyframes ai-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.ai-generating {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--brand);
+    font-size: 0.8125rem;
+    font-weight: 500;
+}
+
+.ai-generating .ai-star {
+    display: inline-block;
+    font-size: 1rem;
+    line-height: 1;
+    animation: ai-spin 1.8s linear infinite;
+    flex-shrink: 0;
 }
 
 /* ---- Sidebar ---- */
