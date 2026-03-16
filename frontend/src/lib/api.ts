@@ -29,20 +29,29 @@ export async function fetchApi(endpoint: string, options: RequestInit & { signal
         }
         return data
     } catch (e: any) {
+        // AbortError — foydalanuvchi yoki cleanup tomonidan bekor qilingan, xabar ko'rsatmaymiz
+        if (e.name === 'AbortError') throw e
+
         if (e.message !== 'Sessiya muddati tugadi. Qayta kiring.') {
             if (import.meta.env.DEV) {
                 console.error('API Error:', e)
+            }
+            // Network xatoligi (offline)
+            if (e instanceof TypeError && e.message === 'Failed to fetch') {
+                if (!options.silent) {
+                    toast.error('Internet aloqasi yo\'q', { id: 'network-error', duration: 3000 })
+                }
             }
         }
         throw e
     }
 }
 
-export async function uploadFile(endpoint: string, formData: FormData) {
+export async function uploadFile(endpoint: string, formData: FormData, signal?: AbortSignal) {
     const token = localStorage.getItem('token')
     const headers: HeadersInit = {}
     if (token) headers['Authorization'] = `Bearer ${token}`
-    const res = await fetch(`${API}${endpoint}`, { method: 'POST', headers, body: formData })
+    const res = await fetch(`${API}${endpoint}`, { method: 'POST', headers, body: formData, signal })
     const data = await res.json()
     if (!res.ok) throw new Error(data?.error || 'Yuklashda xato')
     return data

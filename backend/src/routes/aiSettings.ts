@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import prisma from '../utils/db'
 import { authenticate, requireRole, AuthRequest } from '../middleware/auth'
+import { invalidateAISettingsCache } from '../utils/aiSettingsCache'
 
 const router = Router()
 
@@ -215,6 +216,9 @@ router.put('/', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res
                 })
             }
         }
+
+        // Cache ni darhol tozalash — keyingi so'rovda yangi sozlamalar yuklanadi
+        invalidateAISettingsCache()
 
         res.json({ message: 'Sozlamalar saqlandi' })
     } catch (e) {

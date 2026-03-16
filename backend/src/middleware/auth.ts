@@ -8,56 +8,62 @@ export interface AuthRequest extends Request {
     user?: any
 }
 
-export function authenticate(req: AuthRequest, res: Response, next: NextFunction): void {
+export async function authenticate(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     const authHeader = req.headers.authorization
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         res.status(401).json({ error: 'Token topilmadi' })
         return
     }
     const token = authHeader.split(' ')[1]
-    tokenBlacklist.has(token).then(isBlacklisted => {
+
+    // JWT ni avval tekshiramiz (tez, sinxron)
+    let decoded: any
+    try {
+        decoded = jwt.verify(token, JWT_SECRET)
+    } catch {
+        res.status(401).json({ error: 'Token yaroqsiz' })
+        return
+    }
+
+    // Redis blacklist tekshiruvi — await bilan to'g'ri ishlaydi
+    try {
+        const isBlacklisted = await tokenBlacklist.has(token)
         if (isBlacklisted) {
             res.status(401).json({ error: 'Token yaroqsiz (logout qilingan)' })
             return
         }
-        try {
-            const decoded = jwt.verify(token, JWT_SECRET)
-            req.user = decoded
-            next()
-        } catch {
-            res.status(401).json({ error: 'Token yaroqsiz' })
-        }
-    }).catch(() => {
-        // Redis xato — token tekshiruvisiz davom etamiz
-        try {
-            const decoded = jwt.verify(token, JWT_SECRET)
-            req.user = decoded
-            next()
-        } catch {
-            res.status(401).json({ error: 'Token yaroqsiz' })
-        }
-    })
+    } catch (redisErr) {
+        // Redis ishlamasa — xavfsizlik uchun so'rovni rad etamiz
+        // (logout bo'lgan tokenlarni o'tkazib yubormasligi uchun)
+        console.error('Redis blacklist tekshiruvida xato:', redisErr)
+        res.status(503).json({ error: 'Autentifikatsiya xizmati vaqtincha ishlamayapti. Qayta urinib ko\'ring.' })
+        return
+    }
+
+    req.user = decoded
+    next()
 }
 
-export const optionalAuthenticate = (req: AuthRequest, res: Response, next: NextFunction) => {
+export const optionalAuthenticate = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     const header = req.headers.authorization
-    if (!header?.startsWith('Bearer ')) return next()
+    if (!header?.startsWith('Bearer ')) {
+        next()
+        return
+    }
     const token = header.split(' ')[1]
-    tokenBlacklist.has(token).then(isBlacklisted => {
-        if (!isBlacklisted) {
-            try {
-                const decoded = jwt.verify(token, JWT_SECRET) as any
-                req.user = decoded
-            } catch { /* ignore */ }
-        }
-        next()
-    }).catch(() => {
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET) as any
         try {
-            const decoded = jwt.verify(token, JWT_SECRET) as any
+            const isBlacklisted = await tokenBlacklist.has(token)
+            if (!isBlacklisted) {
+                req.user = decoded
+            }
+        } catch {
+            // Optional auth da Redis xatosi — token ni qabul qilamiz
             req.user = decoded
-        } catch { /* ignore */ }
-        next()
-    })
+        }
+    } catch { /* token yaroqsiz — ignore */ }
+    next()
 }
 
 export function requireRole(...roles: string[]) {

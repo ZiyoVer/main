@@ -223,7 +223,11 @@ export default function Landing() {
     const [publicStats, setPublicStats] = useState<{ totalStudents: number; totalPublicTests: number } | null>(null)
 
     useEffect(() => {
-        const load = () => fetch('/api/analytics/public-stats').then(r => r.json()).then(d => setPublicStats(d)).catch(() => {})
+        const load = () => {
+            // Tab ko'rinmasa — so'rov yubormaymiz (keraksiz network traffic oldini olish)
+            if (document.visibilityState === 'hidden') return
+            fetch('/api/analytics/public-stats').then(r => r.json()).then(d => setPublicStats(d)).catch(() => {})
+        }
         load()
         const timer = setInterval(load, 30000) // har 30 soniyada yangilash
         return () => clearInterval(timer)

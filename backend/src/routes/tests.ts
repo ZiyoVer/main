@@ -360,7 +360,8 @@ DIQQAT: Formulalarda bo'sh joylar yoki ortiqcha belgilarni qoldirmang, aynan ras
                 ...messages
             ],
             max_tokens: 8000,
-            temperature: 0.1
+            temperature: 0.1,
+            timeout: 120000 // 120 soniya timeout (katta fayllar uchun)
         })
 
         const aiContent = completion.choices[0]?.message?.content || '[]'

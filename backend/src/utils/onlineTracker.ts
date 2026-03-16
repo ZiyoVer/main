@@ -30,3 +30,13 @@ export function getOnlineUsers(): OnlineEntry[] {
     }
     return result.sort((a, b) => b.lastSeen - a.lastSeen)
 }
+
+// Har 10 daqiqada eskirgan yozuvlarni tozalash (memory leak oldini olish)
+setInterval(() => {
+    const cutoff = Date.now() - ONLINE_TIMEOUT
+    for (const [id, entry] of onlineMap.entries()) {
+        if (entry.lastSeen < cutoff) {
+            onlineMap.delete(id)
+        }
+    }
+}, 10 * 60 * 1000)

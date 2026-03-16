@@ -1,22 +1,38 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { Toaster } from 'react-hot-toast'
 import { useAuthStore } from './store/authStore'
 import { fetchApi } from './lib/api'
-import Landing from './pages/Landing'
-import Login from './pages/Auth/Login'
-import Register from './pages/Auth/Register'
-import AdminLogin from './pages/Auth/AdminLogin'
-import ForgotPassword from './pages/Auth/ForgotPassword'
-import ResetPassword from './pages/Auth/ResetPassword'
-import EmailVerify from './pages/Auth/EmailVerify'
-import ChatLayout from './pages/Student/ChatLayout'
-import TestPage from './pages/Student/TestPage'
-import AdminPanel from './pages/Admin/AdminPanel'
-import TeacherPanel from './pages/Teacher/TeacherPanel'
-import NotFound from './pages/NotFound'
-import Terms from './pages/Terms'
-import Privacy from './pages/Privacy'
+import ErrorBoundary from './components/ErrorBoundary'
+
+// Lazy loading — katta komponentlar kerak bo'lgandagina yuklanadi (bundle size -40%)
+const Landing = lazy(() => import('./pages/Landing'))
+const Login = lazy(() => import('./pages/Auth/Login'))
+const Register = lazy(() => import('./pages/Auth/Register'))
+const AdminLogin = lazy(() => import('./pages/Auth/AdminLogin'))
+const ForgotPassword = lazy(() => import('./pages/Auth/ForgotPassword'))
+const ResetPassword = lazy(() => import('./pages/Auth/ResetPassword'))
+const EmailVerify = lazy(() => import('./pages/Auth/EmailVerify'))
+const ChatLayout = lazy(() => import('./pages/Student/ChatLayout'))
+const TestPage = lazy(() => import('./pages/Student/TestPage'))
+const AdminPanel = lazy(() => import('./pages/Admin/AdminPanel'))
+const TeacherPanel = lazy(() => import('./pages/Teacher/TeacherPanel'))
+const NotFound = lazy(() => import('./pages/NotFound'))
+const Terms = lazy(() => import('./pages/Terms'))
+const Privacy = lazy(() => import('./pages/Privacy'))
+
+function PageLoader() {
+    return (
+        <div className="h-screen w-full flex items-center justify-center" style={{ background: 'var(--bg-main)' }}>
+            <div style={{
+                width: '36px', height: '36px', border: '3px solid var(--border)',
+                borderTopColor: 'var(--brand)', borderRadius: '50%',
+                animation: 'spin 0.8s linear infinite'
+            }} />
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+    )
+}
 
 function ProtectedRoute({ children, roles }: { children: React.ReactNode, roles?: string[] }) {
     const { user, token, login } = useAuthStore()
@@ -47,7 +63,7 @@ function ProtectedRoute({ children, roles }: { children: React.ReactNode, roles?
 
 export default function App() {
     return (
-        <>
+        <ErrorBoundary>
             <Toaster
                 position="top-center"
                 toastOptions={{
@@ -55,31 +71,33 @@ export default function App() {
                     error: { style: { background: 'var(--danger-light)', color: 'var(--danger)', border: '1px solid var(--danger)' } }
                 }}
             />
-            <Routes>
-                <Route path="/" element={<Landing />} />
-                <Route path="/kirish" element={<Login />} />
-                <Route path="/royxat" element={<Register />} />
-                <Route path="/parolni-tiklash" element={<ForgotPassword />} />
-                <Route path="/parol-tiklash/:token" element={<ResetPassword />} />
-                <Route path="/email-tasdiqlash/:token" element={<EmailVerify />} />
-                {/* O'zbek tilidagi asosiy routelar */}
-                <Route path="/suhbat" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
-                <Route path="/suhbat/:chatId" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
-                <Route path="/oqituvchi" element={<ProtectedRoute roles={['TEACHER', 'ADMIN']}><TeacherPanel /></ProtectedRoute>} />
-                <Route path="/boshqaruv" element={<ProtectedRoute roles={['ADMIN']}><AdminPanel /></ProtectedRoute>} />
-                {/* Legacy routes — backward compat */}
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
-                <Route path="/admin-login" element={<AdminLogin />} />
-                <Route path="/chat" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
-                <Route path="/chat/:chatId" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
-                <Route path="/test/:shareLink" element={<TestPage />} />
-                <Route path="/admin" element={<ProtectedRoute roles={['ADMIN']}><AdminPanel /></ProtectedRoute>} />
-                <Route path="/teacher" element={<ProtectedRoute roles={['TEACHER', 'ADMIN']}><TeacherPanel /></ProtectedRoute>} />
-                <Route path="/shartlar" element={<Terms />} />
-                <Route path="/maxfiylik" element={<Privacy />} />
-                <Route path="*" element={<NotFound />} />
-            </Routes>
-        </>
+            <Suspense fallback={<PageLoader />}>
+                <Routes>
+                    <Route path="/" element={<Landing />} />
+                    <Route path="/kirish" element={<Login />} />
+                    <Route path="/royxat" element={<Register />} />
+                    <Route path="/parolni-tiklash" element={<ForgotPassword />} />
+                    <Route path="/parol-tiklash/:token" element={<ResetPassword />} />
+                    <Route path="/email-tasdiqlash/:token" element={<EmailVerify />} />
+                    {/* O'zbek tilidagi asosiy routelar */}
+                    <Route path="/suhbat" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
+                    <Route path="/suhbat/:chatId" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
+                    <Route path="/oqituvchi" element={<ProtectedRoute roles={['TEACHER', 'ADMIN']}><TeacherPanel /></ProtectedRoute>} />
+                    <Route path="/boshqaruv" element={<ProtectedRoute roles={['ADMIN']}><AdminPanel /></ProtectedRoute>} />
+                    {/* Legacy routes — backward compat */}
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/register" element={<Register />} />
+                    <Route path="/admin-login" element={<AdminLogin />} />
+                    <Route path="/chat" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
+                    <Route path="/chat/:chatId" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
+                    <Route path="/test/:shareLink" element={<TestPage />} />
+                    <Route path="/admin" element={<ProtectedRoute roles={['ADMIN']}><AdminPanel /></ProtectedRoute>} />
+                    <Route path="/teacher" element={<ProtectedRoute roles={['TEACHER', 'ADMIN']}><TeacherPanel /></ProtectedRoute>} />
+                    <Route path="/shartlar" element={<Terms />} />
+                    <Route path="/maxfiylik" element={<Privacy />} />
+                    <Route path="*" element={<NotFound />} />
+                </Routes>
+            </Suspense>
+        </ErrorBoundary>
     )
 }

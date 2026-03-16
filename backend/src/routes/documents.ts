@@ -69,13 +69,14 @@ router.post('/upload', authenticate, requireRole('ADMIN'), uploadLimiter, upload
         // S3 ga yuklash
         let s3Url = ''
         let s3Key = ''
+        let s3Warning = ''
         try {
             const s3Result = await uploadToS3(buffer, req.file.originalname, 'documents')
             s3Url = s3Result.url
             s3Key = s3Result.key
         } catch (e) {
             console.error('S3 upload error:', e)
-            // S3 ishlamasa ham davom etamiz
+            s3Warning = 'Fayl S3\'ga yuklanmadi — matn chunklari saqlanadi, lekin fayl yuklab olish imkoni bo\'lmaydi.'
         }
 
         // Document yozuv
@@ -90,13 +91,24 @@ router.post('/upload', authenticate, requireRole('ADMIN'), uploadLimiter, upload
             }
         })
 
-        // Chunklarga ajratish (500 so'z)
-        const words = text.split(/\s+/)
-        const chunkSize = 500
+        // Chunklarga ajratish — jumlalar bo'yicha (RAG sifati uchun yaxshiroq)
+        const sentences = text
+            .replace(/([.!?])\s+/g, '$1\n')
+            .split('\n')
+            .map((s: string) => s.trim())
+            .filter((s: string) => s.length > 10)
+
         const chunks: string[] = []
-        for (let i = 0; i < words.length; i += chunkSize) {
-            chunks.push(words.slice(i, i + chunkSize).join(' '))
+        let current = ''
+        for (const sentence of sentences) {
+            if ((current + ' ' + sentence).split(/\s+/).length > 500) {
+                if (current) chunks.push(current.trim())
+                current = sentence
+            } else {
+                current = current ? current + ' ' + sentence : sentence
+            }
         }
+        if (current.trim()) chunks.push(current.trim())
 
         // Chunklarni saqlash
         await prisma.documentChunk.createMany({
@@ -111,7 +123,8 @@ router.post('/upload', authenticate, requireRole('ADMIN'), uploadLimiter, upload
             message: `Fayl yuklandi: ${chunks.length} chunk saqlandi`,
             document: doc,
             chunksCount: chunks.length,
-            s3Url
+            s3Url,
+            ...(s3Warning && { warning: s3Warning })
         })
     } catch (e) {
         console.error(e)

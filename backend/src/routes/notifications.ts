@@ -57,14 +57,19 @@ router.delete('/:id', async (req: AuthRequest, res) => {
 // POST /api/notifications/send — teacher/admin xabar yuboradi
 router.post('/send', requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, res) => {
   try {
-    const { userIds, title, message } = req.body
+    const { userIds, title, message, broadcastAll } = req.body
     if (!title?.trim() || !message?.trim()) {
       return res.status(400).json({ error: 'title va message kerak' })
     }
 
-    // Agar userIds bo'lmasa — barcha STUDENTlarga yuborish
+    // Barcha o'quvchilarga yuborishda explicit tasdiqlash talab qilinadi
     let targetIds: string[] = userIds
     if (!targetIds?.length) {
+      if (!broadcastAll) {
+        return res.status(400).json({
+          error: 'userIds bo\'sh. Barcha foydalanuvchilarga yuborish uchun broadcastAll: true ni yuboring.'
+        })
+      }
       const students = await prisma.user.findMany({
         where: { role: 'STUDENT' },
         select: { id: true }

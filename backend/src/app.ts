@@ -22,6 +22,10 @@ if (process.env.JWT_SECRET === 'dtmmax-dev-secret') {
     console.error('❌ JWT_SECRET hali dev qiymati bilan turibdi! O\'zgartiring.')
     process.exit(1)
 }
+if (process.env.JWT_SECRET!.length < 32) {
+    console.error('❌ JWT_SECRET kamida 32 ta belgi bo\'lishi kerak! Hozir:', process.env.JWT_SECRET!.length, 'ta belgi.')
+    process.exit(1)
+}
 
 const app = express()
 
