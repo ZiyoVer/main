@@ -1388,8 +1388,7 @@ router.post('/:chatId/send', authenticate, async (req: AuthRequest, res) => {
             messages: msgs,
             max_tokens: aiSettings.maxTokens,
             temperature: aiSettings.temperature,
-            timeout: 60000 // 60 soniya timeout
-        })
+        }, { timeout: 60000 })
 
         const reply = completion.choices[0]?.message?.content || 'Javob olinmadi'
         const saved = await prisma.message.create({

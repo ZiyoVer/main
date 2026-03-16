@@ -361,8 +361,7 @@ DIQQAT: Formulalarda bo'sh joylar yoki ortiqcha belgilarni qoldirmang, aynan ras
             ],
             max_tokens: 8000,
             temperature: 0.1,
-            timeout: 120000 // 120 soniya timeout (katta fayllar uchun)
-        })
+        }, { timeout: 120000 })
 
         const aiContent = completion.choices[0]?.message?.content || '[]'
 
