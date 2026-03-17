@@ -613,8 +613,9 @@ export default function ChatLayout() {
     const [profile, setProfile] = useState<Profile | null>(null)
     const [showOnboarding, setShowOnboarding] = useState(false)
     const [sideTab, setSideTab] = useState<'chats' | 'tests' | 'progress' | 'flashcards'>('chats')
-    const [overlayPanel, setOverlayPanel] = useState<'tests' | 'flashcards' | 'progress' | 'todo' | null>(null)
+    const [overlayPanel, setOverlayPanel] = useState<'tests' | 'flashcards' | 'progress' | null>(null)
     const [todoItems, setTodoItems] = useState<TodoItem[]>([])
+    const [todoOpen, setTodoOpen] = useState(false)
     const [showSettings, setShowSettings] = useState(false)
     const [settingsSection, setSettingsSection] = useState<'profile' | 'appearance' | 'notifications' | 'security' | 'account'>('profile')
     const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -1331,7 +1332,7 @@ Iltimos, har bir savolni tahlil qilib ber:
     // Todo panel
     const handleSetTodo = useCallback((items: Omit<TodoItem, 'id' | 'done'>[]) => {
         setTodoItems(items.map((item, i) => ({ ...item, id: `todo-${i}-${Date.now()}`, done: false })))
-        setOverlayPanel('todo')
+        setTodoOpen(true)
     }, [])
     const markTodoDone = useCallback((id: string) => {
         setTodoItems(prev => prev.map(t => t.id === id ? { ...t, done: true } : t))
@@ -1700,11 +1701,11 @@ Iltimos, har bir savolni tahlil qilib ber:
                             <TrendingUp className="h-4 w-4 flex-shrink-0" /> Natijalar
                         </button>
                         {/* Reja */}
-                        <button onClick={() => setOverlayPanel(overlayPanel === 'todo' ? null : 'todo')}
+                        <button onClick={() => setTodoOpen(v => !v)}
                             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition"
-                            style={overlayPanel === 'todo' ? { background: 'var(--bg-muted)', color: 'var(--text-primary)' } : { color: 'var(--text-secondary)' }}
-                            onMouseEnter={e => { if (overlayPanel !== 'todo') e.currentTarget.style.background = 'var(--bg-muted)' }}
-                            onMouseLeave={e => { if (overlayPanel !== 'todo') e.currentTarget.style.background = 'transparent' }}
+                            style={todoOpen ? { background: 'var(--bg-muted)', color: 'var(--text-primary)' } : { color: 'var(--text-secondary)' }}
+                            onMouseEnter={e => { if (!todoOpen) e.currentTarget.style.background = 'var(--bg-muted)' }}
+                            onMouseLeave={e => { if (!todoOpen) e.currentTarget.style.background = 'transparent' }}
                         >
                             <Target className="h-4 w-4 flex-shrink-0" /> Reja
                             {todoItems.filter(t => !t.done).length > 0 && (
@@ -2110,6 +2111,59 @@ Iltimos, har bir savolni tahlil qilib ber:
                     />
                 </div>
 
+                {/* Todo inline panel */}
+                {todoOpen && (
+                    <div className="flex flex-col flex-shrink-0" style={{ width: '340px', borderLeft: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+                        {/* Header */}
+                        <div className="h-14 flex items-center gap-3 px-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+                            <Target className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--brand)' }} />
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold">Kunlik reja</p>
+                                <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{todoItems.filter(t => !t.done).length} ta vazifa qoldi</p>
+                            </div>
+                            <button onClick={() => setTodoOpen(false)} className="h-7 w-7 flex items-center justify-center rounded-lg transition"
+                                style={{ color: 'var(--text-muted)' }}
+                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                        {/* Tasks */}
+                        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                            {todoItems.filter(t => !t.done).length === 0 ? (
+                                <div className="flex flex-col items-center justify-center h-full gap-3 py-16">
+                                    <div className="h-14 w-14 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(224,123,57,0.1)' }}>
+                                        <Target className="h-7 w-7" style={{ color: 'var(--brand)' }} />
+                                    </div>
+                                    <p className="text-sm font-semibold">Barcha vazifalar bajarildi! 🎉</p>
+                                    <p className="text-xs text-center" style={{ color: 'var(--text-muted)' }}>Chatda yangi reja so'rang</p>
+                                </div>
+                            ) : todoItems.map(item => item.done ? null : (
+                                <div key={item.id} className="flex items-start gap-3 rounded-xl p-3 transition"
+                                    style={{ background: 'var(--bg-page)', border: '1px solid var(--border)' }}>
+                                    <button onClick={() => markTodoDone(item.id)}
+                                        className="h-5 w-5 rounded-full border-2 flex-shrink-0 mt-0.5 transition-all hover:scale-110"
+                                        style={{ borderColor: 'var(--brand)' }}
+                                        title="Bajarildi deb belgilash" />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-[13px] font-medium leading-snug">{item.task}</p>
+                                        {(item.subject || item.duration) && (
+                                            <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                                                {item.subject}{item.subject && item.duration ? ' · ' : ''}{item.duration ? `${item.duration} daqiqa` : ''}
+                                            </p>
+                                        )}
+                                    </div>
+                                    {item.time && (
+                                        <span className="text-[11px] font-semibold tabular-nums flex-shrink-0 px-2 py-0.5 rounded-lg"
+                                            style={{ background: 'rgba(224,123,57,0.1)', color: 'var(--brand)' }}>
+                                            {item.time}
+                                        </span>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* Test Side Panel */}
                 {
@@ -2516,20 +2570,18 @@ Iltimos, har bir savolni tahlil qilib ber:
                             {/* Header */}
                             <div className="flex items-center gap-3 px-5 py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                                 <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                                    style={{ background: overlayPanel === 'tests' ? 'rgba(224,123,57,0.12)' : overlayPanel === 'flashcards' ? 'rgba(99,102,241,0.12)' : overlayPanel === 'todo' ? 'rgba(224,123,57,0.12)' : 'rgba(16,185,129,0.12)' }}>
+                                    style={{ background: overlayPanel === 'tests' ? 'rgba(224,123,57,0.12)' : overlayPanel === 'flashcards' ? 'rgba(99,102,241,0.12)' : 'rgba(16,185,129,0.12)' }}>
                                     {overlayPanel === 'tests' && <ClipboardList className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
                                     {overlayPanel === 'flashcards' && <Brain className="h-5 w-5" style={{ color: '#6366f1' }} />}
                                     {overlayPanel === 'progress' && <BarChart2 className="h-5 w-5" style={{ color: '#10b981' }} />}
-                                    {overlayPanel === 'todo' && <Target className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
                                 </div>
                                 <div className="flex-1">
                                     <h2 className="font-semibold text-base">
-                                        {overlayPanel === 'tests' ? 'Testlar' : overlayPanel === 'flashcards' ? 'Kartochkalar' : overlayPanel === 'todo' ? 'Kunlik reja' : 'Natijalar'}
+                                        {overlayPanel === 'tests' ? 'Testlar' : overlayPanel === 'flashcards' ? 'Kartochkalar' : 'Natijalar'}
                                     </h2>
                                     <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
                                         {overlayPanel === 'tests' ? `${publicTests.length} ta test mavjud`
                                             : overlayPanel === 'flashcards' ? `${dueFlashcards.length} ta kartochka qaytarish kerak`
-                                            : overlayPanel === 'todo' ? `${todoItems.filter(t => !t.done).length} ta vazifa qoldi`
                                             : 'O\'qish tahlili'}
                                     </p>
                                 </div>
@@ -2686,41 +2738,6 @@ Iltimos, har bir savolni tahlil qilib ber:
                                     </div>
                                 )}
 
-                                {overlayPanel === 'todo' && (
-                                    <div className="space-y-2">
-                                        {todoItems.filter(t => !t.done).length === 0 ? (
-                                            <div className="flex flex-col items-center justify-center py-16 gap-3">
-                                                <div className="h-16 w-16 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(224,123,57,0.1)' }}>
-                                                    <Target className="h-8 w-8" style={{ color: 'var(--brand)' }} />
-                                                </div>
-                                                <p className="text-sm font-semibold">Barcha vazifalar bajarildi! 🎉</p>
-                                                <p className="text-xs text-center" style={{ color: 'var(--text-muted)' }}>AI yangi reja tuzib berishi uchun chatda so'rang</p>
-                                            </div>
-                                        ) : todoItems.map(item => item.done ? null : (
-                                            <div key={item.id} className="flex items-start gap-3 rounded-xl p-3.5 transition"
-                                                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                                <button onClick={() => markTodoDone(item.id)}
-                                                    className="h-5 w-5 rounded-full border-2 flex-shrink-0 mt-0.5 transition hover:opacity-70"
-                                                    style={{ borderColor: 'var(--brand)' }}
-                                                    title="Bajarildi" />
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-[13px] font-medium leading-snug">{item.task}</p>
-                                                    {(item.subject || item.duration) && (
-                                                        <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
-                                                            {item.subject}{item.subject && item.duration ? ' · ' : ''}{item.duration ? `${item.duration} daqiqa` : ''}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                                {item.time && (
-                                                    <span className="text-[11px] font-semibold tabular-nums flex-shrink-0 px-2 py-0.5 rounded-lg"
-                                                        style={{ background: 'rgba(224,123,57,0.1)', color: 'var(--brand)' }}>
-                                                        {item.time}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
                             </div>
                         </div>
                     </div>
