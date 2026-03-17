@@ -2113,14 +2113,10 @@ Iltimos, har bir savolni tahlil qilib ber:
 
                 {/* Todo inline panel */}
                 {todoOpen && (
-                    <div className="flex flex-col flex-shrink-0" style={{ width: '340px', borderLeft: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+                    <div className="flex flex-col flex-shrink-0" style={{ width: '320px', borderLeft: '1px solid var(--border)', background: 'var(--bg-page)' }}>
                         {/* Header */}
-                        <div className="h-14 flex items-center gap-3 px-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
-                            <Target className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--brand)' }} />
-                            <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold">Kunlik reja</p>
-                                <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{todoItems.filter(t => !t.done).length} ta vazifa qoldi</p>
-                            </div>
+                        <div className="h-14 flex items-center justify-between px-5 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+                            <p className="text-[15px] font-semibold" style={{ color: 'var(--text-primary)' }}>Progress</p>
                             <button onClick={() => setTodoOpen(false)} className="h-7 w-7 flex items-center justify-center rounded-lg transition"
                                 style={{ color: 'var(--text-muted)' }}
                                 onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
@@ -2129,36 +2125,51 @@ Iltimos, har bir savolni tahlil qilib ber:
                             </button>
                         </div>
                         {/* Tasks */}
-                        <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                            {todoItems.filter(t => !t.done).length === 0 ? (
-                                <div className="flex flex-col items-center justify-center h-full gap-3 py-16">
-                                    <div className="h-14 w-14 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(224,123,57,0.1)' }}>
-                                        <Target className="h-7 w-7" style={{ color: 'var(--brand)' }} />
-                                    </div>
-                                    <p className="text-sm font-semibold">Barcha vazifalar bajarildi! 🎉</p>
+                        <div className="flex-1 overflow-y-auto py-3">
+                            {todoItems.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center h-full gap-2 py-16 px-6">
+                                    <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Barcha vazifalar bajarildi! 🎉</p>
                                     <p className="text-xs text-center" style={{ color: 'var(--text-muted)' }}>Chatda yangi reja so'rang</p>
                                 </div>
-                            ) : todoItems.map(item => item.done ? null : (
-                                <div key={item.id} className="flex items-start gap-3 rounded-xl p-3 transition"
-                                    style={{ background: 'var(--bg-page)', border: '1px solid var(--border)' }}>
-                                    <button onClick={() => markTodoDone(item.id)}
-                                        className="h-5 w-5 rounded-full border-2 flex-shrink-0 mt-0.5 transition-all hover:scale-110"
-                                        style={{ borderColor: 'var(--brand)' }}
-                                        title="Bajarildi deb belgilash" />
+                            ) : todoItems.map((item, idx) => (
+                                <div key={item.id} className="flex items-start gap-4 px-5 py-3 group"
+                                    style={{ opacity: item.done ? 0.45 : 1, transition: 'opacity 0.2s' }}>
+                                    {/* Circle */}
+                                    <button
+                                        onClick={() => !item.done && markTodoDone(item.id)}
+                                        disabled={item.done}
+                                        className="flex-shrink-0 mt-0.5 transition-transform"
+                                        style={{ lineHeight: 0 }}
+                                        onMouseEnter={e => { if (!item.done) (e.currentTarget as HTMLElement).style.transform = 'scale(1.1)' }}
+                                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}
+                                        title={item.done ? '' : 'Bajarildi'}>
+                                        {item.done ? (
+                                            <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                                                <circle cx="11" cy="11" r="10.5" fill="var(--text-primary)" stroke="var(--text-primary)" strokeWidth="1" />
+                                                <path d="M7 11.5l2.8 2.8 5.2-5.6" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                            </svg>
+                                        ) : (
+                                            <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                                                <circle cx="11" cy="11" r="10.5" fill="none" stroke="var(--text-primary)" strokeWidth="1.5" />
+                                            </svg>
+                                        )}
+                                    </button>
+                                    {/* Content */}
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-[13px] font-medium leading-snug">{item.task}</p>
-                                        {(item.subject || item.duration) && (
+                                        <p className="text-[14px] leading-snug"
+                                            style={{
+                                                color: 'var(--text-primary)',
+                                                fontWeight: 450,
+                                                textDecoration: item.done ? 'line-through' : 'none',
+                                            }}>
+                                            {item.task}
+                                        </p>
+                                        {(item.time || item.subject || item.duration) && (
                                             <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                                                {item.subject}{item.subject && item.duration ? ' · ' : ''}{item.duration ? `${item.duration} daqiqa` : ''}
+                                                {[item.time, item.subject, item.duration ? `${item.duration} daq` : ''].filter(Boolean).join(' · ')}
                                             </p>
                                         )}
                                     </div>
-                                    {item.time && (
-                                        <span className="text-[11px] font-semibold tabular-nums flex-shrink-0 px-2 py-0.5 rounded-lg"
-                                            style={{ background: 'rgba(224,123,57,0.1)', color: 'var(--brand)' }}>
-                                            {item.time}
-                                        </span>
-                                    )}
                                 </div>
                             ))}
                         </div>
