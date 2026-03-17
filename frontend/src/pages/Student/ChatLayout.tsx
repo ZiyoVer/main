@@ -1734,7 +1734,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                         >
                             <ClipboardList className="h-4 w-4 flex-shrink-0" />
                             Testlar
-                            {newTestIds.size > 0 && <span className="ml-auto px-1.5 rounded-full text-white text-[10px] flex items-center font-bold" style={{ background: '#f97316', height: '18px' }}>{newTestIds.size > 9 ? '9+' : newTestIds.size}</span>}
+                            {newTestIds.size > 0 && <span className="ml-auto px-1.5 rounded-full text-white text-[10px] flex items-center font-bold" style={{ background: 'var(--danger)', height: '18px' }}>{newTestIds.size > 9 ? '9+' : newTestIds.size}</span>}
                         </button>
                         {/* Kartochkalar */}
                         <button onClick={() => setOverlayPanel(overlayPanel === 'flashcards' ? null : 'flashcards')}
@@ -1745,7 +1745,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                         >
                             <Brain className="h-4 w-4 flex-shrink-0" />
                             Kartochkalar
-                            {dueCount > 0 && <span className="ml-auto px-1.5 rounded-full text-white text-[10px] flex items-center font-bold" style={{ background: 'var(--brand)', height: '18px' }}>{dueCount > 9 ? '9+' : dueCount}</span>}
+                            {dueCount > 0 && <span className="ml-auto px-1.5 rounded-full text-white text-[10px] flex items-center font-bold" style={{ background: 'var(--danger)', height: '18px' }}>{dueCount > 9 ? '9+' : dueCount}</span>}
                         </button>
                         {/* Natijalar */}
                         <button onClick={() => setOverlayPanel(overlayPanel === 'progress' ? null : 'progress')}
@@ -2714,15 +2714,15 @@ Iltimos, har bir savolni tahlil qilib ber:
                                 {overlayPanel === 'flashcards' && (
                                     <div className="space-y-3">
                                         {dueFlashcards.length > 0 && (
-                                            <div className="rounded-2xl p-4 mb-2" style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)' }}>
+                                            <div className="rounded-2xl p-4 mb-2" style={{ background: 'var(--danger-light)', border: '1px solid var(--danger)' }}>
                                                 <div className="flex items-center justify-between">
                                                     <div>
-                                                        <p className="font-semibold text-sm" style={{ color: '#6366f1' }}>{dueFlashcards.length} ta kartochka takrorlash vaqti keldi</p>
+                                                        <p className="font-semibold text-sm" style={{ color: 'var(--danger)' }}>{dueFlashcards.length} ta kartochka takrorlash vaqti keldi</p>
                                                         <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Xotirani mustahkamlash uchun takrorlang</p>
                                                     </div>
                                                     <button onClick={() => { setOverlayPanel(null); setFlashPanel(dueFlashcards.map(f => ({ front: f.front, back: f.back }))); setFlashIdx(0); setFlashFlipped(false); setFlashIsReview(true) }}
                                                         className="text-sm font-semibold px-4 py-2 rounded-xl transition"
-                                                        style={{ background: '#6366f1', color: 'white' }}>
+                                                        style={{ background: 'var(--danger)', color: 'white' }}>
                                                         Boshlash
                                                     </button>
                                                 </div>
