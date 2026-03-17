@@ -1076,6 +1076,7 @@ Iltimos, har bir savolni tahlil qilib ber:
             await fetchApi('/profile', { method: 'PUT', body: JSON.stringify(data) })
             setShowOnboarding(false)
             await loadProfile()
+            toast.success('Profil muvaffaqiyatli saqlandi!')
             // Birinchi marta onboarding — avtomatik chat ochib AI tabriklash xabari
             if (!profile?.onboardingDone) {
                 const firstChat = await fetchApi('/chat/new', {
