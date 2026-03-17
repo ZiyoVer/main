@@ -1181,7 +1181,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         if (testMatch) {
                                             try {
                                                 JSON.parse(testMatch[1].trim())
-                                                setTimeout(() => openTestPanel(testMatch[1].trim()), 400)
+                                                setTimeout(() => { setTodoOpen(false); openTestPanel(testMatch[1].trim()) }, 400)
                                             } catch { }
                                         }
                                     }
@@ -1301,12 +1301,19 @@ Iltimos, har bir savolni tahlil qilib ber:
     }, [chatId])
 
 
+    // Test panel ochish (todo ni yopadi)
+    const handleOpenTest = useCallback((jsonStr: string) => {
+        setTodoOpen(false)
+        openTestPanel(jsonStr)
+    }, [openTestPanel])
+
     // Flashcard panelni ochish
     const handleOpenFlash = useCallback((jsonStr: string) => {
         try {
             const cards = JSON.parse(jsonStr)
             if (!Array.isArray(cards) || cards.length === 0) return
             setTestPanel(null) // testni yopamiz
+            setTodoOpen(false) // todoni yopamiz
             openFlashPanel(jsonStr)
             setFlashIsReview(false) // AI chatdan kelgan — review rejimi emas
             // DB ga saqlaymiz — Kartochkalar tabida ko'rinishi uchun (background)
@@ -1322,6 +1329,7 @@ Iltimos, har bir savolni tahlil qilib ber:
     const handleOpenEssay = useCallback((data: EssayPanel) => {
         setTestPanel(null)
         setFlashPanel(null)
+        setTodoOpen(false) // todoni yopamiz
         setEssayPanel(data)
         setEssayText('')
         setEssaySubmitted(false)
@@ -1335,7 +1343,11 @@ Iltimos, har bir savolni tahlil qilib ber:
         setTodoOpen(true)
     }, [])
     const markTodoDone = useCallback((id: string) => {
+        // Avval done=true (animation uchun), keyin 500ms dan so'ng o'chiramiz
         setTodoItems(prev => prev.map(t => t.id === id ? { ...t, done: true } : t))
+        setTimeout(() => {
+            setTodoItems(prev => prev.filter(t => t.id !== id))
+        }, 500)
     }, [])
 
     // Essay submit — AI ga baholash uchun yuborish
@@ -1631,7 +1643,7 @@ Iltimos, har bir savolni tahlil qilib ber:
     }
 
     return (
-        <ChatContext.Provider value={{ onOpenTest: openTestPanel, onProfileUpdate: handleProfileUpdate, onOpenFlash: handleOpenFlash, onOpenEssay: handleOpenEssay, onSetTodo: handleSetTodo }}>
+        <ChatContext.Provider value={{ onOpenTest: handleOpenTest, onProfileUpdate: handleProfileUpdate, onOpenFlash: handleOpenFlash, onOpenEssay: handleOpenEssay, onSetTodo: handleSetTodo }}>
             <div className="min-h-[100dvh] h-[100dvh] flex overflow-hidden relative" style={{ background: 'var(--bg-page)' }}>
                 {/* Mobile backdrop */}
                 {sideOpen && isMobile && (
