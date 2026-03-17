@@ -62,13 +62,19 @@ function TodoBlockMount({ items, onSetTodo }: { items: Omit<TodoItem, 'id' | 'do
     )
 }
 
+// TodoDoneMount: invisible component — mounts → marks matching todo as done
+function TodoDoneMount({ taskName, onMarkDone }: { taskName: string; onMarkDone: (t: string) => void }) {
+    useEffect(() => { onMarkDone(taskName) }, []) // eslint-disable-line
+    return null
+}
+
 // MdMessage komponentni tashqarida va memo bilan ta'riflaymiz —
 // shunda har keystrokeda re-render bo'lmaydi (ReactMarkdown+KaTeX qimmat!)
 const MdMessage = memo(({ content, isStreaming }: {
     content: string
     isStreaming?: boolean
 }) => {
-    const { onOpenTest, onProfileUpdate, onOpenFlash, onOpenEssay, onSetTodo } = useChatContext()
+    const { onOpenTest, onProfileUpdate, onOpenFlash, onOpenEssay, onSetTodo, onMarkTodoDoneByTask } = useChatContext()
     const processedContent = preprocessMath(content)
     return (
         <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} components={{
@@ -344,6 +350,12 @@ const MdMessage = memo(({ content, isStreaming }: {
                     try { rawItems = JSON.parse(String(children).trim()) } catch { return null }
                     if (!rawItems.length) return null
                     return <TodoBlockMount items={rawItems} onSetTodo={onSetTodo} />
+                }
+                if (className?.includes('language-todo-done')) {
+                    let data: { task: string } = { task: '' }
+                    try { data = JSON.parse(String(children).trim()) } catch { return null }
+                    if (!data.task) return null
+                    return <TodoDoneMount taskName={data.task} onMarkDone={onMarkTodoDoneByTask} />
                 }
                 const isBlock = className?.includes('language-')
                 return isBlock
@@ -1133,7 +1145,7 @@ Iltimos, har bir savolni tahlil qilib ber:
             const res = await fetch(`/api/chat/${targetChatId}/stream`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ content: prompt, thinking: thinkingMode, ...(displayText !== undefined && { displayText }) }),
+                body: JSON.stringify({ content: prompt, thinking: thinkingMode, ...(displayText !== undefined && { displayText }), todoContext: todoItems.filter(t => !t.done) }),
                 signal: controller.signal
             })
             if (!res.ok) {
@@ -1348,6 +1360,22 @@ Iltimos, har bir savolni tahlil qilib ber:
         setTimeout(() => {
             setTodoItems(prev => prev.filter(t => t.id !== id))
         }, 500)
+    }, [])
+
+    // AI todo-done bloki: vazifa nomini topib, bajarildi deb belgilash
+    const markTodoDoneByTask = useCallback((taskName: string) => {
+        setTodoItems(prev => {
+            const norm = (s: string) => s.toLowerCase().trim()
+            const match = prev.find(t => !t.done && (
+                norm(t.task) === norm(taskName) ||
+                norm(t.task).includes(norm(taskName)) ||
+                norm(taskName).includes(norm(t.task))
+            ))
+            if (!match) return prev
+            // Mark done, then remove after animation
+            setTimeout(() => setTodoItems(p => p.filter(t => t.id !== match.id)), 600)
+            return prev.map(t => t.id === match.id ? { ...t, done: true } : t)
+        })
     }, [])
 
     // Essay submit — AI ga baholash uchun yuborish
@@ -1643,7 +1671,7 @@ Iltimos, har bir savolni tahlil qilib ber:
     }
 
     return (
-        <ChatContext.Provider value={{ onOpenTest: handleOpenTest, onProfileUpdate: handleProfileUpdate, onOpenFlash: handleOpenFlash, onOpenEssay: handleOpenEssay, onSetTodo: handleSetTodo }}>
+        <ChatContext.Provider value={{ onOpenTest: handleOpenTest, onProfileUpdate: handleProfileUpdate, onOpenFlash: handleOpenFlash, onOpenEssay: handleOpenEssay, onSetTodo: handleSetTodo, onMarkTodoDoneByTask: markTodoDoneByTask }}>
             <div className="min-h-[100dvh] h-[100dvh] flex overflow-hidden relative" style={{ background: 'var(--bg-page)' }}>
                 {/* Mobile backdrop */}
                 {sideOpen && isMobile && (

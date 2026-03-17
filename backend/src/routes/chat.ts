@@ -1197,7 +1197,7 @@ router.post('/:chatId/upload-file', authenticate, uploadSingle, async (req: Auth
 // Streaming xabar yuborish (SSE)
 router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
     try {
-        const { content, thinking, displayText } = req.body
+        const { content, thinking, displayText, todoContext } = req.body
         if (!content?.trim()) return res.status(400).json({ error: 'Xabar bo\'sh' })
 
         const chat = await prisma.chat.findFirst({
@@ -1244,7 +1244,13 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
             : ''
 
         const isFirstMessage = history.length <= 1
-        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, aiSettings.extraRules, aiSettings.promptOverrides, isFirstMessage) + ragSection
+
+        // Kunlik reja konteksti — foydalanuvchi yuborgan todo ro'yxati
+        const todoSection = (Array.isArray(todoContext) && todoContext.length > 0)
+            ? `\n\n--- FOYDALANUVCHINING BUGUNGI KUNLIK REJASI ---\nQuyidagi vazifalar hali bajarilmagan. Agar foydalanuvchi biror vazifaga to'g'ri keladigan mavzuni so'rasa va sen uni to'liq tushuntirgan bo'lsang, javob oxirida FAQAT bitta shu formatda blok qo'sh:\n\`\`\`todo-done\n{"task":"ANIQ_VAZIFA_NOMI"}\n\`\`\`\nMUHIM: task nomini ro'yxatdagi ANIQ yozilganidek qo'y. Ko'p qo'yma, faqat tushuntirilgan vazifa uchun bir marta.\nBajarilmagan vazifalar:\n${todoContext.map((t: any, i: number) => `${i + 1}. ${t.task}${t.time ? ' (' + t.time + ')' : ''}`).join('\n')}\n--- REJA TUGADI ---`
+            : ''
+
+        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, aiSettings.extraRules, aiSettings.promptOverrides, isFirstMessage) + ragSection + todoSection
 
         // History: oxirgi user xabar (hozir saqlanganini) alohida olamiz
         // DeepSeek image_url qabul qilmaydi — OCR matni content ichida keladi

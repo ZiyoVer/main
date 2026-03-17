@@ -17,6 +17,7 @@ interface ChatContextValue {
   onOpenFlash: (jsonStr: string) => void
   onOpenEssay: (data: EssayPanel) => void
   onSetTodo: (items: Omit<TodoItem, 'id' | 'done'>[]) => void
+  onMarkTodoDoneByTask: (taskName: string) => void
 }
 
 const ChatContext = createContext<ChatContextValue>({
@@ -25,6 +26,7 @@ const ChatContext = createContext<ChatContextValue>({
   onOpenFlash: () => {},
   onOpenEssay: () => {},
   onSetTodo: () => {},
+  onMarkTodoDoneByTask: () => {},
 })
 
 export const useChatContext = () => useContext(ChatContext)
