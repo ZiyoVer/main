@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, memo } from 'react'
+import React, { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, Sun, Moon, Search, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, Timer, Sparkles, User, Shield, ArrowUp, BarChart2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -1674,8 +1674,20 @@ Iltimos, har bir savolni tahlil qilib ber:
         )
     }
 
+    // useMemo: context value ni stabillashtirish — har render da yangi {} yaratilmaydi.
+    // Bu MdMessage/TodoBlockMount ni keraksiz qayta mount qilishdan saqlab, X tugmasini tuzatadi
+    // va streaming vaqtida sayt qotishini ham hal qiladi.
+    const chatContextValue = useMemo(() => ({
+        onOpenTest: handleOpenTest,
+        onProfileUpdate: handleProfileUpdate,
+        onOpenFlash: handleOpenFlash,
+        onOpenEssay: handleOpenEssay,
+        onSetTodo: handleSetTodo,
+        onMarkTodoDoneByTask: markTodoDoneByTask,
+    }), [handleOpenTest, handleProfileUpdate, handleOpenFlash, handleOpenEssay, handleSetTodo, markTodoDoneByTask])
+
     return (
-        <ChatContext.Provider value={{ onOpenTest: handleOpenTest, onProfileUpdate: handleProfileUpdate, onOpenFlash: handleOpenFlash, onOpenEssay: handleOpenEssay, onSetTodo: handleSetTodo, onMarkTodoDoneByTask: markTodoDoneByTask }}>
+        <ChatContext.Provider value={chatContextValue}>
             <div className="min-h-[100dvh] h-[100dvh] flex overflow-hidden relative" style={{ background: 'var(--bg-page)' }}>
                 {/* Mobile backdrop */}
                 {sideOpen && isMobile && (
