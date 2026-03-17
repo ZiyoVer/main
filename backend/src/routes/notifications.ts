@@ -17,7 +17,7 @@ router.get('/', async (req: AuthRequest, res) => {
   }
 
   const notifications = await prisma.notification.findMany({
-    where: { userId },
+    where: { userId, isRead: false },
     orderBy: { createdAt: 'desc' },
     take: 50,
     include: { sender: { select: { name: true, role: true } } }

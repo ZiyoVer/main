@@ -630,7 +630,7 @@ export default function ChatLayout() {
     const [todoItems, setTodoItems] = useState<TodoItem[]>([])
     const [todoOpen, setTodoOpen] = useState(false)
     const [showSettings, setShowSettings] = useState(false)
-    const [settingsSection, setSettingsSection] = useState<'profile' | 'appearance' | 'notifications' | 'security' | 'account'>('profile')
+    const [settingsSection, setSettingsSection] = useState<'profile' | 'notifications' | 'security'>('profile')
     const [darkMode, setDarkMode] = useState<boolean>(() => {
         const saved = localStorage.getItem('darkMode')
         return saved === 'true'
@@ -1864,99 +1864,129 @@ Iltimos, har bir savolni tahlil qilib ber:
                         </div>
                     )}
 
-                    {/* Sozlamalar modal (ChatGPT uslubi) */}
+                    {/* Sozlamalar modal */}
                     {showSettings && (
                         <div
                             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
                             onClick={e => { if (e.target === e.currentTarget) setShowSettings(false) }}
                         >
-                            <div className="card" style={{ width: '100%', maxWidth: '680px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '16px' }}>
-                                {/* Modal header */}
+                            <div className="card" style={{ width: '100%', maxWidth: '700px', height: '580px', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '16px' }}>
+                                {/* Header */}
                                 <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                                     <h2 className="text-base font-semibold">Sozlamalar</h2>
                                     <button onClick={() => setShowSettings(false)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><X className="h-4 w-4" /></button>
                                 </div>
-                                {/* Modal body */}
+                                {/* Body */}
                                 <div className="flex flex-1 overflow-hidden">
                                     {/* Left nav */}
-                                    <div className="flex-shrink-0 p-3 space-y-0.5" style={{ width: '180px', borderRight: '1px solid var(--border)', overflowY: 'auto' }}>
-                                        {([
-                                            { k: 'profile' as const, l: 'Profil', Icon: User },
-                                            { k: 'appearance' as const, l: "Ko'rinish", Icon: darkMode ? Moon : Sun },
-                                            { k: 'notifications' as const, l: 'Bildirishnomalar', Icon: Bell, badge: notifCount },
-                                            { k: 'security' as const, l: 'Xavfsizlik', Icon: Shield },
-                                            { k: 'account' as const, l: 'Akkount', Icon: LogOut },
-                                        ] as const).map(({ k, l, Icon, badge }: { k: typeof settingsSection; l: string; Icon: React.ElementType; badge?: number }) => (
-                                            <button key={k} onClick={() => { setSettingsSection(k); if (k === 'notifications') loadNotifications() }}
-                                                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition text-left"
-                                                style={settingsSection === k ? { background: 'var(--brand-light)', color: 'var(--brand-hover)' } : { color: 'var(--text-secondary)' }}
-                                                onMouseEnter={e => { if (settingsSection !== k) e.currentTarget.style.background = 'var(--bg-muted)' }}
-                                                onMouseLeave={e => { if (settingsSection !== k) e.currentTarget.style.background = 'transparent' }}
-                                            >
-                                                <Icon className="h-4 w-4 flex-shrink-0" />
-                                                <span className="flex-1 truncate">{l}</span>
-                                                {badge != null && badge > 0 && <span className="h-4 w-4 rounded-full text-white text-[9px] flex items-center justify-center font-bold flex-shrink-0" style={{ background: 'var(--danger)' }}>{badge > 9 ? '9+' : badge}</span>}
-                                            </button>
-                                        ))}
+                                    <div className="flex-shrink-0 p-3 flex flex-col" style={{ width: '185px', borderRight: '1px solid var(--border)' }}>
+                                        <div className="flex-1 space-y-0.5">
+                                            {([
+                                                { k: 'profile' as const, l: 'Profil', Icon: User, badge: undefined as number | undefined },
+                                                { k: 'notifications' as const, l: 'Bildirishnomalar', Icon: Bell, badge: notifCount as number | undefined },
+                                                { k: 'security' as const, l: 'Xavfsizlik', Icon: Shield, badge: undefined as number | undefined },
+                                            ]).map(({ k, l, Icon, badge }) => (
+                                                <button key={k}
+                                                    onClick={() => { setSettingsSection(k); if (k === 'notifications') loadNotifications() }}
+                                                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition text-left"
+                                                    style={settingsSection === k ? { background: 'var(--brand-light)', color: 'var(--brand-hover)' } : { color: 'var(--text-secondary)' }}
+                                                    onMouseEnter={e => { if (settingsSection !== k) e.currentTarget.style.background = 'var(--bg-muted)' }}
+                                                    onMouseLeave={e => { if (settingsSection !== k) e.currentTarget.style.background = 'transparent' }}
+                                                >
+                                                    <Icon className="h-4 w-4 flex-shrink-0" />
+                                                    <span className="flex-1 truncate">{l}</span>
+                                                    {badge != null && badge > 0 && <span className="h-4 w-4 rounded-full text-white text-[9px] flex items-center justify-center font-bold flex-shrink-0" style={{ background: 'var(--danger)' }}>{badge > 9 ? '9+' : badge}</span>}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        {/* Tizimdan chiqish — pastda alohida */}
+                                        <button onClick={() => { setShowSettings(false); logout() }}
+                                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition text-left"
+                                            style={{ color: 'var(--danger)' }}
+                                            onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-light)'}
+                                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                        >
+                                            <LogOut className="h-4 w-4 flex-shrink-0" />
+                                            <span>Chiqish</span>
+                                        </button>
                                     </div>
-                                    {/* Right content */}
-                                    <div className="flex-1 overflow-y-auto p-6 space-y-5">
+
+                                    {/* Right content — fixed height, scrollable */}
+                                    <div className="flex-1 overflow-y-auto p-6">
+
+                                        {/* ── PROFIL ── */}
                                         {settingsSection === 'profile' && (
-                                            <>
-                                                <div className="flex items-center gap-4">
-                                                    <div className="h-14 w-14 rounded-full flex items-center justify-center text-lg font-bold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>{user?.name?.[0]?.toUpperCase()}</div>
+                                            <div className="space-y-4">
+                                                {/* Avatar + user info */}
+                                                <div className="flex items-center gap-3 pb-4" style={{ borderBottom: '1px solid var(--border)' }}>
+                                                    <div className="h-12 w-12 rounded-full flex items-center justify-center text-base font-bold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>{user?.name?.[0]?.toUpperCase()}</div>
                                                     <div>
-                                                        <p className="text-base font-semibold">{user?.name}</p>
+                                                        <p className="font-semibold">{user?.name}</p>
                                                         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
                                                     </div>
                                                 </div>
-                                                {(profile?.subject || profile?.examDate) && (
-                                                    <div className="rounded-xl p-4 space-y-1.5" style={{ background: 'var(--bg-muted)' }}>
-                                                        {profile.subject && <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>📚 Fan: <span className="font-medium">{profile.subject}{(profile as any).subject2 ? ` va ${(profile as any).subject2}` : ''}</span></p>}
-                                                        {profile.examDate && <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>📅 Imtihon: <span className="font-medium">{new Date(profile.examDate).toLocaleDateString('uz-UZ')}</span></p>}
-                                                        {profile.targetScore && <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>🎯 Maqsad: <span className="font-medium">{profile.targetScore} ball</span></p>}
+                                                {/* Inline profil formasi */}
+                                                <form onSubmit={saveOnboarding} className="space-y-3">
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <div>
+                                                            <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>Asosiy fan</label>
+                                                            <select value={onboardingForm.subject} onChange={e => setOnboardingForm(f => ({ ...f, subject: e.target.value }))} className="input text-sm h-9" style={{ cursor: 'pointer' }}>
+                                                                {['Matematika', 'Fizika', 'Kimyo', 'Biologiya', 'Ona tili', 'Ingliz tili', 'Tarix', 'Geografiya'].map(f => <option key={f} value={f}>{f}</option>)}
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>2-fan <span className="opacity-60">(ixtiyoriy)</span></label>
+                                                            <select value={onboardingForm.subject2} onChange={e => setOnboardingForm(f => ({ ...f, subject2: e.target.value }))} className="input text-sm h-9" style={{ cursor: 'pointer' }}>
+                                                                <option value="">— Tanlang —</option>
+                                                                {['Matematika', 'Fizika', 'Kimyo', 'Biologiya', 'Ona tili va adabiyoti', 'Ingliz tili', 'Tarix', 'Geografiya'].filter(s => s !== onboardingForm.subject).map(s => <option key={s} value={s}>{s}</option>)}
+                                                            </select>
+                                                        </div>
                                                     </div>
-                                                )}
-                                                <button onClick={() => { setShowOnboarding(true); setShowSettings(false) }}
-                                                    className="btn btn-outline h-9 px-4 flex items-center gap-2 text-sm">
-                                                    <Settings className="h-4 w-4" /> Profilni tahrirlash
-                                                </button>
-                                            </>
-                                        )}
-                                        {settingsSection === 'appearance' && (
-                                            <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: 'var(--bg-muted)' }}>
-                                                <div className="flex items-center gap-3">
-                                                    {darkMode ? <Moon className="h-5 w-5" style={{ color: 'var(--brand)' }} /> : <Sun className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <div>
+                                                            <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>Imtihon sanasi</label>
+                                                            <input type="date" value={onboardingForm.examDate} onChange={e => setOnboardingForm(f => ({ ...f, examDate: e.target.value }))} className="input text-sm h-9" />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>Maqsad ball (0–100)</label>
+                                                            <input type="number" min="0" max="100" value={onboardingForm.targetScore} onChange={e => setOnboardingForm(f => ({ ...f, targetScore: parseInt(e.target.value) || 0 }))} className="input text-sm h-9" />
+                                                        </div>
+                                                    </div>
                                                     <div>
-                                                        <p className="text-sm font-medium">{darkMode ? "Qorong'i rejim" : "Yorug' rejim"}</p>
-                                                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Interfeys mavzusini almashtirish</p>
+                                                        <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>Qiyin mavzular <span className="opacity-60">(vergul bilan)</span></label>
+                                                        <input placeholder="masalan: trigonometriya, integrallar" value={onboardingForm.weakTopics} onChange={e => setOnboardingForm(f => ({ ...f, weakTopics: e.target.value }))} className="input text-sm h-9" />
                                                     </div>
-                                                </div>
-                                                <button
-                                                    onClick={() => setDarkMode(!darkMode)}
-                                                    className="relative h-7 w-12 rounded-full transition-all duration-300 flex-shrink-0"
-                                                    style={{ background: darkMode ? 'var(--brand)' : 'var(--bg-muted)', border: '1px solid var(--border)' }}
-                                                >
-                                                    <span className="absolute top-1 h-5 w-5 rounded-full transition-all duration-300" style={{ background: 'white', left: darkMode ? '26px' : '2px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
-                                                </button>
+                                                    <div>
+                                                        <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>Kuchli mavzular</label>
+                                                        <input placeholder="masalan: algebra, geometriya" value={onboardingForm.strongTopics} onChange={e => setOnboardingForm(f => ({ ...f, strongTopics: e.target.value }))} className="input text-sm h-9" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>Nima tashvishlantiradi?</label>
+                                                        <input placeholder="masalan: formulalarni eslab qolish" value={onboardingForm.concerns} onChange={e => setOnboardingForm(f => ({ ...f, concerns: e.target.value }))} className="input text-sm h-9" />
+                                                    </div>
+                                                    <button type="submit" disabled={savingProfile} className="btn btn-primary h-9 text-sm px-5">
+                                                        {savingProfile ? 'Saqlanmoqda...' : 'Saqlash'}
+                                                    </button>
+                                                </form>
                                             </div>
                                         )}
+
+                                        {/* ── BILDIRISHNOMALAR ── */}
                                         {settingsSection === 'notifications' && (
-                                            <>
-                                                <div className="flex items-center justify-between mb-1">
+                                            <div className="space-y-3">
+                                                <div className="flex items-center justify-between">
                                                     <p className="text-sm font-semibold">Bildirishnomalar</p>
                                                     {notifLoading && <div className="h-4 w-4 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--brand)', borderTopColor: 'transparent' }} />}
                                                 </div>
-                                                {notifications.length === 0 ? (
-                                                    <div className="flex flex-col items-center justify-center py-10" style={{ color: 'var(--text-muted)' }}>
-                                                        <Bell className="h-8 w-8 mb-2 opacity-30" />
-                                                        <p className="text-sm">Bildirishnomalar yo'q</p>
+                                                {!notifLoading && notifications.length === 0 ? (
+                                                    <div className="flex flex-col items-center justify-center py-16" style={{ color: 'var(--text-muted)' }}>
+                                                        <Bell className="h-10 w-10 mb-3 opacity-20" />
+                                                        <p className="text-sm">Yangi bildirishnomalar yo'q</p>
                                                     </div>
                                                 ) : (
                                                     <div className="space-y-2">
                                                         {notifications.map((n: any) => (
-                                                            <div key={n.id} className="p-3 rounded-xl"
-                                                                style={{ background: n.isRead ? 'var(--bg-muted)' : 'var(--brand-light)', border: '1px solid var(--border)' }}>
+                                                            <div key={n.id} className="p-3 rounded-xl" style={{ background: 'var(--brand-light)', border: '1px solid var(--border)' }}>
                                                                 <p className="text-sm font-semibold mb-0.5">{n.title}</p>
                                                                 <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{n.message}</p>
                                                                 <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{n.sender?.name} · {new Date(n.createdAt).toLocaleDateString('uz')}</p>
@@ -1964,14 +1994,16 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                         ))}
                                                     </div>
                                                 )}
-                                            </>
+                                            </div>
                                         )}
+
+                                        {/* ── XAVFSIZLIK ── */}
                                         {settingsSection === 'security' && (
-                                            <div className="space-y-4">
-                                                <p className="text-sm font-semibold">Parolni o'zgartirish</p>
-                                                {changePwOk && <div className="text-sm px-3 py-2 rounded-lg" style={{ background: '#D1FAE5', color: '#065F46' }}>Parol muvaffaqiyatli yangilandi!</div>}
-                                                {changePwErr && <div className="text-sm px-3 py-2 rounded-lg" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>{changePwErr}</div>}
-                                                <div className="space-y-2">
+                                            <div className="space-y-5">
+                                                <div className="space-y-3">
+                                                    <p className="text-sm font-semibold">Parolni o'zgartirish</p>
+                                                    {changePwOk && <div className="text-sm px-3 py-2 rounded-lg" style={{ background: '#D1FAE5', color: '#065F46' }}>Parol muvaffaqiyatli yangilandi!</div>}
+                                                    {changePwErr && <div className="text-sm px-3 py-2 rounded-lg" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>{changePwErr}</div>}
                                                     <input type="password" placeholder="Joriy parol" value={changePwForm.current} onChange={e => setChangePwForm(f => ({ ...f, current: e.target.value }))} className="input text-sm h-9" />
                                                     <input type="password" placeholder="Yangi parol (kamida 8 belgi)" value={changePwForm.newPw} onChange={e => setChangePwForm(f => ({ ...f, newPw: e.target.value }))} className="input text-sm h-9" />
                                                     <input type="password" placeholder="Yangi parolni tasdiqlang" value={changePwForm.confirm} onChange={e => setChangePwForm(f => ({ ...f, confirm: e.target.value }))} className="input text-sm h-9" />
@@ -1986,24 +2018,14 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                             } catch (e: any) { setChangePwErr(e.message || 'Xatolik yuz berdi') }
                                                             setChangePwLoading(false)
                                                         }}
-                                                        className="btn btn-outline w-full h-9 text-sm">{changePwLoading ? 'Saqlanmoqda...' : 'Parolni yangilash'}</button>
+                                                        className="btn btn-outline h-9 text-sm px-5 disabled:opacity-40">{changePwLoading ? 'Saqlanmoqda...' : 'Parolni yangilash'}</button>
                                                 </div>
-                                            </div>
-                                        )}
-                                        {settingsSection === 'account' && (
-                                            <div className="space-y-4">
-                                                <button onClick={() => { setShowSettings(false); logout() }}
-                                                    className="w-full h-10 flex items-center justify-center gap-2 text-sm font-medium rounded-xl transition"
-                                                    style={{ color: 'var(--danger)', border: '1px solid var(--danger-light)', background: 'transparent' }}
-                                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-light)'}
-                                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                                    <LogOut className="h-4 w-4" /> Tizimdan chiqish
-                                                </button>
-                                                <div className="rounded-xl p-4" style={{ border: '1px solid var(--danger-light)' }}>
-                                                    <p className="text-sm font-semibold mb-1" style={{ color: 'var(--danger)' }}>Xavfli zona</p>
-                                                    <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>Akkauntni o'chirib bo'lmaydi — barcha ma'lumotlar o'chib ketadi.</p>
+                                                {/* Xavfli zona */}
+                                                <div className="rounded-xl p-4 space-y-2" style={{ border: '1px solid var(--danger-light)' }}>
+                                                    <p className="text-sm font-semibold" style={{ color: 'var(--danger)' }}>Xavfli zona</p>
+                                                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Akkauntni o'chirib bo'lmaydi — barcha ma'lumotlar butunlay yo'qoladi.</p>
                                                     <button onClick={() => { setShowDeleteModal(true); setDeleteErr(''); setDeletePassword('') }}
-                                                        className="w-full h-9 flex items-center justify-center gap-2 text-sm font-medium rounded-lg transition"
+                                                        className="h-9 flex items-center gap-2 text-sm font-medium rounded-lg px-4 transition"
                                                         style={{ color: 'var(--danger)', border: '1px solid var(--danger)', background: 'transparent' }}
                                                         onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-light)'}
                                                         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
@@ -2012,6 +2034,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 </div>
                                             </div>
                                         )}
+
                                     </div>
                                 </div>
                             </div>
