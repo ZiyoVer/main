@@ -2739,8 +2739,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         )}
                                         {dueFlashcards.map(f => (
                                             <div key={f.id} className="rounded-2xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                                <p className="text-sm font-medium">{f.front}</p>
-                                                <p className="text-xs mt-2 pt-2" style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>{f.back}</p>
+                                                <p className="text-sm font-medium"><MathText text={f.front} /></p>
+                                                <p className="text-xs mt-2 pt-2" style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}><MathText text={f.back} /></p>
                                             </div>
                                         ))}
                                     </div>

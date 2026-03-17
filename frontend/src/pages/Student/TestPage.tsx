@@ -243,8 +243,7 @@ export default function TestPage() {
                                         return (
                                             <button key={oi} disabled={submitted || isGuest} onClick={() => !isGuest && setAnswers(a => ({ ...a, [q.id]: oi }))} className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border text-left text-[13px] transition" style={{ background: bg, borderColor: border, color, cursor: isGuest ? 'not-allowed' : 'pointer', opacity: isGuest ? 0.7 : 1 }}>
                                                 <span className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 text-[10px] font-bold border-current">{OPTS[oi]}</span>
-                                                <span className="flex-1">{opt.replace(/\$[^$]+\$/g, '').trim()}</span>
-                                                <MathPreview text={opt} inline />
+                                                <span className="flex-1"><TextWithMath text={opt} /></span>
                                                 {submitted && oi === correctIdx && <CheckCircle className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--success)' }} />}
                                                 {submitted && sel === oi && oi !== correctIdx && <XCircle className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--danger)' }} />}
                                             </button>
@@ -369,8 +368,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                         return (
                                             <div key={oi} className="flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] transition" style={sty}>
                                                 <span className="font-bold text-[11px] flex-shrink-0 w-4">{OPTS[oi]})</span>
-                                                <span className="flex-1">{opt.replace(/\$[^$]+\$/g, '').trim()}</span>
-                                                <MathPreview text={opt} inline />
+                                                <span className="flex-1"><TextWithMath text={opt} /></span>
                                                 {submitted && oi === correctIdx && <CheckCircle className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--success)' }} />}
                                                 {submitted && sel && oi !== correctIdx && <XCircle className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--danger)' }} />}
                                             </div>
