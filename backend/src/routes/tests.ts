@@ -880,7 +880,9 @@ router.post('/:testId/submit-guest', optionalAuthenticate, submitLimiter, async 
         if (!test) return res.status(404).json({ error: 'Test topilmadi' })
 
         // Login qilgan student private testni submit-guest orqali chetlab o'ta olmasligi kerak
-        if (!test.isPublic && req.user?.role === 'STUDENT') {
+        // ISTISNO: teacher shareLink bergan testlar (shareLink bor bo'lsa — ruxsat berilgan)
+        const hasShareLink = !!(test as any).shareLink
+        if (!test.isPublic && !hasShareLink && req.user?.role === 'STUDENT') {
             return res.status(403).json({ error: 'Bu test uchun ruxsat yo\'q' })
         }
 

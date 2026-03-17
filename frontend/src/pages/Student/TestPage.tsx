@@ -97,7 +97,7 @@ export default function TestPage() {
 
     function scrollToQuestion(idx: number) {
         const el = questionsRef.current?.querySelector(`[data-qi="${idx}"]`)
-        el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
         setFocusedQ(idx)
     }
 

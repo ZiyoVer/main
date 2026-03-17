@@ -767,7 +767,6 @@ export default function ChatLayout() {
         window.history.replaceState({}, '', location.pathname)
         localStorage.removeItem('dtmmax_guest_test_result')
 
-        // streamToChat orqali to'g'ridan-to'g'ri stream qilamiz — timeout muammosi yo'q
         const triggerAnalysis = async () => {
             try {
                 const chatData = await fetchApi('/chat/new', {
@@ -775,8 +774,8 @@ export default function ChatLayout() {
                     body: JSON.stringify({ title: `Test tahlili: ${guestData.title || 'Test'}`, subject: guestData.subject, forceNew: true })
                 })
                 await loadChats()
-                nav(`/suhbat/${chatData.id}`)
 
+                // Prompt ni oldindan tayyorlaymiz — navigatsiyadan OLDIN
                 const optLabels = ['A', 'B', 'C', 'D']
                 const allList = (guestData.questions || []).map((q: any, i: number) => {
                     const isCorrect = q.studentAnswer === q.correctAnswer
@@ -798,7 +797,10 @@ Iltimos, har bir savolni tahlil qilib ber:
 - Oxirida xulosa: qaysi mavzularda zaif ekanimni va nima o'rganishim kerakligini ayt`
 
                 const displayText = `📊 "${guestData.title}" testi tahlili (${guestData.score}/${guestData.total} to'g'ri)`
-                setTimeout(() => streamToChat(chatData.id, prompt, displayText), 300)
+
+                // /suhbat vs /suhbat/:chatId turli route komponentlari — nav qilganda
+                // eski komponent unmount bo'ladi. Promtni state orqali yangi komponentga uzatamiz.
+                nav(`/suhbat/${chatData.id}`, { state: { pendingAnalysis: { prompt, displayText } } })
             } catch (e) {
                 console.error('analyzeTest error:', e)
                 setLoading(false)
@@ -806,6 +808,17 @@ Iltimos, har bir savolni tahlil qilib ber:
         }
         triggerAnalysis()
     }, [location.search]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Navigatsiyadan keyin yangi komponentda pending analysisni stream qilish
+    // (analyzeTest nav qilganda eski komponent unmount bo'ladi — stream yangi komponentda ishlanadi)
+    useEffect(() => {
+        const state = location.state as any
+        if (!state?.pendingAnalysis || !chatId) return
+        const { prompt, displayText } = state.pendingAnalysis
+        // State ni darhol tozalaymiz — qayta trigger bo'lmasin
+        nav(location.pathname, { replace: true, state: {} })
+        setTimeout(() => streamToChat(chatId, prompt, displayText), 300)
+    }, [chatId, location.state]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Panel drag-to-resize (flashcard + test)
     useEffect(() => {
