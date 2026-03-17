@@ -237,4 +237,113 @@ router.get('/online-users', authenticate, requireRole('ADMIN'), async (_req, res
     }
 })
 
+// Admin: Davr bo'yicha trend (login + register) — ?days=7|30
+router.get('/period-trend', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
+    try {
+        const days = Math.min(90, Math.max(7, parseInt(req.query.days as string) || 30))
+        const now = new Date()
+        const startDate = new Date(now)
+        startDate.setDate(startDate.getDate() - (days - 1))
+        startDate.setHours(0, 0, 0, 0)
+
+        const [loginLogs, registerUsers] = await Promise.all([
+            prisma.visitLog.findMany({
+                where: { action: 'login', createdAt: { gte: startDate } },
+                select: { createdAt: true }
+            }),
+            prisma.user.findMany({
+                where: { createdAt: { gte: startDate } },
+                select: { createdAt: true }
+            })
+        ])
+
+        // Kunlar bo'yicha guruhlash
+        const loginMap: Record<string, number> = {}
+        const registerMap: Record<string, number> = {}
+
+        for (const log of loginLogs) {
+            const key = log.createdAt.toISOString().split('T')[0]
+            loginMap[key] = (loginMap[key] || 0) + 1
+        }
+        for (const u of registerUsers) {
+            const key = u.createdAt.toISOString().split('T')[0]
+            registerMap[key] = (registerMap[key] || 0) + 1
+        }
+
+        const result: { date: string; day: string; logins: number; registers: number }[] = []
+        for (let i = days - 1; i >= 0; i--) {
+            const d = new Date(now)
+            d.setDate(d.getDate() - i)
+            d.setHours(0, 0, 0, 0)
+            const key = d.toISOString().split('T')[0]
+            const label = days <= 14
+                ? d.toLocaleDateString('uz-UZ', { weekday: 'short', day: 'numeric' })
+                : d.toLocaleDateString('uz-UZ', { month: 'short', day: 'numeric' })
+            result.push({ date: key, day: label, logins: loginMap[key] || 0, registers: registerMap[key] || 0 })
+        }
+
+        res.json(result)
+    } catch (e) {
+        console.error(e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+// Admin: Test statistikasi — umumiy, eng ko'p urinilganlar, fanlar bo'yicha
+router.get('/test-stats', authenticate, requireRole('ADMIN'), async (_req, res) => {
+    try {
+        const [
+            totalTests, publicTests, privateTests,
+            totalAttempts,
+            topTests,
+            subjectBreakdown,
+            recentAttempts,
+            avgScoreResult,
+        ] = await Promise.all([
+            prisma.test.count(),
+            prisma.test.count({ where: { isPublic: true } }),
+            prisma.test.count({ where: { isPublic: false } }),
+            prisma.testAttempt.count(),
+            // Eng ko'p urinilgan 5 ta test
+            prisma.test.findMany({
+                include: {
+                    _count: { select: { attempts: true, questions: true } },
+                    creator: { select: { name: true } }
+                },
+                orderBy: { attempts: { _count: 'desc' } },
+                take: 5,
+            }),
+            // Fanlar bo'yicha test soni
+            prisma.test.groupBy({
+                by: ['subject'],
+                _count: true,
+                orderBy: { _count: { id: 'desc' } },
+                take: 8,
+            }),
+            // So'nggi 10 ta urinish
+            prisma.testAttempt.findMany({
+                orderBy: { createdAt: 'desc' },
+                take: 10,
+                include: {
+                    user: { select: { name: true } },
+                    test: { select: { title: true, subject: true } }
+                }
+            }),
+            prisma.testAttempt.aggregate({ _avg: { score: true } }),
+        ])
+
+        res.json({
+            totalTests, publicTests, privateTests,
+            totalAttempts,
+            avgScore: Math.round((avgScoreResult._avg.score || 0) * 10) / 10,
+            topTests,
+            subjectBreakdown,
+            recentAttempts,
+        })
+    } catch (e) {
+        console.error(e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
 export default router

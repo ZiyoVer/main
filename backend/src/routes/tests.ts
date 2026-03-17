@@ -119,18 +119,78 @@ router.get('/my-tests', authenticate, requireRole('TEACHER', 'ADMIN'), async (re
     }
 })
 
-// Admin: barcha testlar
+// Admin: barcha testlar (qidiruv, filter, avg score)
 router.get('/all', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
     try {
-        const tests = await prisma.test.findMany({
-            include: {
-                _count: { select: { questions: true, attempts: true } },
-                creator: { select: { name: true } }
-            },
-            orderBy: { createdAt: 'desc' }
+        const search = (req.query.search as string || '').trim()
+        const visibility = req.query.visibility as string | undefined // 'public' | 'private'
+        const subject = req.query.subject as string | undefined
+        const sortBy = (req.query.sortBy as string) || 'createdAt'
+        const page = Math.max(1, parseInt(req.query.page as string) || 1)
+        const limit = 50
+
+        const where: any = {}
+        if (search) {
+            where.OR = [
+                { title: { contains: search, mode: 'insensitive' } },
+                { creator: { name: { contains: search, mode: 'insensitive' } } }
+            ]
+        }
+        if (visibility === 'public') where.isPublic = true
+        if (visibility === 'private') where.isPublic = false
+        if (subject) where.subject = subject
+
+        const orderBy: any = sortBy === 'attempts'
+            ? { attempts: { _count: 'desc' } }
+            : sortBy === 'questions'
+            ? { questions: { _count: 'desc' } }
+            : { createdAt: 'desc' }
+
+        const [tests, total] = await Promise.all([
+            prisma.test.findMany({
+                where,
+                include: {
+                    _count: { select: { questions: true, attempts: true } },
+                    creator: { select: { name: true, email: true, role: true } }
+                },
+                orderBy,
+                take: limit,
+                skip: (page - 1) * limit,
+            }),
+            prisma.test.count({ where })
+        ])
+
+        // Har bir test uchun o'rtacha ball
+        const testIds = tests.map(t => t.id)
+        const avgScores = testIds.length > 0
+            ? await prisma.testAttempt.groupBy({
+                by: ['testId'],
+                where: { testId: { in: testIds } },
+                _avg: { score: true },
+                _count: true,
+            })
+            : []
+
+        const avgMap: Record<string, number> = {}
+        for (const a of avgScores) {
+            avgMap[a.testId] = Math.round((a._avg.score || 0) * 10) / 10
+        }
+
+        // Umumiy statistika
+        const [totalPublic, totalPrivate, totalAttempts] = await Promise.all([
+            prisma.test.count({ where: { isPublic: true } }),
+            prisma.test.count({ where: { isPublic: false } }),
+            prisma.testAttempt.count(),
+        ])
+
+        res.json({
+            tests: tests.map(t => ({ ...t, avgScore: avgMap[t.id] ?? null })),
+            total,
+            pages: Math.ceil(total / limit),
+            summary: { totalPublic, totalPrivate, totalAttempts }
         })
-        res.json(tests)
     } catch (e) {
+        console.error(e)
         res.status(500).json({ error: 'Server xatoligi' })
     }
 })

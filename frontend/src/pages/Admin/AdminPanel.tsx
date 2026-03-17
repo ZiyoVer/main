@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BrainCircuit, Users, UserCheck, GraduationCap, Clock, CalendarDays, CalendarRange, BarChart3, MessageSquare, FileText, Layers, Target, LogOut, Upload, Trash2, Activity, Bot, Save, Globe, Lock, TrendingUp, UserPlus, BookOpen, LogIn, RefreshCw, Wifi } from 'lucide-react'
-import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { BrainCircuit, Users, UserCheck, GraduationCap, BarChart3, MessageSquare, FileText, Layers, Target, LogOut, Upload, Trash2, Activity, Bot, Save, Globe, Lock, TrendingUp, UserPlus, BookOpen, RefreshCw, Wifi, Search, Filter, ClipboardList, CheckCircle2, Award } from 'lucide-react'
+import { AreaChart, Area, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { fetchApi, uploadFile } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
@@ -26,10 +26,20 @@ export default function AdminPanel() {
     const [aiSaving, setAiSaving] = useState(false)
     const [aiMsg, setAiMsg] = useState('')
     const [loading, setLoading] = useState(true)
-    const [loginTrend, setLoginTrend] = useState<any[]>([])
-    const [registerTrend, setRegisterTrend] = useState<any[]>([])
-    const [newUsers24h, setNewUsers24h] = useState<any[]>([])
-    const [recentRegs, setRecentRegs] = useState<any[]>([])
+    // Period trend (login+register combined)
+    const [chartPeriod, setChartPeriod] = useState<7 | 30>(30)
+    const [periodTrend, setPeriodTrend] = useState<any[]>([])
+    // Test stats
+    const [testStats, setTestStats] = useState<any>(null)
+    // Tests tab
+    const [testsSearch, setTestsSearch] = useState('')
+    const [testsVisibility, setTestsVisibility] = useState<'all' | 'public' | 'private'>('all')
+    const [testsSubject, setTestsSubject] = useState('')
+    const [testsSortBy, setTestsSortBy] = useState('createdAt')
+    const [testsPage, setTestsPage] = useState(1)
+    const [testsPages, setTestsPages] = useState(1)
+    const [testsTotal, setTestsTotal] = useState(0)
+    const [testsSummary, setTestsSummary] = useState<any>(null)
     const [knowledgeItems, setKnowledgeItems] = useState<any[]>([])
     const [knowledgeLoading, setKnowledgeLoading] = useState(false)
     const [knowledgeForm, setKnowledgeForm] = useState({ subject: 'Matematika', title: '', content: '', source: '' })
@@ -60,13 +70,16 @@ export default function AdminPanel() {
 
     useEffect(() => {
         loadStats()
+        loadPeriodTrend(30)
         // Online users — darhol va har 30 soniyada yangilanadi
         const loadOnline = () => fetchApi('/analytics/online-users').then(setOnlineUsers).catch(() => {})
         loadOnline()
         onlineTimerRef.current = setInterval(loadOnline, 30000)
         return () => { if (onlineTimerRef.current) clearInterval(onlineTimerRef.current) }
     }, []) // faqat birinchi marta yuklanadi
+    useEffect(() => { loadPeriodTrend(chartPeriod) }, [chartPeriod])
     useEffect(() => { if (tab === 'users') loadUsers() }, [tab, usersPage, usersSearch])
+    useEffect(() => { if (tab === 'tests') loadTests() }, [tab, testsPage, testsSearch, testsVisibility, testsSubject, testsSortBy])
     useEffect(() => { if (tab === 'knowledge') loadKnowledge() }, [tab])
     useEffect(() => {
         if (tab === 'activity') {
@@ -82,14 +95,28 @@ export default function AdminPanel() {
         setLoading(true)
         try { setStats(await fetchApi('/analytics/stats')) } catch { setStats({}) }
         try { setDocs(await fetchApi('/documents/list')) } catch { setDocs([]) }
-        try { setTests(await fetchApi('/tests/all')) } catch { setTests([]) }
         try { const ai = await fetchApi('/ai-settings'); setAiConfig(ai) } catch { }
         try { const d = await fetchApi('/ai-settings/defaults'); setDefaults(d) } catch { }
-        try { setLoginTrend(await fetchApi('/analytics/login-trend')) } catch { setLoginTrend([]) }
-        try { setRegisterTrend(await fetchApi('/analytics/register-trend')) } catch { setRegisterTrend([]) }
-        try { setNewUsers24h(await fetchApi('/analytics/new-users-24h')) } catch { setNewUsers24h([]) }
-        try { setRecentRegs(await fetchApi('/analytics/recent-registrations')) } catch { setRecentRegs([]) }
+        try { setTestStats(await fetchApi('/analytics/test-stats')) } catch { setTestStats(null) }
         setLoading(false)
+    }
+
+    async function loadPeriodTrend(days: number) {
+        try { setPeriodTrend(await fetchApi(`/analytics/period-trend?days=${days}`)) } catch { setPeriodTrend([]) }
+    }
+
+    async function loadTests() {
+        try {
+            const params = new URLSearchParams({ page: String(testsPage), sortBy: testsSortBy })
+            if (testsSearch.trim()) params.set('search', testsSearch.trim())
+            if (testsVisibility !== 'all') params.set('visibility', testsVisibility)
+            if (testsSubject) params.set('subject', testsSubject)
+            const data = await fetchApi(`/tests/all?${params}`)
+            setTests(data.tests || [])
+            setTestsTotal(data.total || 0)
+            setTestsPages(data.pages || 1)
+            setTestsSummary(data.summary || null)
+        } catch { setTests([]) }
     }
 
     async function loadUsers() {
@@ -231,7 +258,7 @@ export default function AdminPanel() {
 
     async function deleteTest(id: string) {
         if (!confirm('Testni o\'chirmoqchimisiz?')) return
-        try { await fetchApi(`/tests/${id}`, { method: 'DELETE' }); loadAll() } catch { }
+        try { await fetchApi(`/tests/${id}`, { method: 'DELETE' }); toast.success('Test o\'chirildi'); loadTests() } catch { toast.error('Xatolik') }
     }
 
     const tabs = [
@@ -293,7 +320,8 @@ export default function AdminPanel() {
                     </div>
                 )}
                 {tab === 'stats' && !loading && stats && (
-                    <div className="space-y-4">
+                    <div className="space-y-5">
+
                         {/* === HOZIR ONLAYN === */}
                         <div className="rounded-xl overflow-hidden" style={{ border: '1.5px solid rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.04)' }}>
                             <div className="px-4 py-2.5 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(16,185,129,0.15)' }}>
@@ -330,63 +358,171 @@ export default function AdminPanel() {
                             )}
                         </div>
 
+                        {/* === ASOSIY METRIKALAR === */}
                         <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={mutedText}>Kirish statistikasi</p>
+                            <p className="text-[11px] font-semibold uppercase tracking-wider mb-2.5" style={mutedText}>Foydalanuvchilar</p>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                                 {[
-                                    { n: stats.logins24h, l: 'Oxirgi 24 soat', icon: Clock, color: 'var(--brand)' },
-                                    { n: stats.loginsWeek, l: '7 kun', icon: CalendarDays, color: 'var(--success)' },
-                                    { n: stats.loginsMonth, l: '30 kun', icon: CalendarRange, color: '#06b6d4' },
-                                    { n: stats.totalVisits, l: 'Jami tashriflar', icon: Activity, color: '#f59e0b' },
+                                    { n: stats.totalUsers, l: 'Jami', icon: Users, color: 'var(--text-secondary)' },
+                                    { n: stats.students, l: 'O\'quvchilar', icon: GraduationCap, color: 'var(--brand)' },
+                                    { n: stats.teachers, l: 'O\'qituvchilar', icon: UserCheck, color: '#d97706' },
+                                    { n: stats.emailVerifiedCount, l: 'Email tasdiqlangan', icon: CheckCircle2, color: 'var(--success)' },
                                 ].map((s, i) => (
                                     <div key={i} className="rounded-xl p-4 flex items-center gap-3" style={cardStyle}>
-                                        <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ color: s.color, background: `color-mix(in srgb, ${s.color} 12%, transparent)` }}>
-                                            <s.icon className="h-3.5 w-3.5" />
+                                        <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ color: s.color, background: `color-mix(in srgb, ${s.color} 12%, transparent)` }}>
+                                            <s.icon className="h-4 w-4" />
                                         </div>
                                         <div>
-                                            <p className="text-xl font-bold tabular-nums leading-none">{s.n ?? 0}</p>
+                                            <p className="text-2xl font-bold tabular-nums leading-none">{s.n ?? 0}</p>
                                             <p className="text-[11px] mt-0.5" style={mutedText}>{s.l}</p>
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-                            {[
-                                { n: stats.totalUsers, l: 'Jami foydalanuvchi', icon: Users, color: 'var(--text-secondary)' },
-                                { n: stats.students, l: 'O\'quvchilar', icon: GraduationCap, color: 'var(--brand)' },
-                                { n: stats.teachers, l: 'O\'qituvchilar', icon: UserCheck, color: 'var(--success)' },
-                                { n: stats.totalChats, l: 'AI suhbatlar', icon: MessageSquare, color: '#06b6d4' },
-                            ].map((s, i) => (
-                                <div key={i} className="rounded-xl p-4 flex items-center gap-3" style={cardStyle}>
-                                    <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ color: s.color, background: `color-mix(in srgb, ${s.color} 12%, transparent)` }}>
-                                        <s.icon className="h-3.5 w-3.5" />
+
+                        <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-wider mb-2.5" style={mutedText}>Faollik</p>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                                {[
+                                    { n: stats.totalChats, l: 'AI suhbatlar', icon: MessageSquare, color: '#6366f1' },
+                                    { n: stats.totalMessages, l: 'Xabarlar', icon: MessageSquare, color: 'var(--brand)' },
+                                    { n: stats.logins24h, l: 'Kirishlar (24h)', icon: Activity, color: '#06b6d4' },
+                                    { n: stats.loginsMonth, l: 'Kirishlar (30 kun)', icon: TrendingUp, color: '#f59e0b' },
+                                ].map((s, i) => (
+                                    <div key={i} className="rounded-xl p-4 flex items-center gap-3" style={cardStyle}>
+                                        <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ color: s.color, background: `color-mix(in srgb, ${s.color} 12%, transparent)` }}>
+                                            <s.icon className="h-4 w-4" />
+                                        </div>
+                                        <div>
+                                            <p className="text-2xl font-bold tabular-nums leading-none">{s.n ?? 0}</p>
+                                            <p className="text-[11px] mt-0.5" style={mutedText}>{s.l}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* === TREND CHART === */}
+                        <div className="rounded-xl p-4" style={cardStyle}>
+                            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                                <div className="flex items-center gap-2">
+                                    <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--brand) 12%, transparent)', color: 'var(--brand)' }}>
+                                        <TrendingUp className="h-3.5 w-3.5" />
                                     </div>
                                     <div>
-                                        <p className="text-xl font-bold tabular-nums leading-none">{s.n ?? 0}</p>
-                                        <p className="text-[11px] mt-0.5" style={mutedText}>{s.l}</p>
+                                        <p className="text-[13px] font-semibold">Kirish va ro'yxatdan o'tish trendi</p>
+                                        <p className="text-[11px]" style={mutedText}>{chartPeriod} kunlik ko'rsatgich</p>
                                     </div>
                                 </div>
-                            ))}
+                                <div className="flex gap-1 rounded-lg p-0.5" style={{ background: 'var(--bg-surface)' }}>
+                                    {([7, 30] as const).map(d => (
+                                        <button key={d} onClick={() => setChartPeriod(d)}
+                                            className="px-3 py-1.5 rounded-md text-[12px] font-medium transition"
+                                            style={chartPeriod === d ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { color: 'var(--text-muted)' }}>
+                                            {d} kun
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <ResponsiveContainer width="100%" height={220}>
+                                <ComposedChart data={periodTrend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                                    <defs>
+                                        <linearGradient id="loginGrad2" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="var(--brand)" stopOpacity={0.2} />
+                                            <stop offset="95%" stopColor="var(--brand)" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                                    <XAxis dataKey="day" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} interval={chartPeriod <= 14 ? 0 : Math.floor(chartPeriod / 10)} />
+                                    <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} allowDecimals={false} />
+                                    <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
+                                    <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+                                    <Area type="monotone" dataKey="logins" name="Kirishlar" stroke="var(--brand)" fill="url(#loginGrad2)" strokeWidth={2} dot={false} />
+                                    <Bar dataKey="registers" name="Yangi a'zolar" fill="var(--success)" radius={[3, 3, 0, 0]} opacity={0.85} />
+                                </ComposedChart>
+                            </ResponsiveContainer>
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-                            {[
-                                { n: stats.totalMessages, l: 'Xabarlar', icon: MessageSquare, color: 'var(--brand)' },
-                                { n: stats.totalTests, l: 'Testlar', icon: Target, color: '#6366f1' },
-                                { n: stats.totalAttempts, l: 'Test urinishlar', icon: BarChart3, color: '#f59e0b' },
-                                { n: `${stats.avgScore ?? 0}%`, l: 'O\'rtacha ball', icon: Target, color: 'var(--success)' },
-                            ].map((s, i) => (
-                                <div key={i} className="rounded-xl p-4 flex items-center gap-3" style={cardStyle}>
-                                    <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ color: s.color, background: `color-mix(in srgb, ${s.color} 12%, transparent)` }}>
-                                        <s.icon className="h-3.5 w-3.5" />
+
+                        {/* === TEST STATISTIKASI === */}
+                        {testStats && (
+                            <div>
+                                <p className="text-[11px] font-semibold uppercase tracking-wider mb-2.5" style={mutedText}>Test statistikasi</p>
+                                <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5 mb-3">
+                                    {[
+                                        { n: testStats.totalTests, l: 'Jami testlar', icon: ClipboardList, color: '#6366f1' },
+                                        { n: testStats.publicTests, l: 'Ochiq (public)', icon: Globe, color: 'var(--success)' },
+                                        { n: testStats.privateTests, l: 'Yopiq (private)', icon: Lock, color: 'var(--text-muted)' },
+                                        { n: testStats.totalAttempts, l: 'Jami urinishlar', icon: BarChart3, color: 'var(--brand)' },
+                                        { n: `${testStats.avgScore ?? 0}%`, l: 'O\'rtacha ball', icon: Award, color: '#f59e0b' },
+                                    ].map((s, i) => (
+                                        <div key={i} className="rounded-xl p-3.5 flex items-center gap-2.5" style={cardStyle}>
+                                            <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ color: s.color, background: `color-mix(in srgb, ${s.color} 12%, transparent)` }}>
+                                                <s.icon className="h-3.5 w-3.5" />
+                                            </div>
+                                            <div>
+                                                <p className="text-lg font-bold tabular-nums leading-none">{s.n ?? 0}</p>
+                                                <p className="text-[10px] mt-0.5" style={mutedText}>{s.l}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Top testlar + so'nggi urinishlar */}
+                                <div className="grid md:grid-cols-2 gap-3">
+                                    <div className="rounded-xl overflow-hidden" style={cardStyle}>
+                                        <div className="px-4 py-2.5 flex items-center gap-2" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+                                            <BarChart3 className="h-3.5 w-3.5" style={{ color: 'var(--brand)' }} />
+                                            <p className="text-[12px] font-semibold">Eng ko'p yechilgan testlar</p>
+                                        </div>
+                                        {(testStats.topTests || []).map((t: any, i: number) => (
+                                            <div key={t.id} className="flex items-center gap-3 px-4 py-2.5" style={{ borderBottom: i < testStats.topTests.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                                                <span className="text-[11px] font-mono w-4 flex-shrink-0 text-right" style={mutedText}>{i + 1}</span>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-[12px] font-medium truncate">{t.title}</p>
+                                                    <p className="text-[10px]" style={mutedText}>{t.creator?.name} · {t.subject}</p>
+                                                </div>
+                                                <div className="flex items-center gap-2 flex-shrink-0">
+                                                    <span className="text-[11px] font-semibold tabular-nums" style={{ color: 'var(--brand)' }}>{t._count?.attempts}</span>
+                                                    <span className="text-[10px]" style={mutedText}>urinish</span>
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={t.isPublic ? { background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)' } : { background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
+                                                        {t.isPublic ? 'Ochiq' : 'Yopiq'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
-                                    <div>
-                                        <p className="text-xl font-bold tabular-nums leading-none">{s.n ?? 0}</p>
-                                        <p className="text-[11px] mt-0.5" style={mutedText}>{s.l}</p>
+
+                                    <div className="rounded-xl overflow-hidden" style={cardStyle}>
+                                        <div className="px-4 py-2.5 flex items-center gap-2" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+                                            <Activity className="h-3.5 w-3.5" style={{ color: 'var(--brand)' }} />
+                                            <p className="text-[12px] font-semibold">So'nggi urinishlar</p>
+                                        </div>
+                                        {(testStats.recentAttempts || []).map((a: any, i: number) => (
+                                            <div key={a.id} className="flex items-center gap-3 px-4 py-2.5" style={{ borderBottom: i < testStats.recentAttempts.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                                                <div className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0" style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>
+                                                    {a.user?.name?.[0]?.toUpperCase() || '?'}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-[12px] font-medium truncate">{a.user?.name}</p>
+                                                    <p className="text-[10px] truncate" style={mutedText}>{a.test?.title}</p>
+                                                </div>
+                                                <div className="flex items-center gap-2 flex-shrink-0">
+                                                    <span className="text-[12px] font-bold tabular-nums" style={{ color: a.score >= 70 ? 'var(--success)' : a.score >= 50 ? '#f59e0b' : 'var(--danger)' }}>
+                                                        {Math.round(a.score)}%
+                                                    </span>
+                                                    <span className="text-[10px]" style={mutedText}>
+                                                        {new Date(a.createdAt).toLocaleDateString('uz-UZ', { month: 'short', day: 'numeric' })}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
-                            ))}
-                        </div>
+                            </div>
+                        )}
+
+                        {/* === OXIRGI RO'YXATDAN O'TGANLAR === */}
                         <div className="grid md:grid-cols-2 gap-2.5">
                             <div className="rounded-xl p-4 flex items-center gap-3" style={cardStyle}>
                                 <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ color: 'var(--success)', background: 'color-mix(in srgb, var(--success) 12%, transparent)' }}><FileText className="h-3.5 w-3.5" /></div>
@@ -398,10 +534,11 @@ export default function AdminPanel() {
                             <div className="rounded-xl p-4" style={cardStyle}>
                                 <p className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={mutedText}>Oxirgi ro'yxatdan o'tganlar</p>
                                 <div className="space-y-1.5">
-                                    {(stats.recentUsers || []).slice(0, 3).map((u: any) => (
+                                    {(stats.recentUsers || []).slice(0, 4).map((u: any) => (
                                         <div key={u.id} className="flex items-center gap-2">
                                             <div className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-semibold flex-shrink-0" style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>{u.name?.[0]?.toUpperCase()}</div>
                                             <span className="text-[12px] flex-1 truncate" style={secondaryText}>{u.name}</span>
+                                            <span className="text-[10px]" style={mutedText}>{new Date(u.createdAt).toLocaleDateString('uz-UZ', { month: 'short', day: 'numeric' })}</span>
                                             <span className="px-1.5 py-0.5 rounded text-[10px] font-medium"
                                                 style={u.role === 'TEACHER' ? { background: 'color-mix(in srgb, var(--brand) 12%, transparent)', color: 'var(--brand)' } : { background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>{u.role}</span>
                                         </div>
@@ -410,129 +547,9 @@ export default function AdminPanel() {
                             </div>
                         </div>
 
-                        {/* ═══════════════ CHARTS ═══════════════ */}
-                        <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-wider mb-3" style={mutedText}>Grafik tahlil</p>
-
-                            {/* Row 1: Login trend + Register trend */}
-                            <div className="grid md:grid-cols-2 gap-3 mb-3">
-                                {/* 7-day Login Trend */}
-                                <div className="rounded-xl p-4" style={cardStyle}>
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--brand) 12%, transparent)', color: 'var(--brand)' }}>
-                                            <TrendingUp className="h-3.5 w-3.5" />
-                                        </div>
-                                        <div>
-                                            <p className="text-[13px] font-semibold">7 kunlik kirishlar</p>
-                                            <p className="text-[11px]" style={mutedText}>Oxirgi 7 kun davomida tizimga kirganlar</p>
-                                        </div>
-                                    </div>
-                                    <ResponsiveContainer width="100%" height={180}>
-                                        <AreaChart data={loginTrend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                                            <defs>
-                                                <linearGradient id="loginGrad" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="var(--brand)" stopOpacity={0.25} />
-                                                    <stop offset="95%" stopColor="var(--brand)" stopOpacity={0} />
-                                                </linearGradient>
-                                            </defs>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                                            <XAxis dataKey="day" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
-                                            <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} allowDecimals={false} />
-                                            <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
-                                            <Area type="monotone" dataKey="count" name="Kirishlar" stroke="var(--brand)" fill="url(#loginGrad)" strokeWidth={2} dot={{ r: 3, fill: 'var(--brand)' }} />
-                                        </AreaChart>
-                                    </ResponsiveContainer>
-                                </div>
-
-                                {/* 7-day Register Trend */}
-                                <div className="rounded-xl p-4" style={cardStyle}>
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)' }}>
-                                            <UserPlus className="h-3.5 w-3.5" />
-                                        </div>
-                                        <div>
-                                            <p className="text-[13px] font-semibold">7 kunlik ro'yxatdan o'tishlar</p>
-                                            <p className="text-[11px]" style={mutedText}>Har kunda yangi foydalanuvchilar</p>
-                                        </div>
-                                    </div>
-                                    <ResponsiveContainer width="100%" height={180}>
-                                        <BarChart data={registerTrend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                                            <XAxis dataKey="day" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
-                                            <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} allowDecimals={false} />
-                                            <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
-                                            <Bar dataKey="count" name="Yangi foydalanuvchi" fill="var(--success)" radius={[4, 4, 0, 0]} />
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            </div>
-
-                            {/* Row 2: 24h activity chart + 24h new users list */}
-                            <div className="grid md:grid-cols-2 gap-3">
-                                {/* 24h new users hourly */}
-                                <div className="rounded-xl p-4" style={cardStyle}>
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: 'color-mix(in srgb, #6366f1 12%, transparent)', color: '#6366f1' }}>
-                                            <Activity className="h-3.5 w-3.5" />
-                                        </div>
-                                        <div>
-                                            <p className="text-[13px] font-semibold">24 soatlik faollik</p>
-                                            <p className="text-[11px]" style={mutedText}>Soat bo'yicha yangi a'zolar</p>
-                                        </div>
-                                    </div>
-                                    <ResponsiveContainer width="100%" height={180}>
-                                        <LineChart data={newUsers24h} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                                            <defs>
-                                                <linearGradient id="actGrad" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2} />
-                                                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                                                </linearGradient>
-                                            </defs>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                                            <XAxis dataKey="hour" tick={{ fontSize: 9, fill: 'var(--text-muted)' }} interval={3} />
-                                            <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} allowDecimals={false} />
-                                            <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
-                                            <Line type="monotone" dataKey="count" name="Yangi a'zo" stroke="#6366f1" strokeWidth={2} dot={false} />
-                                        </LineChart>
-                                    </ResponsiveContainer>
-                                </div>
-
-                                {/* 24h registrations list */}
-                                <div className="rounded-xl p-4" style={cardStyle}>
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: 'color-mix(in srgb, #f59e0b 12%, transparent)', color: '#f59e0b' }}>
-                                            <Users className="h-3.5 w-3.5" />
-                                        </div>
-                                        <div>
-                                            <p className="text-[13px] font-semibold">24 soatda ro'yxatdan o'tganlar</p>
-                                            <p className="text-[11px]" style={mutedText}>{recentRegs.length} ta yangi foydalanuvchi</p>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-2 overflow-y-auto" style={{ maxHeight: 160 }}>
-                                        {recentRegs.length === 0 ? (
-                                            <p className="text-[12px] text-center py-6" style={mutedText}>24 soatda yangi foydalanuvchi yo'q</p>
-                                        ) : recentRegs.map((u: any) => (
-                                            <div key={u.id} className="flex items-center gap-2.5 py-1">
-                                                <div className="h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0"
-                                                    style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>
-                                                    {u.name?.[0]?.toUpperCase() || '?'}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-[12px] font-medium truncate">{u.name}</p>
-                                                    <p className="text-[10px] truncate" style={mutedText}>{u.email}</p>
-                                                </div>
-                                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0"
-                                                    style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
-                                                    {new Date(u.createdAt).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
-                                                </span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 )}
+
 
                 {/* === USERS === */}
                 {tab === 'users' && (
@@ -652,35 +669,169 @@ export default function AdminPanel() {
 
                 {/* === TESTS === */}
                 {tab === 'tests' && (
-                    <div>
-                        <p className="text-[11px] mb-3" style={mutedText}>{tests.length} ta test</p>
-                        <div className="rounded-xl overflow-hidden" style={cardStyle}>
-                            {tests.length === 0 && <p className="text-sm text-center py-10" style={mutedText}>Hozircha testlar yo'q</p>}
-                            {tests.map(t => (
-                                <div key={t.id} className="flex items-center gap-3 px-4 py-3 transition"
-                                    style={{ borderBottom: '1px solid var(--border)' }}
-                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
-                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2">
-                                            <p className="text-[13px] font-medium truncate">{t.title}</p>
-                                            <span className="flex-shrink-0 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium"
-                                                style={t.isPublic ? { background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)' } : { background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
-                                                {t.isPublic ? <Globe className="h-2.5 w-2.5" /> : <Lock className="h-2.5 w-2.5" />}
-                                                {t.isPublic ? 'Ochiq' : 'Yopiq'}
-                                            </span>
+                    <div className="space-y-3">
+                        {/* Summary cards */}
+                        {testsSummary && (
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                                {[
+                                    { n: testsTotal, l: 'Jami (filtr)', icon: ClipboardList, color: '#6366f1' },
+                                    { n: testsSummary.totalPublic, l: 'Ochiq testlar', icon: Globe, color: 'var(--success)' },
+                                    { n: testsSummary.totalPrivate, l: 'Yopiq testlar', icon: Lock, color: 'var(--text-muted)' },
+                                    { n: testsSummary.totalAttempts, l: 'Jami urinishlar', icon: BarChart3, color: 'var(--brand)' },
+                                ].map((s, i) => (
+                                    <div key={i} className="rounded-xl p-3.5 flex items-center gap-2.5" style={cardStyle}>
+                                        <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ color: s.color, background: `color-mix(in srgb, ${s.color} 12%, transparent)` }}>
+                                            <s.icon className="h-3.5 w-3.5" />
                                         </div>
-                                        <p className="text-[11px] mt-0.5" style={mutedText}>{t.subject} · {t._count?.questions || 0} savol · {t._count?.attempts || 0} urinish · {t.creator?.name}</p>
+                                        <div>
+                                            <p className="text-lg font-bold tabular-nums leading-none">{s.n ?? 0}</p>
+                                            <p className="text-[10px] mt-0.5" style={mutedText}>{s.l}</p>
+                                        </div>
                                     </div>
-                                    <button onClick={() => deleteTest(t.id)} className="h-7 w-7 flex items-center justify-center rounded-lg transition flex-shrink-0"
-                                        style={{ color: 'var(--text-muted)' }}
-                                        onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.background = 'var(--danger-light)' }}
-                                        onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' }}>
-                                        <Trash2 className="h-3.5 w-3.5" />
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Search + filter controls */}
+                        <div className="flex flex-wrap gap-2 items-center">
+                            <div className="relative flex-1" style={{ minWidth: 200 }}>
+                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
+                                <input type="search" placeholder="Test nomi yoki mualif bo'yicha..."
+                                    value={testsSearch}
+                                    onChange={e => { setTestsSearch(e.target.value); setTestsPage(1) }}
+                                    className="input pl-8" style={{ height: '2rem', fontSize: '12px' }} />
+                            </div>
+                            {/* Visibility filter */}
+                            <div className="flex gap-0.5 rounded-lg p-0.5" style={{ background: 'var(--bg-surface)' }}>
+                                {(['all', 'public', 'private'] as const).map(v => (
+                                    <button key={v} onClick={() => { setTestsVisibility(v); setTestsPage(1) }}
+                                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition"
+                                        style={testsVisibility === v ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { color: 'var(--text-muted)' }}>
+                                        {v === 'all' ? 'Barchasi' : v === 'public' ? <><Globe className="h-3 w-3" /> Ochiq</> : <><Lock className="h-3 w-3" /> Yopiq</>}
                                     </button>
-                                </div>
-                            ))}
+                                ))}
+                            </div>
+                            {/* Subject filter */}
+                            <select value={testsSubject} onChange={e => { setTestsSubject(e.target.value); setTestsPage(1) }}
+                                className="input" style={{ height: '2rem', fontSize: '12px', width: 'auto' }}>
+                                <option value="">Barcha fanlar</option>
+                                {['Matematika', 'Fizika', 'Kimyo', 'Biologiya', 'Ona tili', 'Tarix', 'Ingliz tili', 'Geografiya'].map(s =>
+                                    <option key={s} value={s}>{s}</option>
+                                )}
+                            </select>
+                            {/* Sort */}
+                            <select value={testsSortBy} onChange={e => setTestsSortBy(e.target.value)}
+                                className="input" style={{ height: '2rem', fontSize: '12px', width: 'auto' }}>
+                                <option value="createdAt">Yangi → Eski</option>
+                                <option value="attempts">Ko'p urinilgan</option>
+                                <option value="questions">Ko'p savollar</option>
+                            </select>
+                            <span className="text-[11px]" style={mutedText}>{testsTotal} ta natija</span>
                         </div>
+
+                        {/* Table */}
+                        <div className="rounded-xl overflow-hidden" style={cardStyle}>
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+                                        <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Test nomi</th>
+                                        <th className="text-left py-2.5 px-3 font-medium text-[11px] uppercase" style={mutedText}>Muallif</th>
+                                        <th className="text-left py-2.5 px-3 font-medium text-[11px] uppercase" style={mutedText}>Fan</th>
+                                        <th className="text-center py-2.5 px-2 font-medium text-[11px] uppercase" style={mutedText}>Holat</th>
+                                        <th className="text-right py-2.5 px-3 font-medium text-[11px] uppercase" style={mutedText}>Savollar</th>
+                                        <th className="text-right py-2.5 px-3 font-medium text-[11px] uppercase" style={mutedText}>Urinishlar</th>
+                                        <th className="text-right py-2.5 px-3 font-medium text-[11px] uppercase" style={mutedText}>O'rt ball</th>
+                                        <th className="text-right py-2.5 px-3 font-medium text-[11px] uppercase" style={mutedText}>Sana</th>
+                                        <th className="py-2.5 px-2" />
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {tests.length === 0 ? (
+                                        <tr><td colSpan={9} className="text-center py-10 text-[12px]" style={mutedText}>Testlar topilmadi</td></tr>
+                                    ) : tests.map((t: any) => (
+                                        <tr key={t.id} className="transition" style={{ borderBottom: '1px solid var(--border)' }}
+                                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
+                                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                            <td className="py-2.5 px-4 max-w-[200px]">
+                                                <p className="text-[13px] font-medium truncate">{t.title}</p>
+                                                {t.testType && <p className="text-[10px]" style={mutedText}>{t.testType}</p>}
+                                            </td>
+                                            <td className="py-2.5 px-3">
+                                                <div className="flex items-center gap-1.5">
+                                                    <div className="h-5 w-5 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0" style={{
+                                                        background: t.creator?.role === 'ADMIN' ? 'color-mix(in srgb, #6366f1 20%, transparent)' : 'var(--bg-muted)',
+                                                        color: t.creator?.role === 'ADMIN' ? '#6366f1' : 'var(--text-secondary)'
+                                                    }}>
+                                                        {t.creator?.name?.[0]?.toUpperCase() || '?'}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="text-[12px] truncate max-w-[100px]">{t.creator?.name || '—'}</p>
+                                                        {t.creator?.role && t.creator.role !== 'STUDENT' && (
+                                                            <p className="text-[10px]" style={{ color: t.creator.role === 'ADMIN' ? '#6366f1' : '#d97706' }}>{t.creator.role}</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="py-2.5 px-3">
+                                                <span className="text-[11px]" style={mutedText}>{t.subject || '—'}</span>
+                                            </td>
+                                            <td className="py-2.5 px-2 text-center">
+                                                <span className="flex items-center justify-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium w-fit mx-auto"
+                                                    style={t.isPublic ? { background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)' } : { background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
+                                                    {t.isPublic ? <Globe className="h-2.5 w-2.5" /> : <Lock className="h-2.5 w-2.5" />}
+                                                    {t.isPublic ? 'Ochiq' : 'Yopiq'}
+                                                </span>
+                                            </td>
+                                            <td className="py-2.5 px-3 text-right">
+                                                <span className="text-[13px] font-semibold tabular-nums">{t._count?.questions || 0}</span>
+                                            </td>
+                                            <td className="py-2.5 px-3 text-right">
+                                                <span className="text-[13px] font-semibold tabular-nums" style={{ color: (t._count?.attempts || 0) > 0 ? 'var(--brand)' : 'var(--text-muted)' }}>
+                                                    {t._count?.attempts || 0}
+                                                </span>
+                                            </td>
+                                            <td className="py-2.5 px-3 text-right">
+                                                {t.avgScore != null ? (
+                                                    <span className="text-[12px] font-semibold tabular-nums"
+                                                        style={{ color: t.avgScore >= 70 ? 'var(--success)' : t.avgScore >= 50 ? '#f59e0b' : 'var(--danger)' }}>
+                                                        {t.avgScore}%
+                                                    </span>
+                                                ) : <span className="text-[11px]" style={mutedText}>—</span>}
+                                            </td>
+                                            <td className="py-2.5 px-3 text-right">
+                                                <span className="text-[11px] tabular-nums" style={mutedText}>
+                                                    {new Date(t.createdAt).toLocaleDateString('uz-UZ', { month: 'short', day: 'numeric' })}
+                                                </span>
+                                            </td>
+                                            <td className="py-2.5 px-2">
+                                                <button onClick={() => deleteTest(t.id)} className="h-7 w-7 flex items-center justify-center rounded-lg transition flex-shrink-0"
+                                                    style={{ color: 'var(--text-muted)' }}
+                                                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.background = 'var(--danger-light)' }}
+                                                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' }}>
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Pagination */}
+                        {testsPages > 1 && (
+                            <div className="flex items-center justify-between">
+                                <p className="text-[11px]" style={mutedText}>{(testsPage - 1) * 50 + 1}–{Math.min(testsPage * 50, testsTotal)} / {testsTotal}</p>
+                                <div className="flex gap-1">
+                                    <button onClick={() => setTestsPage(p => Math.max(1, p - 1))} disabled={testsPage <= 1}
+                                        className="h-7 px-3 rounded-lg text-[12px] font-medium transition disabled:opacity-40"
+                                        style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>← Oldingi</button>
+                                    <span className="h-7 px-3 flex items-center text-[12px]" style={mutedText}>{testsPage} / {testsPages}</span>
+                                    <button onClick={() => setTestsPage(p => Math.min(testsPages, p + 1))} disabled={testsPage >= testsPages}
+                                        className="h-7 px-3 rounded-lg text-[12px] font-medium transition disabled:opacity-40"
+                                        style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>Keyingi →</button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
