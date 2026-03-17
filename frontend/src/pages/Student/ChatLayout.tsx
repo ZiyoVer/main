@@ -345,17 +345,18 @@ const MdMessage = memo(({ content, isStreaming }: {
                         </div>
                     )
                 }
-                if (className?.includes('language-todo')) {
-                    let rawItems: Omit<TodoItem, 'id' | 'done'>[] = []
-                    try { rawItems = JSON.parse(String(children).trim()) } catch { return null }
-                    if (!rawItems.length) return null
-                    return <TodoBlockMount items={rawItems} onSetTodo={onSetTodo} />
-                }
+                // IMPORTANT: check todo-done BEFORE todo (language-todo includes language-todo-done)
                 if (className?.includes('language-todo-done')) {
                     let data: { task: string } = { task: '' }
                     try { data = JSON.parse(String(children).trim()) } catch { return null }
                     if (!data.task) return null
                     return <TodoDoneMount taskName={data.task} onMarkDone={onMarkTodoDoneByTask} />
+                }
+                if (className?.includes('language-todo')) {
+                    let rawItems: Omit<TodoItem, 'id' | 'done'>[] = []
+                    try { rawItems = JSON.parse(String(children).trim()) } catch { return null }
+                    if (!rawItems.length) return null
+                    return <TodoBlockMount items={rawItems} onSetTodo={onSetTodo} />
                 }
                 const isBlock = className?.includes('language-')
                 return isBlock
@@ -1349,11 +1350,14 @@ Iltimos, har bir savolni tahlil qilib ber:
         setEssayTimeLeft(data.time * 60)
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Todo panel
+    // Todo panel — test/flash/essay yopiladi
     const handleSetTodo = useCallback((items: Omit<TodoItem, 'id' | 'done'>[]) => {
         setTodoItems(items.map((item, i) => ({ ...item, id: `todo-${i}-${Date.now()}`, done: false })))
+        setTestPanel(null)      // test yopiladi
+        setFlashPanel(null)     // flashcard yopiladi
+        setEssayPanel(null)     // essay yopiladi
         setTodoOpen(true)
-    }, [])
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
     const markTodoDone = useCallback((id: string) => {
         // Avval done=true (animation uchun), keyin 500ms dan so'ng o'chiramiz
         setTodoItems(prev => prev.map(t => t.id === id ? { ...t, done: true } : t))
@@ -1741,7 +1745,16 @@ Iltimos, har bir savolni tahlil qilib ber:
                             <TrendingUp className="h-4 w-4 flex-shrink-0" /> Natijalar
                         </button>
                         {/* Reja */}
-                        <button onClick={() => setTodoOpen(v => !v)}
+                        <button onClick={() => {
+                            const opening = !todoOpen
+                            if (opening) {
+                                // Todo ochilganda boshqa panellarni yopamiz
+                                setTestPanel(null)
+                                setFlashPanel(null)
+                                setEssayPanel(null)
+                            }
+                            setTodoOpen(v => !v)
+                        }}
                             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition"
                             style={todoOpen ? { background: 'var(--bg-muted)', color: 'var(--text-primary)' } : { color: 'var(--text-secondary)' }}
                             onMouseEnter={e => { if (!todoOpen) e.currentTarget.style.background = 'var(--bg-muted)' }}
