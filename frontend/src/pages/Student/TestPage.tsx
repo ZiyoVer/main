@@ -390,19 +390,19 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                 </div>
 
                 {/* ════ RIGHT: DTM Blanka ════ */}
-                <div className="w-[220px] sm:w-64 flex-shrink-0 flex flex-col overflow-hidden"
+                <div className="w-[300px] sm:w-[360px] flex-shrink-0 flex flex-col overflow-hidden"
                     style={{ background: 'var(--bg-card)', borderLeft: '1px solid var(--border)' }}>
                     {/* Blanka header */}
-                    <div className="flex-shrink-0 px-3 py-2.5 text-center" style={{ borderBottom: '1px solid var(--border)' }}>
-                        <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: 'var(--text-muted)' }}>Javoblar Varaqasi</p>
-                        <p className="text-[9px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{test?.subject} · {total} savol</p>
+                    <div className="flex-shrink-0 px-4 py-3 text-center" style={{ borderBottom: '1px solid var(--border)' }}>
+                        <p className="text-[11px] font-bold tracking-widest uppercase" style={{ color: 'var(--text-muted)' }}>Javoblar Varaqasi</p>
+                        <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{test?.subject} · {total} savol</p>
                     </div>
 
                     {/* Blanka option labels */}
-                    <div className="flex-shrink-0 flex items-center px-3 py-1" style={{ borderBottom: '1px solid var(--border)' }}>
-                        <span className="w-7 flex-shrink-0" />
+                    <div className="flex-shrink-0 flex items-center px-4 py-1.5" style={{ borderBottom: '1px solid var(--border)' }}>
+                        <span className="w-9 flex-shrink-0" />
                         {OPTS.map(l => (
-                            <span key={l} className="flex-1 text-center text-[10px] font-bold" style={{ color: 'var(--text-muted)' }}>{l}</span>
+                            <span key={l} className="flex-1 text-center text-[11px] font-bold" style={{ color: 'var(--text-muted)' }}>{l}</span>
                         ))}
                     </div>
 
@@ -416,14 +416,14 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
 
                             return (
                                 <button key={q.id} onClick={() => scrollToQuestion(qi)}
-                                    className="w-full flex items-center px-3 transition"
+                                    className="w-full flex items-center px-4 transition"
                                     style={{
-                                        height: 28,
+                                        height: 36,
                                         background: isFocused ? 'color-mix(in srgb, var(--brand) 8%, transparent)' : 'transparent',
-                                        borderLeft: isFocused ? '2px solid var(--brand)' : '2px solid transparent'
+                                        borderLeft: isFocused ? '3px solid var(--brand)' : '3px solid transparent'
                                     }}>
                                     {/* Number */}
-                                    <span className="w-7 flex-shrink-0 text-[11px] font-semibold text-left" style={{ color: isFocused ? 'var(--brand)' : 'var(--text-muted)' }}>
+                                    <span className="w-9 flex-shrink-0 text-[12px] font-semibold text-left" style={{ color: isFocused ? 'var(--brand)' : 'var(--text-muted)' }}>
                                         {qi + 1}
                                     </span>
                                     {/* Bubbles */}
@@ -440,7 +440,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                                 style={{ cursor: submitted || isGuest ? 'default' : 'pointer' }}>
                                                 {/* Bubble */}
                                                 {isSelected || isCorrect ? (
-                                                    <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-all"
+                                                    <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all"
                                                         style={{
                                                             background: isWrong ? 'var(--danger)' : isCorrect ? 'var(--success)' : 'var(--text-primary)',
                                                             color: 'white',
@@ -449,7 +449,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                                         {OPTS[oi]}
                                                     </span>
                                                 ) : (
-                                                    <span className="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all hover:border-current"
+                                                    <span className="w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all hover:border-current"
                                                         style={{ borderColor: 'var(--border-strong)', opacity: submitted ? 0.25 : 1 }} />
                                                 )}
                                             </button>

@@ -320,7 +320,7 @@ const MdMessage = memo(({ content, isStreaming }: {
                             <div className="grid grid-cols-1 sm:grid-cols-2">
                                 {items.map((item, i) => {
                                     let rendered = ''
-                                    try { rendered = katex.renderToString(item.formula, { displayMode: false, throwOnError: false }) } catch { rendered = item.formula }
+                                    try { rendered = DOMPurify.sanitize(katex.renderToString(item.formula, { displayMode: false, throwOnError: false })) } catch { rendered = DOMPurify.sanitize(item.formula) }
                                     const col = i % 2
                                     const row = Math.floor(i / 2)
                                     return (

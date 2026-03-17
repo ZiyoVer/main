@@ -102,14 +102,13 @@ html.dark {
 
     html {
         height: 100%;
-        overflow: hidden;
         font-size: 16px;
         -webkit-text-size-adjust: 100%;
     }
 
     body {
         height: 100%;
-        overflow: hidden;
+        /* overflow intentionally NOT hidden globally — each page controls its own scroll */
         font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;

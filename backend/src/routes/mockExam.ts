@@ -137,10 +137,13 @@ router.post('/generate', mockExamLimiter, async (req: AuthRequest, res) => {
                 id: i,
                 question: q.question || q.text || '',
                 options: Array.isArray(q.options) ? q.options.slice(0, 4) : ['A variant', 'B variant', 'C variant', 'D variant'],
-                correct,
-                explanation: q.explanation || ''
+                correct,         // DB ga yozish uchun saqlanadi
+                explanation: q.explanation || '' // DB ga yozish uchun saqlanadi
             }
         }).filter(q => q.question.trim().length > 0)
+
+        // Clientga yuboriladigan versiya — correct/explanation yo'q (xavfsizlik)
+        const normalizedForClient = normalized.map(({ correct: _c, explanation: _e, ...rest }) => rest)
 
         if (normalized.length === 0) {
             return res.status(500).json({ error: 'Yaroqli savollar generatsiya qilinmadi' })
@@ -176,8 +179,8 @@ router.post('/generate', mockExamLimiter, async (req: AuthRequest, res) => {
             subject,
             examType,
             timeMinutes: config.timeMinutes,
-            questions: normalized,
-            count: normalized.length
+            questions: normalizedForClient,
+            count: normalizedForClient.length
         })
     } catch (e) {
         console.error('Mock exam generate error:', e)

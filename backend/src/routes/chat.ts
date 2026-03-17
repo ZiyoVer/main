@@ -1222,12 +1222,13 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
             data: { chatId: chat.id, role: 'user', content: savedUserContent }
         })
 
-        // Oldingi xabarlar (ko'proq kontekst)
-        const history = await prisma.message.findMany({
+        // Oldingi xabarlar — eng YANGI 80 ta (desc + reverse = to'g'ri tartib)
+        const historyRaw = await prisma.message.findMany({
             where: { chatId: chat.id },
-            orderBy: { createdAt: 'asc' },
+            orderBy: { createdAt: 'desc' },
             take: 80
         })
+        const history = historyRaw.reverse()
 
         // Profile olish
         const profile = await prisma.studentProfile.findUnique({

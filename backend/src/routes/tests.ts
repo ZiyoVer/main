@@ -879,6 +879,11 @@ router.post('/:testId/submit-guest', optionalAuthenticate, submitLimiter, async 
         })
         if (!test) return res.status(404).json({ error: 'Test topilmadi' })
 
+        // Login qilgan student private testni submit-guest orqali chetlab o'ta olmasligi kerak
+        if (!test.isPublic && req.user?.role === 'STUDENT') {
+            return res.status(403).json({ error: 'Bu test uchun ruxsat yo\'q' })
+        }
+
         // Javoblarni tekshirish (AI open-answer tekshiruvisiz — guest uchun tezroq)
         const results = answers.map((a: any) => {
             const q = test.questions.find(q => q.id === a.questionId)
