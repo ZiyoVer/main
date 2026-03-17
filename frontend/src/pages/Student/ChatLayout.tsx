@@ -12,7 +12,7 @@ import katex from 'katex'
 import toast from 'react-hot-toast'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
-import ChatContext, { useChatContext, EssayPanel } from '../../contexts/ChatContext'
+import ChatContext, { useChatContext, EssayPanel, TodoItem } from '../../contexts/ChatContext'
 import { useTestPanel } from '../../hooks/useTestPanel'
 import { useFlashPanel } from '../../hooks/useFlashPanel'
 
@@ -47,13 +47,28 @@ function preprocessMath(text: string): string {
         })
 }
 
+// TodoBlockMount: mounts → opens todo panel, shows a tap card in chat
+function TodoBlockMount({ items, onSetTodo }: { items: Omit<TodoItem, 'id' | 'done'>[], onSetTodo: (items: Omit<TodoItem, 'id' | 'done'>[]) => void }) {
+    useEffect(() => { onSetTodo(items) }, []) // eslint-disable-line
+    return (
+        <button onClick={() => onSetTodo(items)} className="my-3 flex items-center gap-2.5 px-4 py-3 rounded-xl w-full text-left transition"
+            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-surface)'}>
+            <Target className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--brand)' }} />
+            <span className="text-[13px] font-medium flex-1">Kunlik reja — {items.length} ta vazifa</span>
+            <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>Ko'rish →</span>
+        </button>
+    )
+}
+
 // MdMessage komponentni tashqarida va memo bilan ta'riflaymiz —
 // shunda har keystrokeda re-render bo'lmaydi (ReactMarkdown+KaTeX qimmat!)
 const MdMessage = memo(({ content, isStreaming }: {
     content: string
     isStreaming?: boolean
 }) => {
-    const { onOpenTest, onProfileUpdate, onOpenFlash, onOpenEssay } = useChatContext()
+    const { onOpenTest, onProfileUpdate, onOpenFlash, onOpenEssay, onSetTodo } = useChatContext()
     const processedContent = preprocessMath(content)
     return (
         <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} components={{
@@ -325,33 +340,10 @@ const MdMessage = memo(({ content, isStreaming }: {
                     )
                 }
                 if (className?.includes('language-todo')) {
-                    let items: { time?: string; task: string; duration?: number; subject?: string; done?: boolean }[] = []
-                    try { items = JSON.parse(String(children).trim()) } catch { return null }
-                    if (!items.length) return null
-                    return (
-                        <div className="my-3 rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(16,185,129,0.03))', border: '1.5px solid rgba(16,185,129,0.25)' }}>
-                            <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: '1px solid rgba(16,185,129,0.15)' }}>
-                                <Target className="h-4 w-4" style={{ color: '#10b981' }} />
-                                <span className="text-[12px] font-bold" style={{ color: '#10b981' }}>Kunlik reja — {items.length} ta vazifa</span>
-                            </div>
-                            <div className="divide-y" style={{ borderColor: 'rgba(16,185,129,0.1)' }}>
-                                {items.map((item, i) => (
-                                    <div key={i} className="flex items-center gap-3 px-4 py-3">
-                                        <div className="h-5 w-5 rounded-full border-2 flex-shrink-0" style={{ borderColor: '#10b981' }} />
-                                        {item.time && <span className="text-[12px] font-bold tabular-nums flex-shrink-0" style={{ color: '#10b981', minWidth: '40px' }}>{item.time}</span>}
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-[13px] font-medium">{item.task}</p>
-                                            {(item.subject || item.duration) && (
-                                                <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                                                    {item.subject}{item.subject && item.duration ? ' • ' : ''}{item.duration ? `${item.duration} daqiqa` : ''}
-                                                </p>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )
+                    let rawItems: Omit<TodoItem, 'id' | 'done'>[] = []
+                    try { rawItems = JSON.parse(String(children).trim()) } catch { return null }
+                    if (!rawItems.length) return null
+                    return <TodoBlockMount items={rawItems} onSetTodo={onSetTodo} />
                 }
                 const isBlock = className?.includes('language-')
                 return isBlock
@@ -621,7 +613,8 @@ export default function ChatLayout() {
     const [profile, setProfile] = useState<Profile | null>(null)
     const [showOnboarding, setShowOnboarding] = useState(false)
     const [sideTab, setSideTab] = useState<'chats' | 'tests' | 'progress' | 'flashcards'>('chats')
-    const [overlayPanel, setOverlayPanel] = useState<'tests' | 'flashcards' | 'progress' | null>(null)
+    const [overlayPanel, setOverlayPanel] = useState<'tests' | 'flashcards' | 'progress' | 'todo' | null>(null)
+    const [todoItems, setTodoItems] = useState<TodoItem[]>([])
     const [showSettings, setShowSettings] = useState(false)
     const [settingsSection, setSettingsSection] = useState<'profile' | 'appearance' | 'notifications' | 'security' | 'account'>('profile')
     const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -1335,6 +1328,15 @@ Iltimos, har bir savolni tahlil qilib ber:
         setEssayTimeLeft(data.time * 60)
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Todo panel
+    const handleSetTodo = useCallback((items: Omit<TodoItem, 'id' | 'done'>[]) => {
+        setTodoItems(items.map((item, i) => ({ ...item, id: `todo-${i}-${Date.now()}`, done: false })))
+        setOverlayPanel('todo')
+    }, [])
+    const markTodoDone = useCallback((id: string) => {
+        setTodoItems(prev => prev.map(t => t.id === id ? { ...t, done: true } : t))
+    }, [])
+
     // Essay submit — AI ga baholash uchun yuborish
     async function submitEssay() {
         if (!essayPanel || essaySubmitted) return
@@ -1628,7 +1630,7 @@ Iltimos, har bir savolni tahlil qilib ber:
     }
 
     return (
-        <ChatContext.Provider value={{ onOpenTest: openTestPanel, onProfileUpdate: handleProfileUpdate, onOpenFlash: handleOpenFlash, onOpenEssay: handleOpenEssay }}>
+        <ChatContext.Provider value={{ onOpenTest: openTestPanel, onProfileUpdate: handleProfileUpdate, onOpenFlash: handleOpenFlash, onOpenEssay: handleOpenEssay, onSetTodo: handleSetTodo }}>
             <div className="min-h-[100dvh] h-[100dvh] flex overflow-hidden relative" style={{ background: 'var(--bg-page)' }}>
                 {/* Mobile backdrop */}
                 {sideOpen && isMobile && (
@@ -1696,6 +1698,21 @@ Iltimos, har bir savolni tahlil qilib ber:
                             onMouseLeave={e => { if (overlayPanel !== 'progress') e.currentTarget.style.background = 'transparent' }}
                         >
                             <TrendingUp className="h-4 w-4 flex-shrink-0" /> Natijalar
+                        </button>
+                        {/* Reja */}
+                        <button onClick={() => setOverlayPanel(overlayPanel === 'todo' ? null : 'todo')}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition"
+                            style={overlayPanel === 'todo' ? { background: 'var(--bg-muted)', color: 'var(--text-primary)' } : { color: 'var(--text-secondary)' }}
+                            onMouseEnter={e => { if (overlayPanel !== 'todo') e.currentTarget.style.background = 'var(--bg-muted)' }}
+                            onMouseLeave={e => { if (overlayPanel !== 'todo') e.currentTarget.style.background = 'transparent' }}
+                        >
+                            <Target className="h-4 w-4 flex-shrink-0" /> Reja
+                            {todoItems.filter(t => !t.done).length > 0 && (
+                                <span className="ml-auto text-[11px] font-bold h-5 w-5 rounded-full flex items-center justify-center"
+                                    style={{ background: 'var(--brand)', color: 'white' }}>
+                                    {todoItems.filter(t => !t.done).length}
+                                </span>
+                            )}
                         </button>
                     </div>
 
@@ -2499,17 +2516,21 @@ Iltimos, har bir savolni tahlil qilib ber:
                             {/* Header */}
                             <div className="flex items-center gap-3 px-5 py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                                 <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                                    style={{ background: overlayPanel === 'tests' ? 'rgba(224,123,57,0.12)' : overlayPanel === 'flashcards' ? 'rgba(99,102,241,0.12)' : 'rgba(16,185,129,0.12)' }}>
+                                    style={{ background: overlayPanel === 'tests' ? 'rgba(224,123,57,0.12)' : overlayPanel === 'flashcards' ? 'rgba(99,102,241,0.12)' : overlayPanel === 'todo' ? 'rgba(224,123,57,0.12)' : 'rgba(16,185,129,0.12)' }}>
                                     {overlayPanel === 'tests' && <ClipboardList className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
                                     {overlayPanel === 'flashcards' && <Brain className="h-5 w-5" style={{ color: '#6366f1' }} />}
                                     {overlayPanel === 'progress' && <BarChart2 className="h-5 w-5" style={{ color: '#10b981' }} />}
+                                    {overlayPanel === 'todo' && <Target className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
                                 </div>
                                 <div className="flex-1">
                                     <h2 className="font-semibold text-base">
-                                        {overlayPanel === 'tests' ? 'Testlar' : overlayPanel === 'flashcards' ? 'Kartochkalar' : 'Natijalar'}
+                                        {overlayPanel === 'tests' ? 'Testlar' : overlayPanel === 'flashcards' ? 'Kartochkalar' : overlayPanel === 'todo' ? 'Kunlik reja' : 'Natijalar'}
                                     </h2>
                                     <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                                        {overlayPanel === 'tests' ? `${publicTests.length} ta test mavjud` : overlayPanel === 'flashcards' ? `${dueFlashcards.length} ta kartochka qaytarish kerak` : 'O\'qish tahlili'}
+                                        {overlayPanel === 'tests' ? `${publicTests.length} ta test mavjud`
+                                            : overlayPanel === 'flashcards' ? `${dueFlashcards.length} ta kartochka qaytarish kerak`
+                                            : overlayPanel === 'todo' ? `${todoItems.filter(t => !t.done).length} ta vazifa qoldi`
+                                            : 'O\'qish tahlili'}
                                     </p>
                                 </div>
                                 <button onClick={() => setOverlayPanel(null)} className="h-8 w-8 flex items-center justify-center rounded-lg transition"
@@ -2662,6 +2683,42 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 <p className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>Hozircha ma'lumot yo'q</p>
                                             </div>
                                         )}
+                                    </div>
+                                )}
+
+                                {overlayPanel === 'todo' && (
+                                    <div className="space-y-2">
+                                        {todoItems.filter(t => !t.done).length === 0 ? (
+                                            <div className="flex flex-col items-center justify-center py-16 gap-3">
+                                                <div className="h-16 w-16 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(224,123,57,0.1)' }}>
+                                                    <Target className="h-8 w-8" style={{ color: 'var(--brand)' }} />
+                                                </div>
+                                                <p className="text-sm font-semibold">Barcha vazifalar bajarildi! 🎉</p>
+                                                <p className="text-xs text-center" style={{ color: 'var(--text-muted)' }}>AI yangi reja tuzib berishi uchun chatda so'rang</p>
+                                            </div>
+                                        ) : todoItems.map(item => item.done ? null : (
+                                            <div key={item.id} className="flex items-start gap-3 rounded-xl p-3.5 transition"
+                                                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                                <button onClick={() => markTodoDone(item.id)}
+                                                    className="h-5 w-5 rounded-full border-2 flex-shrink-0 mt-0.5 transition hover:opacity-70"
+                                                    style={{ borderColor: 'var(--brand)' }}
+                                                    title="Bajarildi" />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-[13px] font-medium leading-snug">{item.task}</p>
+                                                    {(item.subject || item.duration) && (
+                                                        <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                                            {item.subject}{item.subject && item.duration ? ' · ' : ''}{item.duration ? `${item.duration} daqiqa` : ''}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                                {item.time && (
+                                                    <span className="text-[11px] font-semibold tabular-nums flex-shrink-0 px-2 py-0.5 rounded-lg"
+                                                        style={{ background: 'rgba(224,123,57,0.1)', color: 'var(--brand)' }}>
+                                                        {item.time}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        ))}
                                     </div>
                                 )}
                             </div>
