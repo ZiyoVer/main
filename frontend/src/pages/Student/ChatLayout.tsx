@@ -874,10 +874,11 @@ Iltimos, har bir savolni tahlil qilib ber:
         if (!testPanel) { setTestTimeLeft(null); setRaschFeedback(null) }
     }, [testPanel])
 
-    // Notification count — har daqiqa yangilanadi
+    // Notification count — har daqiqa yangilanadi (faqat settings yopiq bo'lganda)
     useEffect(() => {
         if (!token) return
         const fetchCount = async () => {
+            if (showSettings) return // settings ochiq bo'lsa yangilamaymiz
             try {
                 const data = await fetchApi('/notifications?count=true')
                 setNotifCount(data.count || 0)
@@ -886,7 +887,7 @@ Iltimos, har bir savolni tahlil qilib ber:
         fetchCount()
         const interval = setInterval(fetchCount, 60000)
         return () => clearInterval(interval)
-    }, [token])
+    }, [token, showSettings])
 
     // Timer countdown (setInterval — har sekund 1 ta kamayadi)
     useEffect(() => {
@@ -1040,10 +1041,10 @@ Iltimos, har bir savolni tahlil qilib ber:
 
     const loadNotifications = async () => {
         setNotifLoading(true)
+        setNotifCount(0) // darhol badge tozalanadi — async kutmasdan
         try {
             const data = await fetchApi('/notifications')
             setNotifications(data)
-            setNotifCount(0)
             await fetchApi('/notifications/read-all', { method: 'PATCH' })
         } catch { } finally { setNotifLoading(false) }
     }
@@ -1737,7 +1738,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                             {newTestIds.size > 0 && <span className="ml-auto px-1.5 rounded-full text-white text-[10px] flex items-center font-bold" style={{ background: 'var(--danger)', height: '18px' }}>{newTestIds.size > 9 ? '9+' : newTestIds.size}</span>}
                         </button>
                         {/* Kartochkalar */}
-                        <button onClick={() => setOverlayPanel(overlayPanel === 'flashcards' ? null : 'flashcards')}
+                        <button onClick={() => { setOverlayPanel(overlayPanel === 'flashcards' ? null : 'flashcards'); if (overlayPanel !== 'flashcards') setDueCount(0) }}
                             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition"
                             style={overlayPanel === 'flashcards' ? { background: 'var(--bg-muted)', color: 'var(--text-primary)' } : { color: 'var(--text-secondary)' }}
                             onMouseEnter={e => { if (overlayPanel !== 'flashcards') e.currentTarget.style.background = 'var(--bg-muted)' }}
