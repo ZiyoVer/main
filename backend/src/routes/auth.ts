@@ -221,19 +221,27 @@ router.get('/users', authenticate, requireRole('ADMIN'), async (req: AuthRequest
         const page = Math.max(1, parseInt(req.query.page as string) || 1)
         const limit = Math.min(100, Math.max(10, parseInt(req.query.limit as string) || 50))
         const search = ((req.query.search as string) || '').trim()
+        const roleFilter = (req.query.role as string) || ''
         const skip = (page - 1) * limit
 
-        const where = search ? {
-            OR: [
+        const where: any = {}
+        if (roleFilter && ['STUDENT', 'TEACHER', 'ADMIN'].includes(roleFilter.toUpperCase())) {
+            where.role = roleFilter.toUpperCase()
+        }
+        if (search) {
+            where.OR = [
                 { name: { contains: search, mode: 'insensitive' as const } },
                 { email: { contains: search, mode: 'insensitive' as const } }
             ]
-        } : {}
+        }
 
         const [users, total] = await Promise.all([
             prisma.user.findMany({
                 where,
-                select: { id: true, email: true, name: true, role: true, createdAt: true },
+                select: {
+                    id: true, email: true, name: true, role: true, createdAt: true,
+                    _count: { select: { testsCreated: true } }
+                },
                 orderBy: { createdAt: 'desc' },
                 skip,
                 take: limit
