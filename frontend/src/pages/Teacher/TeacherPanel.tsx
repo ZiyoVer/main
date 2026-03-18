@@ -252,7 +252,8 @@ export default function TeacherPanel() {
                 if (subs.length === 0) { setMsg(`Savol ${i + 1}: kamida 1 ta kichik savol bo'lishi kerak`); return }
                 for (let si = 0; si < subs.length; si++) {
                     if (!subs[si].text?.trim()) { setMsg(`Savol ${i + 1}, kichik savol ${si + 1} matni bo'sh`); return }
-                    if (subs[si].correctIdx >= nonEmptyAnswers.length) { setMsg(`Savol ${i + 1}, kichik savol ${si + 1}: to'g'ri javob tanlang`); return }
+                    // correctIdx — FULL answers array indeksi (0-5), nonEmptyAnswers.length EMAS!
+                    if (!mp.answers?.[subs[si].correctIdx]?.trim()) { setMsg(`Savol ${i + 1}, kichik savol ${si + 1}: to'g'ri javob bo'sh yoki tanlanmagan`); return }
                 }
                 continue
             }
