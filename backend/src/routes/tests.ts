@@ -269,7 +269,11 @@ router.post('/generate-from-file', authenticate, requireRole('TEACHER', 'ADMIN')
         if (!req.file) return res.status(400).json({ error: 'Fayl yuklanmadi' })
         const { mimetype, buffer } = req.file
         const subject = (req.body.subject as string) || ''
-        const jsonFormat = `[{"text":"Savol matni (masalan: $\\\\sqrt{2}$ yoki $\\\\frac{a}{b}$)?","options":["A variant","B variant","C variant","D variant"],"correctIdx":0}]`
+        // MCQ va Moslashtirish (matching) format namunasi
+        const jsonFormat = `[
+  {"text":"MCQ savol matni?","options":["A variant","B variant","C variant","D variant"],"correctIdx":0},
+  {"text":"Juftlash/Moslashtirish savoli matni","questionType":"matching","answers":["Paris","London","Berlin","Tokio","Madrid","Rim"],"subQuestions":[{"text":"Fransiya","correctIdx":0},{"text":"Angliya","correctIdx":1},{"text":"Germaniya","correctIdx":2}]}
+]`
         const subjectNote = subject ? ` Fan: ${subject}.` : ''
 
         let messages: any[] = []
@@ -313,7 +317,8 @@ router.post('/generate-from-file', authenticate, requireRole('TEACHER', 'ADMIN')
 MUHIM QOIDALAR:
 - Rasmdagi mavjud savol va variantlarni AYNAN ko'chir
 - Kamida 5 ta, ko'pi 90 ta savol
-- correctIdx: to'g'ri javob indeksi (0=A, 1=B, 2=C, 3=D)
+- MCQ savol: {"text":"...","options":["A","B","C","D"],"correctIdx":0}
+- Moslashtirish savol: {"text":"...","questionType":"matching","answers":[...],"subQuestions":[{"text":"...","correctIdx":0}]}
 - Matematik ifodalarni KaTeX formatida yoz: $\\sqrt{x}$, $\\frac{a}{b}$, $x^{2}$, $a_{n}$, $\\pi$
 - Rasmdagi har qanday formula, ildiz, kasr, daraja, indeksni LaTeX bilan ifodalash SHART
 
@@ -333,19 +338,20 @@ ${jsonFormat}`
                     return res.status(400).json({ error: 'PDF fayldan matn o\'qib bo\'lmadi. Iltimos, PDF ni PNG/JPG rasmga aylantiring va yuklang, yoki Word (.docx) fayl yuklang.' })
                 }
 
-                truncated = fullText.length > 12000
-                const text = fullText.substring(0, 12000)
+                truncated = fullText.length > 25000
+                const text = fullText.substring(0, 25000)
 
                 const userMsg = `Quyidagi matnda TAYYOR test savollari va variantlari bor. Ularni AYNAN o'sha holda ajratib ol — o'zing savol to'qima, o'zgartirma.${subjectNote}
 
 MUHIM QOIDALAR:
 - Matndagi mavjud savol va variantlarni AYNAN ko'chir
 - Agar matnda savol topilmasa YOKI matn o'quv material bo'lsa — o'sha materialdan YANGI savol yaratishga ruxsat beriladi
-- correctIdx: to'g'ri javob indeksi (0=A, 1=B, 2=C, 3=D)
+- MCQ savol: {"text":"...","options":["A","B","C","D"],"correctIdx":0}
+- Moslashtirish savol: {"text":"...","questionType":"matching","answers":[...],"subQuestions":[{"text":"...","correctIdx":0}]}
 - Kamida 5 ta, ko'pi 90 ta savol
 - Matematik ifodalarni KaTeX formatida yoz: $\\sqrt{x}$, $\\frac{a}{b}$, $x^{2}$, $a_{n}$, $\\pi$
 - Har qanday formula, ildiz, kasr, daraja, indeksni LaTeX bilan ifodalash SHART
-${truncated ? '- DIQQAT: PDF katta, faqat birinchi qism berildi\n' : ''}
+${truncated ? '- DIQQAT: Fayl katta, faqat birinchi qism berildi\n' : ''}
 Javobni FAQAT JSON array formatda qaytargil, boshqa hech narsa yozma:
 ${jsonFormat}
 
@@ -359,14 +365,15 @@ ${text}`
             const fullText = result.value.trim()
             if (!fullText) return res.status(400).json({ error: 'Word fayli bo\'sh' })
 
-            truncated = fullText.length > 12000
-            const text = fullText.substring(0, 12000)
+            truncated = fullText.length > 25000
+            const text = fullText.substring(0, 25000)
 
             const userMsg = `Quyidagi matnda TAYYOR test savollari va variantlari bor. Ularni AYNAN o'sha holda ajratib ol — o'zing savol to'qima.${subjectNote}
 
 MUHIM QOIDALAR:
 - Matndagi mavjud savol va variantlarni AYNAN ko'chir
-- correctIdx: to'g'ri javob indeksi (0=A, 1=B, 2=C, 3=D)
+- MCQ savol: {"text":"...","options":["A","B","C","D"],"correctIdx":0}
+- Moslashtirish savol: {"text":"...","questionType":"matching","answers":[...],"subQuestions":[{"text":"...","correctIdx":0}]}
 - Kamida 5 ta, ko'pi 90 ta savol
 - Matematik ifodalarni KaTeX formatida yoz: $\\sqrt{x}$, $\\frac{a}{b}$, $x^{2}$, $a_{n}$, $\\pi$
 - Har qanday formula, ildiz, kasr, daraja, indeksni LaTeX bilan ifodalash SHART
@@ -389,7 +396,8 @@ ${text}`
 MUHIM QOIDALAR:
 - Rasmdagi mavjud savol va variantlarni AYNAN ko'chir
 - Agar rasmda savol topilmasa — rasmda ko'rsatilgan mavzudan yangi savol yaratishga ruxsat beriladi
-- correctIdx: to'g'ri javob indeksi (0=A, 1=B, 2=C, 3=D)
+- MCQ savol: {"text":"...","options":["A","B","C","D"],"correctIdx":0}
+- Moslashtirish savol: {"text":"...","questionType":"matching","answers":[...],"subQuestions":[{"text":"...","correctIdx":0}]}
 - Kamida 5 ta, ko'pi 90 ta savol
 - Matematik ifodalarni KaTeX formatida yoz: $\\sqrt{x}$, $\\frac{a}{b}$, $x^{2}$, $a_{n}$, $\\pi$
 - Rasmdagi har qanday formula, ildiz, kasr, daraja, indeksni LaTeX bilan ifodalash SHART
@@ -417,7 +425,16 @@ ${jsonFormat}`
                 {
                     role: 'system', content: `Siz test savollari generatorisiz. Sizga berilgan matn yoki rasmdan savollarni AYNAN ajratib olasiz. FAQAT JSON array formatda javob bering, boshqa hech narsa yozmasdan.
 
-MATEMATIK IFODALAR BA GEOMETRIK CHIZMALAR UCHUN QAT'IY QOIDALAR (MUHIM):
+SAVOL TURLARI:
+1. MCQ (ko'p tanlovli, standart): {"text":"...","options":["A","B","C","D"],"correctIdx":0}
+   - correctIdx: to'g'ri javob indeksi (0=A, 1=B, 2=C, 3=D)
+2. MOSLASHTIRISH (matching/juftlash): {"text":"...","questionType":"matching","answers":["...","...","..."],"subQuestions":[{"text":"...","correctIdx":0},{"text":"...","correctIdx":1}]}
+   - Juftlash, moslashtirish, "qaysi guruhga/ustonga tegishli" kabi savollarda ishlating
+   - "answers": umumiy javoblar banki (2-6 ta element, masalan poytaxtlar yoki ta'riflar ro'yxati)
+   - "subQuestions": kichik savollar, har biri {"text":"...","correctIdx":N} ko'rinishida
+   - correctIdx — "answers" massividagi to'g'ri javob indeksi (0 dan boshlanadi)
+
+MATEMATIK IFODALAR VA GEOMETRIK CHIZMALAR UCHUN QAT'IY QOIDALAR (MUHIM):
 1. Barcha matematik ifodalarni faqat KaTeX/LaTeX formatida yozing.
 2. Inline formula: $formula$ — masalan: $\\sqrt{2}$, $\\frac{1}{2}$, $x^2$, $a_n$
 3. Block formula xato berishi mumkin, faqat bitta $ ishlating: $x^2 + y^2 = r^2$
@@ -435,9 +452,9 @@ DIQQAT: Formulalarda bo'sh joylar yoki ortiqcha belgilarni qoldirmang, aynan ras
                 },
                 ...messages
             ],
-            max_tokens: 8000,
+            max_tokens: 16000,
             temperature: 0.1,
-        }, { timeout: 120000 })
+        }, { timeout: 180000 })
 
         const aiContent = completion.choices[0]?.message?.content || '[]'
 
@@ -467,17 +484,35 @@ DIQQAT: Formulalarda bo'sh joylar yoki ortiqcha belgilarni qoldirmang, aynan ras
         }
 
         // Har bir savolni validatsiya qilish va normallashtirish
+        const letterToIdx = (s: string) => ['a', 'b', 'c', 'd'].indexOf(s.trim().toLowerCase())
         const validatedQuestions = questions
-            .filter((q: any) => q && q.text && q.options && Array.isArray(q.options))
+            .filter((q: any) => q && q.text)
             .map((q: any) => {
-                // Bo'sh option stringlarni ham filter qilish
-                const options = Array.isArray(q.options)
-                    ? q.options.filter((o: any) => typeof o === 'string' && o.trim().length > 0)
-                    : []
+                // ── Moslashtirish (matching) savol ──
+                if (q.questionType === 'matching') {
+                    const answers: string[] = Array.isArray(q.answers)
+                        ? q.answers.filter((a: any) => typeof a === 'string' && a.trim()).slice(0, 6)
+                        : []
+                    const subQuestions = Array.isArray(q.subQuestions)
+                        ? q.subQuestions
+                            .filter((sq: any) => sq && typeof sq.text === 'string' && sq.text.trim())
+                            .map((sq: any) => ({
+                                text: sq.text.trim(),
+                                correctIdx: typeof sq.correctIdx === 'number'
+                                    ? Math.max(0, Math.min(sq.correctIdx, answers.length - 1))
+                                    : 0
+                            }))
+                        : []
+                    if (answers.length < 2 || subQuestions.length < 1) return null
+                    return { text: q.text.trim(), questionType: 'matching', answers, subQuestions }
+                }
+
+                // ── MCQ savol (standart) ──
+                if (!q.options || !Array.isArray(q.options)) return null
+                const options = q.options.filter((o: any) => typeof o === 'string' && o.trim().length > 0)
                 if (options.length < 2) return null
 
                 // correctIdx: raqam, harf ('a'/'b'/'c'/'d'), yoki turli field nomlari bo'lishi mumkin
-                const letterToIdx = (s: string) => ['a', 'b', 'c', 'd'].indexOf(s.trim().toLowerCase())
                 let correctIdx = 0
                 if (typeof q.correctIdx === 'number') {
                     correctIdx = q.correctIdx
@@ -485,7 +520,6 @@ DIQQAT: Formulalarda bo'sh joylar yoki ortiqcha belgilarni qoldirmang, aynan ras
                     const i = letterToIdx(q.correctIdx)
                     correctIdx = i >= 0 ? i : 0
                 } else {
-                    // AI turli field nomlari qaytarishi mumkin
                     const raw = q.correct ?? q.correctAnswer ?? q.answer ?? q.correct_answer ?? null
                     if (typeof raw === 'number') correctIdx = raw
                     else if (typeof raw === 'string') {
@@ -493,14 +527,9 @@ DIQQAT: Formulalarda bo'sh joylar yoki ortiqcha belgilarni qoldirmang, aynan ras
                         correctIdx = i >= 0 ? i : 0
                     }
                 }
-
                 if (correctIdx < 0 || correctIdx >= options.length) correctIdx = 0
 
-                return {
-                    text: q.text.trim(),
-                    options: options.slice(0, 4),
-                    correctIdx
-                }
+                return { text: q.text.trim(), options: options.slice(0, 4), correctIdx }
             })
             .filter(Boolean)
 

@@ -190,7 +190,25 @@ export default function TeacherPanel() {
             const data = await res.json()
             if (!res.ok) throw new Error(data.error || 'Xatolik')
             const mapped: Question[] = data.questions.map((q: any) => {
-                // options: bo'sh qiymatlarni filter qilib, 4 taga to'ldiramiz
+                // Moslashtirish (matching) savol
+                if (q.questionType === 'matching') {
+                    const matchingAnswers = (q.answers || []).map(String).slice(0, 6)
+                    while (matchingAnswers.length < 2) matchingAnswers.push('')
+                    const matchingSubQuestions = (q.subQuestions || []).map((sq: any) => ({
+                        text: String(sq.text || ''),
+                        correctIdx: typeof sq.correctIdx === 'number' ? sq.correctIdx : 0
+                    }))
+                    return {
+                        text: q.text || '',
+                        options: ['', '', '', ''],
+                        correctIdx: -1,
+                        questionType: 'matching' as const,
+                        correctText: '',
+                        matchingAnswers,
+                        matchingSubQuestions
+                    }
+                }
+                // MCQ savol
                 let opts = Array.isArray(q.options) ? q.options.map(String).filter((o: string) => o.trim().length > 0) : []
                 while (opts.length < 4) opts.push('')
                 return {
