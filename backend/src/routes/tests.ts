@@ -558,7 +558,7 @@ router.post('/:testId/questions', authenticate, requireRole('TEACHER', 'ADMIN'),
             return res.status(403).json({ error: 'Ruxsat yo\'q' })
         }
 
-        const { text, imageUrl, options, correctIdx, orderIdx, difficulty } = req.body
+        const { text, imageUrl, options, correctIdx, orderIdx, difficulty, questionType } = req.body
 
         // Savol matni validatsiyasi
         if (!text || typeof text !== 'string' || !text.trim()) {
@@ -568,12 +568,23 @@ router.post('/:testId/questions', authenticate, requireRole('TEACHER', 'ADMIN'),
             return res.status(400).json({ error: 'Savol matni 2000 belgidan oshmasligi kerak' })
         }
 
-        // Validatsiya
-        if (!Array.isArray(options) || options.length < 2) {
-            return res.status(400).json({ error: 'Kamida 2 ta variant bo\'lishi kerak' })
-        }
-        if (typeof correctIdx !== 'number' || correctIdx < 0 || correctIdx >= options.length) {
-            return res.status(400).json({ error: 'To\'g\'ri javob indeksi xato' })
+        // Validatsiya — questionType ga qarab
+        if (questionType === 'matching') {
+            let matchData: any = {}
+            try { matchData = typeof options === 'string' ? JSON.parse(options) : options } catch {
+                return res.status(400).json({ error: 'Matching options formati xato' })
+            }
+            const mAnswers = (matchData.answers || []).filter((a: any) => typeof a === 'string' && a.trim())
+            const mSubs = matchData.subQuestions || []
+            if (mAnswers.length < 2) return res.status(400).json({ error: 'Kamida 2 ta javob varianti bo\'lishi kerak' })
+            if (mSubs.length < 1) return res.status(400).json({ error: 'Kamida 1 ta kichik savol bo\'lishi kerak' })
+        } else if (questionType !== 'open') {
+            if (!Array.isArray(options) || options.length < 2) {
+                return res.status(400).json({ error: 'Kamida 2 ta variant bo\'lishi kerak' })
+            }
+            if (typeof correctIdx !== 'number' || correctIdx < 0 || correctIdx >= options.length) {
+                return res.status(400).json({ error: 'To\'g\'ri javob indeksi xato' })
+            }
         }
 
         const q = await prisma.testQuestion.create({
@@ -581,8 +592,11 @@ router.post('/:testId/questions', authenticate, requireRole('TEACHER', 'ADMIN'),
                 testId: test.id,
                 text,
                 imageUrl: imageUrl || null,
-                options: JSON.stringify(options),
-                correctIdx,
+                questionType: questionType || 'mcq',
+                options: questionType === 'open' ? '[]'
+                       : questionType === 'matching' ? (typeof options === 'string' ? options : JSON.stringify(options))
+                       : JSON.stringify(options),
+                correctIdx: (questionType === 'open' || questionType === 'matching') ? -1 : (correctIdx ?? 0),
                 orderIdx: orderIdx || 0,
                 difficulty: difficulty || 0.0
             }
@@ -1305,10 +1319,17 @@ router.get('/:testId/analytics', authenticate, requireRole('TEACHER', 'ADMIN'), 
         if (!test) return res.status(404).json({ error: 'Test topilmadi yoki ruxsat yo\'q' })
 
         // Har bir savol bo'yicha statistika
-        const questionStats = test.questions.map(q => {
+        const questionStats = test.questions.map((q: any) => {
             let opts: any[]
+            const isMatching = q.questionType === 'matching'
             try {
-                opts = typeof q.options === 'string' ? JSON.parse(q.options) : q.options
+                const parsed = typeof q.options === 'string' ? JSON.parse(q.options) : q.options
+                if (isMatching) {
+                    // Matching uchun faqat javob bankini olish (array)
+                    opts = Array.isArray(parsed?.answers) ? parsed.answers : []
+                } else {
+                    opts = Array.isArray(parsed) ? parsed : []
+                }
             } catch (e) {
                 console.warn('Question options parse failed:', e)
                 opts = []
@@ -1331,12 +1352,16 @@ router.get('/:testId/analytics', authenticate, requireRole('TEACHER', 'ADMIN'), 
                 if (ans != null) {
                     totalAnswered++
                     if (ans.isCorrect) correctCount++
-                    const idx = ans.selectedIdx
-                    if (idx >= 0 && idx < opts.length) optionCounts[idx]++
+                    // Matching uchun selectedIdx yo'q — optionCounts hisoblanmaydi
+                    if (!isMatching) {
+                        const idx = ans.selectedIdx
+                        if (idx >= 0 && idx < opts.length) optionCounts[idx]++
+                    }
                 }
             }
             return {
                 id: q.id, text: q.text, correctIdx: q.correctIdx, options: opts,
+                questionType: q.questionType || 'mcq',
                 totalAnswered, correctCount,
                 errorRate: totalAnswered > 0 ? Math.round((1 - correctCount / totalAnswered) * 100) : 0,
                 optionCounts

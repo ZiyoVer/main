@@ -1012,6 +1012,11 @@ export default function TeacherPanel() {
                                                         </span>
                                                     </div>
                                                     {q.totalAnswered > 0 ? (
+                                                        q.questionType === 'matching' ? (
+                                                            <p className="text-[11px]" style={mutedText}>
+                                                                Moslashtirish savoli — {q.correctCount}/{q.totalAnswered} to'liq to'g'ri
+                                                            </p>
+                                                        ) : (
                                                         <div className="grid grid-cols-4 gap-1.5">
                                                             {q.options.map((opt: string, oi: number) => {
                                                                 const count = q.optionCounts[oi] || 0
@@ -1029,6 +1034,7 @@ export default function TeacherPanel() {
                                                                 )
                                                             })}
                                                         </div>
+                                                        )
                                                     ) : (
                                                         <p className="text-[11px]" style={mutedText}>Hali javob berilmagan</p>
                                                     )}
