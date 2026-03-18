@@ -1,13 +1,28 @@
 import { Component, ErrorInfo, ReactNode } from 'react'
 import { BrainCircuit } from 'lucide-react'
 
-interface Props { children: ReactNode }
+interface Props { children: ReactNode; resetKey?: string }
 interface State { hasError: boolean; error?: Error }
 
 export default class ErrorBoundary extends Component<Props, State> {
     state: State = { hasError: false }
-    static getDerivedStateFromError(error: Error): State { return { hasError: true, error } }
-    componentDidCatch(error: Error, info: ErrorInfo) { console.error('ErrorBoundary:', error, info) }
+
+    static getDerivedStateFromError(error: Error): State {
+        return { hasError: true, error }
+    }
+
+    componentDidCatch(error: Error, info: ErrorInfo) {
+        console.error('ErrorBoundary:', error, info)
+    }
+
+    // Route o'zgarganda xatoni tozalaymiz — foydalanuvchi boshqa sahifaga o'tganda
+    // "Sahifani yangilash" ko'rsatilmasdan shu sahifa ochiladi
+    componentDidUpdate(prevProps: Props) {
+        if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
+            this.setState({ hasError: false, error: undefined })
+        }
+    }
+
     render() {
         if (this.state.hasError) {
             return (
@@ -20,12 +35,20 @@ export default class ErrorBoundary extends Component<Props, State> {
                         <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '24px', lineHeight: 1.6 }}>
                             Kutilmagan xatolik. Sahifani yangilab ko'ring.
                         </p>
-                        <button
-                            onClick={() => window.location.reload()}
-                            style={{ background: 'var(--brand)', color: 'white', border: 'none', borderRadius: '10px', padding: '12px 28px', fontWeight: 600, fontSize: '14px', cursor: 'pointer' }}
-                        >
-                            Sahifani yangilash
-                        </button>
+                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                            <button
+                                onClick={() => this.setState({ hasError: false, error: undefined })}
+                                style={{ background: 'var(--brand)', color: 'white', border: 'none', borderRadius: '10px', padding: '12px 28px', fontWeight: 600, fontSize: '14px', cursor: 'pointer' }}
+                            >
+                                Qayta urinish
+                            </button>
+                            <button
+                                onClick={() => { window.location.href = '/' }}
+                                style={{ background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: '10px', padding: '12px 28px', fontWeight: 600, fontSize: '14px', cursor: 'pointer' }}
+                            >
+                                Bosh sahifa
+                            </button>
+                        </div>
                     </div>
                 </div>
             )

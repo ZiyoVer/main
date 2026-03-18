@@ -61,9 +61,12 @@ function ProtectedRoute({ children, roles }: { children: React.ReactNode, roles?
     return <>{children}</>
 }
 
-export default function App() {
+// Route o'zgarganda ErrorBoundary ni reset qilish — "Sahifani yangilash" ekranidan
+// avtomatik chiqish uchun. resetKey pathname o'zgarganda boundary tozalanadi.
+function AppContent() {
+    const location = useLocation()
     return (
-        <ErrorBoundary>
+        <ErrorBoundary resetKey={location.pathname}>
             <Toaster
                 position="top-center"
                 toastOptions={{
@@ -100,4 +103,8 @@ export default function App() {
             </Suspense>
         </ErrorBoundary>
     )
+}
+
+export default function App() {
+    return <AppContent />
 }
