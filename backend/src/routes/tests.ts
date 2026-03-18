@@ -610,7 +610,18 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
             if (!hasText && !hasImage) {
                 return res.status(400).json({ error: `${i + 1}-savol: savol matni yoki rasmi bo'lishi shart` })
             }
-            if (q.questionType !== 'open') {
+            if (q.questionType === 'matching') {
+                // Moslashtirish savol validatsiyasi
+                let matchData: any = {}
+                try { matchData = typeof q.options === 'string' ? JSON.parse(q.options) : q.options } catch {
+                    return res.status(400).json({ error: `${i + 1}-savol: matching options formati xato` })
+                }
+                const mAnswers = (matchData.answers || []).filter((a: any) => typeof a === 'string' && a.trim())
+                const mSubs = matchData.subQuestions || []
+                if (mAnswers.length < 2) return res.status(400).json({ error: `${i + 1}-savol: kamida 2 ta javob varianti bo'lishi kerak` })
+                if (mSubs.length < 1) return res.status(400).json({ error: `${i + 1}-savol: kamida 1 ta kichik savol bo'lishi kerak` })
+            } else if (q.questionType !== 'open') {
+                // MCQ validatsiyasi
                 let opts: any[]
                 try {
                     opts = Array.isArray(q.options) ? q.options : JSON.parse(q.options)
@@ -620,7 +631,6 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
                 if (!Array.isArray(opts) || opts.length < 2) {
                     return res.status(400).json({ error: `${i + 1}-savol: kamida 2 ta variant bo'lishi kerak` })
                 }
-                // Bo'sh option tekshiruvi
                 for (let j = 0; j < opts.length; j++) {
                     if (typeof opts[j] !== 'string' || !opts[j].trim()) {
                         return res.status(400).json({ error: `${i + 1}-savol: ${String.fromCharCode(65 + j)} variant bo'sh bo'lishi mumkin emas` })
@@ -647,8 +657,13 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
                     create: questions.map((q: any, i: number) => ({
                         text: q.text,
                         imageUrl: q.imageUrl || null,
-                        options: q.questionType === 'open' ? '[]' : JSON.stringify(q.options),
-                        correctIdx: q.questionType === 'open' ? -1 : (q.correctIdx ?? 0),
+                        // matching: options allaqachon JSON string (frontend JSON.stringify qilgan)
+                        // mcq: options array → JSON.stringify kerak
+                        // open: bo'sh array
+                        options: q.questionType === 'open' ? '[]'
+                               : q.questionType === 'matching' ? (typeof q.options === 'string' ? q.options : JSON.stringify(q.options))
+                               : JSON.stringify(q.options),
+                        correctIdx: (q.questionType === 'open' || q.questionType === 'matching') ? -1 : (q.correctIdx ?? 0),
                         correctText: q.questionType === 'open' ? (q.correctText?.trim() || null) : null,
                         questionType: q.questionType || 'mcq',
                         difficulty: q.difficulty || 0.0,
