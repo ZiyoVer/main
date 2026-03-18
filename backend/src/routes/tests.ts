@@ -890,11 +890,23 @@ router.post('/:testId/submit-guest', optionalAuthenticate, submitLimiter, async 
         const results = answers.map((a: any) => {
             const q = test.questions.find(q => q.id === a.questionId)
             let isCorrect = false
+            let correctSubCount = 0
+            let totalSubs = 0
             if (q) {
                 if (q.questionType === 'open') {
                     const studentAns = (a.textAnswer || '').trim().toLowerCase()
                     const correctAns = (q.correctText || '').trim().toLowerCase()
                     isCorrect = correctAns.length > 0 && studentAns === correctAns
+                } else if (q.questionType === 'matching') {
+                    let matchingData: any = { answers: [], subQuestions: [] }
+                    try { matchingData = JSON.parse(q.options as string) } catch { }
+                    const subQuestions = matchingData.subQuestions || []
+                    const studentMatchingAnswers: number[] = a.matchingAnswers || []
+                    totalSubs = subQuestions.length
+                    subQuestions.forEach((sq: any, si: number) => {
+                        if (studentMatchingAnswers[si] === sq.correctIdx) correctSubCount++
+                    })
+                    isCorrect = correctSubCount === totalSubs && totalSubs > 0
                 } else {
                     isCorrect = q.correctIdx === a.selectedIdx
                 }
@@ -903,22 +915,46 @@ router.post('/:testId/submit-guest', optionalAuthenticate, submitLimiter, async 
                 questionId: a.questionId,
                 selectedIdx: a.selectedIdx ?? -1,
                 textAnswer: a.textAnswer || null,
+                matchingAnswers: a.matchingAnswers || null,
                 isCorrect,
-                difficulty: q?.difficulty || 0.0
+                difficulty: q?.difficulty || 0.0,
+                ...(q?.questionType === 'matching' ? { correctSubCount, totalSubs } : {})
             }
         })
 
-        const correct = results.filter((r: any) => r.isCorrect).length
-        const total = test.questions.length
+        // For matching: each sub-question counts toward total (partial credit)
+        let correct = 0
+        let total = 0
+        results.forEach((r: any) => {
+            const q = test.questions.find(q => q.id === r.questionId)
+            if (q && (q as any).questionType === 'matching') {
+                total += r.totalSubs || 1
+                correct += r.correctSubCount || 0
+            } else {
+                total += 1
+                correct += r.isCorrect ? 1 : 0
+            }
+        })
+        // Fallback: if no results, use question count
+        if (total === 0) total = test.questions.length
         const score = total > 0 ? (correct / total) * 100 : 0
         const finalScore = Math.round(score * 100) / 100
 
-        const correctAnswers = test.questions.map(q => ({
-            id: q.id,
-            correctIdx: q.correctIdx,
-            correctText: (q as any).questionType === 'open' ? (q as any).correctText : undefined,
-            questionType: (q as any).questionType || 'mcq'
-        }))
+        const correctAnswers = test.questions.map(q => {
+            if ((q as any).questionType === 'matching') {
+                let matchingData: any = { subQuestions: [] }
+                try { matchingData = JSON.parse(q.options as string) } catch { }
+                return {
+                    id: q.id, correctIdx: -1, questionType: 'matching',
+                    matchingCorrect: (matchingData.subQuestions || []).map((sq: any) => sq.correctIdx)
+                }
+            }
+            return {
+                id: q.id, correctIdx: q.correctIdx,
+                correctText: (q as any).questionType === 'open' ? (q as any).correctText : undefined,
+                questionType: (q as any).questionType || 'mcq'
+            }
+        })
 
         const testType = (test as any).testType || 'milliy_sertifikat'
         const dtm = getDtmBall(test.subject || null, correct, total)
@@ -1029,6 +1065,22 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
                             isCorrect = studentAns.toLowerCase() === correctAns.toLowerCase()
                         }
                     }
+                } else if (q.questionType === 'matching') {
+                    let matchingData: any = { answers: [], subQuestions: [] }
+                    try { matchingData = JSON.parse(q.options as string) } catch { }
+                    const subQuestions = matchingData.subQuestions || []
+                    const studentMatchingAnswers: number[] = a.matchingAnswers || []
+                    let correctSubCount = 0
+                    subQuestions.forEach((sq: any, si: number) => {
+                        if (studentMatchingAnswers[si] === sq.correctIdx) correctSubCount++
+                    })
+                    isCorrect = correctSubCount === subQuestions.length && subQuestions.length > 0
+                    return {
+                        questionId: a.questionId, selectedIdx: -1, textAnswer: null,
+                        matchingAnswers: studentMatchingAnswers,
+                        isCorrect, difficulty: q?.difficulty || 0.0,
+                        correctSubCount, totalSubs: subQuestions.length
+                    }
                 } else {
                     isCorrect = q.correctIdx === a.selectedIdx
                 }
@@ -1042,8 +1094,21 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
             }
         }))
 
-        const correct = results.filter((r: any) => r.isCorrect).length
-        const score = test.questions.length > 0 ? (correct / test.questions.length) * 100 : 0
+        // Matching questions: partial credit per sub-question
+        let correct = 0
+        let expandedTotal = 0
+        results.forEach((r: any) => {
+            const q = test.questions.find(q => q.id === r.questionId)
+            if (q && (q as any).questionType === 'matching') {
+                expandedTotal += r.totalSubs || 1
+                correct += r.correctSubCount || 0
+            } else {
+                expandedTotal += 1
+                correct += r.isCorrect ? 1 : 0
+            }
+        })
+        const effectiveTotal = expandedTotal || test.questions.length
+        const score = effectiveTotal > 0 ? (correct / effectiveTotal) * 100 : 0
 
         // Rasch ability hisoblash
         const profile = await prisma.studentProfile.findUnique({
@@ -1059,6 +1124,7 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
 
         // $transaction yordamida ACID ta'minlash
         const finalScore = Math.round(score * 100) / 100
+        const totalForResponse = effectiveTotal
 
         const attempt = await prisma.$transaction(async (tx) => {
             const att = await tx.testAttempt.create({
@@ -1086,22 +1152,31 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
         })
 
         // Submit dan keyin to'g'ri javoblarni qaytaramiz (oldin emas!)
-        const correctAnswers = test.questions.map(q => ({
-            id: q.id,
-            correctIdx: q.correctIdx,
-            correctText: (q as any).questionType === 'open' ? (q as any).correctText : undefined,
-            questionType: (q as any).questionType || 'mcq'
-        }))
+        const correctAnswers = test.questions.map(q => {
+            if ((q as any).questionType === 'matching') {
+                let matchingData: any = { subQuestions: [] }
+                try { matchingData = JSON.parse(q.options as string) } catch { }
+                return {
+                    id: q.id, correctIdx: -1, questionType: 'matching',
+                    matchingCorrect: (matchingData.subQuestions || []).map((sq: any) => sq.correctIdx)
+                }
+            }
+            return {
+                id: q.id, correctIdx: q.correctIdx,
+                correctText: (q as any).questionType === 'open' ? (q as any).correctText : undefined,
+                questionType: (q as any).questionType || 'mcq'
+            }
+        })
 
-        const dtm = getDtmBall(test.subject || null, correct, test.questions.length)
-        const ms = getMsBall(correct, test.questions.length)
+        const dtm = getDtmBall(test.subject || null, correct, totalForResponse)
+        const ms = getMsBall(correct, totalForResponse)
 
         res.json({
             attempt,
             score: Math.round(score * 100) / 100,
             grade: getGrade(Math.round(score * 100) / 100),
             correct,
-            total: test.questions.length,
+            total: totalForResponse,
             newAbility,
             testType: (test as any).testType || 'milliy_sertifikat',
             dtmBall: dtm.ball,

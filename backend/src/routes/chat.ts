@@ -1194,6 +1194,29 @@ router.post('/:chatId/upload-file', authenticate, uploadSingle, async (req: Auth
     }
 })
 
+// Vision tahlil natijasini chat xotirasiga saqlash (stream qilmasdan)
+router.post('/:chatId/save-analysis', authenticate, async (req: AuthRequest, res) => {
+    try {
+        const { userMessage, analysisMessage } = req.body
+        if (!userMessage || !analysisMessage) return res.status(400).json({ error: 'userMessage va analysisMessage kerak' })
+        const chatId = req.params.chatId as string
+        const chat = await prisma.chat.findUnique({ where: { id: chatId } })
+        if (!chat || chat.userId !== req.user!.id) return res.status(403).json({ error: 'Ruxsat yo\'q' })
+        await prisma.message.createMany({
+            data: [
+                { chatId: chat.id, role: 'user', content: userMessage },
+                { chatId: chat.id, role: 'assistant', content: analysisMessage }
+            ]
+        })
+        // Chatni yangilash
+        await prisma.chat.update({ where: { id: chat.id }, data: { updatedAt: new Date() } })
+        res.json({ ok: true })
+    } catch (e) {
+        console.error('save-analysis:', e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
 // Streaming xabar yuborish (SSE)
 router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
     try {

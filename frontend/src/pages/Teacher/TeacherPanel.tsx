@@ -24,7 +24,13 @@ function MathPreview({ text, inline }: { text: string; inline?: boolean }) {
     } catch { return null }
 }
 
-interface Question { text: string; imageUrl?: string | null; options: string[]; correctIdx: number; questionType: 'mcq' | 'open'; correctText?: string }
+interface MatchingSubQ { text: string; correctIdx: number }
+interface Question {
+    text: string; imageUrl?: string | null; options: string[]; correctIdx: number
+    questionType: 'mcq' | 'open' | 'matching'; correctText?: string
+    matchingAnswers?: string[]       // A–F shared answer bank
+    matchingSubQuestions?: MatchingSubQ[]  // each sub-question + correct answer idx
+}
 
 export default function TeacherPanel() {
     const nav = useNavigate()
@@ -91,7 +97,7 @@ export default function TeacherPanel() {
     }
 
     function addQuestion() {
-        setQuestions([...questions, { text: '', imageUrl: null, options: ['', '', '', ''], correctIdx: 0, questionType: 'mcq', correctText: '' }])
+        setQuestions([...questions, { text: '', imageUrl: null, options: ['', '', '', ''], correctIdx: 0, questionType: 'mcq', correctText: '', matchingAnswers: ['', '', '', '', '', ''], matchingSubQuestions: [{ text: '', correctIdx: 0 }] }])
     }
 
     async function handleImageUpload(qi: number, file: File) {
@@ -135,6 +141,29 @@ export default function TeacherPanel() {
                 const newOptions = [...q.options]
                 newOptions[oi] = value
                 return { ...q, options: newOptions }
+            }
+            // Matching: answer bank
+            if (field.startsWith('matchingAnswer_')) {
+                const ai = parseInt(field.replace('matchingAnswer_', ''))
+                const newAnswers = [...(q.matchingAnswers || ['', '', '', '', '', ''])]
+                newAnswers[ai] = value
+                return { ...q, matchingAnswers: newAnswers }
+            }
+            // Matching: sub-question fields (matchingSubQ_{si}_text / matchingSubQ_{si}_correctIdx)
+            if (field.startsWith('matchingSubQ_')) {
+                const parts = field.split('_')
+                const si = parseInt(parts[1])
+                const subField = parts[2]
+                const newSubs = [...(q.matchingSubQuestions || [])]
+                newSubs[si] = { ...newSubs[si], [subField]: subField === 'correctIdx' ? parseInt(value) : value }
+                return { ...q, matchingSubQuestions: newSubs }
+            }
+            if (field === 'addMatchingSubQ') {
+                return { ...q, matchingSubQuestions: [...(q.matchingSubQuestions || []), { text: '', correctIdx: 0 }] }
+            }
+            if (field.startsWith('removeMatchingSubQ_')) {
+                const si = parseInt(field.replace('removeMatchingSubQ_', ''))
+                return { ...q, matchingSubQuestions: (q.matchingSubQuestions || []).filter((_, ii) => ii !== si) }
             }
             return q
         }))
@@ -193,6 +222,14 @@ export default function TeacherPanel() {
             if (q.questionType === 'open') {
                 return { ...q, text: q.text?.trim() || (q.imageUrl ? ' ' : ''), options: [], correctIdx: -1 }
             }
+            if (q.questionType === 'matching') {
+                // Serialize matching data into options JSON
+                const matchingPayload = {
+                    answers: q.matchingAnswers || [],
+                    subQuestions: q.matchingSubQuestions || []
+                }
+                return { ...q, text: q.text?.trim() || (q.imageUrl ? ' ' : ''), options: JSON.stringify(matchingPayload) as any, correctIdx: -1 }
+            }
             const newOpts = [...(q.options || ['', '', '', ''])]
             for (let j = 0; j < 4; j++) {
                 if (!newOpts[j].trim() && q.imageUrl) {
@@ -205,6 +242,7 @@ export default function TeacherPanel() {
         for (let i = 0; i < finalQuestions.length; i++) {
             if (!finalQuestions[i].text?.trim() && !finalQuestions[i].imageUrl) { setMsg(`Savol ${i + 1} matni bo'sh`); return }
             if (finalQuestions[i].questionType === 'open') continue
+            if (finalQuestions[i].questionType === 'matching') continue
             for (let j = 0; j < 4; j++) {
                 if (!finalQuestions[i].options[j]?.trim()) { setMsg(`Savol ${i + 1}, variant ${String.fromCharCode(65 + j)} bo'sh`); return }
             }
@@ -214,7 +252,7 @@ export default function TeacherPanel() {
             await fetchApi('/tests/create', { method: 'POST', body: JSON.stringify({ title, subject, isPublic, testType, timeLimit: timeLimit || null, questions: finalQuestions }) })
             setMsg('success')
             setTitle('')
-            setQuestions([{ text: '', options: ['', '', '', ''], correctIdx: 0, questionType: 'mcq', correctText: '' }])
+            setQuestions([{ text: '', options: ['', '', '', ''], correctIdx: 0, questionType: 'mcq', correctText: '', matchingAnswers: ['', '', '', '', '', ''], matchingSubQuestions: [{ text: '', correctIdx: 0 }] }])
             setTimeLimit(0); setIsPublic(false); setTestType('milliy_sertifikat')
             setAiFile(null); setAiDone(false)
             // fileInput ni tozalash — bir xil faylni qayta yuklash mumkin bo'lsin
@@ -627,17 +665,22 @@ export default function TeacherPanel() {
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2">
                                             <span className="text-[12px] font-semibold" style={secondaryText}>Savol {qi + 1}</span>
-                                            {/* MCQ / Yozma toggle */}
+                                            {/* MCQ / Yozma / Moslashtirish toggle */}
                                             <div className="flex rounded-md overflow-hidden border text-[11px] font-medium" style={{ borderColor: 'var(--border)' }}>
                                                 <button type="button" onClick={() => updateQ(qi, 'questionType', 'mcq')}
                                                     className="px-2 py-0.5 transition"
-                                                    style={q.questionType !== 'open' ? { background: 'var(--brand)', color: '#fff' } : { background: 'transparent', color: 'var(--text-muted)' }}>
+                                                    style={q.questionType === 'mcq' ? { background: 'var(--brand)', color: '#fff' } : { background: 'transparent', color: 'var(--text-muted)' }}>
                                                     A/B/C/D
                                                 </button>
                                                 <button type="button" onClick={() => updateQ(qi, 'questionType', 'open')}
                                                     className="px-2 py-0.5 transition"
                                                     style={q.questionType === 'open' ? { background: 'var(--brand)', color: '#fff' } : { background: 'transparent', color: 'var(--text-muted)' }}>
                                                     Yozma
+                                                </button>
+                                                <button type="button" onClick={() => updateQ(qi, 'questionType', 'matching')}
+                                                    className="px-2 py-0.5 transition"
+                                                    style={q.questionType === 'matching' ? { background: '#8b5cf6', color: '#fff' } : { background: 'transparent', color: 'var(--text-muted)' }}>
+                                                    Moslashtirish
                                                 </button>
                                             </div>
                                         </div>
@@ -684,6 +727,79 @@ export default function TeacherPanel() {
                                             />
                                             <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Katta-kichik harf farq qilmaydi · Matematik formulalar uchun oddiy yozing: 1/2, sqrt(2)</p>
                                         </div>
+                                    ) : q.questionType === 'matching' ? (
+                                        /* Moslashtirish savol uchun UI */
+                                        <div className="space-y-3">
+                                            {/* A–F answer bank */}
+                                            <div>
+                                                <p className="text-[11px] font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Javob variantlari (A–F):</p>
+                                                <div className="space-y-1.5">
+                                                    {(q.matchingAnswers || ['', '', '', '', '', '']).map((ans, ai) => (
+                                                        <div key={ai} className="flex items-center gap-2">
+                                                            <span className="text-[11px] font-bold w-5 text-right flex-shrink-0" style={{ color: '#8b5cf6' }}>{String.fromCharCode(65 + ai)})</span>
+                                                            <input
+                                                                value={ans}
+                                                                onChange={e => updateQ(qi, `matchingAnswer_${ai}`, e.target.value)}
+                                                                placeholder={`Javob ${String.fromCharCode(65 + ai)}`}
+                                                                className="input flex-1 text-[13px]"
+                                                                style={{ padding: '0.35rem 0.65rem' }}
+                                                            />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            {/* Sub-questions */}
+                                            <div>
+                                                <p className="text-[11px] font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Kichik savollar:</p>
+                                                <div className="space-y-2">
+                                                    {(q.matchingSubQuestions || [{ text: '', correctIdx: 0 }]).map((sq, si) => (
+                                                        <div key={si} className="flex items-start gap-2 p-2.5 rounded-lg" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                                                            <span className="text-[11px] font-bold mt-2 flex-shrink-0 w-4" style={{ color: 'var(--text-muted)' }}>{si + 1}.</span>
+                                                            <div className="flex-1 space-y-1.5 min-w-0">
+                                                                <input
+                                                                    value={sq.text}
+                                                                    onChange={e => updateQ(qi, `matchingSubQ_${si}_text`, e.target.value)}
+                                                                    placeholder={`${si + 1}-kichik savol matni`}
+                                                                    className="input w-full text-[13px]"
+                                                                    style={{ padding: '0.35rem 0.65rem' }}
+                                                                />
+                                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>To'g'ri javob:</span>
+                                                                    {(q.matchingAnswers || ['', '', '', '', '', '']).map((_, ai) => (
+                                                                        <button key={ai} type="button"
+                                                                            onClick={() => updateQ(qi, `matchingSubQ_${si}_correctIdx`, ai)}
+                                                                            className="w-6 h-6 rounded text-[10px] font-bold transition flex items-center justify-center"
+                                                                            style={sq.correctIdx === ai
+                                                                                ? { background: '#8b5cf6', color: 'white' }
+                                                                                : { background: 'var(--bg-muted)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+                                                                            {String.fromCharCode(65 + ai)}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                            {(q.matchingSubQuestions || []).length > 1 && (
+                                                                <button type="button"
+                                                                    onClick={() => updateQ(qi, `removeMatchingSubQ_${si}`, null)}
+                                                                    className="mt-1.5 p-1 rounded flex-shrink-0 transition"
+                                                                    style={{ color: 'var(--border-strong)' }}
+                                                                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.background = 'var(--danger-light)' }}
+                                                                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--border-strong)'; e.currentTarget.style.background = 'transparent' }}>
+                                                                    <Trash2 className="h-3 w-3" />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <button type="button"
+                                                    onClick={() => updateQ(qi, 'addMatchingSubQ', null)}
+                                                    className="mt-2 w-full h-7 rounded-lg border-dashed border-2 text-[11px] transition flex items-center justify-center gap-1"
+                                                    style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                                                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#8b5cf6'; e.currentTarget.style.color = '#8b5cf6' }}
+                                                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)' }}>
+                                                    <Plus className="h-3 w-3" /> Kichik savol qo'shish
+                                                </button>
+                                            </div>
+                                        </div>
                                     ) : (
                                         /* MCQ variantlari */
                                         <div className="grid grid-cols-2 gap-1.5">
@@ -700,7 +816,8 @@ export default function TeacherPanel() {
                                             ))}
                                         </div>
                                     )}
-                                    {q.questionType !== 'open' && <p className="text-[10px]" style={{ color: 'var(--border-strong)' }}>Yashil doira = to'g'ri javob · $formula$ yozsa KaTeX preview</p>}
+                                    {q.questionType !== 'open' && q.questionType !== 'matching' && <p className="text-[10px]" style={{ color: 'var(--border-strong)' }}>Yashil doira = to'g'ri javob · $formula$ yozsa KaTeX preview</p>}
+                                    {q.questionType === 'matching' && <p className="text-[10px]" style={{ color: '#8b5cf660' }}>Binafsha = to'g'ri javob · Savol matni = umumiy kontekst (ixtiyoriy)</p>}
                                 </div>
                             ))}
 

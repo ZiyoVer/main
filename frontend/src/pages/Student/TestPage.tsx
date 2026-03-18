@@ -48,7 +48,7 @@ export default function TestPage() {
     const [submitted, setSubmitted] = useState(false)
     const [result, setResult] = useState<any>(null)
     const [submitting, setSubmitting] = useState(false)
-    const [correctMap, setCorrectMap] = useState<Record<string, { idx: number; text?: string; type: string }>>({})
+    const [correctMap, setCorrectMap] = useState<Record<string, { idx: number; text?: string; type: string; matchingCorrect?: number[] }>>({})
     const [analysisReady, setAnalysisReady] = useState(false)
     const [focusedQ, setFocusedQ] = useState(0) // for DTM mode: highlight active question
 
@@ -72,32 +72,74 @@ export default function TestPage() {
         try {
             const payload = test.questions.map((q: any) => {
                 if (q.questionType === 'open') return { questionId: q.id, selectedIdx: -1, textAnswer: answers[q.id] ?? '' }
+                if (q.questionType === 'matching') {
+                    const selMap = (answers[q.id] || {}) as Record<number, number>
+                    let matchingAnswers: number[] = []
+                    try {
+                        const opts = JSON.parse(q.options)
+                        matchingAnswers = (opts.subQuestions || []).map((_: any, si: number) => selMap[si] ?? -1)
+                    } catch { }
+                    return { questionId: q.id, selectedIdx: -1, matchingAnswers }
+                }
                 return { questionId: q.id, selectedIdx: answers[q.id] ?? -1 }
             })
             const res = await fetchApi(`/tests/${test.id}/submit-guest`, { method: 'POST', body: JSON.stringify({ answers: payload }) })
             setResult(res)
-            const map: Record<string, { idx: number; text?: string; type: string }> = {}
-            res.correctAnswers?.forEach((ca: any) => { map[ca.id] = { idx: ca.correctIdx, text: ca.correctText, type: ca.questionType || 'mcq' } })
+            const map: Record<string, { idx: number; text?: string; type: string; matchingCorrect?: number[] }> = {}
+            res.correctAnswers?.forEach((ca: any) => { map[ca.id] = { idx: ca.correctIdx, text: ca.correctText, type: ca.questionType || 'mcq', matchingCorrect: ca.matchingCorrect } })
             setCorrectMap(map)
             setSubmitted(true)
             const optLabels = ['a', 'b', 'c', 'd']
             const questionsForAnalysis = test.questions.map((q: any, i: number) => {
                 let opts: string[] = []
-                try { opts = JSON.parse(q.options) } catch { opts = [] }
+                let matchingData: any = null
+                try {
+                    const parsed = JSON.parse(q.options)
+                    if (q.questionType === 'matching') matchingData = parsed
+                    else opts = parsed
+                } catch { opts = [] }
                 const ca = res.correctAnswers?.find((c: any) => c.id === q.id)
                 const studentIdx = payload[i]?.selectedIdx ?? -1
-                return { text: q.text, imageUrl: q.imageUrl || null, studentAnswer: studentIdx >= 0 ? optLabels[studentIdx] : (payload[i]?.textAnswer || null), correctAnswer: ca ? (ca.correctIdx >= 0 ? optLabels[ca.correctIdx] : ca.correctText) : null, a: opts[0], b: opts[1], c: opts[2], d: opts[3] }
+                if (q.questionType === 'matching' && matchingData) {
+                    const selMap = (answers[q.id] || {}) as Record<number, number>
+                    const subAnswers = (matchingData.subQuestions || []).map((sq: any, si: number) => ({
+                        subText: sq.text,
+                        studentAnswer: selMap[si] !== undefined ? String.fromCharCode(65 + selMap[si]) : '—',
+                        correctAnswer: String.fromCharCode(65 + sq.correctIdx)
+                    }))
+                    return { text: q.text, imageUrl: q.imageUrl || null, questionType: 'matching', matchingAnswers: matchingData.answers, subAnswers, studentAnswer: null, correctAnswer: null, a: null, b: null, c: null, d: null }
+                }
+                return { text: q.text, imageUrl: q.imageUrl || null, questionType: q.questionType || 'mcq', studentAnswer: studentIdx >= 0 ? optLabels[studentIdx] : (payload[i]?.textAnswer || null), correctAnswer: ca ? (ca.correctIdx >= 0 ? optLabels[ca.correctIdx] : ca.correctText) : null, a: opts[0], b: opts[1], c: opts[2], d: opts[3] }
             })
+            // Clear old analysis chat so "AI tahlil" button opens the new one
+            localStorage.removeItem('dtmmax_analysis_chat_id')
             localStorage.setItem('dtmmax_guest_test_result', JSON.stringify({ title: test.title, subject: test.subject, score: res.correct, total: res.total, questions: questionsForAnalysis }))
             setAnalysisReady(true)
-            setTimeout(() => nav('/suhbat?analyzeTest=true'), 2500)
+            setTimeout(() => {
+                // If analysis chat already exists from a previous submit, go there; else trigger new analysis
+                const existingChatId = localStorage.getItem('dtmmax_analysis_chat_id')
+                if (existingChatId) nav(`/suhbat/${existingChatId}`)
+                else nav('/suhbat?analyzeTest=true')
+            }, 2500)
         } catch (e: any) { toast.error(e.message || 'Test yuborishda xatolik yuz berdi') }
         setSubmitting(false)
     }
 
     function scrollToQuestion(idx: number) {
-        const el = questionsRef.current?.querySelector(`[data-qi="${idx}"]`)
-        el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+        const el = questionsRef.current?.querySelector(`[data-qi="${idx}"]`) as HTMLElement | null
+        const container = questionsRef.current
+        if (el && container) {
+            // Use getBoundingClientRect to scroll ONLY the questions container — not the window
+            const cRect = container.getBoundingClientRect()
+            const eRect = el.getBoundingClientRect()
+            const pad = 8
+            if (eRect.top < cRect.top + pad) {
+                container.scrollTop += eRect.top - cRect.top - pad
+            } else if (eRect.bottom > cRect.bottom - pad) {
+                container.scrollTop += eRect.bottom - cRect.bottom + pad
+            }
+            // Already in view → no scroll (prevents blank space jumping)
+        }
         setFocusedQ(idx)
     }
 
@@ -122,6 +164,14 @@ export default function TestPage() {
     const answeredCount = test?.questions?.filter((q: any) => {
         const a = answers[q.id]
         if (q.questionType === 'open') return typeof a === 'string' && a.trim().length > 0
+        if (q.questionType === 'matching') {
+            if (!a || typeof a !== 'object') return false
+            try {
+                const opts = JSON.parse(q.options)
+                const numSubs = (opts.subQuestions || []).length
+                return numSubs > 0 && Object.keys(a as object).length >= numSubs
+            } catch { return false }
+        }
         return typeof a === 'number'
     }).length ?? 0
     const total = test?.questions?.length || 0
@@ -203,17 +253,23 @@ export default function TestPage() {
                             <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin flex-shrink-0" style={{ borderColor: 'color-mix(in srgb, var(--brand) 30%, transparent)', borderTopColor: 'var(--brand)' }} />
                             <p className="text-[13px] font-semibold">AI tahlil uchun chatga o'tilmoqda...</p>
                         </div>
-                        <button onClick={() => nav('/suhbat?analyzeTest=true')} className="w-full h-10 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2" style={{ background: 'var(--brand)' }}><MessageSquare className="h-4 w-4" /> Hozir o'tish</button>
+                        <button onClick={() => { const id = localStorage.getItem('dtmmax_analysis_chat_id'); nav(id ? `/suhbat/${id}` : '/suhbat?analyzeTest=true') }} className="w-full h-10 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2" style={{ background: 'var(--brand)' }}><MessageSquare className="h-4 w-4" /> Hozir o'tish</button>
                     </div>
                 )}
 
                 {/* Questions */}
                 {test?.questions?.map((q: any, qi: number) => {
                     let opts: string[] = []
-                    try { opts = JSON.parse(q.options) } catch { opts = [] }
+                    let matchingData: any = null
+                    try {
+                        const parsed = JSON.parse(q.options)
+                        if (q.questionType === 'matching') matchingData = parsed
+                        else opts = parsed
+                    } catch { opts = [] }
                     const correct = submitted ? correctMap[q.id] : null
                     const correctIdx = correct?.idx ?? -1
                     const isOpen = q.questionType === 'open'
+                    const isMatching = q.questionType === 'matching'
                     const textAnswer = typeof answers[q.id] === 'string' ? answers[q.id] as string : ''
                     const serverResult = result?.results?.find((r: any) => r.questionId === q.id)
                     const isCorrectOpen = submitted && correct?.type === 'open' ? (serverResult ? serverResult.isCorrect : textAnswer.trim().toLowerCase() === (correct.text || '').trim().toLowerCase()) : false
@@ -224,7 +280,58 @@ export default function TestPage() {
                                 <p className="text-[13px] font-medium leading-relaxed flex-1"><TextWithMath text={q.text} /></p>
                             </div>
                             {q.imageUrl && <img src={q.imageUrl} alt="Test savoli" className="max-w-full rounded-lg border mb-3" style={{ borderColor: 'var(--border)' }} />}
-                            {isOpen ? (
+                            {isMatching && matchingData ? (
+                                /* Moslashtirish savoli */
+                                <div>
+                                    {/* Answer bank */}
+                                    <div className="flex flex-wrap gap-1.5 mb-3 p-2 rounded-lg" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                                        {(matchingData.answers || []).map((ans: string, ai: number) => (
+                                            <span key={ai} className="px-2 py-1 rounded text-[12px] font-medium" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
+                                                <span style={{ color: '#8b5cf6', fontWeight: 700 }}>{String.fromCharCode(65 + ai)})</span> {ans}
+                                            </span>
+                                        ))}
+                                    </div>
+                                    {/* Sub-questions */}
+                                    <div className="space-y-2">
+                                        {(matchingData.subQuestions || []).map((sq: any, si: number) => {
+                                            const selMap = (answers[q.id] || {}) as Record<number, number>
+                                            const sel = selMap[si]
+                                            const correctSubIdx = correct?.matchingCorrect?.[si] ?? sq.correctIdx
+                                            const subResult = serverResult?.subResults?.[si]
+                                            const isSubCorrect = submitted ? (sel === correctSubIdx) : false
+                                            return (
+                                                <div key={si} className="p-3 rounded-lg" style={{ border: `1px solid ${submitted ? (isSubCorrect ? 'var(--success)' : 'var(--danger)') : 'var(--border)'}`, background: 'var(--bg-surface)' }}>
+                                                    <p className="text-[12px] mb-2 font-medium"><span style={{ color: 'var(--text-muted)' }}>{si + 1}.</span> <TextWithMath text={sq.text} /></p>
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        {(matchingData.answers || []).map((_: string, ai: number) => {
+                                                            const isSel = sel === ai
+                                                            const isCorr = submitted && ai === correctSubIdx
+                                                            const isWrong = submitted && isSel && !isCorr
+                                                            let sty: any = { background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-muted)' }
+                                                            if (isCorr) sty = { background: 'var(--success-light)', border: '1px solid var(--success)', color: 'var(--success)', fontWeight: 700 }
+                                                            else if (isWrong) sty = { background: 'var(--danger-light)', border: '1px solid var(--danger)', color: 'var(--danger)' }
+                                                            else if (!submitted && isSel) sty = { background: 'color-mix(in srgb, #8b5cf6 10%, transparent)', border: '1px solid #8b5cf6', color: '#8b5cf6', fontWeight: 700 }
+                                                            return (
+                                                                <button key={ai} disabled={submitted || isGuest}
+                                                                    onClick={() => !isGuest && setAnswers((a: any) => ({ ...a, [q.id]: { ...(a[q.id] || {}), [si]: ai } }))}
+                                                                    className="w-8 h-8 rounded-lg text-[12px] font-bold transition flex items-center justify-center"
+                                                                    style={{ ...sty, cursor: submitted || isGuest ? 'default' : 'pointer' }}>
+                                                                    {String.fromCharCode(65 + ai)}
+                                                                </button>
+                                                            )
+                                                        })}
+                                                        {submitted && (
+                                                            <span className="ml-1 flex items-center">
+                                                                {isSubCorrect ? <CheckCircle className="h-4 w-4" style={{ color: 'var(--success)' }} /> : <XCircle className="h-4 w-4" style={{ color: 'var(--danger)' }} />}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            ) : isOpen ? (
                                 <div className="space-y-2">
                                     <textarea disabled={submitted || isGuest} value={textAnswer} onChange={e => setAnswers(a => ({ ...a, [q.id]: e.target.value }))} placeholder={isGuest ? "Yechish uchun kiring..." : "Javobingizni yozing..."} rows={3} className="w-full rounded-lg border px-3 py-2 text-[13px] resize-none outline-none" style={{ background: 'var(--bg-surface)', borderColor: submitted ? (isCorrectOpen ? 'var(--success)' : 'var(--danger)') : textAnswer.trim() ? 'var(--brand)' : 'var(--border)', color: 'var(--text-primary)' }} />
                                     {submitted && <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: isCorrectOpen ? 'var(--success-light)' : 'var(--danger-light)', color: isCorrectOpen ? 'var(--success)' : 'var(--danger)' }}>{isCorrectOpen ? <><CheckCircle className="h-3.5 w-3.5 flex-shrink-0" /> To'g'ri!</> : <><XCircle className="h-3.5 w-3.5 flex-shrink-0" /> To'g'ri: <span className="font-semibold">{correct?.text}</span></>}</div>}
@@ -328,11 +435,29 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                 <div ref={questionsRef} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 min-w-0">
                     {questions.map((q: any, qi: number) => {
                         let opts: string[] = []
-                        try { opts = JSON.parse(q.options) } catch { opts = [] }
+                        let matchingData: any = null
+                        try {
+                            const parsed = JSON.parse(q.options)
+                            if (q.questionType === 'matching') matchingData = parsed
+                            else opts = parsed
+                        } catch { opts = [] }
                         const correct = submitted ? correctMap[q.id] : null
                         const correctIdx = correct?.idx ?? -1
-                        const answered = typeof answers[q.id] === 'number'
+                        const isMatching = q.questionType === 'matching'
+                        const selMap = isMatching ? ((answers[q.id] || {}) as Record<number, number>) : {}
+                        const matchingAnsweredCount = isMatching ? Object.keys(selMap).length : 0
+                        const matchingTotal = isMatching ? (matchingData?.subQuestions?.length || 0) : 0
+                        const answered = isMatching ? matchingAnsweredCount >= matchingTotal && matchingTotal > 0 : typeof answers[q.id] === 'number'
                         const isFocused = focusedQ === qi
+
+                        // Border color for matching: check if all sub-questions correct
+                        let borderCol = isFocused ? 'var(--brand)' : answered ? 'color-mix(in srgb, var(--brand) 40%, transparent)' : 'var(--border)'
+                        if (submitted && isMatching && correct?.matchingCorrect) {
+                            const allCorrect = (matchingData?.subQuestions || []).every((sq: any, si: number) => selMap[si] === correct.matchingCorrect![si])
+                            borderCol = isFocused ? 'var(--brand)' : allCorrect ? 'var(--success)' : 'var(--danger)'
+                        } else if (submitted && !isMatching && answered) {
+                            borderCol = isFocused ? 'var(--brand)' : answers[q.id] === correctIdx ? 'var(--success)' : 'var(--danger)'
+                        }
 
                         return (
                             <div key={q.id} data-qi={qi}
@@ -340,7 +465,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                 className="rounded-xl p-4 cursor-pointer transition-all"
                                 style={{
                                     background: 'var(--bg-card)',
-                                    border: `1.5px solid ${isFocused ? 'var(--brand)' : submitted && answered && answers[q.id] !== correctIdx ? 'var(--danger)' : submitted && answered && answers[q.id] === correctIdx ? 'var(--success)' : answered ? 'color-mix(in srgb, var(--brand) 40%, transparent)' : 'var(--border)'}`,
+                                    border: `1.5px solid ${borderCol}`,
                                     boxShadow: isFocused ? '0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent)' : 'none'
                                 }}>
                                 {/* Question number + text */}
@@ -353,28 +478,76 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                 </div>
                                 {q.imageUrl && <img src={q.imageUrl} alt="Savol" className="mt-3 max-w-full rounded-lg border" style={{ borderColor: 'var(--border)', maxHeight: 240, objectFit: 'contain' }} />}
 
-                                {/* Options — compact, read-only style. Answers go via blanka */}
-                                <div className="mt-3 grid grid-cols-1 gap-1.5">
-                                    {opts.map((opt, oi) => {
-                                        const sel = answers[q.id] === oi
-                                        let sty: any = { background: 'var(--bg-surface)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }
-                                        if (submitted) {
-                                            if (oi === correctIdx) sty = { background: 'var(--success-light)', color: 'var(--success)', border: '1px solid var(--success)', fontWeight: 600 }
-                                            else if (sel) sty = { background: 'var(--danger-light)', color: 'var(--danger)', border: '1px solid var(--danger)' }
-                                            else sty = { background: 'var(--bg-surface)', color: 'var(--text-muted)', border: '1px solid var(--border)', opacity: 0.6 }
-                                        } else if (sel) {
-                                            sty = { background: 'var(--brand-light)', color: 'var(--brand)', border: '1px solid var(--brand)', fontWeight: 600 }
-                                        }
-                                        return (
-                                            <div key={oi} className="flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] transition" style={sty}>
-                                                <span className="font-bold text-[11px] flex-shrink-0 w-4">{OPTS[oi]})</span>
-                                                <span className="flex-1"><TextWithMath text={opt} /></span>
-                                                {submitted && oi === correctIdx && <CheckCircle className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--success)' }} />}
-                                                {submitted && sel && oi !== correctIdx && <XCircle className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--danger)' }} />}
-                                            </div>
-                                        )
-                                    })}
-                                </div>
+                                {isMatching && matchingData ? (
+                                    /* Matching question in DTM left panel */
+                                    <div className="mt-3">
+                                        {/* Answer bank */}
+                                        <div className="flex flex-wrap gap-1 mb-2 p-2 rounded-lg" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                                            {(matchingData.answers || []).map((ans: string, ai: number) => (
+                                                <span key={ai} className="text-[11px] px-2 py-0.5 rounded" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
+                                                    <span style={{ color: '#8b5cf6', fontWeight: 700 }}>{String.fromCharCode(65 + ai)})</span> {ans}
+                                                </span>
+                                            ))}
+                                        </div>
+                                        {/* Sub-questions */}
+                                        <div className="space-y-1.5">
+                                            {(matchingData.subQuestions || []).map((sq: any, si: number) => {
+                                                const sel = selMap[si]
+                                                const correctSubIdx = correct?.matchingCorrect?.[si] ?? -1
+                                                const isSubCorrect = submitted && sel === correctSubIdx
+                                                const isSubWrong = submitted && sel !== undefined && sel !== correctSubIdx
+                                                return (
+                                                    <div key={si} className="flex items-center gap-2 p-2 rounded-lg" style={{ border: `1px solid ${submitted ? (isSubCorrect ? 'var(--success)' : isSubWrong ? 'var(--danger)' : 'var(--border)') : 'var(--border)'}`, background: 'var(--bg-surface)' }}>
+                                                        <span className="text-[11px] flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>{si + 1}. <TextWithMath text={sq.text} /></span>
+                                                        <div className="flex gap-1 flex-shrink-0">
+                                                            {(matchingData.answers || []).map((_: string, ai: number) => {
+                                                                const isSel = sel === ai
+                                                                const isCorr = submitted && ai === correctSubIdx
+                                                                const isWrong = submitted && isSel && !isCorr
+                                                                let sty: any = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)' }
+                                                                if (isCorr) sty = { background: 'var(--success)', color: 'white', border: 'none' }
+                                                                else if (isWrong) sty = { background: 'var(--danger)', color: 'white', border: 'none' }
+                                                                else if (!submitted && isSel) sty = { background: '#8b5cf6', color: 'white', border: 'none' }
+                                                                return (
+                                                                    <button key={ai}
+                                                                        onClick={e => { e.stopPropagation(); if (!submitted && !isGuest) setAnswers((a: any) => ({ ...a, [q.id]: { ...(a[q.id] || {}), [si]: ai } })) }}
+                                                                        disabled={submitted || isGuest}
+                                                                        className="w-5 h-5 rounded text-[9px] font-bold flex items-center justify-center transition"
+                                                                        style={{ ...sty, cursor: submitted || isGuest ? 'default' : 'pointer' }}>
+                                                                        {String.fromCharCode(65 + ai)}
+                                                                    </button>
+                                                                )
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    /* MCQ options in DTM left panel */
+                                    <div className="mt-3 grid grid-cols-1 gap-1.5">
+                                        {opts.map((opt, oi) => {
+                                            const sel = answers[q.id] === oi
+                                            let sty: any = { background: 'var(--bg-surface)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }
+                                            if (submitted) {
+                                                if (oi === correctIdx) sty = { background: 'var(--success-light)', color: 'var(--success)', border: '1px solid var(--success)', fontWeight: 600 }
+                                                else if (sel) sty = { background: 'var(--danger-light)', color: 'var(--danger)', border: '1px solid var(--danger)' }
+                                                else sty = { background: 'var(--bg-surface)', color: 'var(--text-muted)', border: '1px solid var(--border)', opacity: 0.6 }
+                                            } else if (sel) {
+                                                sty = { background: 'var(--brand-light)', color: 'var(--brand)', border: '1px solid var(--brand)', fontWeight: 600 }
+                                            }
+                                            return (
+                                                <div key={oi} className="flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] transition" style={sty}>
+                                                    <span className="font-bold text-[11px] flex-shrink-0 w-4">{OPTS[oi]})</span>
+                                                    <span className="flex-1"><TextWithMath text={opt} /></span>
+                                                    {submitted && oi === correctIdx && <CheckCircle className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--success)' }} />}
+                                                    {submitted && sel && oi !== correctIdx && <XCircle className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--danger)' }} />}
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         )
                     })}
@@ -413,7 +586,88 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                             const correctIdx = correct?.idx ?? -1
                             const sel = answers[q.id]
                             const isFocused = focusedQ === qi
+                            const isMatching = q.questionType === 'matching'
 
+                            if (isMatching) {
+                                // Matching: parse sub-questions and show expanded rows with A-F bubbles
+                                let matchingData: any = { answers: [], subQuestions: [] }
+                                try { matchingData = JSON.parse(q.options) } catch { }
+                                const selMap = (sel || {}) as Record<number, number>
+                                const ansCount = matchingData.answers?.length || 6
+                                const ALPHA = 'ABCDEF'
+
+                                return (
+                                    <div key={q.id}>
+                                        {/* Matching group header */}
+                                        <div className="flex items-center px-4 py-1" style={{ background: 'color-mix(in srgb, #8b5cf6 6%, transparent)' }}>
+                                            <span className="text-[10px] font-bold" style={{ color: '#8b5cf6' }}>
+                                                {qi + 1}. Moslashtirish ({matchingData.subQuestions?.length || 0} kichik savol)
+                                            </span>
+                                        </div>
+                                        {/* A-F sub-header for matching */}
+                                        <div className="flex items-center px-4 py-0.5" style={{ borderBottom: '1px solid var(--border)' }}>
+                                            <span className="w-12 flex-shrink-0" />
+                                            {Array.from({ length: ansCount }, (_, ai) => (
+                                                <span key={ai} className="flex-1 text-center text-[10px] font-bold" style={{ color: '#8b5cf6' }}>{ALPHA[ai]}</span>
+                                            ))}
+                                        </div>
+                                        {/* Each sub-question as a blanka row */}
+                                        {(matchingData.subQuestions || []).map((sq: any, si: number) => {
+                                            const subSel = selMap[si]
+                                            const correctSubIdx = correct?.matchingCorrect?.[si] ?? -1
+                                            const isSubFocused = isFocused
+
+                                            return (
+                                                <button key={si} onClick={() => scrollToQuestion(qi)}
+                                                    className="w-full flex items-center px-4 transition"
+                                                    style={{
+                                                        height: 32,
+                                                        background: isSubFocused ? 'color-mix(in srgb, #8b5cf6 6%, transparent)' : 'transparent',
+                                                        borderLeft: isSubFocused ? '3px solid #8b5cf6' : '3px solid transparent'
+                                                    }}>
+                                                    <span className="w-12 flex-shrink-0 text-[11px] font-semibold text-left" style={{ color: isSubFocused ? '#8b5cf6' : 'var(--text-muted)' }}>
+                                                        {qi + 1}.{si + 1}
+                                                    </span>
+                                                    {Array.from({ length: ansCount }, (_, ai) => {
+                                                        const isSelected = subSel === ai
+                                                        const isCorrect = submitted && ai === correctSubIdx
+                                                        const isWrong = submitted && isSelected && !isCorrect
+                                                        return (
+                                                            <button key={ai}
+                                                                onClick={e => {
+                                                                    e.stopPropagation()
+                                                                    if (submitted || isGuest) return
+                                                                    setAnswers((a: any) => ({ ...a, [q.id]: { ...(a[q.id] || {}), [si]: ai } }))
+                                                                    setFocusedQ(qi)
+                                                                    scrollToQuestion(qi)
+                                                                }}
+                                                                disabled={submitted || isGuest}
+                                                                className="flex-1 flex items-center justify-center"
+                                                                style={{ cursor: submitted || isGuest ? 'default' : 'pointer' }}>
+                                                                {isSelected || isCorrect ? (
+                                                                    <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-all"
+                                                                        style={{
+                                                                            background: isWrong ? 'var(--danger)' : isCorrect ? 'var(--success)' : '#8b5cf6',
+                                                                            color: 'white',
+                                                                            transform: isSelected && !submitted ? 'scale(1.1)' : 'scale(1)'
+                                                                        }}>
+                                                                        {ALPHA[ai]}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all"
+                                                                        style={{ borderColor: 'var(--border-strong)', opacity: submitted ? 0.2 : 1 }} />
+                                                                )}
+                                                            </button>
+                                                        )
+                                                    })}
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                )
+                            }
+
+                            // Regular MCQ row
                             return (
                                 <button key={q.id} onClick={() => scrollToQuestion(qi)}
                                     className="w-full flex items-center px-4 transition"
@@ -438,7 +692,6 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                                 disabled={submitted || isGuest}
                                                 className="flex-1 flex items-center justify-center"
                                                 style={{ cursor: submitted || isGuest ? 'default' : 'pointer' }}>
-                                                {/* Bubble */}
                                                 {isSelected || isCorrect ? (
                                                     <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all"
                                                         style={{
@@ -471,7 +724,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                 <p className="text-xl font-extrabold" style={{ color: result?.score >= 70 ? 'var(--success)' : result?.score >= 50 ? 'var(--warning)' : 'var(--danger)' }}>{result?.score ?? 0}%</p>
                                 <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{result?.correct}/{result?.total} to'g'ri</p>
                                 {analysisReady && (
-                                    <button onClick={() => nav('/suhbat?analyzeTest=true')} className="mt-2 w-full h-8 rounded-lg text-[12px] font-semibold text-white flex items-center justify-center gap-1.5" style={{ background: 'var(--brand)' }}>
+                                    <button onClick={() => { const id = localStorage.getItem('dtmmax_analysis_chat_id'); nav(id ? `/suhbat/${id}` : '/suhbat?analyzeTest=true') }} className="mt-2 w-full h-8 rounded-lg text-[12px] font-semibold text-white flex items-center justify-center gap-1.5" style={{ background: 'var(--brand)' }}>
                                         <Sparkles className="h-3 w-3" /> AI tahlil
                                     </button>
                                 )}

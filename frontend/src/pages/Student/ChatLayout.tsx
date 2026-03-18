@@ -775,14 +775,43 @@ export default function ChatLayout() {
                 })
                 await loadChats()
 
-                // Prompt ni oldindan tayyorlaymiz — navigatsiyadan OLDIN
+                // Chatni localStorage ga saqlaymiz — "AI tahlil" tugmasi qayta bosganda shu chatga qaytadi
+                localStorage.setItem('dtmmax_analysis_chat_id', chatData.id)
+
+                const displayText = `📊 "${guestData.title}" testi tahlili (${guestData.score}/${guestData.total} to'g'ri)`
+
+                // Rasmli savollar bo'lsa — vision API orqali tahlil (GPT-4o ko'radi)
+                const hasImages = (guestData.questions || []).some((q: any) => q.imageUrl)
+                if (hasImages) {
+                    try {
+                        const visionRes = await fetchApi('/tests/analyze-result', {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                title: guestData.title, subject: guestData.subject,
+                                score: guestData.score, total: guestData.total,
+                                questions: guestData.questions
+                            })
+                        })
+                        if (visionRes?.analysis) {
+                            nav(`/suhbat/${chatData.id}`, { state: { pendingAnalysis: { preComputed: visionRes.analysis, displayText } } })
+                            return
+                        }
+                    } catch (e) { console.error('vision analyze-result:', e) }
+                }
+
+                // Rasmsiz yoki vision muvaffaqiyatsiz — DeepSeek matn tahlili
                 const optLabels = ['A', 'B', 'C', 'D']
                 const allList = (guestData.questions || []).map((q: any, i: number) => {
                     const isCorrect = q.studentAnswer === q.correctAnswer
                     const status = isCorrect ? '✅' : '❌'
+                    if (q.questionType === 'matching' && q.subAnswers) {
+                        const subList = (q.subAnswers || []).map((sa: any, si: number) =>
+                            `   ${si + 1}. ${sa.subText} — Men: ${sa.studentAnswer}, To'g'ri: ${sa.correctAnswer}`
+                        ).join('\n')
+                        return `${i + 1}. Moslashtirish: ${q.text || ''}\n${subList}`
+                    }
                     const opts = ['a', 'b', 'c', 'd'].map((k, oi) => q[k] ? `${optLabels[oi]}) ${q[k]}` : null).filter(Boolean).join(' | ')
-                    const imgNote = q.imageUrl ? ' [🖼 Rasm mavjud]' : ''
-                    return `${status} ${i + 1}. ${(q.text || 'Savol').substring(0, 200)}${imgNote}\n   ${opts ? 'Variantlar: ' + opts : ''}\n   Men: ${(q.studentAnswer || '—').toUpperCase()}, To'g'ri: ${(q.correctAnswer || '—').toUpperCase()}`
+                    return `${status} ${i + 1}. ${(q.text || 'Savol').substring(0, 200)}\n   ${opts ? 'Variantlar: ' + opts : ''}\n   Men: ${(q.studentAnswer || '—').toUpperCase()}, To'g'ri: ${(q.correctAnswer || '—').toUpperCase()}`
                 }).join('\n\n')
 
                 const prompt = `Men "${guestData.title || 'Test'}" testini yechtim (${guestData.subject || ''}).
@@ -795,8 +824,6 @@ Iltimos, har bir savolni tahlil qilib ber:
 - ✅ To'g'ri yechganlarni: qisqacha nima uchun to'g'ri ekanini tushuntir
 - ❌ Xato yechganlarni: batafsil to'g'ri yechimini ko'rsat, nima uchun xato va to'g'ri javob nima uchun to'g'ri
 - Oxirida xulosa: qaysi mavzularda zaif ekanimni va nima o'rganishim kerakligini ayt`
-
-                const displayText = `📊 "${guestData.title}" testi tahlili (${guestData.score}/${guestData.total} to'g'ri)`
 
                 // /suhbat vs /suhbat/:chatId turli route komponentlari — nav qilganda
                 // eski komponent unmount bo'ladi. Promtni state orqali yangi komponentga uzatamiz.
@@ -814,10 +841,25 @@ Iltimos, har bir savolni tahlil qilib ber:
     useEffect(() => {
         const state = location.state as any
         if (!state?.pendingAnalysis || !chatId) return
-        const { prompt, displayText } = state.pendingAnalysis
+        const { prompt, displayText, preComputed } = state.pendingAnalysis
         // State ni darhol tozalaymiz — qayta trigger bo'lmasin
         nav(location.pathname, { replace: true, state: {} })
-        setTimeout(() => streamToChat(chatId, prompt, displayText), 300)
+        if (preComputed) {
+            // Vision tahlil tayyor — to'g'ridan-to'g'ri ko'rsatamiz (DeepSeeksiz)
+            setTimeout(() => {
+                setMessages(prev => [...prev,
+                    { id: 'tmp-u-' + Date.now(), role: 'user', content: displayText || '📊 Test tahlili', createdAt: new Date().toISOString() },
+                    { id: 'tmp-a-' + Date.now(), role: 'assistant', content: preComputed, createdAt: new Date().toISOString() }
+                ])
+                // Backendga ham saqlaymiz (history uchun)
+                fetchApi(`/chat/${chatId}/save-analysis`, {
+                    method: 'POST',
+                    body: JSON.stringify({ userMessage: displayText || '📊 Test tahlili', analysisMessage: preComputed })
+                }).catch(e => console.error('save-analysis:', e))
+            }, 300)
+        } else {
+            setTimeout(() => streamToChat(chatId, prompt, displayText), 300)
+        }
     }, [chatId, location.state]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Panel drag-to-resize (flashcard + test)
