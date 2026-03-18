@@ -241,7 +241,23 @@ router.get('/by-link/:shareLink', optionalAuthenticate, testReadLimiter, async (
             }
         })
         if (!test) return res.status(404).json({ error: 'Test topilmadi' })
-        res.json(test)
+
+        // Matching savollar uchun to'g'ri javoblarni (correctIdx) options dan olib tashlaymiz —
+        // aks holda o'quvchi devtools orqali barcha javoblarni ko'ra oladi
+        const sanitizedQuestions = test.questions.map((q: any) => {
+            if (q.questionType === 'matching' && q.options) {
+                try {
+                    const parsed = JSON.parse(q.options as string)
+                    const sanitized = {
+                        answers: parsed.answers || [],
+                        subQuestions: (parsed.subQuestions || []).map((sq: any) => ({ text: sq.text }))
+                    }
+                    return { ...q, options: JSON.stringify(sanitized) }
+                } catch { return q }
+            }
+            return q
+        })
+        res.json({ ...test, questions: sanitizedQuestions })
     } catch (e) {
         res.status(500).json({ error: 'Server xatoligi' })
     }
@@ -968,8 +984,24 @@ router.post('/:testId/submit-guest', optionalAuthenticate, submitLimiter, async 
             // Degenerate case: 0/n yoki n/n bo'lsa, yoki savollar < 3 ta bo'lsa
             // Rasch MLE diverge qiladi (±∞) — ability yangilanmasin
             const canUpdateRasch = results.length >= 3 && score > 0 && score < 100
+            // Matching savollar uchun Rasch: har bir kichik savol alohida item sifatida kengaytiriladi
+            const raschItemsGuest: { difficulty: number; isCorrect: boolean }[] = []
+            results.forEach((r: any) => {
+                const q = test.questions.find(q => q.id === r.questionId)
+                if (q && (q as any).questionType === 'matching' && (r.totalSubs || 0) > 0) {
+                    let mData: any = { subQuestions: [] }
+                    try { mData = JSON.parse((q as any).options as string) } catch { }
+                    const subQs = mData.subQuestions || []
+                    const studentAnss: number[] = r.matchingAnswers || []
+                    subQs.forEach((sq: any, si: number) => {
+                        raschItemsGuest.push({ difficulty: r.difficulty, isCorrect: studentAnss[si] === sq.correctIdx })
+                    })
+                } else {
+                    raschItemsGuest.push({ difficulty: r.difficulty, isCorrect: r.isCorrect })
+                }
+            })
             const newAbility = canUpdateRasch
-                ? updateAbility(currentAbility, results.map((r: any) => ({ difficulty: r.difficulty, isCorrect: r.isCorrect })))
+                ? updateAbility(currentAbility, raschItemsGuest)
                 : currentAbility
             attempt = await prisma.$transaction(async (tx) => {
                 const att = await tx.testAttempt.create({
@@ -1118,8 +1150,25 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
         // Degenerate case: 0/n yoki n/n bo'lsa, yoki savollar < 3 ta bo'lsa
         // Rasch MLE diverge qiladi (±∞) — ability yangilanmasin
         const canUpdateRasch = results.length >= 3 && score > 0 && score < 100
+        // Matching savollar uchun Rasch: har bir kichik savol alohida item sifatida kengaytiriladi
+        const raschItems: { difficulty: number; isCorrect: boolean }[] = []
+        results.forEach((r: any) => {
+            const q = test.questions.find(q => q.id === r.questionId)
+            if (q && (q as any).questionType === 'matching' && r.totalSubs > 0) {
+                // Har bir sub-question uchun alohida Rasch item (bir xil difficulty)
+                let matchingData: any = { subQuestions: [] }
+                try { matchingData = JSON.parse((q as any).options as string) } catch { }
+                const subQs = matchingData.subQuestions || []
+                const studentAnss: number[] = r.matchingAnswers || []
+                subQs.forEach((sq: any, si: number) => {
+                    raschItems.push({ difficulty: r.difficulty, isCorrect: studentAnss[si] === sq.correctIdx })
+                })
+            } else {
+                raschItems.push({ difficulty: r.difficulty, isCorrect: r.isCorrect })
+            }
+        })
         const newAbility = canUpdateRasch
-            ? updateAbility(currentAbility, results.map((r: any) => ({ difficulty: r.difficulty, isCorrect: r.isCorrect })))
+            ? updateAbility(currentAbility, raschItems)
             : currentAbility
 
         // $transaction yordamida ACID ta'minlash

@@ -66,7 +66,8 @@ export default function TestPage() {
     async function submit() {
         if (!test) return
         if (answeredCount < total) {
-            toast(`${total - answeredCount} ta savol javobsiz qolgan. Davom etasizmi?`, { duration: 3000, icon: '⚠️' })
+            const confirmed = window.confirm(`${total - answeredCount} ta savol javobsiz qolgan. Shunga qaramay testni topshirmoqchimisiz?`)
+            if (!confirmed) return
         }
         setSubmitting(true)
         try {
@@ -102,10 +103,11 @@ export default function TestPage() {
                 const studentIdx = payload[i]?.selectedIdx ?? -1
                 if (q.questionType === 'matching' && matchingData) {
                     const selMap = (answers[q.id] || {}) as Record<number, number>
+                    // ca.matchingCorrect — backend submitdan keyin qaytaradi (by-link da correctIdx yo'q)
                     const subAnswers = (matchingData.subQuestions || []).map((sq: any, si: number) => ({
                         subText: sq.text,
                         studentAnswer: selMap[si] !== undefined ? String.fromCharCode(65 + selMap[si]) : '—',
-                        correctAnswer: String.fromCharCode(65 + sq.correctIdx)
+                        correctAnswer: ca?.matchingCorrect?.[si] !== undefined ? String.fromCharCode(65 + ca.matchingCorrect[si]) : '?'
                     }))
                     return { text: q.text, imageUrl: q.imageUrl || null, questionType: 'matching', matchingAnswers: matchingData.answers, subAnswers, studentAnswer: null, correctAnswer: null, a: null, b: null, c: null, d: null }
                 }
@@ -240,7 +242,7 @@ export default function TestPage() {
                             <div className="text-4xl font-extrabold" style={{ color: result.score >= 70 ? 'var(--success)' : result.score >= 50 ? 'var(--warning)' : 'var(--danger)' }}>{result.score}%</div>
                             {result.grade && <div className="text-3xl font-extrabold" style={{ color: result.grade.startsWith('A') ? 'var(--success)' : result.grade.startsWith('B') ? 'var(--info)' : result.grade.startsWith('C') ? 'var(--warning)' : 'var(--danger)' }}>{result.grade}</div>}
                         </div>
-                        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{result.correct} / {result.total} to'g'ri</p>
+                        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{result.correct} / {result.total} ball</p>
                         <div className="mt-3 flex items-center justify-center gap-2 flex-wrap">
                             {result.dtmBall !== undefined && <div className="px-3 py-1.5 rounded-lg text-[12px] font-semibold" style={{ background: 'color-mix(in srgb, var(--brand) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', color: 'var(--brand)' }}>DTM: {result.dtmBall} / {result.dtmMax}</div>}
                         </div>
@@ -296,7 +298,7 @@ export default function TestPage() {
                                         {(matchingData.subQuestions || []).map((sq: any, si: number) => {
                                             const selMap = (answers[q.id] || {}) as Record<number, number>
                                             const sel = selMap[si]
-                                            const correctSubIdx = correct?.matchingCorrect?.[si] ?? sq.correctIdx
+                                            const correctSubIdx = correct?.matchingCorrect?.[si] ?? -1
                                             const subResult = serverResult?.subResults?.[si]
                                             const isSubCorrect = submitted ? (sel === correctSubIdx) : false
                                             return (
@@ -722,7 +724,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                         ) : submitted ? (
                             <div className="text-center">
                                 <p className="text-xl font-extrabold" style={{ color: result?.score >= 70 ? 'var(--success)' : result?.score >= 50 ? 'var(--warning)' : 'var(--danger)' }}>{result?.score ?? 0}%</p>
-                                <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{result?.correct}/{result?.total} to'g'ri</p>
+                                <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{result?.correct}/{result?.total} ball</p>
                                 {analysisReady && (
                                     <button onClick={() => { const id = localStorage.getItem('dtmmax_analysis_chat_id'); nav(id ? `/suhbat/${id}` : '/suhbat?analyzeTest=true') }} className="mt-2 w-full h-8 rounded-lg text-[12px] font-semibold text-white flex items-center justify-center gap-1.5" style={{ background: 'var(--brand)' }}>
                                         <Sparkles className="h-3 w-3" /> AI tahlil

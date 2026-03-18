@@ -242,7 +242,20 @@ export default function TeacherPanel() {
         for (let i = 0; i < finalQuestions.length; i++) {
             if (!finalQuestions[i].text?.trim() && !finalQuestions[i].imageUrl) { setMsg(`Savol ${i + 1} matni bo'sh`); return }
             if (finalQuestions[i].questionType === 'open') continue
-            if (finalQuestions[i].questionType === 'matching') continue
+            if (finalQuestions[i].questionType === 'matching') {
+                // Matching validatsiyasi
+                let mp: any = {}
+                try { mp = JSON.parse(finalQuestions[i].options as any) } catch { }
+                const nonEmptyAnswers = (mp.answers || []).filter((a: string) => a.trim().length > 0)
+                if (nonEmptyAnswers.length < 2) { setMsg(`Savol ${i + 1}: kamida 2 ta javob varianti to'ldirilishi kerak`); return }
+                const subs: any[] = mp.subQuestions || []
+                if (subs.length === 0) { setMsg(`Savol ${i + 1}: kamida 1 ta kichik savol bo'lishi kerak`); return }
+                for (let si = 0; si < subs.length; si++) {
+                    if (!subs[si].text?.trim()) { setMsg(`Savol ${i + 1}, kichik savol ${si + 1} matni bo'sh`); return }
+                    if (subs[si].correctIdx >= nonEmptyAnswers.length) { setMsg(`Savol ${i + 1}, kichik savol ${si + 1}: to'g'ri javob tanlang`); return }
+                }
+                continue
+            }
             for (let j = 0; j < 4; j++) {
                 if (!finalQuestions[i].options[j]?.trim()) { setMsg(`Savol ${i + 1}, variant ${String.fromCharCode(65 + j)} bo'sh`); return }
             }
