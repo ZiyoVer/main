@@ -475,8 +475,20 @@ DIQQAT: Formulalarda bo'sh joylar yoki ortiqcha belgilarni qoldirmang, aynan ras
         try {
             questions = JSON.parse(jsonStr)
         } catch (e: any) {
-            console.error('AI JSON parse error:', e.message, 'Raw content:', aiContent)
-            return res.status(500).json({ error: 'AI noto\'g\'ri format qaytardi. Qayta urinib ko\'ring.' })
+            // BUG-5: Token limiti tugab JSON o'rtasida uzilgan bo'lsa — tuzatishga urinish
+            try {
+                const lastBrace = jsonStr.lastIndexOf('},{')
+                if (lastBrace > 0) {
+                    const repaired = jsonStr.substring(0, lastBrace + 1) + ']'
+                    questions = JSON.parse(repaired)
+                    console.warn('AI JSON truncated, repaired:', questions.length, 'savol saqlandi')
+                } else {
+                    throw e
+                }
+            } catch {
+                console.error('AI JSON parse error:', e.message, 'Raw content:', aiContent)
+                return res.status(500).json({ error: 'AI noto\'g\'ri format qaytardi. Qayta urinib ko\'ring.' })
+            }
         }
 
         if (!Array.isArray(questions) || questions.length === 0) {
@@ -921,8 +933,12 @@ router.post('/submit-ai', authenticate, submitLimiter, async (req: AuthRequest, 
         if (!results || !Array.isArray(results)) {
             return res.status(400).json({ error: 'results kerak' })
         }
-        const profile = await prisma.studentProfile.findUnique({ where: { userId: req.user.id } })
-        if (!profile) return res.status(404).json({ error: 'Profil topilmadi' })
+        // BUG-6: profil yo'q bo'lsa (onboarding o'tkazib yuborilgan) — upsert bilan yaratish
+        const profile = await prisma.studentProfile.upsert({
+            where: { userId: req.user.id },
+            create: { userId: req.user.id, totalTests: 0, avgScore: 0 },
+            update: {}
+        })
 
         // AI testlar uchun Rasch yangilanmaydi — faqat statistika
         await prisma.studentProfile.update({
@@ -1111,6 +1127,10 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
         const { answers } = req.body // [{questionId, selectedIdx}]
         if (!Array.isArray(answers)) {
             return res.status(400).json({ error: 'answers massiv bo\'lishi kerak' })
+        }
+        // BUG-10: bo'sh javoblar statistikani buzadi — kamida 1 ta javob talab qilinadi
+        if (answers.length === 0) {
+            return res.status(400).json({ error: 'Kamida bitta javob yuborilishi kerak' })
         }
         const test = await prisma.test.findUnique({
             where: { id: req.params.testId as string },

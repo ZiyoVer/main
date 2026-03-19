@@ -1247,7 +1247,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         })
                                         setStreaming(''); setThinkingText(''); loadChats()
                                         // Test avtomatik ochish
-                                        const testMatch = fullText.match(/```test\n([\s\S]*?)```/)
+                                        const testMatch = fullText.match(/```test\s*([\s\S]*?)```/)
                                         if (testMatch) {
                                             try {
                                                 JSON.parse(testMatch[1].trim())
@@ -1463,7 +1463,18 @@ Iltimos, har bir savolni tahlil qilib ber:
             // correctIdx submit qaytarmaguncha ko'rsatilmaydi — default 'a' (submit keyin yangilanadi)
             const converted = rawQuestions.map((q: any) => {
                 let opts: string[] = []
-                try { opts = typeof q.options === 'string' ? JSON.parse(q.options) : q.options } catch { /* invalid JSON */ }
+                if (q.questionType === 'matching') {
+                    // BUG-8: matching uchun options = {answers:[...], subQuestions:[...]} formatida keladi
+                    try {
+                        const matchingData = typeof q.options === 'string' ? JSON.parse(q.options) : q.options
+                        opts = Array.isArray(matchingData?.answers) ? matchingData.answers.map(String) : []
+                    } catch { /* invalid JSON */ }
+                } else {
+                    try {
+                        const parsed = typeof q.options === 'string' ? JSON.parse(q.options) : q.options
+                        opts = Array.isArray(parsed) ? parsed.map(String) : []
+                    } catch { /* invalid JSON */ }
+                }
                 return {
                     id: q.id,
                     q: q.text,
@@ -1516,6 +1527,7 @@ Iltimos, har bir savolni tahlil qilib ber:
 
     function submitTestPanel() {
         if (!testPanel) return
+        if (testSubmitted) return  // BUG-2: double-submit race condition oldini olish
         if (isSubmittingRef.current) return
         isSubmittingRef.current = true
         let questions: any[] = []
@@ -1668,7 +1680,7 @@ Iltimos, har bir savolni tahlil qilib ber:
             markTestCompleted(activeTestId)
         } else if (testPanel) {
             // AI tomonidan yaratilgan test — javoblarni va yechilgan holatni saqlash
-            const aiKey = testPanel.substring(0, 120)
+            const aiKey = testPanel.substring(0, 500)  // BUG-11: collision oldini olish uchun 500 belgi
             markAiTestCompleted(aiKey)
             try { localStorage.setItem('dtmmax_ans_' + aiKey, JSON.stringify(testAnswers)) } catch { }
             // AI test natijasini Rasch ga yuborish
@@ -2412,8 +2424,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                             }
                                                             return (
                                                                 <button key={opt} disabled={testSubmitted}
-                                                                    onClick={() => setTestAnswers({ ...testAnswers, [i]: opt })}
-                                                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTestAnswers({ ...testAnswers, [i]: opt }) } }}
+                                                                    onClick={() => setTestAnswers(prev => ({ ...prev, [i]: opt }))}
+                                                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTestAnswers(prev => ({ ...prev, [i]: opt })) } }}
                                                                     tabIndex={0}
                                                                     role="radio"
                                                                     aria-checked={testAnswers[i] === opt}

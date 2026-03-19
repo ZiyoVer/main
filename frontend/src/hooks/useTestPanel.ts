@@ -20,7 +20,7 @@ export function useTestPanel(
 
   // Open test in side panel
   const openTestPanel = useCallback((jsonStr: string) => {
-    const aiKey = jsonStr.substring(0, 120)
+    const aiKey = jsonStr.substring(0, 500)  // BUG-11: 120 → 500, collision xavfini kamaytirish
     setRaschFeedback(null)
     setTestTimeLeft(null)
     if (completedAiTestsRef.current.has(aiKey)) {

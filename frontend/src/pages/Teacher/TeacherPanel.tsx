@@ -194,9 +194,11 @@ export default function TeacherPanel() {
                 if (q.questionType === 'matching') {
                     const matchingAnswers = (q.answers || []).map(String).slice(0, 6)
                     while (matchingAnswers.length < 2) matchingAnswers.push('')
+                    // BUG-7: correctIdx ni slice qilingan answers uzunligiga clamp qilish
+                    const maxIdx = matchingAnswers.length - 1
                     const matchingSubQuestions = (q.subQuestions || []).map((sq: any) => ({
                         text: String(sq.text || ''),
-                        correctIdx: typeof sq.correctIdx === 'number' ? sq.correctIdx : 0
+                        correctIdx: typeof sq.correctIdx === 'number' ? Math.max(0, Math.min(sq.correctIdx, maxIdx)) : 0
                     }))
                     return {
                         text: q.text || '',
