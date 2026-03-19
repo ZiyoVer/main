@@ -243,7 +243,7 @@ export default function TeacherPanel() {
             setAiDone(true)
             if (!title) setTitle(`${subject} testi`)
             if (data.truncated) {
-                setAiError('PDF katta bo\'lgani uchun faqat birinchi qism tahlil qilindi. Natijalarni tekshiring.')
+                setAiError('Fayl katta bo\'lgani uchun AI uni bo\'lib-bo\'lib tahlil qildi. Natijalarni tekshirib chiqing.')
             }
         } catch (e: any) {
             setAiError(e.message || 'AI test yarata olmadi')

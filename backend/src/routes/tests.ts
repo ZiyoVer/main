@@ -105,6 +105,208 @@ const gptClient = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY || ''
 })
 
+const QUESTION_GENERATION_MAX_OUTPUT_TOKENS = 8000
+const QUESTION_GENERATION_MAX_TOTAL = 90
+const QUESTION_GENERATION_MAX_PER_CHUNK = 24
+const QUESTION_GENERATION_TEXT_CHUNK_SIZE = 18000
+const QUESTION_GENERATION_TEXT_MAX_CHUNKS = 4
+
+function buildQuestionGeneratorSystemPrompt() {
+    return `Siz test savollari generatorisiz. Sizga berilgan matn yoki rasmdan savollarni AYNAN ajratib olasiz. FAQAT JSON array formatda javob bering, boshqa hech narsa yozmasdan.
+
+SAVOL TURLARI:
+1. MCQ (ko'p tanlovli, standart): {"text":"...","options":["A","B","C","D"],"correctIdx":0}
+   - correctIdx: to'g'ri javob indeksi (0=A, 1=B, 2=C, 3=D)
+2. MOSLASHTIRISH (matching/juftlash): {"text":"...","questionType":"matching","answers":["...","...","..."],"subQuestions":[{"text":"...","correctIdx":0},{"text":"...","correctIdx":1}]}
+   - Juftlash, moslashtirish, "qaysi guruhga/ustonga tegishli" kabi savollarda ishlating
+   - "answers": umumiy javoblar banki (2-6 ta element, masalan poytaxtlar yoki ta'riflar ro'yxati)
+   - "subQuestions": kichik savollar, har biri {"text":"...","correctIdx":N} ko'rinishida
+   - correctIdx — "answers" massividagi to'g'ri javob indeksi (0 dan boshlanadi)
+
+MATEMATIK IFODALAR VA GEOMETRIK CHIZMALAR UCHUN QAT'IY QOIDALAR (MUHIM):
+1. Barcha matematik ifodalarni faqat KaTeX/LaTeX formatida yozing.
+2. Inline formula: $formula$ — masalan: $\\sqrt{2}$, $\\frac{1}{2}$, $x^2$, $a_n$
+3. Block formula xato berishi mumkin, faqat bitta $ ishlating: $x^2 + y^2 = r^2$
+4. Ildiz: $\\sqrt{x}$ yoki $\\sqrt[n]{x}$
+5. Kasr: $\\frac{a}{b}$
+6. Daraja va Indeks: $x^{2}$, $2^{n}$, $a_{n}$, $x_{1}$
+7. Logarifm va natural logarifm: $\\log_{a}{b}$, $\\ln{x}$, $\\lg{x}$
+8. Limit va Integral: $\\lim_{x \\to \\infty} f(x)$, $\\int_{a}^{b} f(x) dx$
+9. Trigonometriya: $\\sin(\\alpha)$, $\\cos(\\beta)$, $\\tan(x)$, $\\cot(x)$
+10. Burchaklar va graduslar: $\\angle ABC = 90^\\circ$, $a^{\\circ}$
+11. Geometrik chizmalar yoki grafiklar bor bo'lsa, savol matniga "[Rasmda geometrik chizma/grafik berilgan, uni e'tiborga oling]" deb yozing, va matnni to'liq o'qing.
+12. PI, tengsizlik, qavslar majmui: $\\pi$, $\\leq$, $\\geq$, $\\neq$, $\\{ x \\mid x > 0 \\}$
+13. Sonlar ustidagi chiziq (masalan 8962ab ustida chiziq bo'lsa): $\\overline{8962ab}$ deb yozing.
+DIQQAT: Formulalarda bo'sh joylar yoki ortiqcha belgilarni qoldirmang, aynan rasmda qanday yozilgan bo'lsa shunday yarating. Qavslar $ichi$da harflar oddiy emas, balki matematik bo'lsin. Savollar orasidagi matnni (masalan "Tenglamani yeching") albatta qoldiring.`
+}
+
+function buildTextQuestionPrompt(params: {
+    text: string
+    subjectNote: string
+    jsonFormat: string
+    chunkIndex?: number
+    chunkTotal?: number
+    truncated?: boolean
+    maxQuestions: number
+}) {
+    const { text, subjectNote, jsonFormat, chunkIndex, chunkTotal, truncated, maxQuestions } = params
+    const chunkLabel = chunkTotal && chunkTotal > 1 ? ` Bu ${chunkIndex! + 1}/${chunkTotal} qism.` : ''
+
+    return `Quyidagi matnda TAYYOR test savollari va variantlari bor. Ularni AYNAN o'sha holda ajratib ol — o'zing savol to'qima, o'zgartirma.${subjectNote}${chunkLabel}
+
+MUHIM QOIDALAR:
+- Matndagi mavjud savol va variantlarni AYNAN ko'chir
+- Agar matnda savol topilmasa YOKI matn o'quv material bo'lsa — o'sha materialdan YANGI savol yaratishga ruxsat beriladi
+- MCQ savol: {"text":"...","options":["A","B","C","D"],"correctIdx":0}
+- Moslashtirish savol: {"text":"...","questionType":"matching","answers":[...],"subQuestions":[{"text":"...","correctIdx":0}]}
+- Ko'pi bilan ${maxQuestions} ta sifatli savol qaytaring
+- Matematik ifodalarni KaTeX formatida yoz: $\\sqrt{x}$, $\\frac{a}{b}$, $x^{2}$, $a_{n}$, $\\pi$
+- Har qanday formula, ildiz, kasr, daraja, indeksni LaTeX bilan ifodalash SHART
+${truncated ? '- DIQQAT: Fayl katta, barcha qismi sig\'madi; berilgan bo\'lakdan maksimal foydali savollar qaytaring\n' : ''}
+Javobni FAQAT JSON array formatda qaytargil, boshqa hech narsa yozma:
+${jsonFormat}
+
+Matn:
+${text}`
+}
+
+function chunkTextForQuestionGeneration(fullText: string): { chunks: string[]; truncated: boolean } {
+    const text = fullText.trim()
+    if (!text) return { chunks: [], truncated: false }
+
+    const chunks: string[] = []
+    let remaining = text
+
+    while (remaining.length > 0 && chunks.length < QUESTION_GENERATION_TEXT_MAX_CHUNKS) {
+        if (remaining.length <= QUESTION_GENERATION_TEXT_CHUNK_SIZE) {
+            chunks.push(remaining.trim())
+            remaining = ''
+            break
+        }
+
+        let splitAt = Math.max(
+            remaining.lastIndexOf('\n\n', QUESTION_GENERATION_TEXT_CHUNK_SIZE),
+            remaining.lastIndexOf('\n', QUESTION_GENERATION_TEXT_CHUNK_SIZE),
+            remaining.lastIndexOf('. ', QUESTION_GENERATION_TEXT_CHUNK_SIZE),
+            remaining.lastIndexOf('? ', QUESTION_GENERATION_TEXT_CHUNK_SIZE),
+            remaining.lastIndexOf('! ', QUESTION_GENERATION_TEXT_CHUNK_SIZE),
+        )
+
+        if (splitAt < QUESTION_GENERATION_TEXT_CHUNK_SIZE * 0.4) {
+            splitAt = QUESTION_GENERATION_TEXT_CHUNK_SIZE
+        }
+
+        const chunk = remaining.slice(0, splitAt).trim()
+        if (chunk) chunks.push(chunk)
+        remaining = remaining.slice(splitAt).trim()
+    }
+
+    return { chunks, truncated: remaining.length > 0 }
+}
+
+async function generateQuestionJson(messages: any[], isVision = false): Promise<string> {
+    const client = isVision ? gptClient : aiClient
+    const model = isVision ? 'gpt-4.1' : aiModel
+
+    const completion = await client.chat.completions.create({
+        model,
+        messages: [
+            { role: 'system', content: buildQuestionGeneratorSystemPrompt() },
+            ...messages
+        ],
+        max_tokens: QUESTION_GENERATION_MAX_OUTPUT_TOKENS,
+        temperature: 0.1,
+    }, { timeout: 180000 })
+
+    return completion.choices[0]?.message?.content || '[]'
+}
+
+function parseQuestionJson(aiContent: string): any[] {
+    let jsonStr = aiContent
+    const codeBlockMatch = aiContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)
+    if (codeBlockMatch?.[1]) {
+        jsonStr = codeBlockMatch[1]
+    } else {
+        const arrayMatch = aiContent.match(/\[\s*\{[\s\S]*\}\s*\]/)
+        if (arrayMatch) {
+            jsonStr = arrayMatch[0]
+        }
+    }
+
+    try {
+        return JSON.parse(jsonStr)
+    } catch (e: any) {
+        const lastBrace = jsonStr.lastIndexOf('},{')
+        if (lastBrace > 0) {
+            const repaired = jsonStr.substring(0, lastBrace + 1) + ']'
+            return JSON.parse(repaired)
+        }
+        throw e
+    }
+}
+
+function validateGeneratedQuestions(questions: any[]): any[] {
+    const letterToIdx = (s: string) => ['a', 'b', 'c', 'd'].indexOf(s.trim().toLowerCase())
+
+    return questions
+        .filter((q: any) => q && q.text)
+        .map((q: any) => {
+            if (q.questionType === 'matching') {
+                const answers: string[] = Array.isArray(q.answers)
+                    ? q.answers.filter((a: any) => typeof a === 'string' && a.trim()).slice(0, 6)
+                    : []
+                const subQuestions = Array.isArray(q.subQuestions)
+                    ? q.subQuestions
+                        .filter((sq: any) => sq && typeof sq.text === 'string' && sq.text.trim())
+                        .map((sq: any) => ({
+                            text: sq.text.trim(),
+                            correctIdx: typeof sq.correctIdx === 'number'
+                                ? Math.max(0, Math.min(sq.correctIdx, answers.length - 1))
+                                : 0
+                        }))
+                    : []
+                if (answers.length < 2 || subQuestions.length < 1) return null
+                return { text: q.text.trim(), questionType: 'matching', answers, subQuestions }
+            }
+
+            if (!q.options || !Array.isArray(q.options)) return null
+            const options = q.options.filter((o: any) => typeof o === 'string' && o.trim().length > 0)
+            if (options.length < 2) return null
+
+            let correctIdx = 0
+            if (typeof q.correctIdx === 'number') {
+                correctIdx = q.correctIdx
+            } else if (typeof q.correctIdx === 'string') {
+                const i = letterToIdx(q.correctIdx)
+                correctIdx = i >= 0 ? i : 0
+            } else {
+                const raw = q.correct ?? q.correctAnswer ?? q.answer ?? q.correct_answer ?? null
+                if (typeof raw === 'number') correctIdx = raw
+                else if (typeof raw === 'string') {
+                    const i = letterToIdx(raw)
+                    correctIdx = i >= 0 ? i : 0
+                }
+            }
+
+            if (correctIdx < 0 || correctIdx >= options.length) correctIdx = 0
+            return { text: q.text.trim(), options: options.slice(0, 4), correctIdx }
+        })
+        .filter(Boolean)
+}
+
+function dedupeGeneratedQuestions(questions: any[]): any[] {
+    const seen = new Set<string>()
+    return questions.filter((question) => {
+        const key = String(question.text || '')
+            .toLowerCase()
+            .replace(/\s+/g, ' ')
+            .trim()
+        if (!key || seen.has(key)) return false
+        seen.add(key)
+        return true
+    })
+}
+
 // O'qituvchining testlari
 router.get('/my-tests', authenticate, requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, res) => {
     try {
@@ -280,6 +482,7 @@ router.post('/generate-from-file', authenticate, requireRole('TEACHER', 'ADMIN')
 
         let messages: any[] = []
         let truncated = false
+        let rawQuestions: any[] = []
 
         if (mimetype === 'application/pdf') {
             const data = await pdfParse(buffer)
@@ -340,26 +543,32 @@ ${jsonFormat}`
                     return res.status(400).json({ error: 'PDF fayldan matn o\'qib bo\'lmadi. Iltimos, PDF ni PNG/JPG rasmga aylantiring va yuklang, yoki Word (.docx) fayl yuklang.' })
                 }
 
-                truncated = fullText.length > 25000
-                const text = fullText.substring(0, 25000)
+                const textChunks = chunkTextForQuestionGeneration(fullText)
+                truncated = textChunks.truncated
 
-                const userMsg = `Quyidagi matnda TAYYOR test savollari va variantlari bor. Ularni AYNAN o'sha holda ajratib ol — o'zing savol to'qima, o'zgartirma.${subjectNote}
+                for (const [chunkIndex, textChunk] of textChunks.chunks.entries()) {
+                    const remainingSlots = QUESTION_GENERATION_MAX_TOTAL - rawQuestions.length
+                    if (remainingSlots <= 0) break
 
-MUHIM QOIDALAR:
-- Matndagi mavjud savol va variantlarni AYNAN ko'chir
-- Agar matnda savol topilmasa YOKI matn o'quv material bo'lsa — o'sha materialdan YANGI savol yaratishga ruxsat beriladi
-- MCQ savol: {"text":"...","options":["A","B","C","D"],"correctIdx":0}
-- Moslashtirish savol: {"text":"...","questionType":"matching","answers":[...],"subQuestions":[{"text":"...","correctIdx":0}]}
-- Kamida 5 ta, ko'pi 90 ta savol
-- Matematik ifodalarni KaTeX formatida yoz: $\\sqrt{x}$, $\\frac{a}{b}$, $x^{2}$, $a_{n}$, $\\pi$
-- Har qanday formula, ildiz, kasr, daraja, indeksni LaTeX bilan ifodalash SHART
-${truncated ? '- DIQQAT: Fayl katta, faqat birinchi qism berildi\n' : ''}
-Javobni FAQAT JSON array formatda qaytargil, boshqa hech narsa yozma:
-${jsonFormat}
+                    const userMsg = buildTextQuestionPrompt({
+                        text: textChunk,
+                        subjectNote,
+                        jsonFormat,
+                        chunkIndex,
+                        chunkTotal: textChunks.chunks.length,
+                        truncated,
+                        maxQuestions: Math.min(QUESTION_GENERATION_MAX_PER_CHUNK, remainingSlots)
+                    })
 
-Matn:
-${text}`
-                messages = [{ role: 'user', content: userMsg }]
+                    try {
+                        const aiContent = await generateQuestionJson([{ role: 'user', content: userMsg }])
+                        const parsed = parseQuestionJson(aiContent)
+                        const validated = validateGeneratedQuestions(parsed)
+                        rawQuestions = dedupeGeneratedQuestions([...rawQuestions, ...validated]).slice(0, QUESTION_GENERATION_MAX_TOTAL)
+                    } catch (chunkErr: any) {
+                        console.warn(`PDF chunk ${chunkIndex + 1} generation failed:`, chunkErr?.message || chunkErr)
+                    }
+                }
             }
 
         } else if (mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || mimetype === 'application/msword') {
@@ -367,25 +576,32 @@ ${text}`
             const fullText = result.value.trim()
             if (!fullText) return res.status(400).json({ error: 'Word fayli bo\'sh' })
 
-            truncated = fullText.length > 25000
-            const text = fullText.substring(0, 25000)
+            const textChunks = chunkTextForQuestionGeneration(fullText)
+            truncated = textChunks.truncated
 
-            const userMsg = `Quyidagi matnda TAYYOR test savollari va variantlari bor. Ularni AYNAN o'sha holda ajratib ol — o'zing savol to'qima.${subjectNote}
+            for (const [chunkIndex, textChunk] of textChunks.chunks.entries()) {
+                const remainingSlots = QUESTION_GENERATION_MAX_TOTAL - rawQuestions.length
+                if (remainingSlots <= 0) break
 
-MUHIM QOIDALAR:
-- Matndagi mavjud savol va variantlarni AYNAN ko'chir
-- MCQ savol: {"text":"...","options":["A","B","C","D"],"correctIdx":0}
-- Moslashtirish savol: {"text":"...","questionType":"matching","answers":[...],"subQuestions":[{"text":"...","correctIdx":0}]}
-- Kamida 5 ta, ko'pi 90 ta savol
-- Matematik ifodalarni KaTeX formatida yoz: $\\sqrt{x}$, $\\frac{a}{b}$, $x^{2}$, $a_{n}$, $\\pi$
-- Har qanday formula, ildiz, kasr, daraja, indeksni LaTeX bilan ifodalash SHART
-${truncated ? '- DIQQAT: Fayl katta, faqat birinchi qism berildi\n' : ''}
-Javobni FAQAT JSON array formatda qaytargil:
-${jsonFormat}
+                const userMsg = buildTextQuestionPrompt({
+                    text: textChunk,
+                    subjectNote,
+                    jsonFormat,
+                    chunkIndex,
+                    chunkTotal: textChunks.chunks.length,
+                    truncated,
+                    maxQuestions: Math.min(QUESTION_GENERATION_MAX_PER_CHUNK, remainingSlots)
+                })
 
-Matn:
-${text}`
-            messages = [{ role: 'user', content: userMsg }]
+                try {
+                    const aiContent = await generateQuestionJson([{ role: 'user', content: userMsg }])
+                    const parsed = parseQuestionJson(aiContent)
+                    const validated = validateGeneratedQuestions(parsed)
+                    rawQuestions = dedupeGeneratedQuestions([...rawQuestions, ...validated]).slice(0, QUESTION_GENERATION_MAX_TOTAL)
+                } catch (chunkErr: any) {
+                    console.warn(`Word chunk ${chunkIndex + 1} generation failed:`, chunkErr?.message || chunkErr)
+                }
+            }
         } else if (mimetype.startsWith('image/')) {
             const base64 = buffer.toString('base64')
             messages = [{
@@ -418,134 +634,21 @@ ${jsonFormat}`
         if (isVision && !process.env.OPENAI_API_KEY) {
             return res.status(400).json({ error: 'Rasm/screenshot tahlili uchun OpenAI API kalit kerak. Iltimos, matnli PDF yoki Word fayl yuklang.' })
         }
-        const client = isVision ? gptClient : aiClient;
-        const model = isVision ? 'gpt-4.1' : aiModel;
-
-        const completion = await client.chat.completions.create({
-            model: model,
-            messages: [
-                {
-                    role: 'system', content: `Siz test savollari generatorisiz. Sizga berilgan matn yoki rasmdan savollarni AYNAN ajratib olasiz. FAQAT JSON array formatda javob bering, boshqa hech narsa yozmasdan.
-
-SAVOL TURLARI:
-1. MCQ (ko'p tanlovli, standart): {"text":"...","options":["A","B","C","D"],"correctIdx":0}
-   - correctIdx: to'g'ri javob indeksi (0=A, 1=B, 2=C, 3=D)
-2. MOSLASHTIRISH (matching/juftlash): {"text":"...","questionType":"matching","answers":["...","...","..."],"subQuestions":[{"text":"...","correctIdx":0},{"text":"...","correctIdx":1}]}
-   - Juftlash, moslashtirish, "qaysi guruhga/ustonga tegishli" kabi savollarda ishlating
-   - "answers": umumiy javoblar banki (2-6 ta element, masalan poytaxtlar yoki ta'riflar ro'yxati)
-   - "subQuestions": kichik savollar, har biri {"text":"...","correctIdx":N} ko'rinishida
-   - correctIdx — "answers" massividagi to'g'ri javob indeksi (0 dan boshlanadi)
-
-MATEMATIK IFODALAR VA GEOMETRIK CHIZMALAR UCHUN QAT'IY QOIDALAR (MUHIM):
-1. Barcha matematik ifodalarni faqat KaTeX/LaTeX formatida yozing.
-2. Inline formula: $formula$ — masalan: $\\sqrt{2}$, $\\frac{1}{2}$, $x^2$, $a_n$
-3. Block formula xato berishi mumkin, faqat bitta $ ishlating: $x^2 + y^2 = r^2$
-4. Ildiz: $\\sqrt{x}$ yoki $\\sqrt[n]{x}$
-5. Kasr: $\\frac{a}{b}$
-6. Daraja va Indeks: $x^{2}$, $2^{n}$, $a_{n}$, $x_{1}$
-7. Logarifm va natural logarifm: $\\log_{a}{b}$, $\\ln{x}$, $\\lg{x}$
-8. Limit va Integral: $\\lim_{x \\to \\infty} f(x)$, $\\int_{a}^{b} f(x) dx$
-9. Trigonometriya: $\\sin(\\alpha)$, $\\cos(\\beta)$, $\\tan(x)$, $\\cot(x)$
-10. Burchaklar va graduslar: $\\angle ABC = 90^\\circ$, $a^{\\circ}$
-11. Geometrik chizmalar yoki grafiklar bor bo'lsa, savol matniga "[Rasmda geometrik chizma/grafik berilgan, uni e'tiborga oling]" deb yozing, va matnni to'liq o'qing.
-12. PI, tengsizlik, qavslar majmui: $\\pi$, $\\leq$, $\\geq$, $\\neq$, $\\{ x \\mid x > 0 \\}$
-13. Sonlar ustidagi chiziq (masalan 8962ab ustida chiziq bo'lsa): $\\overline{8962ab}$ deb yozing.
-DIQQAT: Formulalarda bo'sh joylar yoki ortiqcha belgilarni qoldirmang, aynan rasmda qanday yozilgan bo'lsa shunday yarating. Qavslar $ichi$da harflar oddiy emas, balki matematik bo'lsin. Savollar orasidagi matnni (masalan "Tenglamani yeching") albatta qoldiring.`
-                },
-                ...messages
-            ],
-            max_tokens: 16000,
-            temperature: 0.1,
-        }, { timeout: 180000 })
-
-        const aiContent = completion.choices[0]?.message?.content || '[]'
-
-        let jsonStr = aiContent;
-        // Trible backticks ichidagi json ni qidirish:
-        const codeBlockMatch = aiContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-        if (codeBlockMatch && codeBlockMatch[1]) {
-            jsonStr = codeBlockMatch[1];
-        } else {
-            // Faqat array qavslarini ajratib olishga urinish:
-            const arrayMatch = aiContent.match(/\[\s*\{[\s\S]*\}\s*\]/);
-            if (arrayMatch) {
-                jsonStr = arrayMatch[0];
-            }
-        }
-
-        let questions: any[]
-        try {
-            questions = JSON.parse(jsonStr)
-        } catch (e: any) {
-            // BUG-5: Token limiti tugab JSON o'rtasida uzilgan bo'lsa — tuzatishga urinish
+        if (messages.length > 0) {
             try {
-                const lastBrace = jsonStr.lastIndexOf('},{')
-                if (lastBrace > 0) {
-                    const repaired = jsonStr.substring(0, lastBrace + 1) + ']'
-                    questions = JSON.parse(repaired)
-                    console.warn('AI JSON truncated, repaired:', questions.length, 'savol saqlandi')
-                } else {
-                    throw e
-                }
-            } catch {
-                console.error('AI JSON parse error:', e.message, 'Raw content:', aiContent)
+                const aiContent = await generateQuestionJson(messages, isVision)
+                rawQuestions = parseQuestionJson(aiContent)
+            } catch (e: any) {
+                console.error('AI JSON parse error:', e.message)
                 return res.status(500).json({ error: 'AI noto\'g\'ri format qaytardi. Qayta urinib ko\'ring.' })
             }
         }
 
-        if (!Array.isArray(questions) || questions.length === 0) {
+        if (!Array.isArray(rawQuestions) || rawQuestions.length === 0) {
             return res.status(500).json({ error: 'AI hech qanday savol topa olmadi yoki tushunmadi. Boshqa fayl yuklang.' })
         }
 
-        // Har bir savolni validatsiya qilish va normallashtirish
-        const letterToIdx = (s: string) => ['a', 'b', 'c', 'd'].indexOf(s.trim().toLowerCase())
-        const validatedQuestions = questions
-            .filter((q: any) => q && q.text)
-            .map((q: any) => {
-                // ── Moslashtirish (matching) savol ──
-                if (q.questionType === 'matching') {
-                    const answers: string[] = Array.isArray(q.answers)
-                        ? q.answers.filter((a: any) => typeof a === 'string' && a.trim()).slice(0, 6)
-                        : []
-                    const subQuestions = Array.isArray(q.subQuestions)
-                        ? q.subQuestions
-                            .filter((sq: any) => sq && typeof sq.text === 'string' && sq.text.trim())
-                            .map((sq: any) => ({
-                                text: sq.text.trim(),
-                                correctIdx: typeof sq.correctIdx === 'number'
-                                    ? Math.max(0, Math.min(sq.correctIdx, answers.length - 1))
-                                    : 0
-                            }))
-                        : []
-                    if (answers.length < 2 || subQuestions.length < 1) return null
-                    return { text: q.text.trim(), questionType: 'matching', answers, subQuestions }
-                }
-
-                // ── MCQ savol (standart) ──
-                if (!q.options || !Array.isArray(q.options)) return null
-                const options = q.options.filter((o: any) => typeof o === 'string' && o.trim().length > 0)
-                if (options.length < 2) return null
-
-                // correctIdx: raqam, harf ('a'/'b'/'c'/'d'), yoki turli field nomlari bo'lishi mumkin
-                let correctIdx = 0
-                if (typeof q.correctIdx === 'number') {
-                    correctIdx = q.correctIdx
-                } else if (typeof q.correctIdx === 'string') {
-                    const i = letterToIdx(q.correctIdx)
-                    correctIdx = i >= 0 ? i : 0
-                } else {
-                    const raw = q.correct ?? q.correctAnswer ?? q.answer ?? q.correct_answer ?? null
-                    if (typeof raw === 'number') correctIdx = raw
-                    else if (typeof raw === 'string') {
-                        const i = letterToIdx(raw)
-                        correctIdx = i >= 0 ? i : 0
-                    }
-                }
-                if (correctIdx < 0 || correctIdx >= options.length) correctIdx = 0
-
-                return { text: q.text.trim(), options: options.slice(0, 4), correctIdx }
-            })
-            .filter(Boolean)
+        const validatedQuestions = dedupeGeneratedQuestions(validateGeneratedQuestions(rawQuestions))
 
         if (validatedQuestions.length === 0) {
             return res.status(500).json({ error: 'Savollar formati to\'g\'ri emas. PDF yoki rasmni tekshiring.' })
