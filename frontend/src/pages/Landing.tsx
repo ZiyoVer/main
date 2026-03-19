@@ -278,51 +278,39 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 
 function ProductPreview() {
     return (
-        <div className="card anim-up d3 max-w-xl ml-auto" style={{ padding: '1.25rem', background: 'color-mix(in srgb, var(--bg-card) 94%, transparent)', backdropFilter: 'blur(10px)' }}>
-            <div className="flex items-center justify-between mb-5">
-                <div className="flex items-center gap-2">
-                    <div className="h-9 w-9 rounded-xl flex items-center justify-center" style={{ background: 'var(--brand)' }}>
-                        <BrainCircuit className="h-4.5 w-4.5 text-white" />
-                    </div>
-                    <div className="flex items-center gap-2">
+        <div className="relative anim-up d3 max-w-[560px] ml-auto">
+            <div className="rounded-[2.25rem] p-8 sm:p-10" style={{ background: 'color-mix(in srgb, var(--bg-card) 72%, transparent)', boxShadow: '0 30px 80px rgba(0,0,0,0.08)' }}>
+                <div className="rounded-[2rem] p-6 sm:p-7" style={{ background: 'var(--bg-card)', border: '1px solid rgba(255,255,255,0.5)', boxShadow: '0 18px 40px rgba(0,0,0,0.08)' }}>
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="h-11 w-11 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--brand-light)' }}>
+                            <BrainCircuit className="h-5 w-5" style={{ color: 'var(--brand)' }} />
+                        </div>
                         <div>
-                            <p className="text-sm font-semibold">AI ustoz bilan tayyorgarlik</p>
-                            <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Matematika · DTM · test + tahlil</p>
+                            <p className="text-base font-semibold">DTMMax AI Ustoz</p>
+                            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Hozir onlayn</p>
                         </div>
                     </div>
-                </div>
-                <span className="text-[11px] font-medium px-2.5 py-1 rounded-full whitespace-nowrap" style={{ background: 'var(--brand-light)', color: 'var(--brand-hover)' }}>
-                    AI yordamida
-                </span>
-            </div>
-
-            <div className="rounded-[1.25rem] p-4 space-y-3" style={{ background: 'var(--bg-page)', border: '1px solid var(--border)' }}>
-                <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Mavzu: Kvadrat tenglama</span>
-                    <span className="text-[11px] font-medium px-2 py-1 rounded-full" style={{ background: 'var(--brand-light)', color: 'var(--brand-hover)' }}>
-                        Jonli tahlil
-                    </span>
-                </div>
-
-                <div className="ml-auto max-w-[82%] rounded-2xl px-3 py-2.5 text-sm" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                    Kvadrat tenglamani qisqa tushuntirib, keyin test berib bera olasanmi?
-                </div>
-
-                <div className="max-w-[90%] rounded-2xl px-3 py-3 text-sm leading-relaxed" style={{ background: 'var(--brand-light)', color: 'var(--text-primary)' }}>
-                    Ha. Avval formulani sodda tushuntiraman, keyin mini test beraman va oxirida qaysi joyda adashganingizni ko'rsataman.
-                </div>
-
-                <div className="grid grid-cols-3 gap-2 pt-2">
-                    {[
-                        { label: 'Test', value: '18/25', color: 'var(--success)' },
-                        { label: 'Zaif mavzu', value: 'Funksiya', color: 'var(--warning)' },
-                        { label: 'Keyingi qadam', value: '10 ta mashq', color: 'var(--info)' },
-                    ].map(item => (
-                        <div key={item.label} className="rounded-2xl px-3 py-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                            <p className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>{item.label}</p>
-                            <p className="text-sm font-semibold break-words" style={{ color: item.color }}>{item.value}</p>
+                    <div className="space-y-5">
+                        <div className="rounded-[1.25rem] px-5 py-4 text-sm sm:text-[15px] leading-relaxed" style={{ background: 'var(--bg-surface)', color: 'var(--text-primary)' }}>
+                            Salom! Bugun qaysi mavzuni tahlil qilamiz? Tarix yoki Matematika?
                         </div>
-                    ))}
+
+                        <div className="flex justify-end">
+                            <div className="rounded-[1.25rem] px-5 py-4 text-sm sm:text-[15px] font-medium" style={{ background: 'color-mix(in srgb, var(--brand-light) 50%, white)', color: 'var(--brand-hover)' }}>
+                                Tarix fanidan yangi testlar kerak.
+                            </div>
+                        </div>
+
+                        <div className="pt-1">
+                            <div className="h-3 rounded-full overflow-hidden" style={{ background: 'var(--bg-surface)' }}>
+                                <div className="h-full rounded-full" style={{ width: '67%', background: 'var(--brand)' }} />
+                            </div>
+                            <div className="flex items-center justify-between mt-3 text-sm">
+                                <span style={{ color: 'var(--text-secondary)' }}>Kunlik maqsad</span>
+                                <span style={{ color: 'var(--text-secondary)' }}>67% bajarildi</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -358,7 +346,7 @@ export default function Landing() {
     return (
         <div className="h-[100dvh] overflow-y-auto flex flex-col w-full" style={{ background: 'var(--bg-page)', color: 'var(--text-primary)' }}>
             <nav className="sticky top-0 z-50" style={{ borderBottom: '1px solid var(--border)', background: 'color-mix(in srgb, var(--bg-page) 90%, transparent)', backdropFilter: 'blur(12px)' }}>
-                <div className="max-w-6xl mx-auto px-5 h-14 flex items-center justify-between">
+                <div className="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between relative">
                     <div className="flex items-center gap-2">
                         <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--brand)' }}>
                             <BrainCircuit className="h-4 w-4 text-white" />
@@ -366,13 +354,33 @@ export default function Landing() {
                         <span className="font-bold text-base tracking-tight">DTMMax</span>
                     </div>
 
-                    <div className="flex items-center gap-1">
-                        <Link to="/kirish" className="btn btn-ghost btn-sm">
+                    <div className="hidden lg:flex items-center gap-10 absolute left-1/2 -translate-x-1/2">
+                        <a href="#imkoniyatlar" className="text-sm font-medium transition hover:opacity-70" style={{ color: 'var(--brand-hover)', borderBottom: '2px solid var(--brand)', paddingBottom: '0.35rem' }}>
+                            Imkoniyatlar
+                        </a>
+                        <a href="#qanday-ishlaydi" className="text-sm font-medium transition hover:opacity-70" style={{ color: 'var(--text-secondary)' }}>
+                            Qanday ishlaydi
+                        </a>
+                        <a href="#savollar" className="text-sm font-medium transition hover:opacity-70" style={{ color: 'var(--text-secondary)' }}>
+                            Savollar
+                        </a>
+                        <Link to="/kirish" className="text-sm font-medium transition hover:opacity-70" style={{ color: 'var(--text-secondary)' }}>
                             Kirish
                         </Link>
-                        <Link to="/royxat" className="btn btn-sm" style={{ background: 'var(--text-primary)', color: 'var(--text-inverse)' }}>
-                            Boshlash <ArrowRight className="h-3.5 w-3.5" />
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <Link to="/royxat" className="hidden lg:inline-flex btn btn-sm" style={{ background: 'var(--text-primary)', color: 'var(--text-inverse)', minWidth: '10rem' }}>
+                            Boshlash
                         </Link>
+                        <div className="flex items-center gap-1 lg:hidden">
+                            <Link to="/kirish" className="btn btn-ghost btn-sm">
+                                Kirish
+                            </Link>
+                            <Link to="/royxat" className="btn btn-sm" style={{ background: 'var(--text-primary)', color: 'var(--text-inverse)' }}>
+                                Boshlash <ArrowRight className="h-3.5 w-3.5" />
+                            </Link>
+                        </div>
                     </div>
                 </div>
             </nav>
@@ -388,17 +396,18 @@ export default function Landing() {
                 <div className="max-w-6xl mx-auto relative grid lg:grid-cols-[minmax(0,1fr)_520px] gap-14 items-center">
                     <div className="max-w-[620px]">
                         <div className="inline-flex items-center gap-2 mb-5 px-3.5 py-1.5 rounded-full text-sm font-medium anim-up" style={{ background: 'var(--brand-light)', color: 'var(--brand-hover)', border: '1px solid var(--brand-muted)' }}>
-                            <Zap className="h-3.5 w-3.5" />
-                            DTM va Milliy Sertifikat uchun
+                            <Sparkles className="h-3.5 w-3.5" />
+                            Yangi avlod ta'limi
                         </div>
 
                         <h1 className="text-4xl sm:text-5xl xl:text-6xl font-extrabold tracking-tight leading-[1.02] mb-5 anim-up d1">
-                            DTM va Milliy Sertifikatga tayyorlaydigan
-                            <span style={{ color: 'var(--brand)' }}> AI platforma</span>
+                            DTM va Milliy Sertifikatga
+                            <span style={{ color: 'var(--brand)' }}> aqlli </span>
+                            tayyorlaning
                         </h1>
 
                         <p className="text-lg leading-relaxed max-w-[560px] mb-8 anim-up d2" style={{ color: 'var(--text-secondary)' }}>
-                            Savol bering, test ishlang va natijangizni AI bilan tahlil qiling. Qaysi mavzuni keyin ishlash kerakligi aniq ko'rinadi.
+                            AI shaxsiy ustoz yordamida savol bering, test ishlang va har bir xatongiz ustida individual ishlang.
                         </p>
 
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 anim-up d3">
@@ -409,13 +418,39 @@ export default function Landing() {
                                 Kirish
                             </Link>
                         </div>
+
+                        {publicStats && publicStats.totalStudents > 0 && (
+                            <div className="mt-10 flex items-center gap-4 anim-up d4">
+                                <div className="flex -space-x-2">
+                                    {['A', 'B', 'C'].map((letter, index) => (
+                                        <div
+                                            key={letter}
+                                            className="h-10 w-10 rounded-full border flex items-center justify-center text-xs font-semibold"
+                                            style={{
+                                                background: index === 0 ? 'var(--bg-card)' : index === 1 ? 'color-mix(in srgb, var(--brand-light) 65%, white)' : 'color-mix(in srgb, var(--bg-surface) 80%, white)',
+                                                borderColor: 'var(--bg-page)',
+                                                color: 'var(--text-secondary)'
+                                            }}
+                                        >
+                                            {letter}
+                                        </div>
+                                    ))}
+                                </div>
+                                <div>
+                                    <div className="text-2xl font-extrabold">{publicStats.totalStudents.toLocaleString()}+ faol foydalanuvchi</div>
+                                    <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                                        {publicStats.totalPublicTests}+ public test · 8 asosiy fan
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <ProductPreview />
                 </div>
             </section>
 
-            <section className="py-18 px-5">
+            <section id="qanday-ishlaydi" className="py-18 px-5">
                 <div className="max-w-6xl mx-auto">
                     <Reveal className="text-center mb-12">
                         <p className="section-label mb-2">Qanday ishlaydi</p>
@@ -486,7 +521,7 @@ export default function Landing() {
                 </div>
             </section>
 
-            <section className="py-20 px-5">
+            <section id="imkoniyatlar" className="py-20 px-5">
                 <div className="max-w-6xl mx-auto">
                     <Reveal className="text-center mb-12">
                         <p className="section-label mb-2">Imkoniyatlar</p>
@@ -522,7 +557,7 @@ export default function Landing() {
                 </div>
             </section>
 
-            <section className="py-20 px-5">
+            <section id="savollar" className="py-20 px-5">
                 <div className="max-w-2xl mx-auto">
                     <Reveal className="text-center mb-12">
                         <p className="section-label mb-2">Savollar</p>
