@@ -278,69 +278,51 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 
 function ProductPreview() {
     return (
-        <div className="card anim-up d3" style={{ padding: '1rem', background: 'color-mix(in srgb, var(--bg-card) 92%, transparent)', backdropFilter: 'blur(10px)' }}>
-            <div className="rounded-2xl p-4" style={{ background: 'var(--bg-page)', border: '1px solid var(--border)' }}>
-                <div className="flex items-center justify-between mb-4">
+        <div className="card anim-up d3 max-w-xl ml-auto" style={{ padding: '1.25rem', background: 'color-mix(in srgb, var(--bg-card) 94%, transparent)', backdropFilter: 'blur(10px)' }}>
+            <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2">
+                    <div className="h-9 w-9 rounded-xl flex items-center justify-center" style={{ background: 'var(--brand)' }}>
+                        <BrainCircuit className="h-4.5 w-4.5 text-white" />
+                    </div>
                     <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-xl flex items-center justify-center" style={{ background: 'var(--brand)' }}>
-                            <BrainCircuit className="h-4 w-4 text-white" />
-                        </div>
                         <div>
-                            <p className="text-sm font-semibold">AI suhbat</p>
-                            <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Matematika · DTM</p>
+                            <p className="text-sm font-semibold">AI ustoz bilan tayyorgarlik</p>
+                            <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Matematika · DTM · test + tahlil</p>
                         </div>
                     </div>
+                </div>
+                <span className="text-[11px] font-medium px-2.5 py-1 rounded-full whitespace-nowrap" style={{ background: 'var(--brand-light)', color: 'var(--brand-hover)' }}>
+                    AI yordamida
+                </span>
+            </div>
+
+            <div className="rounded-[1.25rem] p-4 space-y-3" style={{ background: 'var(--bg-page)', border: '1px solid var(--border)' }}>
+                <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Mavzu: Kvadrat tenglama</span>
                     <span className="text-[11px] font-medium px-2 py-1 rounded-full" style={{ background: 'var(--brand-light)', color: 'var(--brand-hover)' }}>
                         Jonli tahlil
                     </span>
                 </div>
 
-                <div className="space-y-3">
-                    <div className="ml-auto max-w-[85%] rounded-2xl px-3 py-2 text-sm" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                        Kvadrat tenglamani tez tushuntirib bera olasanmi?
-                    </div>
-                    <div className="max-w-[92%] rounded-2xl px-3 py-3 text-sm" style={{ background: 'var(--brand-light)', color: 'var(--text-primary)' }}>
-                        Ha. Avval formulani ko'rsataman, keyin 3 ta mini test beraman va oxirida qaysi joyda adashayotganingizni aytaman.
-                    </div>
+                <div className="ml-auto max-w-[82%] rounded-2xl px-3 py-2.5 text-sm" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                    Kvadrat tenglamani qisqa tushuntirib, keyin test berib bera olasanmi?
                 </div>
 
-                <div className="grid sm:grid-cols-2 gap-3 mt-4">
-                    <div className="rounded-2xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                        <div className="flex items-center justify-between mb-3">
-                            <p className="text-sm font-semibold">Test natijasi</p>
-                            <span className="text-xs font-semibold" style={{ color: 'var(--success)' }}>18/25</span>
-                        </div>
-                        <div className="space-y-2">
-                            {[
-                                { label: "To'g'ri javob", value: '72%', color: 'var(--success)' },
-                                { label: 'Zaif mavzu', value: 'Funksiya', color: 'var(--warning)' },
-                                { label: 'Keyingi qadam', value: '10 ta mashq', color: 'var(--info)' },
-                            ].map(item => (
-                                <div key={item.label} className="flex items-center justify-between text-xs">
-                                    <span style={{ color: 'var(--text-muted)' }}>{item.label}</span>
-                                    <span className="font-semibold" style={{ color: item.color }}>{item.value}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                <div className="max-w-[90%] rounded-2xl px-3 py-3 text-sm leading-relaxed" style={{ background: 'var(--brand-light)', color: 'var(--text-primary)' }}>
+                    Ha. Avval formulani sodda tushuntiraman, keyin mini test beraman va oxirida qaysi joyda adashganingizni ko'rsataman.
+                </div>
 
-                    <div className="rounded-2xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                        <p className="text-sm font-semibold mb-3">Platformada nima bor</p>
-                        <div className="space-y-2">
-                            {[
-                                { icon: MessageSquare, label: 'Savol-javob' },
-                                { icon: Target, label: 'DTM / Milliy Sertifikat testlari' },
-                                { icon: Sparkles, label: 'AI natija tahlili' },
-                            ].map(item => (
-                                <div key={item.label} className="flex items-center gap-2 text-xs">
-                                    <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--bg-surface)' }}>
-                                        <item.icon className="h-3.5 w-3.5" style={{ color: 'var(--brand)' }} />
-                                    </div>
-                                    <span style={{ color: 'var(--text-secondary)' }}>{item.label}</span>
-                                </div>
-                            ))}
+                <div className="grid grid-cols-3 gap-2 pt-2">
+                    {[
+                        { label: 'Test', value: '18/25', color: 'var(--success)' },
+                        { label: 'Zaif mavzu', value: 'Funksiya', color: 'var(--warning)' },
+                        { label: 'Keyingi qadam', value: '10 ta mashq', color: 'var(--info)' },
+                    ].map(item => (
+                        <div key={item.label} className="rounded-2xl px-3 py-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                            <p className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>{item.label}</p>
+                            <p className="text-sm font-semibold break-words" style={{ color: item.color }}>{item.value}</p>
                         </div>
-                    </div>
+                    ))}
                 </div>
             </div>
         </div>
@@ -403,21 +385,20 @@ export default function Landing() {
                     }}
                 />
 
-                <div className="max-w-6xl mx-auto relative grid lg:grid-cols-[1.05fr_0.95fr] gap-10 items-center">
-                    <div>
+                <div className="max-w-6xl mx-auto relative grid lg:grid-cols-[minmax(0,1fr)_520px] gap-14 items-center">
+                    <div className="max-w-[620px]">
                         <div className="inline-flex items-center gap-2 mb-5 px-3.5 py-1.5 rounded-full text-sm font-medium anim-up" style={{ background: 'var(--brand-light)', color: 'var(--brand-hover)', border: '1px solid var(--brand-muted)' }}>
                             <Zap className="h-3.5 w-3.5" />
                             DTM va Milliy Sertifikat uchun
                         </div>
 
-                        <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-tight mb-5 anim-up d1">
-                            Tayyorlanishni
-                            <span style={{ color: 'var(--brand)' }}> tushunarli </span>
-                            va tizimli qiladigan AI platforma
+                        <h1 className="text-4xl sm:text-5xl xl:text-6xl font-extrabold tracking-tight leading-[1.02] mb-5 anim-up d1">
+                            DTM va Milliy Sertifikatga tayyorlaydigan
+                            <span style={{ color: 'var(--brand)' }}> AI platforma</span>
                         </h1>
 
-                        <p className="text-lg leading-relaxed max-w-2xl mb-8 anim-up d2" style={{ color: 'var(--text-secondary)' }}>
-                            Savol bering, test ishlang, natijangizni AI bilan tahlil qiling va keyin qaysi mavzuni ishlash kerakligini darhol biling.
+                        <p className="text-lg leading-relaxed max-w-[560px] mb-8 anim-up d2" style={{ color: 'var(--text-secondary)' }}>
+                            Savol bering, test ishlang va natijangizni AI bilan tahlil qiling. Qaysi mavzuni keyin ishlash kerakligi aniq ko'rinadi.
                         </p>
 
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 anim-up d3">
@@ -428,36 +409,6 @@ export default function Landing() {
                                 Kirish
                             </Link>
                         </div>
-
-                        <div className="grid sm:grid-cols-3 gap-3 mt-8 anim-up d4">
-                            {[
-                                "AI ustoz bilan savol-javob",
-                                "Test + AI tahlil bir joyda",
-                                "8 fan bo'yicha tayyorgarlik",
-                            ].map(item => (
-                                <div key={item} className="flex items-start gap-2 rounded-2xl px-3.5 py-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                    <CheckCircle2 className="h-4 w-4 mt-0.5 flex-shrink-0" style={{ color: 'var(--success)' }} />
-                                    <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{item}</span>
-                                </div>
-                            ))}
-                        </div>
-
-                        {publicStats && publicStats.totalStudents > 0 && (
-                            <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mt-8">
-                                <div>
-                                    <div className="text-2xl font-extrabold">{publicStats.totalStudents.toLocaleString()}+</div>
-                                    <div className="text-xs" style={{ color: 'var(--text-muted)' }}>ro'yxatdan o'tgan foydalanuvchi</div>
-                                </div>
-                                <div>
-                                    <div className="text-2xl font-extrabold">{publicStats.totalPublicTests}+</div>
-                                    <div className="text-xs" style={{ color: 'var(--text-muted)' }}>platformadagi public test</div>
-                                </div>
-                                <div>
-                                    <div className="text-2xl font-extrabold">8</div>
-                                    <div className="text-xs" style={{ color: 'var(--text-muted)' }}>asosiy fan</div>
-                                </div>
-                            </div>
-                        )}
                     </div>
 
                     <ProductPreview />
@@ -467,12 +418,27 @@ export default function Landing() {
             <section className="py-18 px-5">
                 <div className="max-w-6xl mx-auto">
                     <Reveal className="text-center mb-12">
-                        <p className="section-label mb-2">Qisqacha</p>
-                        <h2 className="text-3xl font-extrabold tracking-tight">Platformada foydalanuvchi nima qiladi</h2>
+                        <p className="section-label mb-2">Qanday ishlaydi</p>
+                        <h2 className="text-3xl font-extrabold tracking-tight">DTMMax ichidagi asosiy oqim</h2>
                         <p className="text-sm mt-3 max-w-2xl mx-auto" style={{ color: 'var(--text-secondary)' }}>
-                            Birinchi kirishda mahsulot nima berishini tushunish kerak. Asosiy oqim shu uchta qadam bilan tushuniladi.
+                            Savol berasiz, test ishlaysiz va natijani AI bilan ko'rasiz. Asosiy jarayon shu uchta blok bilan tushuniladi.
                         </p>
                     </Reveal>
+
+                    {publicStats && publicStats.totalStudents > 0 && (
+                        <div className="grid sm:grid-cols-3 gap-4 mb-10">
+                            {[
+                                { value: `${publicStats.totalStudents.toLocaleString()}+`, label: "ro'yxatdan o'tgan foydalanuvchi" },
+                                { value: `${publicStats.totalPublicTests}+`, label: 'platformadagi public test' },
+                                { value: '8', label: 'asosiy fan' },
+                            ].map(item => (
+                                <div key={item.label} className="rounded-2xl px-4 py-4 text-center" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                    <div className="text-2xl font-extrabold">{item.value}</div>
+                                    <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{item.label}</div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
 
                     <div className="grid md:grid-cols-3 gap-4">
                         {VALUE_PROPS.map((item, index) => (
@@ -547,9 +513,9 @@ export default function Landing() {
                 <div className="max-w-6xl mx-auto">
                     <Reveal className="text-center mb-12">
                         <p className="section-label mb-2">Fikrlar</p>
-                        <h2 className="text-3xl font-extrabold tracking-tight">Foydalanuvchi nimani his qilishi kerak</h2>
+                        <h2 className="text-3xl font-extrabold tracking-tight">Foydalanuvchilar nima deydi</h2>
                         <p className="text-sm mt-3 max-w-2xl mx-auto" style={{ color: 'var(--text-secondary)' }}>
-                            Tayyorgarlik chalkash emas, nazorat qilinadigan va tushunarli jarayonga aylanishi kerak.
+                            Platforma foydalanuvchiga tayyorlanish jarayonini aniqroq va yengilroq his qildirishi kerak.
                         </p>
                     </Reveal>
                     <TestimonialsCarousel />
