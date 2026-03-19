@@ -2,9 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { BrainCircuit, Eye, EyeOff, Check } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
+import { SUBJECTS } from '@/constants'
 import { useAuthStore } from '@/store/authStore'
-
-const SUBJECTS = ['Matematika', 'Fizika', 'Kimyo', 'Biologiya', 'Ona tili va adabiyoti', 'Ingliz tili', 'Tarix', 'Geografiya']
 
 export default function Register() {
     const nav = useNavigate()

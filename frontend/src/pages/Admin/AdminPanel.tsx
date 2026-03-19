@@ -1,10 +1,20 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BrainCircuit, Users, UserCheck, GraduationCap, BarChart3, MessageSquare, FileText, Layers, Target, LogOut, Upload, Trash2, Activity, Bot, Save, Globe, Lock, TrendingUp, UserPlus, BookOpen, RefreshCw, Wifi, Search, Filter, ClipboardList, CheckCircle2, Award } from 'lucide-react'
+import { BrainCircuit, Users, UserCheck, GraduationCap, BarChart3, MessageSquare, FileText, Layers, Target, LogOut, Upload, Trash2, Activity, Bot, Save, Globe, Lock, TrendingUp, UserPlus, BookOpen, RefreshCw, Wifi, Search, Filter, ClipboardList, CheckCircle2, Award, Clock3 } from 'lucide-react'
 import { AreaChart, Area, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { fetchApi, uploadFile } from '@/lib/api'
+import { SUBJECTS } from '@/constants'
 import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
+
+function formatDuration(minutes: number) {
+    if (!minutes || minutes <= 0) return '0 daq'
+    const hours = Math.floor(minutes / 60)
+    const mins = minutes % 60
+    if (hours === 0) return `${mins} daq`
+    if (mins === 0) return `${hours} soat`
+    return `${hours} soat ${mins} daq`
+}
 
 export default function AdminPanel() {
     const nav = useNavigate()
@@ -49,6 +59,10 @@ export default function AdminPanel() {
     // Online users
     const [onlineUsers, setOnlineUsers] = useState<any[]>([])
     const onlineTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+    const [timeSpentUsers, setTimeSpentUsers] = useState<any[]>([])
+    const [trackedUsers, setTrackedUsers] = useState(0)
+    const [presenceIntervalMinutes, setPresenceIntervalMinutes] = useState(5)
+    const [timeSpentLoading, setTimeSpentLoading] = useState(false)
 
     // Activity log
     const [activityLogs, setActivityLogs] = useState<any[]>([])
@@ -59,7 +73,7 @@ export default function AdminPanel() {
     const [activityLoading, setActivityLoading] = useState(false)
     const activityTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-    const KNOWLEDGE_SUBJECTS = ['Matematika', 'Fizika', 'Kimyo', 'Biologiya', 'Ona tili', 'Tarix', 'Ingliz tili', 'Geografiya']
+    const KNOWLEDGE_SUBJECTS = SUBJECTS
 
     // Users pagination
     const [usersPage, setUsersPage] = useState(1)
@@ -83,6 +97,12 @@ export default function AdminPanel() {
         onlineTimerRef.current = setInterval(loadOnline, 30000)
         return () => { if (onlineTimerRef.current) clearInterval(onlineTimerRef.current) }
     }, []) // faqat birinchi marta yuklanadi
+    useEffect(() => {
+        const sendPing = () => fetchApi('/auth/ping', { method: 'POST', body: JSON.stringify({ page: 'admin' }), silent: true }).catch(() => { })
+        sendPing()
+        const pingInterval = setInterval(sendPing, 60000)
+        return () => clearInterval(pingInterval)
+    }, [])
     useEffect(() => { loadPeriodTrend(chartPeriod) }, [chartPeriod])
     useEffect(() => { if (tab === 'users') loadUsers() }, [tab, usersPage, usersSearch])
     useEffect(() => { if (tab === 'tests') loadTests() }, [tab, testsPage, testsSearch, testsVisibility, testsSubject, testsSortBy])
@@ -101,6 +121,18 @@ export default function AdminPanel() {
     async function loadStats() {
         setLoading(true)
         try { setStats(await fetchApi('/analytics/stats')) } catch { setStats({}) }
+        try {
+            setTimeSpentLoading(true)
+            const data = await fetchApi('/analytics/time-spent')
+            setTimeSpentUsers(data.users || [])
+            setTrackedUsers(data.trackedUsers || 0)
+            setPresenceIntervalMinutes(data.intervalMinutes || 5)
+        } catch {
+            setTimeSpentUsers([])
+            setTrackedUsers(0)
+        } finally {
+            setTimeSpentLoading(false)
+        }
         try { setDocs(await fetchApi('/documents/list')) } catch { setDocs([]) }
         try { const ai = await fetchApi('/ai-settings'); setAiConfig(ai) } catch { }
         try { const d = await fetchApi('/ai-settings/defaults'); setDefaults(d) } catch { }
@@ -414,10 +446,10 @@ export default function AdminPanel() {
                             <p className="text-[11px] font-semibold uppercase tracking-wider mb-2.5" style={mutedText}>Faollik</p>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                                 {[
-                                    { n: stats.totalChats, l: 'AI suhbatlar', icon: MessageSquare, color: '#6366f1' },
-                                    { n: stats.totalMessages, l: 'Xabarlar', icon: MessageSquare, color: 'var(--brand)' },
-                                    { n: stats.logins24h, l: 'Kirishlar (24h)', icon: Activity, color: '#06b6d4' },
-                                    { n: stats.loginsMonth, l: 'Kirishlar (30 kun)', icon: TrendingUp, color: '#f59e0b' },
+                                    { n: stats.onlineNow ?? onlineUsers.length, l: 'Hozir onlayn', icon: Wifi, color: '#059669' },
+                                    { n: stats.newUsers24h, l: 'Yangi userlar (24h)', icon: UserPlus, color: '#6366f1' },
+                                    { n: stats.activeUsers7d, l: 'Faol userlar (7 kun)', icon: Activity, color: '#06b6d4' },
+                                    { n: stats.messages7d, l: 'Xabarlar (7 kun)', icon: MessageSquare, color: '#f59e0b' },
                                 ].map((s, i) => (
                                     <div key={i} className="rounded-xl p-4 flex items-center gap-3" style={cardStyle}>
                                         <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ color: s.color, background: `color-mix(in srgb, ${s.color} 12%, transparent)` }}>
@@ -574,6 +606,71 @@ export default function AdminPanel() {
                                     ))}
                                 </div>
                             </div>
+                        </div>
+
+                        <div className="rounded-xl overflow-hidden" style={cardStyle}>
+                            <div className="px-4 py-3 flex items-center justify-between gap-3 flex-wrap" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+                                <div className="flex items-center gap-2">
+                                    <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--brand) 12%, transparent)', color: 'var(--brand)' }}>
+                                        <Clock3 className="h-4 w-4" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[13px] font-semibold">Platformada o‘tkazilgan vaqt</p>
+                                        <p className="text-[11px]" style={mutedText}>{trackedUsers} ta user · {presenceIntervalMinutes} daqiqalik aktivlik pulsi asosida taxminiy hisob</p>
+                                    </div>
+                                </div>
+                                <button onClick={loadStats} className="btn btn-sm btn-outline flex items-center gap-1.5">
+                                    <RefreshCw className={`h-3 w-3 ${timeSpentLoading ? 'animate-spin' : ''}`} /> Yangilash
+                                </button>
+                            </div>
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+                                        <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Foydalanuvchi</th>
+                                        <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Bugun</th>
+                                        <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>7 kun</th>
+                                        <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Jami</th>
+                                        <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>So‘nggi faollik</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {timeSpentLoading && timeSpentUsers.length === 0 ? (
+                                        <tr><td colSpan={5} className="text-center py-10 text-[12px]" style={mutedText}>Yuklanmoqda...</td></tr>
+                                    ) : timeSpentUsers.length === 0 ? (
+                                        <tr><td colSpan={5} className="text-center py-10 text-[12px]" style={mutedText}>Hali vaqt statistikasi to‘planmagan</td></tr>
+                                    ) : timeSpentUsers.slice(0, 12).map((user: any) => (
+                                        <tr key={user.id} style={{ borderBottom: '1px solid var(--border)' }} className="hover:bg-[var(--bg-surface)] transition-colors">
+                                            <td className="py-2.5 px-4">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0" style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>
+                                                        {user.name?.[0]?.toUpperCase() || '?'}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <p className="text-[12px] font-medium truncate">{user.name}</p>
+                                                            {user.isOnline && <span className="h-2 w-2 rounded-full" style={{ background: '#10b981' }} />}
+                                                        </div>
+                                                        <p className="text-[10px] truncate" style={mutedText}>{user.email}</p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="py-2.5 px-4 text-[12px] font-medium tabular-nums">{formatDuration(user.todayMinutes || 0)}</td>
+                                            <td className="py-2.5 px-4 text-[12px] font-medium tabular-nums">{formatDuration(user.weekMinutes || 0)}</td>
+                                            <td className="py-2.5 px-4">
+                                                <div>
+                                                    <p className="text-[12px] font-semibold tabular-nums">{formatDuration(user.totalMinutes || 0)}</p>
+                                                    <p className="text-[10px]" style={mutedText}>{user.totalHours || 0} soat</p>
+                                                </div>
+                                            </td>
+                                            <td className="py-2.5 px-4 text-[11px] tabular-nums" style={mutedText}>
+                                                {user.lastSeen
+                                                    ? new Date(user.lastSeen).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                                                    : '—'}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
 
                     </div>
@@ -860,7 +957,7 @@ export default function AdminPanel() {
                             <select value={testsSubject} onChange={e => { setTestsSubject(e.target.value); setTestsPage(1) }}
                                 className="input" style={{ height: '2rem', fontSize: '12px', width: 'auto' }}>
                                 <option value="">Barcha fanlar</option>
-                                {['Matematika', 'Fizika', 'Kimyo', 'Biologiya', 'Ona tili', 'Tarix', 'Ingliz tili', 'Geografiya'].map(s =>
+                                {KNOWLEDGE_SUBJECTS.map(s =>
                                     <option key={s} value={s}>{s}</option>
                                 )}
                             </select>
@@ -997,7 +1094,7 @@ export default function AdminPanel() {
                                 <div className="flex-1">
                                     <label className="text-xs font-medium block mb-1" style={secondaryText}>Fan</label>
                                     <select value={docSubject} onChange={e => setDocSubject(e.target.value)} className="input" style={{ cursor: 'pointer' }}>
-                                        {['Matematika', 'Fizika', 'Kimyo', 'Biologiya', 'Ona tili', 'Ingliz tili', 'Tarix', 'Geografiya', 'Umumiy'].map(f =>
+                                        {[...KNOWLEDGE_SUBJECTS, 'Umumiy'].map(f =>
                                             <option key={f} value={f}>{f}</option>
                                         )}
                                     </select>
@@ -1043,10 +1140,10 @@ export default function AdminPanel() {
                                 </button>
                             </div>
                             <div className="flex gap-1.5">
-                                {['all', 'login', 'register', 'page_view'].map(f => (
+                                {['all', 'login', 'register', 'activity'].map(f => (
                                     <button key={f} onClick={() => { setActivityFilter(f); setActivityPage(1) }}
                                         className={`btn btn-sm ${activityFilter === f ? 'btn-primary' : 'btn-outline'}`}>
-                                        {f === 'all' ? 'Barchasi' : f === 'login' ? 'Kirish' : f === 'register' ? 'Ro\'yxat' : 'Sahifa'}
+                                        {f === 'all' ? 'Barchasi' : f === 'login' ? 'Kirish' : f === 'register' ? 'Ro\'yxat' : 'Faollik'}
                                     </button>
                                 ))}
                             </div>

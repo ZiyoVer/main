@@ -6,6 +6,7 @@ import prisma from '../utils/db'
 import { authenticate, AuthRequest } from '../middleware/auth'
 import OpenAI from 'openai'
 import { aiSettingsCache, aiSettingsCacheTime, AI_SETTINGS_TTL, setAISettingsCache, AISettingsData } from '../utils/aiSettingsCache'
+import { getSubjectVariants, normalizeSubject } from '../utils/subjects'
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -13,7 +14,10 @@ const upload = multer({
     fileFilter: (req, file, cb) => {
         const allowed = [
             'application/pdf',
+            'application/msword',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'text/plain',
+            'text/markdown',
             'image/jpeg', 'image/png', 'image/gif', 'image/webp'
         ]
         if (allowed.includes(file.mimetype)) {
@@ -956,10 +960,12 @@ Sana: ${now.toLocaleDateString('uz-UZ')} (Toshkent vaqti ${tashkentTimeStr}).${e
 router.post('/new', authenticate, async (req: AuthRequest, res) => {
     try {
         const { subject, title, forceNew } = req.body
+        const normalizedSubject = normalizeSubject(subject)
+        const subjectVariants = getSubjectVariants(normalizedSubject)
         // Fan ko'rsatilgan bo'lsa va forceNew bo'lmasa — mavjud chatni qaytaramiz (bitta fan = bitta chat)
-        if (subject && !forceNew) {
+        if (normalizedSubject && !forceNew) {
             const existing = await prisma.chat.findFirst({
-                where: { userId: req.user.id, subject },
+                where: { userId: req.user.id, subject: { in: subjectVariants } },
                 orderBy: { updatedAt: 'desc' }
             })
             if (existing) return res.status(200).json(existing)
@@ -967,8 +973,8 @@ router.post('/new', authenticate, async (req: AuthRequest, res) => {
         const chat = await prisma.chat.create({
             data: {
                 userId: req.user.id,
-                title: title || `${subject || 'Umumiy'} suhbat`,
-                subject: subject || null
+                title: title || `${normalizedSubject || 'Umumiy'} suhbat`,
+                subject: normalizedSubject
             }
         })
         res.status(201).json(chat)
@@ -1020,22 +1026,28 @@ const STOP_WORDS = new Set([
 ])
 
 // RAG: content-based relevant chunks search (yaxshilangan versiya)
-async function searchRAGContext(query: string, subject?: string): Promise<string> {
+async function searchRAGContext(query: string, subject?: string, extraSubjects: Array<string | null | undefined> = []): Promise<string> {
     try {
         // O'zbek tilida 2 harfli so'zlar ham muhim (er, yer, tog, suv, ion, etc.)
         const rawWords = query.toLowerCase().split(/\s+/)
         const keywords = rawWords.filter(w => w.length >= 2 && !STOP_WORDS.has(w))
         if (keywords.length === 0) return ''
+        const subjectVariants = Array.from(new Set(
+            [subject, ...extraSubjects]
+                .flatMap(subj => getSubjectVariants(subj) || [])
+                .filter(Boolean)
+        ))
+        const subjectFilter = subjectVariants.length > 0 ? subjectVariants : undefined
 
         // Parallel qidirish: document chunks va knowledge items
         const [allChunks, knowledgeItems] = await Promise.all([
             prisma.documentChunk.findMany({
-                where: { document: subject ? { subject } : undefined },
+                where: { document: subjectFilter ? { subject: { in: subjectFilter } } : undefined },
                 include: { document: { select: { fileName: true, subject: true } } },
                 take: 200 // Ko'proq chunk — yaxshiroq coverage
             }),
             prisma.knowledgeItem.findMany({
-                where: subject ? { subject } : {},
+                where: subjectFilter ? { subject: { in: subjectFilter } } : {},
                 take: 50,
                 orderBy: { createdAt: 'desc' }
             })
@@ -1262,7 +1274,7 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
         const aiSettings = await getAISettings()
 
         // RAG kontekst — relevance based
-        const ragContext = await searchRAGContext(content, chat.subject || undefined)
+        const ragContext = await searchRAGContext(content, chat.subject || profile?.subject || undefined, [profile?.subject2])
         const ragSection = ragContext
             ? `\n\n--- RASMIY MANBA KONTEKSTI (faqat ma'lumot uchun) ---\n${ragContext}\n--- MANBA KONTEKSTI TUGADI ---`
             : ''
@@ -1448,7 +1460,7 @@ router.post('/:chatId/send', authenticate, async (req: AuthRequest, res) => {
         })
 
         const aiSettings = await getAISettings()
-        const ragContext = await searchRAGContext(content, chat.subject || undefined)
+        const ragContext = await searchRAGContext(content, chat.subject || profile?.subject || undefined, [profile?.subject2])
         const ragSection = ragContext
             ? `\n\n--- RASMIY MANBA KONTEKSTI (faqat ma'lumot uchun) ---\n${ragContext}\n--- MANBA KONTEKSTI TUGADI ---`
             : ''

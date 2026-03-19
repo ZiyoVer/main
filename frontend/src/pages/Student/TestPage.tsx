@@ -63,8 +63,21 @@ export default function TestPage() {
             .finally(() => setLoading(false))
     }, [shareLink])
 
+    useEffect(() => {
+        if (isGuest) return
+        const sendPing = () => fetchApi('/auth/ping', { method: 'POST', body: JSON.stringify({ page: 'test' }), silent: true }).catch(() => { })
+        sendPing()
+        const pingInterval = setInterval(sendPing, 60000)
+        return () => clearInterval(pingInterval)
+    }, [isGuest])
+
     async function submit() {
         if (!test) return
+        if (isGuest) {
+            toast.error('Testni ishlash uchun avval kiring')
+            nav('/kirish', { state: { from: `/test/${shareLink}` } })
+            return
+        }
         if (answeredCount < total) {
             const confirmed = window.confirm(`${total - answeredCount} ta savol javobsiz qolgan. Shunga qaramay testni topshirmoqchimisiz?`)
             if (!confirmed) return
@@ -84,7 +97,7 @@ export default function TestPage() {
                 }
                 return { questionId: q.id, selectedIdx: answers[q.id] ?? -1 }
             })
-            const res = await fetchApi(`/tests/${test.id}/submit-guest`, { method: 'POST', body: JSON.stringify({ answers: payload }) })
+            const res = await fetchApi(`/tests/${test.id}/submit`, { method: 'POST', body: JSON.stringify({ answers: payload, shareLink }) })
             setResult(res)
             const map: Record<string, { idx: number; text?: string; type: string; matchingCorrect?: number[] }> = {}
             res.correctAnswers?.forEach((ca: any) => { map[ca.id] = { idx: ca.correctIdx, text: ca.correctText, type: ca.questionType || 'mcq', matchingCorrect: ca.matchingCorrect } })

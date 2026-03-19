@@ -4,12 +4,13 @@ import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
 import { getOnlineUsers } from '../utils/onlineTracker'
 
 const router = Router()
+const PRESENCE_INTERVAL_MINUTES = 5
 
 // GET /public-stats — autentifikatsiya talab qilinmaydi (landing page uchun)
 router.get('/public-stats', async (_req, res) => {
     try {
         const [totalUsers, totalPublicTests] = await Promise.all([
-            prisma.user.count(),
+            prisma.user.count({ where: { role: 'STUDENT' } }),
             prisma.test.count({ where: { isPublic: true } }),
         ])
         res.json({ totalStudents: totalUsers, totalPublicTests })
@@ -29,11 +30,14 @@ router.get('/stats', authenticate, requireRole('ADMIN'), async (req: AuthRequest
         const [
             totalUsers, students, teachers,
             last24h, lastWeek, lastMonth, totalVisits,
-            totalTests, totalChats, totalMessages,
-            totalDocuments, totalChunks, totalAttempts,
+            totalTests, totalChats, totalMessages, messages7d,
+            totalDocuments, totalChunks, totalAttempts, attempts30d,
             recentUsers,
             emailVerifiedCount,
-            avgAbilityResult
+            avgAbilityResult,
+            newUsers24h,
+            activeUsers7d,
+            activeUsers30d,
         ] = await Promise.all([
             prisma.user.count(),
             prisma.user.count({ where: { role: 'STUDENT' } }),
@@ -45,30 +49,49 @@ router.get('/stats', authenticate, requireRole('ADMIN'), async (req: AuthRequest
             prisma.test.count(),
             prisma.chat.count(),
             prisma.message.count(),
+            prisma.message.count({ where: { createdAt: { gte: w1 } } }),
             prisma.document.count(),
             prisma.documentChunk.count(),
             prisma.testAttempt.count(),
+            prisma.testAttempt.count({ where: { createdAt: { gte: m1 } } }),
             prisma.user.findMany({
                 take: 5,
                 orderBy: { createdAt: 'desc' },
                 select: { id: true, name: true, email: true, role: true, createdAt: true }
             }),
             prisma.user.count({ where: { emailVerified: true } }),
-            prisma.studentProfile.aggregate({ _avg: { abilityLevel: true } })
+            prisma.studentProfile.aggregate({ _avg: { abilityLevel: true } }),
+            prisma.user.count({ where: { createdAt: { gte: h24 } } }),
+            prisma.visitLog.findMany({
+                where: { userId: { not: null }, createdAt: { gte: w1 }, action: { in: ['login', 'register', 'activity', 'presence'] } },
+                select: { userId: true },
+                distinct: ['userId']
+            }),
+            prisma.visitLog.findMany({
+                where: { userId: { not: null }, createdAt: { gte: m1 }, action: { in: ['login', 'register', 'activity', 'presence'] } },
+                select: { userId: true },
+                distinct: ['userId']
+            }),
         ])
 
         // O'rtacha test ball
         const avgScoreResult = await prisma.testAttempt.aggregate({ _avg: { score: true } })
 
+        const onlineUsers = await getOnlineUsers()
+
         res.json({
             totalUsers, students, teachers,
             logins24h: last24h, loginsWeek: lastWeek, loginsMonth: lastMonth, totalVisits,
-            totalTests, totalChats, totalMessages,
-            totalDocuments, totalChunks, totalAttempts,
+            totalTests, totalChats, totalMessages, messages7d,
+            totalDocuments, totalChunks, totalAttempts, attempts30d,
             avgScore: Math.round((avgScoreResult._avg.score || 0) * 100) / 100,
             recentUsers,
             emailVerifiedCount,
-            avgAbility: Math.round((avgAbilityResult._avg.abilityLevel || 0) * 100) / 100
+            avgAbility: Math.round((avgAbilityResult._avg.abilityLevel || 0) * 100) / 100,
+            onlineNow: onlineUsers.length,
+            newUsers24h,
+            activeUsers7d: activeUsers7d.length,
+            activeUsers30d: activeUsers30d.length,
         })
     } catch (e) {
         console.error(e)
@@ -206,7 +229,7 @@ router.get('/activity-log', authenticate, requireRole('ADMIN'), async (req: Auth
         const limit = 50
         const action = req.query.action as string | undefined
 
-        const where = action ? { action } : {}
+        const where = action ? { action } : { action: { not: 'presence' } }
 
         const [logs, total] = await Promise.all([
             prisma.visitLog.findMany({
@@ -228,10 +251,95 @@ router.get('/activity-log', authenticate, requireRole('ADMIN'), async (req: Auth
     }
 })
 
+// Admin: foydalanuvchilar platformada taxminan qancha vaqt bo'lganini ko'rsatish
+router.get('/time-spent', authenticate, requireRole('ADMIN'), async (_req: AuthRequest, res) => {
+    try {
+        const now = new Date()
+        const startOfToday = new Date(now)
+        startOfToday.setHours(0, 0, 0, 0)
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+
+        const [allPresence, todayPresence, weekPresence, onlineUsers] = await Promise.all([
+            prisma.visitLog.groupBy({
+                by: ['userId'],
+                where: { action: 'presence', userId: { not: null } },
+                _count: { _all: true },
+                _max: { createdAt: true }
+            }),
+            prisma.visitLog.groupBy({
+                by: ['userId'],
+                where: { action: 'presence', userId: { not: null }, createdAt: { gte: startOfToday } },
+                _count: { _all: true }
+            }),
+            prisma.visitLog.groupBy({
+                by: ['userId'],
+                where: { action: 'presence', userId: { not: null }, createdAt: { gte: sevenDaysAgo } },
+                _count: { _all: true }
+            }),
+            getOnlineUsers()
+        ])
+
+        const userIds = allPresence.map(row => row.userId).filter((userId): userId is string => !!userId)
+        if (userIds.length === 0) {
+            return res.json({ users: [], trackedUsers: 0, intervalMinutes: PRESENCE_INTERVAL_MINUTES })
+        }
+
+        const users = await prisma.user.findMany({
+            where: { id: { in: userIds } },
+            select: { id: true, name: true, email: true, role: true, createdAt: true }
+        })
+
+        const userMap = new Map(users.map(user => [user.id, user]))
+        const todayMap = new Map(todayPresence.map(row => [row.userId, row._count._all]))
+        const weekMap = new Map(weekPresence.map(row => [row.userId, row._count._all]))
+        const onlineMap = new Map(onlineUsers.map(user => [user.userId, user.lastSeen]))
+
+        const timeSpentUsers = allPresence
+            .map((row) => {
+                if (!row.userId) return null
+                const user = userMap.get(row.userId)
+                if (!user) return null
+
+                const totalMinutes = row._count._all * PRESENCE_INTERVAL_MINUTES
+                const todayMinutes = (todayMap.get(row.userId) || 0) * PRESENCE_INTERVAL_MINUTES
+                const weekMinutes = (weekMap.get(row.userId) || 0) * PRESENCE_INTERVAL_MINUTES
+
+                return {
+                    id: user.id,
+                    name: user.name,
+                    email: user.email,
+                    role: user.role,
+                    createdAt: user.createdAt,
+                    totalMinutes,
+                    todayMinutes,
+                    weekMinutes,
+                    totalHours: Math.round((totalMinutes / 60) * 10) / 10,
+                    lastSeen: row._max.createdAt,
+                    isOnline: onlineMap.has(user.id),
+                    onlineLastSeen: onlineMap.get(user.id) || null,
+                }
+            })
+            .filter((user): user is NonNullable<typeof user> => !!user)
+            .sort((a, b) => {
+                if (b.totalMinutes !== a.totalMinutes) return b.totalMinutes - a.totalMinutes
+                return (b.todayMinutes || 0) - (a.todayMinutes || 0)
+            })
+
+        res.json({
+            users: timeSpentUsers,
+            trackedUsers: timeSpentUsers.length,
+            intervalMinutes: PRESENCE_INTERVAL_MINUTES
+        })
+    } catch (e) {
+        console.error(e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
 // Admin: Hozir online foydalanuvchilar (so'nggi 5 daqiqada ping yuborgan)
 router.get('/online-users', authenticate, requireRole('ADMIN'), async (_req, res) => {
     try {
-        res.json(getOnlineUsers())
+        res.json(await getOnlineUsers())
     } catch (e) {
         res.status(500).json({ error: 'Server xatoligi' })
     }

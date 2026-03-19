@@ -2,6 +2,11 @@ import toast from 'react-hot-toast'
 
 export const API = '/api'
 
+type ApiError = Error & {
+    status?: number
+    data?: any
+}
+
 export async function fetchApi(endpoint: string, options: RequestInit & { signal?: AbortSignal; silent?: boolean } = {}) {
     const token = localStorage.getItem('token')
     const headers = new Headers(options.headers || {})
@@ -17,11 +22,16 @@ export async function fetchApi(endpoint: string, options: RequestInit & { signal
             localStorage.removeItem('token')
             localStorage.removeItem('user')
             window.location.href = '/kirish'
-            return Promise.reject(new Error('Sessiya muddati tugadi. Qayta kiring.'))
+            const err = new Error('Sessiya muddati tugadi. Qayta kiring.') as ApiError
+            err.status = 401
+            err.data = data
+            return Promise.reject(err)
         }
         if (!res.ok) {
             const errName = data?.error || 'Server xatoligi'
-            const err = new Error(errName)
+            const err = new Error(errName) as ApiError
+            err.status = res.status
+            err.data = data
             if (!options.silent) {
                 toast.error(err.message, { duration: 4000, id: 'api-error' })
             }
@@ -53,6 +63,11 @@ export async function uploadFile(endpoint: string, formData: FormData, signal?: 
     if (token) headers['Authorization'] = `Bearer ${token}`
     const res = await fetch(`${API}${endpoint}`, { method: 'POST', headers, body: formData, signal })
     const data = await res.json()
-    if (!res.ok) throw new Error(data?.error || 'Yuklashda xato')
+    if (!res.ok) {
+        const err = new Error(data?.error || 'Yuklashda xato') as ApiError
+        err.status = res.status
+        err.data = data
+        throw err
+    }
     return data
 }

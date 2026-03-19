@@ -1,4 +1,5 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { v4 as uuid } from 'uuid'
 import path from 'path'
 
@@ -18,10 +19,49 @@ const s3 = new S3Client({
 })
 
 const BUCKET = process.env.S3_BUCKET || 'dtmmax'
+const S3_REF_PREFIX = 's3key:'
+
+function getBaseUrl(): string {
+    return s3Endpoint.endsWith('/') ? s3Endpoint.slice(0, -1) : s3Endpoint
+}
+
+export function buildS3Url(key: string): string {
+    return `${getBaseUrl()}/${BUCKET}/${key}`
+}
+
+export function toStoredS3Ref(key: string): string {
+    return `${S3_REF_PREFIX}${key}`
+}
+
+export function extractS3Key(value?: string | null): string | null {
+    if (!value) return null
+    if (value.startsWith(S3_REF_PREFIX)) return value.slice(S3_REF_PREFIX.length)
+
+    const bucketPrefix = `${getBaseUrl()}/${BUCKET}/`
+    if (value.startsWith(bucketPrefix)) {
+        return decodeURIComponent(value.slice(bucketPrefix.length))
+    }
+
+    return null
+}
+
+export async function getSignedS3Url(key: string, expiresIn = 60 * 60): Promise<string> {
+    return getSignedUrl(s3, new GetObjectCommand({ Bucket: BUCKET, Key: key }), { expiresIn })
+}
+
+export async function resolveStoredS3Url(value?: string | null, expiresIn = 60 * 60): Promise<string | null> {
+    if (!value) return null
+    if (value.startsWith('data:')) return value
+
+    const key = extractS3Key(value)
+    if (!key) return value
+
+    return getSignedS3Url(key, expiresIn)
+}
 
 /**
  * Faylni S3 ga yuklash
- * @returns Public URL
+ * @returns Stable storage URL
  */
 export async function uploadToS3(
     buffer: Buffer,
@@ -37,12 +77,9 @@ export async function uploadToS3(
         Key: key,
         Body: buffer,
         ContentType: contentType || getMimeType(ext),
-        ACL: 'public-read'
     }))
 
-    // Use dynamic endpoint depending on if it has trailing slash
-    const baseUrl = s3Endpoint.endsWith('/') ? s3Endpoint.slice(0, -1) : s3Endpoint
-    const url = `${baseUrl}/${BUCKET}/${key}`
+    const url = buildS3Url(key)
     return { key, url }
 }
 

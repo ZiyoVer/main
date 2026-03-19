@@ -9,9 +9,72 @@ import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
 import { tokenBlacklist } from '../utils/tokenBlacklist'
 import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/email'
 import { updateOnline } from '../utils/onlineTracker'
+import { normalizeSubject } from '../utils/subjects'
 
 const router = Router()
 const JWT_SECRET = process.env.JWT_SECRET!
+const PRESENCE_LOG_INTERVAL_MS = 5 * 60 * 1000
+const lastPresenceWrite = new Map<string, number>()
+
+function isTemporaryDnsError(code?: string): boolean {
+    return ['EAI_AGAIN', 'ETIMEOUT', 'ESERVFAIL', 'SERVFAIL', 'REFUSED', 'ECONNREFUSED'].includes(code || '')
+}
+
+async function hasResolvableEmailDomain(domain: string): Promise<boolean> {
+    let dnsTemporarilyUnavailable = false
+
+    try {
+        const mxRecords = await dns.resolveMx(domain)
+        if (mxRecords?.length) return true
+    } catch (dnsErr: any) {
+        if (isTemporaryDnsError(dnsErr?.code)) {
+            console.warn('MX lookup temporary failed:', domain, dnsErr?.code)
+            dnsTemporarilyUnavailable = true
+        }
+    }
+
+    const addressLookups = await Promise.allSettled([
+        dns.resolve4(domain),
+        dns.resolve6(domain),
+    ])
+
+    const hasAddressRecord = addressLookups.some((result) =>
+        result.status === 'fulfilled' && Array.isArray(result.value) && result.value.length > 0
+    )
+    if (hasAddressRecord) return true
+
+    const temporaryAddressFailure = addressLookups.some((result) =>
+        result.status === 'rejected' && isTemporaryDnsError((result.reason as any)?.code)
+    )
+
+    if (dnsTemporarilyUnavailable || temporaryAddressFailure) {
+        console.warn('DNS lookup skipped for email domain due to temporary resolver issue:', domain)
+        return true
+    }
+
+    return false
+}
+
+async function recordPresence(userId: string) {
+    const lastLocalWrite = lastPresenceWrite.get(userId)
+    if (lastLocalWrite && Date.now() - lastLocalWrite < PRESENCE_LOG_INTERVAL_MS) {
+        return
+    }
+
+    const lastPresence = await prisma.visitLog.findFirst({
+        where: { userId, action: 'presence' },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true }
+    })
+
+    if (lastPresence && Date.now() - lastPresence.createdAt.getTime() < PRESENCE_LOG_INTERVAL_MS) {
+        lastPresenceWrite.set(userId, lastPresence.createdAt.getTime())
+        return
+    }
+
+    await prisma.visitLog.create({ data: { userId, action: 'presence' } })
+    lastPresenceWrite.set(userId, Date.now())
+}
 
 const emailLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -55,15 +118,12 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ error: 'Email manzil noto\'g\'ri' })
         }
 
-        // --- B-VARIANT: DOMEN TEKSHIRUVI (MX Records) ---
+        // Domen DNS tekshiruvi: MX bo'lmasa A/AAAA ga ham qaraymiz.
+        // Temporary DNS xatolari valid registratsiyani bloklamasin.
         const domain = normalizedEmail.split('@')[1];
-        try {
-            const mxRecords = await dns.resolveMx(domain);
-            if (!mxRecords || mxRecords.length === 0) {
-                return res.status(400).json({ error: 'Bunday email domen mavjud emas yoxud xat qabul qila olmaydi.' })
-            }
-        } catch (dnsErr) {
-            return res.status(400).json({ error: 'Email domenini (masalan @gmail.com) tasdiqlab bo\'lmadi. Haqiqiy email kiriting.' })
+        const hasDomain = await hasResolvableEmailDomain(domain)
+        if (!hasDomain) {
+            return res.status(400).json({ error: 'Bunday email domen mavjud emas yoxud xat qabul qila olmaydi.' })
         }
 
         const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } })
@@ -73,6 +133,9 @@ router.post('/register', async (req, res) => {
         const hashed = await bcrypt.hash(password, 10)
         const verificationToken = crypto.randomBytes(32).toString('hex')
         const verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 soat
+
+        const normalizedSubject = normalizeSubject(subject)
+        const normalizedSubject2 = normalizeSubject(subject2)
 
         const user = await prisma.user.create({
             data: {
@@ -90,12 +153,12 @@ router.post('/register', async (req, res) => {
         await prisma.studentProfile.create({
             data: {
                 userId: user.id,
-                subject: subject || null,
-                subject2: subject2 || null,
+                subject: normalizedSubject,
+                subject2: normalizedSubject2,
                 examType: examType || null,
                 examDate: examDate ? new Date(examDate) : null,
                 targetScore: targetScore ? parseInt(targetScore) : null,
-                onboardingDone: true,
+                onboardingDone: false,
             }
         })
 
@@ -168,9 +231,23 @@ router.post('/login', async (req, res) => {
 
 // Ping — real-time online tracking (har 60 soniyada frontend chaqiradi)
 router.post('/ping', authenticate, async (req: AuthRequest, res) => {
-    const { page } = req.body
-    updateOnline(req.user.id, req.user.name, req.user.email, req.user.role, page)
-    res.json({ ok: true })
+    try {
+        const { page } = req.body
+        const user = await prisma.user.findUnique({
+            where: { id: req.user.id },
+            select: { name: true, email: true, role: true }
+        })
+        if (!user) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' })
+
+        await Promise.all([
+            updateOnline(req.user.id, user.name, user.email, user.role, page),
+            recordPresence(req.user.id)
+        ])
+        res.json({ ok: true })
+    } catch (e) {
+        console.error('Ping error:', e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
 })
 
 // Me

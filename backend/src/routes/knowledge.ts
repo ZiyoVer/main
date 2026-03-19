@@ -4,11 +4,10 @@ import pdfParse from 'pdf-parse'
 import mammoth from 'mammoth'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
+import { SUBJECTS, isCanonicalSubject, normalizeSubject } from '../utils/subjects'
 
 const router = Router()
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 * 1024 * 1024 } })
-
-const SUBJECTS = ['Matematika', 'Fizika', 'Kimyo', 'Biologiya', 'Ona tili', 'Tarix', 'Ingliz tili', 'Geografiya']
 
 // GET /api/knowledge — barchasi (admin)
 router.get('/', authenticate, requireRole('ADMIN'), async (_req, res) => {
@@ -27,14 +26,15 @@ router.get('/subjects', async (_req, res) => {
 router.post('/', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
   try {
     const { subject, title, content, source } = req.body
+    const normalizedSubject = normalizeSubject(subject)
     if (!subject || !title?.trim() || !content?.trim()) {
       return res.status(400).json({ error: 'subject, title, content kerak' })
     }
-    if (!SUBJECTS.includes(subject)) {
+    if (!isCanonicalSubject(normalizedSubject)) {
       return res.status(400).json({ error: "Noto'g'ri fan nomi" })
     }
     const item = await prisma.knowledgeItem.create({
-      data: { subject, title: title.trim(), content: content.trim(), source: source?.trim() || null }
+      data: { subject: normalizedSubject, title: title.trim(), content: content.trim(), source: source?.trim() || null }
     })
     res.json(item)
   } catch (e: any) {
@@ -47,10 +47,14 @@ router.post('/', authenticate, requireRole('ADMIN'), async (req: AuthRequest, re
 router.put('/:id', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
   try {
     const { subject, title, content, source } = req.body
+    const normalizedSubject = subject !== undefined ? normalizeSubject(subject) : undefined
+    if (subject !== undefined && !isCanonicalSubject(normalizedSubject)) {
+      return res.status(400).json({ error: "Noto'g'ri fan nomi" })
+    }
     const item = await prisma.knowledgeItem.update({
       where: { id: String(req.params.id) },
       data: {
-        subject: subject || undefined,
+        subject: normalizedSubject || undefined,
         title: title?.trim() || undefined,
         content: content?.trim() || undefined,
         source: source?.trim() ?? undefined
@@ -74,8 +78,12 @@ router.post('/pdf-import', authenticate, requireRole('ADMIN'), upload.single('fi
   try {
     if (!req.file) return res.status(400).json({ error: 'Fayl yuklanmadi' })
     const { subject, title, source } = req.body
+    const normalizedSubject = normalizeSubject(subject)
     if (!subject || !title?.trim()) {
       return res.status(400).json({ error: 'subject va title kerak' })
+    }
+    if (!isCanonicalSubject(normalizedSubject)) {
+      return res.status(400).json({ error: "Noto'g'ri fan nomi" })
     }
 
     const ext = req.file.originalname.split('.').pop()?.toLowerCase()
@@ -114,7 +122,7 @@ router.post('/pdf-import', authenticate, requireRole('ADMIN'), upload.single('fi
     const items = await Promise.all(chunks.map((content, idx) =>
       prisma.knowledgeItem.create({
         data: {
-          subject,
+          subject: normalizedSubject,
           title: chunks.length === 1 ? title.trim() : `${title.trim()} (${idx + 1}/${chunks.length})`,
           content,
           source: source?.trim() || req.file!.originalname

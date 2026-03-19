@@ -7,7 +7,8 @@ import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole, optionalAuthenticate } from '../middleware/auth'
 import { updateAbility } from '../utils/rasch'
-import { uploadToS3 } from '../utils/s3'
+import { uploadToS3, getSignedS3Url, resolveStoredS3Url, toStoredS3Ref } from '../utils/s3'
+import { getSubjectVariants, isMandatoryDtmSubject, normalizeSubject } from '../utils/subjects'
 
 // MS (Milliy Sertifikat) Rasch model baho chegaralari — uzbmb.uz rasmiy ma'lumotlari asosida
 function getGrade(score: number): string {
@@ -25,9 +26,8 @@ function getGrade(score: number): string {
 // Ixtisoslik 1-fan (30 savol * 3.1 = max 93 ball)
 // Ixtisoslik 2-fan (30 savol * 2.1 = max 63 ball)
 // Ustoz testlari uchun: bir fan bo'lgani uchun 3.1 koeffitsient ishlatiladi
-const MANDATORY_SUBJECTS = ["Ona tili", "Tarix", "O'zbekiston tarixi"]
 function getDtmBall(subject: string | null, correct: number, total: number): { ball: number; max: number; coefficient: number } {
-    const coef = subject && MANDATORY_SUBJECTS.includes(subject) ? 1.1 : 3.1
+    const coef = isMandatoryDtmSubject(subject) ? 1.1 : 3.1
     return {
         ball: Math.round(correct * coef * 10) / 10,
         max: Math.round(total * coef * 10) / 10,
@@ -125,6 +125,7 @@ router.get('/all', authenticate, requireRole('ADMIN'), async (req: AuthRequest, 
         const search = (req.query.search as string || '').trim()
         const visibility = req.query.visibility as string | undefined // 'public' | 'private'
         const subject = req.query.subject as string | undefined
+        const subjectVariants = getSubjectVariants(subject)
         const sortBy = (req.query.sortBy as string) || 'createdAt'
         const page = Math.max(1, parseInt(req.query.page as string) || 1)
         const limit = 50
@@ -138,7 +139,7 @@ router.get('/all', authenticate, requireRole('ADMIN'), async (req: AuthRequest, 
         }
         if (visibility === 'public') where.isPublic = true
         if (visibility === 'private') where.isPublic = false
-        if (subject) where.subject = subject
+        if (subjectVariants) where.subject = { in: subjectVariants }
 
         const orderBy: any = sortBy === 'attempts'
             ? { attempts: { _count: 'desc' } }
@@ -244,7 +245,8 @@ router.get('/by-link/:shareLink', optionalAuthenticate, testReadLimiter, async (
 
         // Matching savollar uchun to'g'ri javoblarni (correctIdx) options dan olib tashlaymiz —
         // aks holda o'quvchi devtools orqali barcha javoblarni ko'ra oladi
-        const sanitizedQuestions = test.questions.map((q: any) => {
+        const sanitizedQuestions = await Promise.all(test.questions.map(async (q: any) => {
+            const resolvedImageUrl = await resolveStoredS3Url(q.imageUrl)
             if (q.questionType === 'matching' && q.options) {
                 try {
                     const parsed = JSON.parse(q.options as string)
@@ -252,11 +254,11 @@ router.get('/by-link/:shareLink', optionalAuthenticate, testReadLimiter, async (
                         answers: parsed.answers || [],
                         subQuestions: (parsed.subQuestions || []).map((sq: any) => ({ text: sq.text }))
                     }
-                    return { ...q, options: JSON.stringify(sanitized) }
-                } catch { return q }
+                    return { ...q, imageUrl: resolvedImageUrl, options: JSON.stringify(sanitized) }
+                } catch { return { ...q, imageUrl: resolvedImageUrl } }
             }
-            return q
-        })
+            return { ...q, imageUrl: resolvedImageUrl }
+        }))
         res.json({ ...test, questions: sanitizedQuestions })
     } catch (e) {
         res.status(500).json({ error: 'Server xatoligi' })
@@ -624,6 +626,7 @@ router.post('/:testId/questions', authenticate, requireRole('TEACHER', 'ADMIN'),
 router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimiter, async (req: AuthRequest, res) => {
     try {
         const { title, description, subject, isPublic, questions, timeLimit, testType } = req.body
+        const normalizedSubject = normalizeSubject(subject)
         if (!title || !questions?.length) {
             return res.status(400).json({ error: 'Test nomi va savollar kerak' })
         }
@@ -674,7 +677,7 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
             data: {
                 title,
                 description: description || null,
-                subject: subject || null,
+                subject: normalizedSubject,
                 isPublic: isPublic || false,
                 ...(validTestType && { testType: validTestType } as any),
                 timeLimit: timeLimit || null,
@@ -713,7 +716,7 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
                             userId: s.id,
                             senderId: req.user.id,
                             title: `📚 Yangi test: ${title}`,
-                            message: `"${title}" nomli yangi ${subject || ''} testi qo'shildi. Hoziroq yechib ko'ring!`
+                            message: `"${title}" nomli yangi ${normalizedSubject || ''} testi qo'shildi. Hoziroq yechib ko'ring!`
                         }))
                     })
                 }
@@ -734,6 +737,9 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
 router.post('/upload-image', authenticate, requireRole('TEACHER', 'ADMIN'), upload.single('image'), async (req: AuthRequest, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'Rasm yuklanmadi' })
+        if (!req.file.mimetype.startsWith('image/')) {
+            return res.status(400).json({ error: 'Faqat rasm fayllari yuklanadi' })
+        }
 
         // s3 ga yuklash
         const fileName = `${Date.now()}-${req.file.originalname.replace(/\s+/g, '-')}`
@@ -742,7 +748,11 @@ router.post('/upload-image', authenticate, requireRole('TEACHER', 'ADMIN'), uplo
 
         const s3Result = await uploadToS3(fileBuffer, fileName, 'questions', mimetype)
 
-        res.json({ url: s3Result.url })
+        res.json({
+            url: await getSignedS3Url(s3Result.key),
+            imageUrl: toStoredS3Ref(s3Result.key),
+            key: s3Result.key
+        })
     } catch (e) {
         console.error('Image upload error:', e)
         res.status(500).json({ error: 'Rasm yuklashda xatolik yuz berdi' })
@@ -778,14 +788,16 @@ Matematik belgilar va formulalarni LaTeX formatida yoz ($\\frac{a}{b}$, $x^2$, $
 `
         }]
 
-        imageQs.forEach((q: any, idx: number) => {
+        for (const [idx, q] of imageQs.entries()) {
+            const imageUrl = await resolveStoredS3Url(q.imageUrl)
+            if (!imageUrl) continue
             const opts = ['a', 'b', 'c', 'd'].map((k, i) => q[k] ? `${optLabels[i]}) ${q[k]}` : null).filter(Boolean).join(' | ')
             extractContent.push({
                 type: 'text',
                 text: `\nSavol ${idx + 1}${q.text ? ': ' + q.text : ' (rasm):'}${opts ? '\nVariantlar: ' + opts : ''}\nRasm:`
             })
-            extractContent.push({ type: 'image_url', image_url: { url: q.imageUrl, detail: 'high' } })
-        })
+            extractContent.push({ type: 'image_url', image_url: { url: imageUrl, detail: 'high' } })
+        }
 
         const extractResult = await gptClient.chat.completions.create({
             model: 'gpt-4o',
@@ -859,15 +871,17 @@ QOIDALAR:
                 type: 'text',
                 text: `Test: "${title || 'Test'}" (${subject || ''}). Natija: ${score}/${total}.\n\nQuyidagi savollarni tahlil qil:`
             }]
-            imgQs.forEach((q: any, idx: number) => {
+            for (const [idx, q] of imgQs.entries()) {
+                const imageUrl = await resolveStoredS3Url(q.imageUrl)
+                if (!imageUrl) continue
                 const opts = ['a', 'b', 'c', 'd'].map((k, i) => q[k] ? `${optLabels[i]}) ${q[k]}` : null).filter(Boolean).join(' | ')
                 const studentLabel = (q.studentAnswer || '?').toUpperCase()
                 const correctLabel = (q.correctAnswer || '?').toUpperCase()
                 const isCorrect = q.studentAnswer === q.correctAnswer
                 const status = isCorrect ? '✅ TO\'G\'RI' : '❌ XATO'
                 content.push({ type: 'text', text: `\n---\n${status} — Savol ${idx + 1}${q.text ? ': ' + q.text : ''}${opts ? '\nVariantlar: ' + opts : ''}\nO'quvchi javobi: ${studentLabel} | To'g'ri javob: ${correctLabel}\nRasmni diqqat bilan o'qi:` })
-                content.push({ type: 'image_url', image_url: { url: q.imageUrl, detail: 'high' } })
-            })
+                content.push({ type: 'image_url', image_url: { url: imageUrl, detail: 'high' } })
+            }
 
             // Rasmsiz savollar ham bo'lsa — ularni matn sifatida qo'shamiz
             const textQs = questions.filter((q: any) => !q.imageUrl)
@@ -959,9 +973,12 @@ router.post('/submit-ai', authenticate, submitLimiter, async (req: AuthRequest, 
 // Guest (login qilmagan) test yechish — DB ga saqlanmaydi, faqat natija qaytariladi
 router.post('/:testId/submit-guest', optionalAuthenticate, submitLimiter, async (req: AuthRequest, res) => {
     try {
-        const { answers } = req.body
+        const { answers, shareLink } = req.body
         if (!Array.isArray(answers)) {
             return res.status(400).json({ error: 'answers massiv bo\'lishi kerak' })
+        }
+        if (!req.user) {
+            return res.status(401).json({ error: 'Testni ishlash uchun avval kiring yoki ro\'yxatdan o\'ting' })
         }
         const test = await prisma.test.findUnique({
             where: { id: req.params.testId as string },
@@ -969,10 +986,7 @@ router.post('/:testId/submit-guest', optionalAuthenticate, submitLimiter, async 
         })
         if (!test) return res.status(404).json({ error: 'Test topilmadi' })
 
-        // Login qilgan student private testni submit-guest orqali chetlab o'ta olmasligi kerak
-        // ISTISNO: teacher shareLink bergan testlar (shareLink bor bo'lsa — ruxsat berilgan)
-        const hasShareLink = !!(test as any).shareLink
-        if (!test.isPublic && !hasShareLink && req.user?.role === 'STUDENT') {
+        if (!test.isPublic && req.user?.role === 'STUDENT' && shareLink !== test.shareLink) {
             return res.status(403).json({ error: 'Bu test uchun ruxsat yo\'q' })
         }
 
@@ -1124,7 +1138,7 @@ router.post('/:testId/submit-guest', optionalAuthenticate, submitLimiter, async 
 // Test yechish va Rasch baholash
 router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequest, res) => {
     try {
-        const { answers } = req.body // [{questionId, selectedIdx}]
+        const { answers, shareLink } = req.body // [{questionId, selectedIdx}]
         if (!Array.isArray(answers)) {
             return res.status(400).json({ error: 'answers massiv bo\'lishi kerak' })
         }
@@ -1138,8 +1152,8 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
         })
         if (!test) return res.status(404).json({ error: 'Test topilmadi' })
 
-        // Student faqat public testni submit qila oladi
-        if (!test.isPublic && req.user?.role === 'STUDENT') {
+        // Student public test yoki valid share-link bilan kirilgan private testni submit qila oladi
+        if (!test.isPublic && req.user?.role === 'STUDENT' && shareLink !== test.shareLink) {
             return res.status(403).json({ error: 'Bu test uchun ruxsat yo\'q' })
         }
 

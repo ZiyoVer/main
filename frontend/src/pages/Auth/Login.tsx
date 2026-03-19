@@ -15,10 +15,10 @@ export default function Login() {
 
     useEffect(() => {
         if (token && user) {
-            if (hasGuestTestResult()) {
-                nav('/suhbat?analyzeTest=1', { replace: true })
-            } else if (from && from !== '/kirish') {
+            if (from && from !== '/kirish') {
                 nav(from, { replace: true })
+            } else if (hasGuestTestResult()) {
+                nav('/suhbat?analyzeTest=1', { replace: true })
             } else if (user.role === 'ADMIN') nav('/boshqaruv', { replace: true })
             else if (user.role === 'TEACHER') nav('/oqituvchi', { replace: true })
             else nav('/suhbat', { replace: true })

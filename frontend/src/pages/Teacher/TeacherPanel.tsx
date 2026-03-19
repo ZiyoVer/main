@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import { BrainCircuit, Plus, Trash2, LogOut, Copy, Check, Globe, Lock, ClipboardList, Upload, Sparkles, FileText, Image, BarChart2, X, Users, Bell } from 'lucide-react'
-import { fetchApi } from '@/lib/api'
+import { fetchApi, uploadFile } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 import { SUBJECTS } from '../../constants'
 import katex from 'katex'
@@ -28,6 +28,7 @@ interface MatchingSubQ { text: string; correctIdx: number }
 interface Question {
     text: string; imageUrl?: string | null; options: string[]; correctIdx: number
     questionType: 'mcq' | 'open' | 'matching'; correctText?: string
+    imagePreviewUrl?: string | null
     matchingAnswers?: string[]       // A–F shared answer bank
     matchingSubQuestions?: MatchingSubQ[]  // each sub-question + correct answer idx
 }
@@ -62,6 +63,12 @@ export default function TeacherPanel() {
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     useEffect(() => { loadTests() }, [])
+    useEffect(() => {
+        const sendPing = () => fetchApi('/auth/ping', { method: 'POST', body: JSON.stringify({ page: 'teacher' }), silent: true }).catch(() => { })
+        sendPing()
+        const pingInterval = setInterval(sendPing, 60000)
+        return () => clearInterval(pingInterval)
+    }, [])
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
             if (e.key === 'Escape') setAnalyticsId(null)
@@ -100,6 +107,17 @@ export default function TeacherPanel() {
         setQuestions([...questions, { text: '', imageUrl: null, options: ['', '', '', ''], correctIdx: 0, questionType: 'mcq', correctText: '', matchingAnswers: ['', '', '', '', '', ''], matchingSubQuestions: [{ text: '', correctIdx: 0 }] }])
     }
 
+    async function uploadQuestionImage(qi: number, file: File) {
+        const formData = new FormData()
+        formData.append('image', file)
+        const uploaded = await uploadFile('/tests/upload-image', formData)
+        setQuestions(prev => prev.map((q, i) => i === qi ? {
+            ...q,
+            imageUrl: uploaded.imageUrl,
+            imagePreviewUrl: uploaded.url
+        } : q))
+    }
+
     async function handleImageUpload(qi: number, file: File) {
         const MAX_SIZE = 10 * 1024 * 1024 // 10MB
         if (file.size > MAX_SIZE) {
@@ -117,14 +135,13 @@ export default function TeacherPanel() {
             canvas.width = w
             canvas.height = h
             canvas.getContext('2d')!.drawImage(bitmap, 0, 0, w, h)
-            const compressed = canvas.toDataURL('image/jpeg', 0.82)
-            updateQ(qi, 'imageUrl', compressed)
+            const compressedBlob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82))
+            const uploadableFile = compressedBlob
+                ? new File([compressedBlob], `${file.name.replace(/\.[^.]+$/, '')}.jpg`, { type: 'image/jpeg' })
+                : file
+            await uploadQuestionImage(qi, uploadableFile)
         } catch {
-            // createImageBitmap ishlamasa oddiy FileReader
-            const reader = new FileReader()
-            reader.onload = (e) => updateQ(qi, 'imageUrl', e.target?.result as string)
-            reader.onerror = () => toast.error('Rasm o\'qishda xatolik')
-            reader.readAsDataURL(file)
+            await uploadQuestionImage(qi, file)
         }
     }
 
@@ -132,7 +149,8 @@ export default function TeacherPanel() {
         setQuestions(prev => prev.map((q, i) => {
             if (i !== idx) return q
             if (field === 'text') return { ...q, text: value }
-            if (field === 'imageUrl') return { ...q, imageUrl: value }
+            if (field === 'imageUrl') return { ...q, imageUrl: value, imagePreviewUrl: value ? q.imagePreviewUrl : null }
+            if (field === 'imagePreviewUrl') return { ...q, imagePreviewUrl: value }
             if (field === 'correctIdx') return { ...q, correctIdx: value }
             if (field === 'correctText') return { ...q, correctText: value }
             if (field === 'questionType') return { ...q, questionType: value }
@@ -739,10 +757,10 @@ export default function TeacherPanel() {
                                             <Image className="h-4 w-4" style={{ color: 'var(--brand)' }} />
                                         </label>
                                     </div>
-                                    {q.imageUrl && (
+                                    {(q.imagePreviewUrl || q.imageUrl) && (
                                         <div className="relative inline-block mt-2">
-                                            <img src={q.imageUrl} alt="Savol rasmi" className="max-h-32 rounded-lg border shadow-sm" style={{ borderColor: 'var(--border)' }} />
-                                            <button type="button" onClick={() => updateQ(qi, 'imageUrl', null)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition shadow-md">
+                                            <img src={q.imagePreviewUrl || q.imageUrl || ''} alt="Savol rasmi" className="max-h-32 rounded-lg border shadow-sm" style={{ borderColor: 'var(--border)' }} />
+                                            <button type="button" onClick={() => setQuestions(prev => prev.map((question, i) => i === qi ? { ...question, imageUrl: null, imagePreviewUrl: null } : question))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition shadow-md">
                                                 <X className="h-3 w-3" />
                                             </button>
                                         </div>

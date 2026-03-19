@@ -11,6 +11,7 @@ import 'katex/dist/katex.min.css'
 import katex from 'katex'
 import toast from 'react-hot-toast'
 import { fetchApi } from '@/lib/api'
+import { SUBJECTS, normalizeSubjectValue } from '@/constants'
 import { useAuthStore } from '@/store/authStore'
 import ChatContext, { useChatContext, EssayPanel, TodoItem } from '../../contexts/ChatContext'
 import { useTestPanel } from '../../hooks/useTestPanel'
@@ -19,7 +20,7 @@ import { useFlashPanel } from '../../hooks/useFlashPanel'
 interface Chat { id: string; title: string; subject?: string; updatedAt: string }
 interface Msg { id: string; role: string; content: string; createdAt: string }
 interface Profile { onboardingDone: boolean; subject?: string; subject2?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string; totalTests?: number; avgScore?: number; abilityLevel?: number }
-interface PublicTest { id: string; title: string; subject?: string; _count?: { questions: number; attempts: number } }
+interface PublicTest { id: string; title: string; shareLink: string; subject?: string; _count?: { questions: number; attempts: number } }
 interface MyResult { id: string; testId: string; score: number; total?: number; createdAt: string; test?: { title: string; subject?: string } }
 
 // Test paneli uchun inline KaTeX renderer (ReactMarkdown ishlatmaymiz, tez va engil)
@@ -1026,22 +1027,27 @@ Iltimos, har bir savolni tahlil qilib ber:
     async function loadProfile() {
         try {
             const p = await fetchApi('/profile')
-            setProfile(p)
-            profileRef.current = p
-            if (p && !p.onboardingDone) setShowOnboarding(true)
-            if (p) {
+            const normalizedProfile = p ? {
+                ...p,
+                subject: normalizeSubjectValue(p.subject) || undefined,
+                subject2: normalizeSubjectValue((p as any).subject2) || undefined
+            } : p
+            setProfile(normalizedProfile)
+            profileRef.current = normalizedProfile
+            if (normalizedProfile && !normalizedProfile.onboardingDone) setShowOnboarding(true)
+            if (normalizedProfile) {
                 let weak: string[] = []
                 let strong: string[] = []
-                try { weak = p.weakTopics ? JSON.parse(p.weakTopics) : [] } catch { /* invalid JSON */ }
-                try { strong = p.strongTopics ? JSON.parse(p.strongTopics) : [] } catch { /* invalid JSON */ }
+                try { weak = normalizedProfile.weakTopics ? JSON.parse(normalizedProfile.weakTopics) : [] } catch { /* invalid JSON */ }
+                try { strong = normalizedProfile.strongTopics ? JSON.parse(normalizedProfile.strongTopics) : [] } catch { /* invalid JSON */ }
                 setOnboardingForm({
-                    subject: p.subject || 'Matematika',
-                    subject2: (p as any).subject2 || '',
-                    targetScore: p.targetScore || 80,
-                    examDate: p.examDate ? new Date(p.examDate).toISOString().split('T')[0] : '',
+                    subject: normalizedProfile.subject || 'Matematika',
+                    subject2: normalizedProfile.subject2 || '',
+                    targetScore: normalizedProfile.targetScore || 80,
+                    examDate: normalizedProfile.examDate ? new Date(normalizedProfile.examDate).toISOString().split('T')[0] : '',
                     weakTopics: weak.join(', '),
                     strongTopics: strong.join(', '),
-                    concerns: p.concerns || ''
+                    concerns: normalizedProfile.concerns || ''
                 })
             }
         } catch (err: any) {
@@ -1183,7 +1189,7 @@ Iltimos, har bir savolni tahlil qilib ber:
         try {
             const data = await fetchApi('/chat/new', {
                 method: 'POST',
-                body: JSON.stringify({ title: 'Yangi suhbat', subject: profile?.subject, forceNew: true })
+                body: JSON.stringify({ title: 'Yangi suhbat', subject: normalizeSubjectValue(profile?.subject) || undefined, forceNew: true })
             })
             await loadChats()
             nav(`/suhbat/${data.id}`)
@@ -1305,7 +1311,7 @@ Iltimos, har bir savolni tahlil qilib ber:
             try {
                 const data = await fetchApi('/chat/new', {
                     method: 'POST',
-                    body: JSON.stringify({ title: text.substring(0, 50) || 'Yangi suhbat', subject: profile?.subject, forceNew: true })
+                    body: JSON.stringify({ title: text.substring(0, 50) || 'Yangi suhbat', subject: normalizeSubjectValue(profile?.subject) || undefined, forceNew: true })
                 })
                 await loadChats()
                 nav(`/suhbat/${data.id}`)
@@ -1611,7 +1617,7 @@ Iltimos, har bir savolni tahlil qilib ber:
             } else {
                 setTimeout(async () => {
                     try {
-                        const data = await fetchApi('/chat/new', { method: 'POST', body: JSON.stringify({ title: 'Test tahlili', subject: profile?.subject }) })
+                        const data = await fetchApi('/chat/new', { method: 'POST', body: JSON.stringify({ title: 'Test tahlili', subject: normalizeSubjectValue(profile?.subject) || undefined }) })
                         await loadChats()
                         nav(`/suhbat/${data.id}`)
                         setTimeout(() => {
@@ -1631,7 +1637,7 @@ Iltimos, har bir savolni tahlil qilib ber:
         } else {
             setTimeout(async () => {
                 try {
-                    const data = await fetchApi('/chat/new', { method: 'POST', body: JSON.stringify({ title: 'Test tahlili', subject: profile?.subject }) })
+                    const data = await fetchApi('/chat/new', { method: 'POST', body: JSON.stringify({ title: 'Test tahlili', subject: normalizeSubjectValue(profile?.subject) || undefined }) })
                     await loadChats()
                     nav(`/suhbat/${data.id}`)
                     setTimeout(() => {
@@ -1712,14 +1718,13 @@ Iltimos, har bir savolni tahlil qilib ber:
                     <form onSubmit={saveOnboarding} className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         <div><label className="text-sm font-medium block mb-1.5">Qaysi fandan tayyorlanasiz?</label>
                             <select value={onboardingForm.subject} onChange={e => setOnboardingForm({ ...onboardingForm, subject: e.target.value })} className="input" style={{ cursor: 'pointer' }}>
-                                {['Matematika', 'Fizika', 'Kimyo', 'Biologiya', 'Ona tili', 'Ingliz tili', 'Tarix', 'Geografiya'].map(f => <option key={f} value={f}>{f}</option>)}
+                                {SUBJECTS.map(f => <option key={f} value={f}>{f}</option>)}
                             </select></div>
                         <div>
                             <label className="text-sm font-medium block mb-1.5">2-fan <span style={{ color: 'var(--text-muted)' }}>(ixtiyoriy)</span></label>
                             <select value={onboardingForm.subject2} onChange={e => setOnboardingForm(f => ({ ...f, subject2: e.target.value }))} className="input" style={{ cursor: 'pointer' }}>
                                 <option value="">— Tanlang —</option>
-                                {['Matematika', 'Fizika', 'Kimyo', 'Biologiya', 'Ona tili va adabiyoti', 'Ingliz tili', 'Tarix', 'Geografiya']
-                                    .filter(s => s !== onboardingForm.subject)
+                                {SUBJECTS.filter(s => s !== onboardingForm.subject)
                                     .map(s => <option key={s} value={s}>{s}</option>)}
                             </select>
                         </div>
@@ -2000,14 +2005,14 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                         <div>
                                                             <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>Asosiy fan</label>
                                                             <select value={onboardingForm.subject} onChange={e => setOnboardingForm(f => ({ ...f, subject: e.target.value }))} className="input text-sm h-9" style={{ cursor: 'pointer' }}>
-                                                                {['Matematika', 'Fizika', 'Kimyo', 'Biologiya', 'Ona tili', 'Ingliz tili', 'Tarix', 'Geografiya'].map(f => <option key={f} value={f}>{f}</option>)}
+                                                                {SUBJECTS.map(f => <option key={f} value={f}>{f}</option>)}
                                                             </select>
                                                         </div>
                                                         <div>
                                                             <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>2-fan <span className="opacity-60">(ixtiyoriy)</span></label>
                                                             <select value={onboardingForm.subject2} onChange={e => setOnboardingForm(f => ({ ...f, subject2: e.target.value }))} className="input text-sm h-9" style={{ cursor: 'pointer' }}>
                                                                 <option value="">— Tanlang —</option>
-                                                                {['Matematika', 'Fizika', 'Kimyo', 'Biologiya', 'Ona tili va adabiyoti', 'Ingliz tili', 'Tarix', 'Geografiya'].filter(s => s !== onboardingForm.subject).map(s => <option key={s} value={s}>{s}</option>)}
+                                                                {SUBJECTS.filter(s => s !== onboardingForm.subject).map(s => <option key={s} value={s}>{s}</option>)}
                                                             </select>
                                                         </div>
                                                     </div>
@@ -2787,10 +2792,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                         </div>
                                                         {result ? (
                                                             <span className="text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0" style={{ background: 'rgba(16,185,129,0.12)', color: '#10b981' }}>
-                                                                {(result.total ?? 0) > 0 ? Math.round(result.score / result.total! * 100) : result.score}%
+                                                                {Math.round(result.score)}%
                                                             </span>
                                                         ) : (
-                                                            <button onClick={() => { window.location.href = `/test/${t.id}` }}
+                                                            <button onClick={() => { window.location.href = `/test/${t.shareLink}` }}
                                                                 className="text-xs font-semibold px-3 py-1.5 rounded-xl transition flex-shrink-0"
                                                                 style={{ background: 'var(--brand)', color: 'white' }}>
                                                                 Boshlash

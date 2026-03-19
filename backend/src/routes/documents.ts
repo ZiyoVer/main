@@ -4,7 +4,8 @@ import rateLimit from 'express-rate-limit'
 import path from 'path'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
-import { uploadToS3, deleteFromS3 } from '../utils/s3'
+import { uploadToS3, deleteFromS3, getSignedS3Url } from '../utils/s3'
+import { normalizeSubject } from '../utils/subjects'
 
 const uploadLimiter = rateLimit({
     windowMs: 60 * 1000,
@@ -37,6 +38,7 @@ router.post('/upload', authenticate, requireRole('ADMIN'), uploadLimiter, upload
         if (!req.file) return res.status(400).json({ error: 'Fayl topilmadi' })
 
         const { subject } = req.body
+        const normalizedSubject = normalizeSubject(subject)
         const ext = path.extname(req.file.originalname).toLowerCase()
         const buffer = req.file.buffer
 
@@ -85,7 +87,7 @@ router.post('/upload', authenticate, requireRole('ADMIN'), uploadLimiter, upload
                 fileName: req.file.originalname,
                 fileType: ext.replace('.', ''),
                 fileSize: req.file.size,
-                subject: subject || null,
+                subject: normalizedSubject,
                 s3Url: s3Url || null,
                 s3Key: s3Key || null
             }
@@ -123,7 +125,7 @@ router.post('/upload', authenticate, requireRole('ADMIN'), uploadLimiter, upload
             message: `Fayl yuklandi: ${chunks.length} chunk saqlandi`,
             document: doc,
             chunksCount: chunks.length,
-            s3Url,
+            s3Url: s3Key ? await getSignedS3Url(s3Key) : s3Url,
             ...(s3Warning && { warning: s3Warning })
         })
     } catch (e) {
@@ -148,7 +150,8 @@ router.post('/chat-upload', authenticate, uploadSingle, async (req: AuthRequest,
         const s3Result = await uploadToS3(req.file.buffer, req.file.originalname, folder)
 
         res.json({
-            url: s3Result.url,
+            url: await getSignedS3Url(s3Result.key),
+            storageUrl: s3Result.url,
             key: s3Result.key,
             fileName: req.file.originalname,
             fileType: isImage ? 'image' : ext.replace('.', ''),
