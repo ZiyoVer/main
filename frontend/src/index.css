@@ -707,6 +707,81 @@ html.dark {
     }
 }
 
+@keyframes telegramRailScroll {
+    from {
+        transform: translateX(0);
+    }
+
+    to {
+        transform: translateX(-50%);
+    }
+}
+
+.telegram-rail {
+    background: color-mix(in srgb, var(--brand) 6%, transparent);
+}
+
+.telegram-rail-viewport {
+    overflow: hidden;
+}
+
+.telegram-rail-track {
+    display: flex;
+    width: max-content;
+    min-width: 100%;
+    animation: telegramRailScroll 22s linear infinite;
+    will-change: transform;
+}
+
+.telegram-rail:hover .telegram-rail-track {
+    animation-play-state: paused;
+}
+
+.telegram-rail-group {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    padding-right: 2rem;
+    flex-shrink: 0;
+}
+
+.telegram-rail-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+}
+
+.telegram-rail-link {
+    width: 22px;
+    height: 22px;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--brand);
+    background: color-mix(in srgb, var(--brand) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--brand) 18%, transparent);
+    transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.telegram-rail-link:hover {
+    transform: scale(1.05);
+    background: color-mix(in srgb, var(--brand) 16%, transparent);
+    border-color: color-mix(in srgb, var(--brand) 28%, transparent);
+}
+
+@media (max-width: 640px) {
+    .telegram-rail-track {
+        animation-duration: 18s;
+    }
+
+    .telegram-rail-group {
+        gap: 1.25rem;
+        padding-right: 1.25rem;
+    }
+}
+
 /* Delay helpers */
 .anim-up {
     animation: fadeUp 0.4s ease-out both;

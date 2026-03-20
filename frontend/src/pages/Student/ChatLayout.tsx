@@ -23,6 +23,19 @@ interface Profile { onboardingDone: boolean; subject?: string; subject2?: string
 interface PublicTest { id: string; title: string; shareLink: string; subject?: string; _count?: { questions: number; attempts: number } }
 interface MyResult { id: string; testId: string; score: number; total?: number; createdAt: string; test?: { title: string; subject?: string } }
 
+const TELEGRAM_RAIL_ITEMS = [
+    { label: 'Yangiliklar', handle: '@TonggiShula', href: 'https://t.me/TonggiShula' },
+    { label: 'Support', handle: '@uzdatalabsupport', href: 'https://t.me/uzdatalabsupport' },
+] as const
+
+function TelegramIcon() {
+    return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M21.5 4.5 18.5 19c-.22 1.03-.8 1.28-1.62.8l-4.48-3.3-2.16 2.08c-.24.24-.44.44-.9.44l.32-4.56 8.3-7.5c.36-.32-.08-.5-.56-.18l-10.26 6.46-4.42-1.38c-.96-.3-.98-.96.2-1.42L19.78 3.96c.78-.3 1.46.18 1.22 1.54Z" fill="currentColor" />
+        </svg>
+    )
+}
+
 // Test paneli uchun inline KaTeX renderer (ReactMarkdown ishlatmaymiz, tez va engil)
 function MathText({ text }: { text: string }) {
     const normalized = preprocessMath(text || '')
@@ -631,6 +644,10 @@ export default function ChatLayout() {
     const [overlayPanel, setOverlayPanel] = useState<'tests' | 'flashcards' | 'progress' | null>(null)
     const [todoItems, setTodoItems] = useState<TodoItem[]>([])
     const [todoOpen, setTodoOpen] = useState(false)
+    const [telegramRailDismissed, setTelegramRailDismissed] = useState(() => {
+        if (typeof window === 'undefined') return false
+        return localStorage.getItem('dtmmax_telegram_rail_dismissed') === '1'
+    })
     const [showSettings, setShowSettings] = useState(false)
     const [settingsSection, setSettingsSection] = useState<'profile' | 'notifications' | 'security'>('profile')
     const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -2174,6 +2191,49 @@ Iltimos, har bir savolni tahlil qilib ber:
                         <button onClick={() => setSideOpen(v => !v)} className="h-8 w-8 flex items-center justify-center rounded-lg transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} title="Yonpanel"><Menu className="h-4 w-4" /></button>
                         <span className="text-sm font-medium truncate flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>{currentChat?.title || ''}</span>
                     </div>
+
+                    {!telegramRailDismissed && (
+                        <div className="telegram-rail flex items-center gap-3 px-4 py-2 flex-shrink-0" style={{ borderBottom: '1px solid color-mix(in srgb, var(--brand) 16%, var(--border))' }}>
+                            <span className="text-[11px] font-semibold flex-shrink-0" style={{ color: 'var(--brand)' }}>Telegram</span>
+                            <div className="telegram-rail-viewport flex-1 min-w-0">
+                                <div className="telegram-rail-track">
+                                    {[0, 1].map(copy => (
+                                        <div key={copy} className="telegram-rail-group">
+                                            {TELEGRAM_RAIL_ITEMS.map(item => (
+                                                <div key={`${copy}-${item.handle}`} className="telegram-rail-item">
+                                                    <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{item.label}</span>
+                                                    <span className="text-[12px] font-medium" style={{ color: 'var(--text-primary)' }}>{item.handle}</span>
+                                                    <a
+                                                        href={item.href}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="telegram-rail-link"
+                                                        title={`${item.handle} ochish`}
+                                                        aria-label={`${item.handle} ochish`}
+                                                    >
+                                                        <TelegramIcon />
+                                                    </a>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setTelegramRailDismissed(true)
+                                    localStorage.setItem('dtmmax_telegram_rail_dismissed', '1')
+                                }}
+                                className="h-7 w-7 rounded-lg flex items-center justify-center transition flex-shrink-0"
+                                style={{ color: 'var(--text-muted)' }}
+                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                title="Yopish"
+                            >
+                                <X className="h-3.5 w-3.5" />
+                            </button>
+                        </div>
+                    )}
 
                     {/* Email verification banner */}
                     {!emailVerified && !verifBannerDismissed && (
