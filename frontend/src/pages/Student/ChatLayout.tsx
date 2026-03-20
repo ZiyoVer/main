@@ -646,10 +646,7 @@ export default function ChatLayout() {
     const [overlayPanel, setOverlayPanel] = useState<'tests' | 'flashcards' | 'progress' | null>(null)
     const [todoItems, setTodoItems] = useState<TodoItem[]>([])
     const [todoOpen, setTodoOpen] = useState(false)
-    const [telegramRailDismissed, setTelegramRailDismissed] = useState(() => {
-        if (typeof window === 'undefined') return false
-        return localStorage.getItem('dtmmax_telegram_rail_dismissed') === '1'
-    })
+    const [telegramRailDismissed, setTelegramRailDismissed] = useState(false)
     const [showSettings, setShowSettings] = useState(false)
     const [settingsSection, setSettingsSection] = useState<'profile' | 'notifications' | 'security'>('profile')
     const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -2222,10 +2219,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                 </div>
                             </div>
                             <button
-                                onClick={() => {
-                                    setTelegramRailDismissed(true)
-                                    localStorage.setItem('dtmmax_telegram_rail_dismissed', '1')
-                                }}
+                                onClick={() => setTelegramRailDismissed(true)}
                                 className="h-7 w-7 rounded-lg flex items-center justify-center transition flex-shrink-0"
                                 style={{ color: 'var(--text-muted)' }}
                                 onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
