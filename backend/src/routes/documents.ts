@@ -170,8 +170,30 @@ router.get('/list', authenticate, requireRole('ADMIN'), async (req: AuthRequest,
             include: { _count: { select: { chunks: true } } },
             orderBy: { createdAt: 'desc' }
         })
-        res.json(docs)
+        res.json(docs.map(doc => ({
+            ...doc,
+            hasFile: Boolean(doc.s3Key || doc.s3Url)
+        })))
     } catch (e) {
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+// Admin: Private hujjat uchun yangi signed URL olish
+router.get('/:id/download-url', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
+    try {
+        const doc = await prisma.document.findUnique({ where: { id: req.params.id as string } })
+        if (!doc) return res.status(404).json({ error: 'Hujjat topilmadi' })
+
+        const url = doc.s3Key ? await getSignedS3Url(doc.s3Key) : doc.s3Url
+        if (!url) return res.status(404).json({ error: 'Bu hujjat uchun yuklab olish manzili yo\'q' })
+
+        res.json({
+            url,
+            fileName: doc.fileName
+        })
+    } catch (e) {
+        console.error(e)
         res.status(500).json({ error: 'Server xatoligi' })
     }
 })

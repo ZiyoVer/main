@@ -110,6 +110,8 @@ const QUESTION_GENERATION_MAX_TOTAL = 90
 const QUESTION_GENERATION_MAX_PER_CHUNK = 24
 const QUESTION_GENERATION_TEXT_CHUNK_SIZE = 18000
 const QUESTION_GENERATION_TEXT_MAX_CHUNKS = 4
+const QUESTION_GENERATION_VISION_BATCH_PAGES = 2
+const QUESTION_GENERATION_VISION_MAX_PAGES = 12
 
 function buildQuestionGeneratorSystemPrompt() {
     return `Siz test savollari generatorisiz. Sizga berilgan matn yoki rasmdan savollarni AYNAN ajratib olasiz. FAQAT JSON array formatda javob bering, boshqa hech narsa yozmasdan.
@@ -202,6 +204,72 @@ function chunkTextForQuestionGeneration(fullText: string): { chunks: string[]; t
     }
 
     return { chunks, truncated: remaining.length > 0 }
+}
+
+async function generateQuestionsFromScannedPdf(buffer: Buffer, subjectNote: string, jsonFormat: string) {
+    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs' as any)
+    const { createCanvas } = await import('@napi-rs/canvas')
+
+    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) })
+    const pdfDoc = await loadingTask.promise
+    const pageLimit = Math.min(pdfDoc.numPages, QUESTION_GENERATION_VISION_MAX_PAGES)
+    const truncated = pdfDoc.numPages > QUESTION_GENERATION_VISION_MAX_PAGES
+    let rawQuestions: any[] = []
+
+    for (let startPage = 1; startPage <= pageLimit; startPage += QUESTION_GENERATION_VISION_BATCH_PAGES) {
+        const remainingSlots = QUESTION_GENERATION_MAX_TOTAL - rawQuestions.length
+        if (remainingSlots <= 0) break
+
+        const endPage = Math.min(pageLimit, startPage + QUESTION_GENERATION_VISION_BATCH_PAGES - 1)
+        const imageMessages: any[] = []
+
+        for (let pageNumber = startPage; pageNumber <= endPage; pageNumber++) {
+            const page = await pdfDoc.getPage(pageNumber)
+            const viewport = page.getViewport({ scale: 1.5 })
+            const canvas = createCanvas(viewport.width, viewport.height)
+            const ctx = canvas.getContext('2d')
+            await page.render({ canvasContext: ctx as any, viewport }).promise
+            const base64 = canvas.toBuffer('image/png').toString('base64')
+            imageMessages.push({ type: 'image_url', image_url: { url: `data:image/png;base64,${base64}` } })
+        }
+
+        if (imageMessages.length === 0) continue
+
+        try {
+            const aiContent = await generateQuestionJson([{
+                role: 'user',
+                content: [
+                    ...imageMessages,
+                    {
+                        type: 'text',
+                        text: `Bu skanerlangan PDF sahifalaridan test savollari va variantlarini AYNAN ajratib ol.${subjectNote}
+
+Sahifalar: ${startPage}-${endPage}${truncated ? ` (PDF katta, faqat birinchi ${QUESTION_GENERATION_VISION_MAX_PAGES} sahifa tahlil qilinyapti)` : ''}
+
+MUHIM QOIDALAR:
+- Rasmdagi mavjud savol va variantlarni AYNAN ko'chir
+- Agar bu sahifalarda tayyor test bo'lmasa, shu sahifadagi mavzu/materialdan yangi savollar tuzishga ruxsat beriladi
+- Ko'pi bilan ${Math.min(18, remainingSlots)} ta sifatli savol qaytaring
+- MCQ savol: {"text":"...","options":["A","B","C","D"],"correctIdx":0}
+- Moslashtirish savol: {"text":"...","questionType":"matching","answers":[...],"subQuestions":[{"text":"...","correctIdx":0}]}
+- Matematik ifodalarni KaTeX formatida yoz: $\\sqrt{x}$, $\\frac{a}{b}$, $x^{2}$, $a_{n}$, $\\pi$
+- Rasmdagi har qanday formula, ildiz, kasr, daraja, indeksni LaTeX bilan ifodalash SHART
+
+Javobni FAQAT JSON array formatda qaytargil:
+${jsonFormat}`
+                    }
+                ]
+            }], true)
+
+            const parsed = parseQuestionJson(aiContent)
+            const validated = validateGeneratedQuestions(parsed)
+            rawQuestions = dedupeGeneratedQuestions([...rawQuestions, ...validated]).slice(0, QUESTION_GENERATION_MAX_TOTAL)
+        } catch (batchErr: any) {
+            console.warn(`Scanned PDF pages ${startPage}-${endPage} generation failed:`, batchErr?.message || batchErr)
+        }
+    }
+
+    return { questions: rawQuestions, truncated }
 }
 
 async function generateQuestionJson(messages: any[], isVision = false): Promise<string> {
@@ -487,58 +555,21 @@ router.post('/generate-from-file', authenticate, requireRole('TEACHER', 'ADMIN')
         if (mimetype === 'application/pdf') {
             const data = await pdfParse(buffer)
             const fullText = data.text.trim()
-            let hasImageContent = false
+            const needsVisionPdf = !fullText || fullText.length < 50
 
-            // Skanerlangan PDF: matn yo'q bo'lsa pdfjs-dist + canvas bilan render
-            if (!fullText || fullText.length < 50) {
-                try {
-                    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs' as any)
-                    const { createCanvas } = await import('@napi-rs/canvas')
-
-                    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) })
-                    const pdfDoc = await loadingTask.promise
-                    const pageCount = Math.min(pdfDoc.numPages, 3)
-                    const imageMessages: any[] = []
-
-                    for (let i = 1; i <= pageCount; i++) {
-                        const page = await pdfDoc.getPage(i)
-                        const viewport = page.getViewport({ scale: 1.5 })
-                        const canvas = createCanvas(viewport.width, viewport.height)
-                        const ctx = canvas.getContext('2d')
-                        await page.render({ canvasContext: ctx as any, viewport }).promise
-                        const base64 = canvas.toBuffer('image/png').toString('base64')
-                        imageMessages.push({ type: 'image_url', image_url: { url: `data:image/png;base64,${base64}` } })
-                    }
-
-                    if (imageMessages.length > 0) {
-                        hasImageContent = true
-                        messages = [{
-                            role: 'user',
-                            content: [
-                                ...imageMessages,
-                                {
-                                    type: 'text', text: `Bu skanerlangan PDF sahifalaridan test savollari va variantlarini AYNAN ajratib ol.${subjectNote}
-
-MUHIM QOIDALAR:
-- Rasmdagi mavjud savol va variantlarni AYNAN ko'chir
-- Kamida 5 ta, ko'pi 90 ta savol
-- MCQ savol: {"text":"...","options":["A","B","C","D"],"correctIdx":0}
-- Moslashtirish savol: {"text":"...","questionType":"matching","answers":[...],"subQuestions":[{"text":"...","correctIdx":0}]}
-- Matematik ifodalarni KaTeX formatida yoz: $\\sqrt{x}$, $\\frac{a}{b}$, $x^{2}$, $a_{n}$, $\\pi$
-- Rasmdagi har qanday formula, ildiz, kasr, daraja, indeksni LaTeX bilan ifodalash SHART
-
-Javobni FAQAT JSON array formatda qaytargil:
-${jsonFormat}`
-                                }
-                            ]
-                        }]
-                    }
-                } catch (err) {
-                    console.error("PDF render failed:", err)
+            if (needsVisionPdf) {
+                if (!process.env.OPENAI_API_KEY) {
+                    return res.status(400).json({ error: 'Skanerlangan PDF tahlili uchun OpenAI API kalit kerak. Iltimos, OCR qilingan PDF yoki Word fayl yuklang.' })
                 }
-            }
 
-            if (!hasImageContent) {
+                try {
+                    const scannedResult = await generateQuestionsFromScannedPdf(buffer, subjectNote, jsonFormat)
+                    rawQuestions = scannedResult.questions
+                    truncated = scannedResult.truncated
+                } catch (err) {
+                    console.error('PDF render failed:', err)
+                }
+            } else {
                 if (!fullText) {
                     return res.status(400).json({ error: 'PDF fayldan matn o\'qib bo\'lmadi. Iltimos, PDF ni PNG/JPG rasmga aylantiring va yuklang, yoki Word (.docx) fayl yuklang.' })
                 }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BrainCircuit, Users, UserCheck, GraduationCap, BarChart3, MessageSquare, FileText, Layers, Target, LogOut, Upload, Trash2, Activity, Bot, Save, Globe, Lock, TrendingUp, UserPlus, BookOpen, RefreshCw, Wifi, Search, Filter, ClipboardList, CheckCircle2, Award, Clock3 } from 'lucide-react'
+import { BrainCircuit, Users, UserCheck, GraduationCap, BarChart3, MessageSquare, FileText, Layers, Target, LogOut, Upload, Trash2, Activity, Bot, Save, Globe, Lock, TrendingUp, UserPlus, BookOpen, RefreshCw, Wifi, Search, Filter, ClipboardList, CheckCircle2, Award, Clock3, ExternalLink } from 'lucide-react'
 import { AreaChart, Area, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { fetchApi, uploadFile } from '@/lib/api'
 import { SUBJECTS } from '@/constants'
@@ -23,6 +23,7 @@ export default function AdminPanel() {
     const [stats, setStats] = useState<any>(null)
     const [users, setUsers] = useState<any[]>([])
     const [docs, setDocs] = useState<any[]>([])
+    const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null)
     const [tests, setTests] = useState<any[]>([])
     const [tf, setTf] = useState({ name: '', email: '', password: '' })
     const [uploading, setUploading] = useState(false)
@@ -315,6 +316,26 @@ export default function AdminPanel() {
     async function deleteDoc(id: string) {
         if (!confirm('Hujjatni o\'chirmoqchimisiz?')) return
         try { await fetchApi(`/documents/${id}`, { method: 'DELETE' }); loadAll() } catch { }
+    }
+
+    async function openDocument(docId: string) {
+        const popup = window.open('', '_blank')
+        try {
+            setDownloadingDocId(docId)
+            const data = await fetchApi(`/documents/${docId}/download-url`)
+            if (!data?.url) throw new Error('Hujjat manzili topilmadi')
+            if (popup) {
+                popup.opener = null
+                popup.location.href = data.url
+            } else {
+                window.open(data.url, '_blank', 'noopener,noreferrer')
+            }
+        } catch (e: any) {
+            if (popup && !popup.closed) popup.close()
+            toast.error(e?.message || 'Hujjatni ochishda xatolik')
+        } finally {
+            setDownloadingDocId(null)
+        }
     }
 
     async function deleteTest(id: string) {
@@ -1118,6 +1139,17 @@ export default function AdminPanel() {
                                     <p className="text-[13px] font-medium truncate">{d.fileName}</p>
                                     <p className="text-[11px] mt-0.5" style={mutedText}>{d._count?.chunks || 0} chunk · {d.fileType} · {new Date(d.createdAt).toLocaleDateString('uz')}</p>
                                 </div>
+                                {d.hasFile && (
+                                    <button
+                                        onClick={() => openDocument(d.id)}
+                                        disabled={downloadingDocId === d.id}
+                                        className="h-8 px-2.5 flex items-center gap-1.5 rounded-lg transition text-[11px] font-medium disabled:opacity-50"
+                                        style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}
+                                    >
+                                        <ExternalLink className="h-3.5 w-3.5" />
+                                        {downloadingDocId === d.id ? 'Ochilyapti...' : 'Ochish'}
+                                    </button>
+                                )}
                                 <button onClick={() => deleteDoc(d.id)} className="h-7 w-7 flex items-center justify-center rounded-lg transition"
                                     style={{ color: 'var(--text-muted)' }}
                                     onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.background = 'var(--danger-light)' }}
