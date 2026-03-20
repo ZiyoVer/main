@@ -6,6 +6,7 @@ import prisma from '../utils/db'
 import { authenticate, AuthRequest } from '../middleware/auth'
 import OpenAI from 'openai'
 import { aiSettingsCache, aiSettingsCacheTime, AI_SETTINGS_TTL, setAISettingsCache, AISettingsData } from '../utils/aiSettingsCache'
+import { cosineSimilarity, createEmbedding, createEmbeddings, parseEmbedding, serializeEmbedding } from '../utils/embeddings'
 import { getSubjectVariants, normalizeSubject } from '../utils/subjects'
 
 const upload = multer({
@@ -646,7 +647,7 @@ O'quvchi mock test savollari yuklasa YOKI "qaysi mavzular ko'p chiqadi?", "niman
 - O'quvchi maqsad balliga yetishi uchun qaysi mavzular muhimroq ekanini doim hisobga ol`
 }
 
-function buildSystemPrompt(profile: any, subject?: string, extraRules?: string, ov: Record<string, string> = {}, isFirstMessage = false): string {
+function buildSystemPrompt(profile: any, subject?: string, subject2?: string | null, extraRules?: string, ov: Record<string, string> = {}, isFirstMessage = false): string {
     // Toshkent vaqti (UTC+5)
     const now = new Date(Date.now() + 5 * 60 * 60 * 1000)
     const tashkentHour = now.getUTCHours()
@@ -859,7 +860,8 @@ Agar rasm matnini o'qib bo'lmasa yoki ko'ra olmasang — foydalanuvchiga ayt: "R
         ? get('prompt_english', getExamSection('Ingliz tili'))
         : get('prompt_math', getExamSection(subject))
 
-    const subject2Section = profile?.subject2 ? getExamSection(profile.subject2) : ''
+    const effectiveSubject2 = subject2 || profile?.subject2
+    const subject2Section = effectiveSubject2 ? getExamSection(effectiveSubject2) : ''
 
     const examSection = subject1Section + (subject2Section ? '\n\n---\n\n## 2-ixtisoslik fani:\n' + subject2Section : '')
 
@@ -959,22 +961,36 @@ Sana: ${now.toLocaleDateString('uz-UZ')} (Toshkent vaqti ${tashkentTimeStr}).${e
 // Yangi chat ochish (yoki mavjud fan chatini qaytarish)
 router.post('/new', authenticate, async (req: AuthRequest, res) => {
     try {
-        const { subject, title, forceNew } = req.body
+        const { subject, subject2, title, forceNew } = req.body
         const normalizedSubject = normalizeSubject(subject)
+        const normalizedSubject2 = normalizeSubject(subject2)
         const subjectVariants = getSubjectVariants(normalizedSubject)
+        const subject2Variants = getSubjectVariants(normalizedSubject2)
         // Fan ko'rsatilgan bo'lsa va forceNew bo'lmasa — mavjud chatni qaytaramiz (bitta fan = bitta chat)
         if (normalizedSubject && !forceNew) {
             const existing = await prisma.chat.findFirst({
-                where: { userId: req.user.id, subject: { in: subjectVariants } },
+                where: normalizedSubject2
+                    ? {
+                        userId: req.user.id,
+                        OR: [
+                            { subject: { in: subjectVariants }, subject2: { in: subject2Variants } },
+                            { subject: { in: subject2Variants }, subject2: { in: subjectVariants } },
+                        ]
+                    }
+                    : { userId: req.user.id, subject: { in: subjectVariants }, subject2: null },
                 orderBy: { updatedAt: 'desc' }
             })
             if (existing) return res.status(200).json(existing)
         }
+        const defaultTitle = normalizedSubject2
+            ? `${normalizedSubject || 'Umumiy'} + ${normalizedSubject2} suhbat`
+            : `${normalizedSubject || 'Umumiy'} suhbat`
         const chat = await prisma.chat.create({
             data: {
                 userId: req.user.id,
-                title: title || `${normalizedSubject || 'Umumiy'} suhbat`,
-                subject: normalizedSubject
+                title: title || defaultTitle,
+                subject: normalizedSubject,
+                subject2: normalizedSubject2 || null
             }
         })
         res.status(201).json(chat)
@@ -990,7 +1006,7 @@ router.get('/list', authenticate, async (req: AuthRequest, res) => {
         const chats = await prisma.chat.findMany({
             where: { userId: req.user.id },
             orderBy: { updatedAt: 'desc' },
-            select: { id: true, title: true, subject: true, updatedAt: true }
+            select: { id: true, title: true, subject: true, subject2: true, updatedAt: true }
         })
         res.json(chats)
     } catch (e) {
@@ -1031,7 +1047,6 @@ async function searchRAGContext(query: string, subject?: string, extraSubjects: 
         // O'zbek tilida 2 harfli so'zlar ham muhim (er, yer, tog, suv, ion, etc.)
         const rawWords = query.toLowerCase().split(/\s+/)
         const keywords = rawWords.filter(w => w.length >= 2 && !STOP_WORDS.has(w))
-        if (keywords.length === 0) return ''
         const subjectVariants = Array.from(new Set(
             [subject, ...extraSubjects]
                 .flatMap(subj => getSubjectVariants(subj) || [])
@@ -1048,10 +1063,12 @@ async function searchRAGContext(query: string, subject?: string, extraSubjects: 
             }),
             prisma.knowledgeItem.findMany({
                 where: subjectFilter ? { subject: { in: subjectFilter } } : {},
-                take: 50,
+                take: 80,
                 orderBy: { createdAt: 'desc' }
             })
         ])
+
+        if (keywords.length === 0 && allChunks.length === 0 && knowledgeItems.length === 0) return ''
 
         // TF-IDF uslubida scoring
         const scoreText = (text: string): number => {
@@ -1067,15 +1084,127 @@ async function searchRAGContext(query: string, subject?: string, extraSubjects: 
             return score
         }
 
-        const scoredChunks = allChunks
-            .map(chunk => ({ chunk, score: scoreText(chunk.content) }))
-            .filter(s => s.score > 0)
+        const chunkKeywordCandidates = allChunks.map(chunk => ({
+            chunk,
+            keywordScore: scoreText(chunk.content)
+        }))
+        const knowledgeKeywordCandidates = knowledgeItems.map(item => ({
+            item,
+            keywordScore: scoreText(`${item.title} ${item.content}`)
+        }))
+
+        let queryEmbedding: number[] | null = null
+        try {
+            queryEmbedding = await createEmbedding(query)
+        } catch (embeddingErr) {
+            console.warn('Query embedding failed:', embeddingErr)
+        }
+
+        const chunkEmbeddingMap = new Map<string, number[] | null>(
+            allChunks.map(chunk => [chunk.id, parseEmbedding(chunk.embedding)])
+        )
+        const knowledgeEmbeddingMap = new Map<string, number[] | null>(
+            knowledgeItems.map(item => [item.id, parseEmbedding(item.embedding)])
+        )
+
+        if (queryEmbedding) {
+            const chunkBackfillTargets = chunkKeywordCandidates
+                .filter(entry => entry.keywordScore > 0 && !chunkEmbeddingMap.get(entry.chunk.id))
+                .sort((a, b) => b.keywordScore - a.keywordScore)
+                .slice(0, 16)
+
+            if (chunkBackfillTargets.length > 0) {
+                try {
+                    const vectors = await createEmbeddings(chunkBackfillTargets.map(entry => entry.chunk.content))
+                    if (vectors?.length) {
+                        await Promise.all(chunkBackfillTargets.map((entry, index) => {
+                            const vector = vectors[index]
+                            if (!vector) return Promise.resolve()
+                            chunkEmbeddingMap.set(entry.chunk.id, vector)
+                            return prisma.documentChunk.update({
+                                where: { id: entry.chunk.id },
+                                data: { embedding: serializeEmbedding(vector) }
+                            }).catch(() => null)
+                        }))
+                    }
+                } catch (embeddingErr) {
+                    console.warn('Document chunk embedding backfill failed:', embeddingErr)
+                }
+            }
+
+            const knowledgeBackfillTargets = knowledgeKeywordCandidates
+                .filter(entry => entry.keywordScore > 0 && !knowledgeEmbeddingMap.get(entry.item.id))
+                .sort((a, b) => b.keywordScore - a.keywordScore)
+                .slice(0, 12)
+
+            if (knowledgeBackfillTargets.length > 0) {
+                try {
+                    const vectors = await createEmbeddings(knowledgeBackfillTargets.map(entry => `${entry.item.title}\n\n${entry.item.content}`))
+                    if (vectors?.length) {
+                        await Promise.all(knowledgeBackfillTargets.map((entry, index) => {
+                            const vector = vectors[index]
+                            if (!vector) return Promise.resolve()
+                            knowledgeEmbeddingMap.set(entry.item.id, vector)
+                            return prisma.knowledgeItem.update({
+                                where: { id: entry.item.id },
+                                data: { embedding: serializeEmbedding(vector) }
+                            }).catch(() => null)
+                        }))
+                    }
+                } catch (embeddingErr) {
+                    console.warn('Knowledge embedding backfill failed:', embeddingErr)
+                }
+            }
+        }
+
+        const chunkSemanticCandidates = chunkKeywordCandidates.map((entry) => ({
+            chunk: entry.chunk,
+            keywordScore: entry.keywordScore,
+            semanticScore: queryEmbedding && chunkEmbeddingMap.get(entry.chunk.id)
+                ? Math.max(0, cosineSimilarity(queryEmbedding, chunkEmbeddingMap.get(entry.chunk.id) as number[]))
+                : 0,
+        }))
+
+        const knowledgeSemanticCandidates = knowledgeKeywordCandidates.map((entry) => ({
+            item: entry.item,
+            keywordScore: entry.keywordScore,
+            semanticScore: queryEmbedding && knowledgeEmbeddingMap.get(entry.item.id)
+                ? Math.max(0, cosineSimilarity(queryEmbedding, knowledgeEmbeddingMap.get(entry.item.id) as number[]))
+                : 0,
+        }))
+
+        const chunkMaxKeyword = Math.max(...chunkSemanticCandidates.map(entry => entry.keywordScore), 0)
+        const chunkMaxSemantic = Math.max(...chunkSemanticCandidates.map(entry => entry.semanticScore), 0)
+        const knowledgeMaxKeyword = Math.max(...knowledgeSemanticCandidates.map(entry => entry.keywordScore), 0)
+        const knowledgeMaxSemantic = Math.max(...knowledgeSemanticCandidates.map(entry => entry.semanticScore), 0)
+
+        const scoredChunks = chunkSemanticCandidates
+            .map((entry) => {
+                const keywordPart = chunkMaxKeyword > 0 ? entry.keywordScore / chunkMaxKeyword : 0
+                const semanticPart = chunkMaxSemantic > 0 ? entry.semanticScore / chunkMaxSemantic : 0
+                return {
+                    chunk: entry.chunk,
+                    score: keywordPart * 0.6 + semanticPart * 0.4,
+                    keywordScore: entry.keywordScore,
+                    semanticScore: entry.semanticScore
+                }
+            })
+            .filter(entry => entry.keywordScore > 0 || entry.semanticScore >= 0.2)
             .sort((a, b) => b.score - a.score)
             .slice(0, 6)
 
-        const scoredKnowledge = knowledgeItems
-            .map(item => ({ item, score: scoreText(item.title + ' ' + item.content) }))
-            .filter(s => s.score > 0)
+        const scoredKnowledge = knowledgeSemanticCandidates
+            .map((entry) => {
+                const keywordPart = knowledgeMaxKeyword > 0 ? entry.keywordScore / knowledgeMaxKeyword : 0
+                const semanticPart = knowledgeMaxSemantic > 0 ? entry.semanticScore / knowledgeMaxSemantic : 0
+                return {
+                    item: entry.item,
+                    score: keywordPart * 0.55 + semanticPart * 0.45,
+                    keywordScore: entry.keywordScore,
+                    semanticScore: entry.semanticScore
+                }
+            })
+            .filter(entry => entry.keywordScore > 0 || entry.semanticScore >= 0.2)
             .sort((a, b) => b.score - a.score)
             .slice(0, 6)
 
@@ -1274,7 +1403,7 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
         const aiSettings = await getAISettings()
 
         // RAG kontekst — relevance based
-        const ragContext = await searchRAGContext(content, chat.subject || profile?.subject || undefined, [profile?.subject2])
+        const ragContext = await searchRAGContext(content, chat.subject || profile?.subject || undefined, [chat.subject2, profile?.subject2])
         const ragSection = ragContext
             ? `\n\n--- RASMIY MANBA KONTEKSTI (faqat ma'lumot uchun) ---\n${ragContext}\n--- MANBA KONTEKSTI TUGADI ---`
             : ''
@@ -1286,7 +1415,7 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
             ? `\n\n--- FOYDALANUVCHINING BUGUNGI KUNLIK REJASI ---\nQuyidagi vazifalar hali bajarilmagan. Agar foydalanuvchi biror vazifaga to'g'ri keladigan mavzuni so'rasa va sen uni to'liq tushuntirgan bo'lsang, javob oxirida FAQAT bitta shu formatda blok qo'sh:\n\`\`\`todo-done\n{"task":"ANIQ_VAZIFA_NOMI"}\n\`\`\`\nMUHIM: task nomini ro'yxatdagi ANIQ yozilganidek qo'y. Ko'p qo'yma, faqat tushuntirilgan vazifa uchun bir marta.\nBajarilmagan vazifalar:\n${todoContext.map((t: any, i: number) => `${i + 1}. ${t.task}${t.time ? ' (' + t.time + ')' : ''}`).join('\n')}\n--- REJA TUGADI ---`
             : ''
 
-        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, aiSettings.extraRules, aiSettings.promptOverrides, isFirstMessage) + ragSection + todoSection
+        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, chat.subject2 || undefined, aiSettings.extraRules, aiSettings.promptOverrides, isFirstMessage) + ragSection + todoSection
 
         // History: oxirgi user xabar (hozir saqlanganini) alohida olamiz
         // DeepSeek image_url qabul qilmaydi — OCR matni content ichida keladi
@@ -1460,11 +1589,11 @@ router.post('/:chatId/send', authenticate, async (req: AuthRequest, res) => {
         })
 
         const aiSettings = await getAISettings()
-        const ragContext = await searchRAGContext(content, chat.subject || profile?.subject || undefined, [profile?.subject2])
+        const ragContext = await searchRAGContext(content, chat.subject || profile?.subject || undefined, [chat.subject2, profile?.subject2])
         const ragSection = ragContext
             ? `\n\n--- RASMIY MANBA KONTEKSTI (faqat ma'lumot uchun) ---\n${ragContext}\n--- MANBA KONTEKSTI TUGADI ---`
             : ''
-        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, aiSettings.extraRules, aiSettings.promptOverrides) + ragSection
+        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, chat.subject2 || undefined, aiSettings.extraRules, aiSettings.promptOverrides) + ragSection
 
 
         const msgs: any[] = [

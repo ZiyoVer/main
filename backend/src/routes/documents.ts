@@ -5,6 +5,7 @@ import path from 'path'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
 import { uploadToS3, deleteFromS3, getSignedS3Url } from '../utils/s3'
+import { createEmbeddings, serializeEmbedding } from '../utils/embeddings'
 import { normalizeSubject } from '../utils/subjects'
 
 const uploadLimiter = rateLimit({
@@ -112,12 +113,23 @@ router.post('/upload', authenticate, requireRole('ADMIN'), uploadLimiter, upload
         }
         if (current.trim()) chunks.push(current.trim())
 
+        let chunkEmbeddings: Array<string | null> = chunks.map(() => null)
+        try {
+            const embeddings = await createEmbeddings(chunks)
+            if (embeddings?.length) {
+                chunkEmbeddings = chunks.map((_, idx) => embeddings[idx] ? serializeEmbedding(embeddings[idx]) : null)
+            }
+        } catch (embeddingError) {
+            console.error('Document embedding error:', embeddingError)
+        }
+
         // Chunklarni saqlash
         await prisma.documentChunk.createMany({
             data: chunks.map((content, idx) => ({
                 documentId: doc.id,
                 content,
-                chunkIndex: idx
+                chunkIndex: idx,
+                embedding: chunkEmbeddings[idx]
             }))
         })
 

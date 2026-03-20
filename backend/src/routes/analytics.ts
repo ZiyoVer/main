@@ -4,7 +4,7 @@ import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
 import { getOnlineUsers } from '../utils/onlineTracker'
 
 const router = Router()
-const PRESENCE_INTERVAL_MINUTES = 5
+const PRESENCE_INTERVAL_MINUTES = 2
 
 // GET /public-stats — autentifikatsiya talab qilinmaydi (landing page uchun)
 router.get('/public-stats', async (_req, res) => {
@@ -259,27 +259,18 @@ router.get('/time-spent', authenticate, requireRole('ADMIN'), async (_req: AuthR
         startOfToday.setHours(0, 0, 0, 0)
         const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
-        const [allPresence, todayPresence, weekPresence, onlineUsers] = await Promise.all([
-            prisma.visitLog.groupBy({
-                by: ['userId'],
+        const [presenceLogs, onlineUsers] = await Promise.all([
+            prisma.visitLog.findMany({
                 where: { action: 'presence', userId: { not: null } },
-                _count: { _all: true },
-                _max: { createdAt: true }
-            }),
-            prisma.visitLog.groupBy({
-                by: ['userId'],
-                where: { action: 'presence', userId: { not: null }, createdAt: { gte: startOfToday } },
-                _count: { _all: true }
-            }),
-            prisma.visitLog.groupBy({
-                by: ['userId'],
-                where: { action: 'presence', userId: { not: null }, createdAt: { gte: sevenDaysAgo } },
-                _count: { _all: true }
+                select: { userId: true, createdAt: true },
+                orderBy: [{ userId: 'asc' }, { createdAt: 'asc' }]
             }),
             getOnlineUsers()
         ])
 
-        const userIds = allPresence.map(row => row.userId).filter((userId): userId is string => !!userId)
+        const userIds = Array.from(new Set(
+            presenceLogs.map(row => row.userId).filter((userId): userId is string => !!userId)
+        ))
         if (userIds.length === 0) {
             return res.json({ users: [], trackedUsers: 0, intervalMinutes: PRESENCE_INTERVAL_MINUTES })
         }
@@ -290,19 +281,64 @@ router.get('/time-spent', authenticate, requireRole('ADMIN'), async (_req: AuthR
         })
 
         const userMap = new Map(users.map(user => [user.id, user]))
-        const todayMap = new Map(todayPresence.map(row => [row.userId, row._count._all]))
-        const weekMap = new Map(weekPresence.map(row => [row.userId, row._count._all]))
         const onlineMap = new Map(onlineUsers.map(user => [user.userId, user.lastSeen]))
 
-        const timeSpentUsers = allPresence
-            .map((row) => {
-                if (!row.userId) return null
-                const user = userMap.get(row.userId)
+        const intervalMs = PRESENCE_INTERVAL_MINUTES * 60 * 1000
+        const overlapMinutes = (segmentStart: Date, segmentEnd: Date, periodStart: Date) => {
+            const start = Math.max(segmentStart.getTime(), periodStart.getTime())
+            const end = Math.min(segmentEnd.getTime(), now.getTime())
+            if (end <= start) return 0
+            return (end - start) / (60 * 1000)
+        }
+
+        const totals = new Map<string, { totalMinutes: number; todayMinutes: number; weekMinutes: number; lastSeen: Date | null }>()
+        const previousSeen = new Map<string, Date>()
+
+        for (const row of presenceLogs) {
+            if (!row.userId) continue
+            const previous = previousSeen.get(row.userId)
+            const current = row.createdAt
+            const aggregate = totals.get(row.userId) || { totalMinutes: 0, todayMinutes: 0, weekMinutes: 0, lastSeen: null }
+
+            if (previous) {
+                const deltaMs = Math.min(intervalMs, Math.max(0, current.getTime() - previous.getTime()))
+                const segmentStart = new Date(current.getTime() - deltaMs)
+                aggregate.totalMinutes += deltaMs / (60 * 1000)
+                aggregate.todayMinutes += overlapMinutes(segmentStart, current, startOfToday)
+                aggregate.weekMinutes += overlapMinutes(segmentStart, current, sevenDaysAgo)
+            }
+
+            aggregate.lastSeen = current
+            totals.set(row.userId, aggregate)
+            previousSeen.set(row.userId, current)
+        }
+
+        for (const [userId, onlineLastSeen] of onlineMap.entries()) {
+            const lastPresence = previousSeen.get(userId)
+            if (!lastPresence) continue
+            const aggregate = totals.get(userId)
+            if (!aggregate) continue
+
+            const liveEnd = new Date(Math.max(onlineLastSeen, now.getTime()))
+            const deltaMs = Math.min(intervalMs, Math.max(0, liveEnd.getTime() - lastPresence.getTime()))
+            if (deltaMs <= 0) continue
+
+            const segmentStart = new Date(liveEnd.getTime() - deltaMs)
+            aggregate.totalMinutes += deltaMs / (60 * 1000)
+            aggregate.todayMinutes += overlapMinutes(segmentStart, liveEnd, startOfToday)
+            aggregate.weekMinutes += overlapMinutes(segmentStart, liveEnd, sevenDaysAgo)
+            aggregate.lastSeen = new Date(Math.max(aggregate.lastSeen?.getTime() || 0, onlineLastSeen))
+            totals.set(userId, aggregate)
+        }
+
+        const timeSpentUsers = Array.from(totals.entries())
+            .map(([userId, aggregate]) => {
+                const user = userMap.get(userId)
                 if (!user) return null
 
-                const totalMinutes = row._count._all * PRESENCE_INTERVAL_MINUTES
-                const todayMinutes = (todayMap.get(row.userId) || 0) * PRESENCE_INTERVAL_MINUTES
-                const weekMinutes = (weekMap.get(row.userId) || 0) * PRESENCE_INTERVAL_MINUTES
+                const totalMinutes = Math.round(aggregate.totalMinutes)
+                const todayMinutes = Math.round(aggregate.todayMinutes)
+                const weekMinutes = Math.round(aggregate.weekMinutes)
 
                 return {
                     id: user.id,
@@ -314,7 +350,7 @@ router.get('/time-spent', authenticate, requireRole('ADMIN'), async (_req: AuthR
                     todayMinutes,
                     weekMinutes,
                     totalHours: Math.round((totalMinutes / 60) * 10) / 10,
-                    lastSeen: row._max.createdAt,
+                    lastSeen: aggregate.lastSeen,
                     isOnline: onlineMap.has(user.id),
                     onlineLastSeen: onlineMap.get(user.id) || null,
                 }

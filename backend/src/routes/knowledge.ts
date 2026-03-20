@@ -4,6 +4,7 @@ import pdfParse from 'pdf-parse'
 import mammoth from 'mammoth'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
+import { createEmbedding, createEmbeddings, serializeEmbedding } from '../utils/embeddings'
 import { SUBJECTS, isCanonicalSubject, normalizeSubject } from '../utils/subjects'
 
 const router = Router()
@@ -33,8 +34,20 @@ router.post('/', authenticate, requireRole('ADMIN'), async (req: AuthRequest, re
     if (!isCanonicalSubject(normalizedSubject)) {
       return res.status(400).json({ error: "Noto'g'ri fan nomi" })
     }
+    let embedding: number[] | null = null
+    try {
+      embedding = await createEmbedding(`${title.trim()}\n\n${content.trim()}`)
+    } catch (embeddingErr) {
+      console.error('knowledge POST embedding error:', embeddingErr)
+    }
     const item = await prisma.knowledgeItem.create({
-      data: { subject: normalizedSubject, title: title.trim(), content: content.trim(), source: source?.trim() || null }
+      data: {
+        subject: normalizedSubject,
+        title: title.trim(),
+        content: content.trim(),
+        source: source?.trim() || null,
+        embedding: embedding ? serializeEmbedding(embedding) : null
+      }
     })
     res.json(item)
   } catch (e: any) {
@@ -51,13 +64,28 @@ router.put('/:id', authenticate, requireRole('ADMIN'), async (req: AuthRequest, 
     if (subject !== undefined && !isCanonicalSubject(normalizedSubject)) {
       return res.status(400).json({ error: "Noto'g'ri fan nomi" })
     }
+    const nextTitle = title?.trim()
+    const nextContent = content?.trim()
+    const existingItem = await prisma.knowledgeItem.findUnique({ where: { id: String(req.params.id) } })
+    if (!existingItem) return res.status(404).json({ error: 'Item topilmadi' })
+
+    const finalTitle = nextTitle || existingItem.title
+    const finalContent = nextContent || existingItem.content
+    let embedding: number[] | null = null
+    try {
+      embedding = await createEmbedding(`${finalTitle}\n\n${finalContent}`)
+    } catch (embeddingErr) {
+      console.error('knowledge PUT embedding error:', embeddingErr)
+    }
+
     const item = await prisma.knowledgeItem.update({
       where: { id: String(req.params.id) },
       data: {
         subject: normalizedSubject || undefined,
-        title: title?.trim() || undefined,
-        content: content?.trim() || undefined,
-        source: source?.trim() ?? undefined
+        title: finalTitle,
+        content: finalContent,
+        source: source?.trim() ?? undefined,
+        embedding: embedding ? serializeEmbedding(embedding) : existingItem.embedding
       }
     })
     res.json(item)
@@ -119,13 +147,25 @@ router.post('/pdf-import', authenticate, requireRole('ADMIN'), upload.single('fi
     }
 
     // Barcha chunklarni knowledge item sifatida saqlaymiz
+    const titles = chunks.map((_, idx) => chunks.length === 1 ? title.trim() : `${title.trim()} (${idx + 1}/${chunks.length})`)
+    let embeddings: Array<string | null> = chunks.map(() => null)
+    try {
+      const vectors = await createEmbeddings(chunks.map((content, idx) => `${titles[idx]}\n\n${content}`))
+      if (vectors?.length) {
+        embeddings = chunks.map((_, idx) => vectors[idx] ? serializeEmbedding(vectors[idx]) : null)
+      }
+    } catch (embeddingErr) {
+      console.error('knowledge embedding error:', embeddingErr)
+    }
+
     const items = await Promise.all(chunks.map((content, idx) =>
       prisma.knowledgeItem.create({
         data: {
           subject: normalizedSubject,
-          title: chunks.length === 1 ? title.trim() : `${title.trim()} (${idx + 1}/${chunks.length})`,
+          title: titles[idx],
           content,
-          source: source?.trim() || req.file!.originalname
+          source: source?.trim() || req.file!.originalname,
+          embedding: embeddings[idx]
         }
       })
     ))

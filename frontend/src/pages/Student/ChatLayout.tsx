@@ -17,7 +17,7 @@ import ChatContext, { useChatContext, EssayPanel, TodoItem } from '../../context
 import { useTestPanel } from '../../hooks/useTestPanel'
 import { useFlashPanel } from '../../hooks/useFlashPanel'
 
-interface Chat { id: string; title: string; subject?: string; updatedAt: string }
+interface Chat { id: string; title: string; subject?: string; subject2?: string; updatedAt: string }
 interface Msg { id: string; role: string; content: string; createdAt: string }
 interface Profile { onboardingDone: boolean; subject?: string; subject2?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string; totalTests?: number; avgScore?: number; abilityLevel?: number }
 interface PublicTest { id: string; title: string; shareLink: string; subject?: string; _count?: { questions: number; attempts: number } }
@@ -772,7 +772,12 @@ export default function ChatLayout() {
             try {
                 const chatData = await fetchApi('/chat/new', {
                     method: 'POST',
-                    body: JSON.stringify({ title: `Test tahlili: ${guestData.title || 'Test'}`, subject: guestData.subject, forceNew: true })
+                    body: JSON.stringify({
+                        title: `Test tahlili: ${guestData.title || 'Test'}`,
+                        subject: guestData.subject,
+                        subject2: guestData.subject2,
+                        forceNew: true
+                    })
                 })
                 await loadChats()
 
@@ -1142,7 +1147,11 @@ Iltimos, har bir savolni tahlil qilib ber:
             if (!profile?.onboardingDone) {
                 const firstChat = await fetchApi('/chat/new', {
                     method: 'POST',
-                    body: JSON.stringify({ title: 'Salom!', subject: onboardingForm.subject })
+                    body: JSON.stringify({
+                        title: 'Salom!',
+                        subject: onboardingForm.subject,
+                        subject2: onboardingForm.subject2 || undefined
+                    })
                 })
                 await loadChats()
                 nav(`/suhbat/${firstChat.id}`)
@@ -1189,7 +1198,12 @@ Iltimos, har bir savolni tahlil qilib ber:
         try {
             const data = await fetchApi('/chat/new', {
                 method: 'POST',
-                body: JSON.stringify({ title: 'Yangi suhbat', subject: normalizeSubjectValue(profile?.subject) || undefined, forceNew: true })
+                body: JSON.stringify({
+                    title: 'Yangi suhbat',
+                    subject: normalizeSubjectValue(profile?.subject) || undefined,
+                    subject2: normalizeSubjectValue(profile?.subject2) || undefined,
+                    forceNew: true
+                })
             })
             await loadChats()
             nav(`/suhbat/${data.id}`)
@@ -1311,7 +1325,12 @@ Iltimos, har bir savolni tahlil qilib ber:
             try {
                 const data = await fetchApi('/chat/new', {
                     method: 'POST',
-                    body: JSON.stringify({ title: text.substring(0, 50) || 'Yangi suhbat', subject: normalizeSubjectValue(profile?.subject) || undefined, forceNew: true })
+                    body: JSON.stringify({
+                        title: text.substring(0, 50) || 'Yangi suhbat',
+                        subject: normalizeSubjectValue(profile?.subject) || undefined,
+                        subject2: normalizeSubjectValue(profile?.subject2) || undefined,
+                        forceNew: true
+                    })
                 })
                 await loadChats()
                 nav(`/suhbat/${data.id}`)
@@ -1617,7 +1636,14 @@ Iltimos, har bir savolni tahlil qilib ber:
             } else {
                 setTimeout(async () => {
                     try {
-                        const data = await fetchApi('/chat/new', { method: 'POST', body: JSON.stringify({ title: 'Test tahlili', subject: normalizeSubjectValue(profile?.subject) || undefined }) })
+                        const data = await fetchApi('/chat/new', {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                title: 'Test tahlili',
+                                subject: normalizeSubjectValue(profile?.subject) || undefined,
+                                subject2: normalizeSubjectValue(profile?.subject2) || undefined
+                            })
+                        })
                         await loadChats()
                         nav(`/suhbat/${data.id}`)
                         setTimeout(() => {
@@ -1637,7 +1663,14 @@ Iltimos, har bir savolni tahlil qilib ber:
         } else {
             setTimeout(async () => {
                 try {
-                    const data = await fetchApi('/chat/new', { method: 'POST', body: JSON.stringify({ title: 'Test tahlili', subject: normalizeSubjectValue(profile?.subject) || undefined }) })
+                    const data = await fetchApi('/chat/new', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            title: 'Test tahlili',
+                            subject: normalizeSubjectValue(profile?.subject) || undefined,
+                            subject2: normalizeSubjectValue(profile?.subject2) || undefined
+                        })
+                    })
                     await loadChats()
                     nav(`/suhbat/${data.id}`)
                     setTimeout(() => {

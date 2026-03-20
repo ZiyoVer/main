@@ -81,12 +81,14 @@ model Chat {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   title     String    @default("Yangi Suhbat")
   subject   String?
+  subject2  String?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   messages  Message[]
 
   @@index([userId])
   @@index([userId, subject])
+  @@index([userId, subject, subject2])
 }
 
 model Message {
@@ -192,6 +194,9 @@ model VisitLog {
   action    String   // "login", "register", "page_view"
   ip        String?
   createdAt DateTime @default(now())
+
+  @@index([action, createdAt])
+  @@index([userId, action, createdAt])
 }
 
 // ============ AI SETTINGS ============
@@ -278,8 +283,10 @@ model KnowledgeItem {
   title     String   // "DTM 2023 - Algebra", "MS 2022 - Morfologiya"
   content   String   // Matn (savollar, formulalar, qoidalar)
   source    String?  // "DTM 2023", "MS 2022", "Darslik"
+  embedding String?  // JSON array of floats (vector)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([subject])
+  @@index([subject, createdAt])
 }

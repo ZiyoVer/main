@@ -13,7 +13,7 @@ import { normalizeSubject } from '../utils/subjects'
 
 const router = Router()
 const JWT_SECRET = process.env.JWT_SECRET!
-const PRESENCE_LOG_INTERVAL_MS = 5 * 60 * 1000
+const PRESENCE_LOG_INTERVAL_MS = 2 * 60 * 1000
 const lastPresenceWrite = new Map<string, number>()
 
 function isTemporaryDnsError(code?: string): boolean {
