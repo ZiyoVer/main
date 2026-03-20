@@ -9,10 +9,17 @@ import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import DOMPurify from 'dompurify'
 
+function normalizeMathText(text: string): string {
+    return text
+        .replace(/\\\[(\s*[\s\S]*?\s*)\\\]/g, (_, m) => `\n$$\n${m.trim()}\n$$\n`)
+        .replace(/\\\((\s*[\s\S]*?\s*)\\\)/g, (_, m) => `$${m.trim()}$`)
+}
+
 function MathPreview({ text, inline }: { text: string; inline?: boolean }) {
-    if (!text?.includes('$')) return null
+    const normalized = normalizeMathText(text || '')
+    if (!normalized.includes('$')) return null
     try {
-        const html = text
+        const html = normalized
             .replace(/\$\$([^$]+)\$\$/g, (_, m) => katex.renderToString(m.trim(), { displayMode: true, throwOnError: false }))
             .replace(/\$([^$\n]+)\$/g, (_, m) => katex.renderToString(m.trim(), { throwOnError: false }))
 
@@ -789,13 +796,16 @@ export default function TeacherPanel() {
                                                     {(q.matchingAnswers || ['', '', '', '', '', '']).map((ans, ai) => (
                                                         <div key={ai} className="flex items-center gap-2">
                                                             <span className="text-[11px] font-bold w-5 text-right flex-shrink-0" style={{ color: '#8b5cf6' }}>{String.fromCharCode(65 + ai)})</span>
-                                                            <input
-                                                                value={ans}
-                                                                onChange={e => updateQ(qi, `matchingAnswer_${ai}`, e.target.value)}
-                                                                placeholder={`Javob ${String.fromCharCode(65 + ai)}`}
-                                                                className="input flex-1 text-[13px]"
-                                                                style={{ padding: '0.35rem 0.65rem' }}
-                                                            />
+                                                            <div className="flex-1 min-w-0">
+                                                                <input
+                                                                    value={ans}
+                                                                    onChange={e => updateQ(qi, `matchingAnswer_${ai}`, e.target.value)}
+                                                                    placeholder={`Javob ${String.fromCharCode(65 + ai)}`}
+                                                                    className="input flex-1 text-[13px]"
+                                                                    style={{ padding: '0.35rem 0.65rem' }}
+                                                                />
+                                                                <MathPreview text={ans} />
+                                                            </div>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -808,13 +818,16 @@ export default function TeacherPanel() {
                                                         <div key={si} className="flex items-start gap-2 p-2.5 rounded-lg" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
                                                             <span className="text-[11px] font-bold mt-2 flex-shrink-0 w-4" style={{ color: 'var(--text-muted)' }}>{si + 1}.</span>
                                                             <div className="flex-1 space-y-1.5 min-w-0">
-                                                                <input
-                                                                    value={sq.text}
-                                                                    onChange={e => updateQ(qi, `matchingSubQ_${si}_text`, e.target.value)}
-                                                                    placeholder={`${si + 1}-kichik savol matni`}
-                                                                    className="input w-full text-[13px]"
-                                                                    style={{ padding: '0.35rem 0.65rem' }}
-                                                                />
+                                                                <div>
+                                                                    <input
+                                                                        value={sq.text}
+                                                                        onChange={e => updateQ(qi, `matchingSubQ_${si}_text`, e.target.value)}
+                                                                        placeholder={`${si + 1}-kichik savol matni`}
+                                                                        className="input w-full text-[13px]"
+                                                                        style={{ padding: '0.35rem 0.65rem' }}
+                                                                    />
+                                                                    <MathPreview text={sq.text} />
+                                                                </div>
                                                                 <div className="flex items-center gap-1.5 flex-wrap">
                                                                     <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>To'g'ri javob:</span>
                                                                     {(q.matchingAnswers || ['', '', '', '', '', '']).map((_, ai) => (

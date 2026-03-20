@@ -8,10 +8,17 @@ import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import DOMPurify from 'dompurify'
 
+function normalizeMathText(text: string): string {
+    return text
+        .replace(/\\\[(\s*[\s\S]*?\s*)\\\]/g, (_, m) => `\n$$\n${m.trim()}\n$$\n`)
+        .replace(/\\\((\s*[\s\S]*?\s*)\\\)/g, (_, m) => `$${m.trim()}$`)
+}
+
 function MathPreview({ text, inline }: { text: string; inline?: boolean }) {
-    if (!text?.includes('$')) return null
+    const normalized = normalizeMathText(text || '')
+    if (!normalized.includes('$')) return null
     try {
-        const html = text
+        const html = normalized
             .replace(/\$\$([^$]+)\$\$/g, (_, m) => katex.renderToString(m.trim(), { displayMode: true, throwOnError: false }))
             .replace(/\$([^$\n]+)\$/g, (_, m) => katex.renderToString(m.trim(), { throwOnError: false }))
         if (inline) return <span className="inline-block ml-1" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
@@ -21,10 +28,19 @@ function MathPreview({ text, inline }: { text: string; inline?: boolean }) {
 
 function TextWithMath({ text }: { text: string }) {
     if (!text) return null
-    if (!text.includes('$')) return <>{text}</>
-    const parts = text.split(/(\$[^$\n]+\$)/g)
+    const normalized = normalizeMathText(text)
+    if (!normalized.includes('$')) return <>{text}</>
+    const parts = normalized.split(/(\$\$[\s\S]+?\$\$|\$[^$\n]+\$)/g)
     return <>
         {parts.map((part, i) => {
+            if (/^\$\$[\s\S]+?\$\$$/.test(part)) {
+                const formula = part.slice(2, -2).trim()
+                try {
+                    return <span key={i} className="block my-1 overflow-x-auto" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(katex.renderToString(formula, { displayMode: true, throwOnError: false })) }} />
+                } catch {
+                    return <span key={i}>{part}</span>
+                }
+            }
             if (/^\$[^$\n]+\$$/.test(part)) {
                 const formula = part.slice(1, -1)
                 try { return <span key={i} className="inline-block mx-0.5 align-middle" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(katex.renderToString(formula, { throwOnError: false })) }} /> }
@@ -206,7 +222,7 @@ export default function TestPage() {
 
     // ─────────────────── STANDARD MODE ───────────────────
     return (
-        <div className="h-screen overflow-y-auto w-full" style={{ background: 'var(--bg-page)' }}>
+        <div className="overflow-y-auto w-full overscroll-contain" style={{ background: 'var(--bg-page)', height: '100dvh' }}>
             <header className="sticky top-0 z-40" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', backdropFilter: 'blur(12px)' }}>
                 <div className="max-w-2xl mx-auto flex items-center justify-between py-3 px-5">
                     <div className="flex items-center gap-2">
@@ -302,7 +318,7 @@ export default function TestPage() {
                                     <div className="flex flex-wrap gap-1.5 mb-3 p-2 rounded-lg" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
                                         {(matchingData.answers || []).map((ans: string, ai: number) => (
                                             <span key={ai} className="px-2 py-1 rounded text-[12px] font-medium" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
-                                                <span style={{ color: '#8b5cf6', fontWeight: 700 }}>{String.fromCharCode(65 + ai)})</span> {ans}
+                                                <span style={{ color: '#8b5cf6', fontWeight: 700 }}>{String.fromCharCode(65 + ai)})</span> <TextWithMath text={ans} />
                                             </span>
                                         ))}
                                     </div>
@@ -409,7 +425,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
     }, [submitted])
 
     return (
-        <div className="h-screen flex flex-col overflow-hidden" style={{ background: 'var(--bg-page)' }}>
+        <div className="flex flex-col overflow-hidden w-full" style={{ background: 'var(--bg-page)', height: '100dvh', overscrollBehaviorY: 'none' }}>
             {/* ── Header ── */}
             <header className="h-12 flex-shrink-0 flex items-center justify-between px-4" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
                 <div className="flex items-center gap-2">
@@ -445,9 +461,9 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
             )}
 
             {/* ── Main split body ── */}
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 flex overflow-hidden min-h-0">
                 {/* ════ LEFT: Questions ════ */}
-                <div ref={questionsRef} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 min-w-0">
+                <div ref={questionsRef} className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4 min-w-0 min-h-0">
                     {questions.map((q: any, qi: number) => {
                         let opts: string[] = []
                         let matchingData: any = null
@@ -500,7 +516,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                         <div className="flex flex-wrap gap-1 mb-2 p-2 rounded-lg" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
                                             {(matchingData.answers || []).map((ans: string, ai: number) => (
                                                 <span key={ai} className="text-[11px] px-2 py-0.5 rounded" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
-                                                    <span style={{ color: '#8b5cf6', fontWeight: 700 }}>{String.fromCharCode(65 + ai)})</span> {ans}
+                                                    <span style={{ color: '#8b5cf6', fontWeight: 700 }}>{String.fromCharCode(65 + ai)})</span> <TextWithMath text={ans} />
                                                 </span>
                                             ))}
                                         </div>
@@ -578,7 +594,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                 </div>
 
                 {/* ════ RIGHT: DTM Blanka ════ */}
-                <div className="w-[300px] sm:w-[360px] flex-shrink-0 flex flex-col overflow-hidden"
+                <div className="w-[300px] sm:w-[360px] flex-shrink-0 flex flex-col overflow-hidden min-h-0"
                     style={{ background: 'var(--bg-card)', borderLeft: '1px solid var(--border)' }}>
                     {/* Blanka header */}
                     <div className="flex-shrink-0 px-4 py-3 text-center" style={{ borderBottom: '1px solid var(--border)' }}>
@@ -595,7 +611,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                     </div>
 
                     {/* Blanka rows */}
-                    <div className="flex-1 overflow-y-auto py-1">
+                    <div className="flex-1 overflow-y-auto overscroll-contain py-1 min-h-0">
                         {questions.map((q: any, qi: number) => {
                             const correct = submitted ? correctMap[q.id] : null
                             const correctIdx = correct?.idx ?? -1
@@ -633,7 +649,16 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                             const isSubFocused = isFocused
 
                                             return (
-                                                <button key={si} onClick={() => scrollToQuestion(qi)}
+                                                <div key={si}
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onClick={() => scrollToQuestion(qi)}
+                                                    onKeyDown={e => {
+                                                        if (e.key === 'Enter' || e.key === ' ') {
+                                                            e.preventDefault()
+                                                            scrollToQuestion(qi)
+                                                        }
+                                                    }}
                                                     className="w-full flex items-center px-4 transition"
                                                     style={{
                                                         height: 32,
@@ -675,7 +700,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                                             </button>
                                                         )
                                                     })}
-                                                </button>
+                                                </div>
                                             )
                                         })}
                                     </div>
@@ -684,7 +709,16 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
 
                             // Regular MCQ row
                             return (
-                                <button key={q.id} onClick={() => scrollToQuestion(qi)}
+                                <div key={q.id}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => scrollToQuestion(qi)}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault()
+                                            scrollToQuestion(qi)
+                                        }
+                                    }}
                                     className="w-full flex items-center px-4 transition"
                                     style={{
                                         height: 36,
@@ -723,7 +757,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                             </button>
                                         )
                                     })}
-                                </button>
+                                </div>
                             )
                         })}
                     </div>

@@ -25,9 +25,10 @@ interface MyResult { id: string; testId: string; score: number; total?: number; 
 
 // Test paneli uchun inline KaTeX renderer (ReactMarkdown ishlatmaymiz, tez va engil)
 function MathText({ text }: { text: string }) {
-    if (!text?.includes('$')) return <>{text}</>
+    const normalized = preprocessMath(text || '')
+    if (!normalized.includes('$')) return <>{text}</>
     try {
-        const html = text
+        const html = normalized
             .replace(/\$\$([^$]+)\$\$/g, (_, m) => katex.renderToString(m.trim(), { displayMode: true, throwOnError: false }))
             .replace(/\$([^$\n]+)\$/g, (_, m) => katex.renderToString(m.trim(), { throwOnError: false }))
         return <span dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
@@ -2351,18 +2352,30 @@ Iltimos, har bir savolni tahlil qilib ber:
                                     </button>
                                     {/* Content */}
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-[14px] leading-snug"
+                                        <div className="text-[14px] leading-snug"
                                             style={{
                                                 color: 'var(--text-primary)',
                                                 fontWeight: 450,
                                                 textDecoration: item.done ? 'line-through' : 'none',
                                             }}>
-                                            {item.task}
-                                        </p>
+                                            <MathText text={item.task} />
+                                        </div>
                                         {(item.time || item.subject || item.duration) && (
-                                            <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                                                {[item.time, item.subject, item.duration ? `${item.duration} daq` : ''].filter(Boolean).join(' · ')}
-                                            </p>
+                                            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                                                {item.time && <span>{item.time}</span>}
+                                                {item.subject && (
+                                                    <>
+                                                        {item.time && <span>·</span>}
+                                                        <span><MathText text={item.subject} /></span>
+                                                    </>
+                                                )}
+                                                {item.duration ? (
+                                                    <>
+                                                        {(item.time || item.subject) && <span>·</span>}
+                                                        <span>{item.duration} daq</span>
+                                                    </>
+                                                ) : null}
+                                            </div>
                                         )}
                                     </div>
                                 </div>
