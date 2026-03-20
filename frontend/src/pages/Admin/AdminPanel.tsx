@@ -24,6 +24,7 @@ export default function AdminPanel() {
     const [users, setUsers] = useState<any[]>([])
     const [docs, setDocs] = useState<any[]>([])
     const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null)
+    const [backfillingDocs, setBackfillingDocs] = useState(false)
     const [tests, setTests] = useState<any[]>([])
     const [tf, setTf] = useState({ name: '', email: '', password: '' })
     const [uploading, setUploading] = useState(false)
@@ -53,6 +54,7 @@ export default function AdminPanel() {
     const [testsSummary, setTestsSummary] = useState<any>(null)
     const [knowledgeItems, setKnowledgeItems] = useState<any[]>([])
     const [knowledgeLoading, setKnowledgeLoading] = useState(false)
+    const [backfillingKnowledge, setBackfillingKnowledge] = useState(false)
     const [knowledgeForm, setKnowledgeForm] = useState({ subject: 'Matematika', title: '', content: '', source: '' })
     const [editingKnowledge, setEditingKnowledge] = useState<string | null>(null)
     const [knowledgeFilter, setKnowledgeFilter] = useState('all')
@@ -248,6 +250,19 @@ export default function AdminPanel() {
         e.target.value = ''
     }
 
+    async function backfillDocumentEmbeddings() {
+        try {
+            setBackfillingDocs(true)
+            const data = await fetchApi('/documents/backfill-embeddings?limit=120', { method: 'POST' })
+            toast.success(`${data.updated || 0} ta document chunk yangilandi. Qoldi: ${data.remaining || 0}`)
+            loadAll()
+        } catch (e: any) {
+            toast.error(e?.message || 'Document embedding backfill xatoligi')
+        } finally {
+            setBackfillingDocs(false)
+        }
+    }
+
     const loadKnowledge = async () => {
         setKnowledgeLoading(true)
         try {
@@ -302,6 +317,19 @@ export default function AdminPanel() {
             loadKnowledge()
         } catch (e: any) { toast.error(e.message) }
         finally { setPdfImporting(false) }
+    }
+
+    const backfillKnowledgeEmbeddings = async () => {
+        try {
+            setBackfillingKnowledge(true)
+            const data = await fetchApi('/knowledge/backfill-embeddings?limit=120', { method: 'POST' })
+            toast.success(`${data.updated || 0} ta knowledge item yangilandi. Qoldi: ${data.remaining || 0}`)
+            loadKnowledge()
+        } catch (e: any) {
+            toast.error(e?.message || 'Knowledge embedding backfill xatoligi')
+        } finally {
+            setBackfillingKnowledge(false)
+        }
     }
 
     const deleteKnowledge = async (id: string) => {
@@ -1102,14 +1130,20 @@ export default function AdminPanel() {
                 {tab === 'docs' && (
                     <div className="space-y-3">
                         <div className="rounded-xl p-5" style={cardStyle}>
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="h-9 w-9 rounded-xl flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)' }}>
-                                    <Upload className="h-4.5 w-4.5" />
+                            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-9 w-9 rounded-xl flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)' }}>
+                                        <Upload className="h-4.5 w-4.5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-semibold text-sm">Material Yuklash</h3>
+                                        <p className="text-xs" style={mutedText}>PDF, Word yoki TXT — RAG tizimiga qo'shiladi</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3 className="font-semibold text-sm">Material Yuklash</h3>
-                                    <p className="text-xs" style={mutedText}>PDF, Word yoki TXT — RAG tizimiga qo'shiladi</p>
-                                </div>
+                                <button onClick={backfillDocumentEmbeddings} disabled={backfillingDocs} className="btn btn-outline flex items-center gap-2 text-xs">
+                                    <RefreshCw className={`h-3.5 w-3.5 ${backfillingDocs ? 'animate-spin' : ''}`} />
+                                    {backfillingDocs ? 'Backfill...' : 'Embedding backfill'}
+                                </button>
                             </div>
                             <div className="flex gap-2.5 items-end">
                                 <div className="flex-1">
@@ -1253,13 +1287,23 @@ export default function AdminPanel() {
                                     Darsliklar, DTM materiallarini yuklang — AI chat jarayonida ulardan foydalanadi.
                                 </p>
                             </div>
-                            <button
-                                onClick={() => setShowPdfImport(v => !v)}
-                                className="btn btn-primary flex items-center gap-2 flex-shrink-0"
-                            >
-                                <Upload className="h-4 w-4" />
-                                PDF/Kitob yuklash
-                            </button>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <button
+                                    onClick={backfillKnowledgeEmbeddings}
+                                    disabled={backfillingKnowledge}
+                                    className="btn btn-outline flex items-center gap-2 flex-shrink-0"
+                                >
+                                    <RefreshCw className={`h-4 w-4 ${backfillingKnowledge ? 'animate-spin' : ''}`} />
+                                    {backfillingKnowledge ? 'Backfill...' : 'Embedding backfill'}
+                                </button>
+                                <button
+                                    onClick={() => setShowPdfImport(v => !v)}
+                                    className="btn btn-primary flex items-center gap-2 flex-shrink-0"
+                                >
+                                    <Upload className="h-4 w-4" />
+                                    PDF/Kitob yuklash
+                                </button>
+                            </div>
                         </div>
 
                         {/* PDF Import Panel */}

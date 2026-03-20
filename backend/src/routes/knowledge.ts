@@ -4,7 +4,7 @@ import pdfParse from 'pdf-parse'
 import mammoth from 'mammoth'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
-import { createEmbedding, createEmbeddings, serializeEmbedding } from '../utils/embeddings'
+import { createEmbedding, createEmbeddings, hasEmbeddingClient, serializeEmbedding } from '../utils/embeddings'
 import { SUBJECTS, isCanonicalSubject, normalizeSubject } from '../utils/subjects'
 
 const router = Router()
@@ -99,6 +99,52 @@ router.put('/:id', authenticate, requireRole('ADMIN'), async (req: AuthRequest, 
 router.delete('/:id', authenticate, requireRole('ADMIN'), async (_req, res) => {
   await prisma.knowledgeItem.delete({ where: { id: String(_req.params.id) } })
   res.json({ ok: true })
+})
+
+// POST /api/knowledge/backfill-embeddings — eski knowledge itemlar uchun embedding yaratish
+router.post('/backfill-embeddings', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
+  try {
+    if (!hasEmbeddingClient()) {
+      return res.status(400).json({ error: 'OpenAI embedding client ulanmagan' })
+    }
+
+    const rawLimit = parseInt(req.query.limit as string) || 100
+    const limit = Math.min(Math.max(rawLimit, 1), 200)
+    const where = { OR: [{ embedding: null }, { embedding: '' }] }
+
+    const items = await prisma.knowledgeItem.findMany({
+      where,
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+      select: { id: true, title: true, content: true }
+    })
+
+    if (items.length === 0) {
+      return res.json({ updated: 0, remaining: 0 })
+    }
+
+    const embeddings = await createEmbeddings(items.map(item => `${item.title}\n\n${item.content}`))
+    if (!embeddings?.length) {
+      return res.status(500).json({ error: 'Embedding yaratib bo\'lmadi' })
+    }
+
+    let updated = 0
+    await Promise.all(items.map((item, index) => {
+      const vector = embeddings[index]
+      if (!vector) return Promise.resolve()
+      updated++
+      return prisma.knowledgeItem.update({
+        where: { id: item.id },
+        data: { embedding: serializeEmbedding(vector) }
+      })
+    }))
+
+    const remaining = await prisma.knowledgeItem.count({ where })
+    res.json({ updated, remaining })
+  } catch (e: any) {
+    console.error('knowledge backfill embeddings error:', e)
+    res.status(500).json({ error: 'Embedding backfill xatoligi' })
+  }
 })
 
 // POST /api/knowledge/pdf-import — PDF/docx dan matn olib knowledge item yaratish

@@ -1565,7 +1565,7 @@ Iltimos, har bir savolni tahlil qilib ber:
         const score = questions.filter((q: any, i: number) => testAnswers[i] === q.correct).length
 
         // Mavzu statistikasini yangilash + XP qo'shish
-        const testSubject = currentChat?.subject || profile?.subject || 'Umumiy'
+        const testSubject = currentChat?.subject || currentChat?.subject2 || profile?.subject || profile?.subject2 || 'Umumiy'
         fetchApi('/progress/topic', {
             method: 'POST',
             body: JSON.stringify({

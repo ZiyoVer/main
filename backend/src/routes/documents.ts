@@ -5,7 +5,7 @@ import path from 'path'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
 import { uploadToS3, deleteFromS3, getSignedS3Url } from '../utils/s3'
-import { createEmbeddings, serializeEmbedding } from '../utils/embeddings'
+import { createEmbeddings, hasEmbeddingClient, serializeEmbedding } from '../utils/embeddings'
 import { normalizeSubject } from '../utils/subjects'
 
 const uploadLimiter = rateLimit({
@@ -172,6 +172,52 @@ router.post('/chat-upload', authenticate, uploadSingle, async (req: AuthRequest,
     } catch (e) {
         console.error('Chat upload error:', e)
         res.status(500).json({ error: 'Fayl yuklashda xato' })
+    }
+})
+
+// Admin: eski document chunklar uchun embedding backfill
+router.post('/backfill-embeddings', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
+    try {
+        if (!hasEmbeddingClient()) {
+            return res.status(400).json({ error: 'OpenAI embedding client ulanmagan' })
+        }
+
+        const rawLimit = parseInt(req.query.limit as string) || 100
+        const limit = Math.min(Math.max(rawLimit, 1), 200)
+        const where = { OR: [{ embedding: null }, { embedding: '' }] }
+
+        const chunks = await prisma.documentChunk.findMany({
+            where,
+            orderBy: { createdAt: 'asc' },
+            take: limit,
+            select: { id: true, content: true }
+        })
+
+        if (chunks.length === 0) {
+            return res.json({ updated: 0, remaining: 0 })
+        }
+
+        const embeddings = await createEmbeddings(chunks.map(chunk => chunk.content))
+        if (!embeddings?.length) {
+            return res.status(500).json({ error: 'Embedding yaratib bo\'lmadi' })
+        }
+
+        let updated = 0
+        await Promise.all(chunks.map((chunk, index) => {
+            const vector = embeddings[index]
+            if (!vector) return Promise.resolve()
+            updated++
+            return prisma.documentChunk.update({
+                where: { id: chunk.id },
+                data: { embedding: serializeEmbedding(vector) }
+            })
+        }))
+
+        const remaining = await prisma.documentChunk.count({ where })
+        res.json({ updated, remaining })
+    } catch (e) {
+        console.error('document embedding backfill error:', e)
+        res.status(500).json({ error: 'Embedding backfill xatoligi' })
     }
 })
 
