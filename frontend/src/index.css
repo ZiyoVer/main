@@ -713,7 +713,7 @@ html.dark {
     }
 
     to {
-        transform: translateX(-50%);
+        transform: translateX(-25%);
     }
 }
 
@@ -730,7 +730,7 @@ html.dark {
 .telegram-rail-track {
     display: flex;
     width: max-content;
-    animation: telegramRailScroll 22s linear infinite;
+    animation: telegramRailScroll 28s linear infinite;
     will-change: transform;
 }
 
@@ -774,7 +774,7 @@ html.dark {
 
 @media (max-width: 640px) {
     .telegram-rail-track {
-        animation-duration: 18s;
+        animation-duration: 22s;
     }
 
     .telegram-rail-group {

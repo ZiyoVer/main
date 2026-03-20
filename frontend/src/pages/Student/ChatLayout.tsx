@@ -28,6 +28,7 @@ const TELEGRAM_RAIL_ITEMS = [
     { label: 'Yangiliklar', handle: '@TonggiShula', href: 'https://t.me/TonggiShula' },
     { label: 'Support', handle: '@uzdatalabsupport', href: 'https://t.me/uzdatalabsupport' },
 ] as const
+const TELEGRAM_RAIL_COPIES = 4
 
 function TelegramIcon() {
     return (
@@ -2198,7 +2199,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                             <span className="text-[11px] font-semibold flex-shrink-0" style={{ color: 'var(--brand)' }}>Telegram</span>
                             <div className="telegram-rail-viewport flex-1 min-w-0">
                                 <div className="telegram-rail-track">
-                                    {[0, 1].map(copy => (
+                                    {Array.from({ length: TELEGRAM_RAIL_COPIES }, (_, copy) => (
                                         <div key={copy} className="telegram-rail-group">
                                             {TELEGRAM_RAIL_ITEMS.map(item => (
                                                 <div key={`${copy}-${item.handle}`} className="telegram-rail-item">
