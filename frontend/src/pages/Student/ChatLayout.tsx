@@ -24,6 +24,7 @@ interface PublicTest { id: string; title: string; shareLink: string; subject?: s
 interface MyResult { id: string; testId: string; score: number; total?: number; createdAt: string; test?: { title: string; subject?: string } }
 
 const TELEGRAM_RAIL_ITEMS = [
+    { label: 'DTMMax', handle: '@dtmmax', href: 'https://t.me/dtmmax' },
     { label: 'Yangiliklar', handle: '@TonggiShula', href: 'https://t.me/TonggiShula' },
     { label: 'Support', handle: '@uzdatalabsupport', href: 'https://t.me/uzdatalabsupport' },
 ] as const
