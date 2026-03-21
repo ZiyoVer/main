@@ -19,6 +19,7 @@ function formatDuration(minutes: number) {
 export default function AdminPanel() {
     const nav = useNavigate()
     const { logout } = useAuthStore()
+    const pageRef = useRef<HTMLDivElement | null>(null)
     const [tab, setTab] = useState<'stats' | 'users' | 'teachers' | 'docs' | 'tests' | 'ai' | 'knowledge' | 'activity'>('stats')
     const [stats, setStats] = useState<any>(null)
     const [users, setUsers] = useState<any[]>([])
@@ -419,7 +420,7 @@ export default function AdminPanel() {
     const secondaryText = { color: 'var(--text-secondary)' }
 
     return (
-        <div className="h-screen overflow-y-auto w-full" style={{ background: 'var(--bg-page)' }}>
+        <div ref={pageRef} className="h-screen overflow-y-auto w-full" style={{ background: 'var(--bg-page)' }}>
             {/* Header */}
             <header className="sticky top-0 z-40" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', backdropFilter: 'blur(12px)' }}>
                 <div className="max-w-6xl mx-auto flex items-center justify-between py-3 px-5">
@@ -1471,7 +1472,7 @@ export default function AdminPanel() {
                                                     <button className="btn btn-sm btn-outline" onClick={() => {
                                                         setEditingKnowledge(item.id)
                                                         setKnowledgeForm({ subject: item.subject, title: item.title, content: item.content, source: item.source || '' })
-                                                        window.scrollTo(0, 0)
+                                                        pageRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
                                                     }}>Tahrir</button>
                                                     <button className="btn btn-sm" style={{ background: 'var(--danger-light)', color: 'var(--danger)', border: 'none' }}
                                                         onClick={() => deleteKnowledge(item.id)}>O'chir</button>

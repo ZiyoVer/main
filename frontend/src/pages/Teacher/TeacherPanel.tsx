@@ -58,6 +58,7 @@ export default function TeacherPanel() {
     const [analyticsId, setAnalyticsId] = useState<string | null>(null)
     const [analytics, setAnalytics] = useState<any>(null)
     const [loadingAnalytics, setLoadingAnalytics] = useState(false)
+    const [analyticsError, setAnalyticsError] = useState('')
 
     const [showNotifModal, setShowNotifModal] = useState(false)
     const [notifForm, setNotifForm] = useState({ title: '', message: '' })
@@ -347,9 +348,17 @@ export default function TeacherPanel() {
     }
 
     async function openAnalytics(testId: string) {
-        setAnalyticsId(testId); setAnalytics(null); setLoadingAnalytics(true)
-        try { setAnalytics(await fetchApi(`/tests/${testId}/analytics`)) } catch { }
-        setLoadingAnalytics(false)
+        setAnalyticsId(testId)
+        setAnalytics(null)
+        setAnalyticsError('')
+        setLoadingAnalytics(true)
+        try {
+            setAnalytics(await fetchApi(`/tests/${testId}/analytics`))
+        } catch (e: any) {
+            setAnalyticsError(e?.message || 'Statistika yuklanmadi')
+        } finally {
+            setLoadingAnalytics(false)
+        }
     }
 
     function downloadAnalyticsPdf(analytics: any) {
@@ -970,6 +979,17 @@ export default function TeacherPanel() {
                         {loadingAnalytics ? (
                             <div className="flex-1 flex items-center justify-center p-12">
                                 <div className="h-5 w-5 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--brand)', borderTopColor: 'transparent' }} />
+                            </div>
+                        ) : analyticsError ? (
+                            <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
+                                <p className="text-sm font-medium mb-1" style={{ color: 'var(--text-primary)' }}>Statistika yuklanmadi</p>
+                                <p className="text-[12px] mb-4" style={mutedText}>{analyticsError}</p>
+                                <button
+                                    className="btn btn-primary btn-sm"
+                                    onClick={() => analyticsId && openAnalytics(analyticsId)}
+                                >
+                                    Qayta urinish
+                                </button>
                             </div>
                         ) : analytics?.totalAttempts === 0 ? (
                             <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
