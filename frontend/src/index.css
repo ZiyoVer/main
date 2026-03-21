@@ -387,11 +387,11 @@ html.dark {
 .bubble-user {
     background-color: #f4f0e6;
     border: 1px solid rgba(15, 23, 42, 0.04);
-    border-radius: 1rem;
-    padding: 0.62rem 0.92rem;
-    max-width: 72%;
-    font-size: 0.9375rem;
-    line-height: 1.6;
+    border-radius: 0.82rem;
+    padding: 0.5rem 0.78rem;
+    max-width: 68%;
+    font-size: 0.875rem;
+    line-height: 1.5;
     color: #111111;
     word-break: break-word;
     overflow-wrap: break-word;
@@ -1098,10 +1098,10 @@ html.dark .md-content pre {
     }
 
     .bubble-user {
-        max-width: 88%;
-        font-size: 0.8125rem;
-        padding: 0.56rem 0.82rem;
-        border-radius: 0.92rem;
+        max-width: 86%;
+        font-size: 0.78125rem;
+        padding: 0.46rem 0.72rem;
+        border-radius: 0.78rem;
     }
 
     /* Markdown in chat */
