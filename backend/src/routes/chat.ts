@@ -1040,6 +1040,8 @@ const STOP_WORDS = new Set([
     'the', 'and', 'for', 'with', 'this', 'that', 'from', 'have', 'are', 'was',
     'bir', 'ikkita', 'uchta', 'men', 'sen', 'biz', 'siz', 'ular', 'u', 'o'
 ])
+const RAG_DOCUMENT_CHUNK_LIMIT = 80
+const RAG_KNOWLEDGE_LIMIT = 30
 
 // RAG: content-based relevant chunks search (yaxshilangan versiya)
 async function searchRAGContext(query: string, subject?: string, extraSubjects: Array<string | null | undefined> = []): Promise<string> {
@@ -1059,11 +1061,11 @@ async function searchRAGContext(query: string, subject?: string, extraSubjects: 
             prisma.documentChunk.findMany({
                 where: { document: subjectFilter ? { subject: { in: subjectFilter } } : undefined },
                 include: { document: { select: { fileName: true, subject: true } } },
-                take: 200 // Ko'proq chunk — yaxshiroq coverage
+                take: RAG_DOCUMENT_CHUNK_LIMIT
             }),
             prisma.knowledgeItem.findMany({
                 where: subjectFilter ? { subject: { in: subjectFilter } } : {},
-                take: 80,
+                take: RAG_KNOWLEDGE_LIMIT,
                 orderBy: { createdAt: 'desc' }
             })
         ])

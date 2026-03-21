@@ -14,7 +14,10 @@ import { normalizeSubject } from '../utils/subjects'
 const router = Router()
 const JWT_SECRET = process.env.JWT_SECRET!
 const PRESENCE_LOG_INTERVAL_MS = 2 * 60 * 1000
+const PRESENCE_RETENTION_DAYS = 90
+const PRESENCE_CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000
 const lastPresenceWrite = new Map<string, number>()
+let lastPresenceCleanupAt = 0
 
 function isTemporaryDnsError(code?: string): boolean {
     return ['EAI_AGAIN', 'ETIMEOUT', 'ESERVFAIL', 'SERVFAIL', 'REFUSED', 'ECONNREFUSED'].includes(code || '')
@@ -74,6 +77,22 @@ async function recordPresence(userId: string) {
 
     await prisma.visitLog.create({ data: { userId, action: 'presence' } })
     lastPresenceWrite.set(userId, Date.now())
+
+    const now = Date.now()
+    if (now - lastPresenceCleanupAt >= PRESENCE_CLEANUP_INTERVAL_MS) {
+        lastPresenceCleanupAt = now
+        const cutoff = new Date(now - PRESENCE_RETENTION_DAYS * 24 * 60 * 60 * 1000)
+        try {
+            await prisma.visitLog.deleteMany({
+                where: {
+                    action: 'presence',
+                    createdAt: { lt: cutoff }
+                }
+            })
+        } catch (cleanupErr) {
+            console.warn('Presence log cleanup failed:', cleanupErr)
+        }
+    }
 }
 
 const emailLimiter = rateLimit({

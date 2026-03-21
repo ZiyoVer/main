@@ -5,6 +5,7 @@ import { getOnlineUsers } from '../utils/onlineTracker'
 
 const router = Router()
 const PRESENCE_INTERVAL_MINUTES = 2
+const PRESENCE_RETENTION_DAYS = 90
 
 // GET /public-stats — autentifikatsiya talab qilinmaydi (landing page uchun)
 router.get('/public-stats', async (_req, res) => {
@@ -258,10 +259,11 @@ router.get('/time-spent', authenticate, requireRole('ADMIN'), async (_req: AuthR
         const startOfToday = new Date(now)
         startOfToday.setHours(0, 0, 0, 0)
         const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+        const retentionCutoff = new Date(now.getTime() - PRESENCE_RETENTION_DAYS * 24 * 60 * 60 * 1000)
 
         const [presenceLogs, onlineUsers] = await Promise.all([
             prisma.visitLog.findMany({
-                where: { action: 'presence', userId: { not: null } },
+                where: { action: 'presence', userId: { not: null }, createdAt: { gte: retentionCutoff } },
                 select: { userId: true, createdAt: true },
                 orderBy: [{ userId: 'asc' }, { createdAt: 'asc' }]
             }),
