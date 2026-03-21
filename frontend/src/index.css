@@ -385,13 +385,13 @@ html.dark {
 }
 
 .bubble-user {
-    background-color: rgba(0, 0, 0, 0.05);
+    background-color: var(--brand);
     border-radius: 1.25rem 1.25rem 0.25rem 1.25rem;
     padding: 0.625rem 0.875rem;
     max-width: 72%;
     font-size: 0.9375rem;
     line-height: 1.6;
-    color: var(--text-primary);
+    color: #ffffff;
     word-break: break-word;
     overflow-wrap: break-word;
 }
@@ -1077,12 +1077,12 @@ html.dark .md-content pre {
 
 /* bubble-user md colors */
 .bubble-user .md-content code {
-    background: var(--bg-muted);
-    color: var(--text-primary);
+    background: rgba(255,255,255,0.2);
+    color: #ffffff;
 }
 
 .bubble-user .md-content a {
-    color: var(--brand);
+    color: rgba(255,255,255,0.9);
     text-decoration: underline;
 }
 

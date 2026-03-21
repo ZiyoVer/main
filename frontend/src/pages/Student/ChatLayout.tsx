@@ -520,7 +520,7 @@ const ChatInputArea = memo(function ChatInputArea({
             )}
             <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
                 <input ref={fileInputRef} type="file" multiple accept=".pdf,.doc,.docx,.txt,image/*" className="hidden" onChange={handleFileSelect} />
-                <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-card)', border: '1.5px solid var(--border-strong)', boxShadow: '0 1px 4px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.03)' }}>
                     {/* Attached files */}
                     {attachedFiles.length > 0 && (
                         <div className="flex flex-wrap gap-2 px-4 pt-3">
@@ -1893,10 +1893,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                     </div>
 
                     {/* Sidebar nav — Claude uslubi */}
-                    <div className="px-2 pt-1 pb-2 flex-shrink-0 space-y-0.5">
+                    <div className="px-2 pt-1 pb-2 flex-shrink-0 space-y-0">
                         {/* Yangi suhbat */}
                         <button onClick={createChat} disabled={creating}
-                            className="sidebar-nav-button w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[15px] font-semibold tracking-[-0.01em] transition disabled:opacity-50"
+                            className="sidebar-nav-button w-full flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-[14px] font-semibold tracking-[-0.01em] transition disabled:opacity-50"
                             style={{ color: 'var(--text-primary)' }}
                             onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -1905,7 +1905,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                         </button>
                         {/* Testlar */}
                         <button onClick={() => { setOverlayPanel(overlayPanel === 'tests' ? null : 'tests'); markTestsSeen(); if (overlayPanel !== 'tests') { loadPublicTests(); loadMyResults() } }}
-                            className="sidebar-nav-button w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-[15px] font-semibold tracking-[-0.01em] transition"
+                            className="sidebar-nav-button w-full flex items-center gap-2 px-3 py-1.5 rounded-xl text-[14px] font-semibold tracking-[-0.01em] transition"
                             style={overlayPanel === 'tests'
                                 ? { background: 'color-mix(in srgb, var(--bg-muted) 88%, white 12%)', color: 'var(--text-primary)', borderColor: 'color-mix(in srgb, var(--border) 70%, rgba(15,23,42,0.12) 30%)' }
                                 : { color: 'var(--text-primary)' }}
@@ -1918,7 +1918,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                         </button>
                         {/* Kartochkalar */}
                         <button onClick={() => { setOverlayPanel(overlayPanel === 'flashcards' ? null : 'flashcards'); if (overlayPanel !== 'flashcards') setDueCount(0) }}
-                            className="sidebar-nav-button w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-[15px] font-semibold tracking-[-0.01em] transition"
+                            className="sidebar-nav-button w-full flex items-center gap-2 px-3 py-1.5 rounded-xl text-[14px] font-semibold tracking-[-0.01em] transition"
                             style={overlayPanel === 'flashcards'
                                 ? { background: 'color-mix(in srgb, var(--bg-muted) 88%, white 12%)', color: 'var(--text-primary)', borderColor: 'color-mix(in srgb, var(--border) 70%, rgba(15,23,42,0.12) 30%)' }
                                 : { color: 'var(--text-primary)' }}
@@ -1931,7 +1931,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                         </button>
                         {/* Natijalar */}
                         <button onClick={() => setOverlayPanel(overlayPanel === 'progress' ? null : 'progress')}
-                            className="sidebar-nav-button w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-[15px] font-semibold tracking-[-0.01em] transition"
+                            className="sidebar-nav-button w-full flex items-center gap-2 px-3 py-1.5 rounded-xl text-[14px] font-semibold tracking-[-0.01em] transition"
                             style={overlayPanel === 'progress'
                                 ? { background: 'color-mix(in srgb, var(--bg-muted) 88%, white 12%)', color: 'var(--text-primary)', borderColor: 'color-mix(in srgb, var(--border) 70%, rgba(15,23,42,0.12) 30%)' }
                                 : { color: 'var(--text-primary)' }}
@@ -1951,7 +1951,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                             }
                             setTodoOpen(v => !v)
                         }}
-                            className="sidebar-nav-button w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-[15px] font-semibold tracking-[-0.01em] transition"
+                            className="sidebar-nav-button w-full flex items-center gap-2 px-3 py-1.5 rounded-xl text-[14px] font-semibold tracking-[-0.01em] transition"
                             style={todoOpen
                                 ? { background: 'color-mix(in srgb, var(--bg-muted) 88%, white 12%)', color: 'var(--text-primary)', borderColor: 'color-mix(in srgb, var(--border) 70%, rgba(15,23,42,0.12) 30%)' }
                                 : { color: 'var(--text-primary)' }}
