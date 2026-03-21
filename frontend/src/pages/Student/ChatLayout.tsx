@@ -25,7 +25,7 @@ interface MyResult { id: string; testId: string; score: number; total?: number; 
 
 const TELEGRAM_RAIL_ITEMS = [
     { label: 'DTMMax', handle: '@dtmmax', href: 'https://t.me/dtmmax' },
-    { label: 'Yangiliklar', handle: '@TonggiShula', href: 'https://t.me/TonggiShula' },
+    { label: 'Motivatsion xabarlar', handle: '@TonggiShula', href: 'https://t.me/TonggiShula' },
     { label: 'Support', handle: '@uzdatalabsupport', href: 'https://t.me/uzdatalabsupport' },
 ] as const
 const TELEGRAM_RAIL_REPEAT = 4
