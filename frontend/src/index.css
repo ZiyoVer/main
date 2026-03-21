@@ -434,20 +434,6 @@ html.dark {
     border-color: color-mix(in srgb, var(--border) 68%, rgba(15, 23, 42, 0.12) 32%);
 }
 
-.chat-composer-shell {
-    transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
-}
-
-.chat-composer-shell:focus-within {
-    border-color: color-mix(in srgb, var(--brand) 24%, var(--border) 76%) !important;
-    box-shadow: 0 16px 34px rgba(15, 23, 42, 0.08), 0 4px 12px rgba(224, 123, 57, 0.08) !important;
-}
-
-.chat-composer-input::placeholder {
-    color: color-mix(in srgb, var(--text-muted) 82%, rgba(15, 23, 42, 0.18) 18%);
-    opacity: 1;
-}
-
 /* Streaming cursor */
 .streaming-cursor::after {
     content: '|';

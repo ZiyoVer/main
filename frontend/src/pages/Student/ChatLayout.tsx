@@ -520,14 +520,7 @@ const ChatInputArea = memo(function ChatInputArea({
             )}
             <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
                 <input ref={fileInputRef} type="file" multiple accept=".pdf,.doc,.docx,.txt,image/*" className="hidden" onChange={handleFileSelect} />
-                <div
-                    className="chat-composer-shell rounded-2xl overflow-hidden"
-                    style={{
-                        background: 'var(--bg-card)',
-                        border: '1px solid color-mix(in srgb, var(--border) 82%, rgba(15,23,42,0.2) 18%)',
-                        boxShadow: '0 12px 30px rgba(15,23,42,0.06), 0 2px 8px rgba(15,23,42,0.05)'
-                    }}
-                >
+                <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                     {/* Attached files */}
                     {attachedFiles.length > 0 && (
                         <div className="flex flex-wrap gap-2 px-4 pt-3">
@@ -561,14 +554,11 @@ const ChatInputArea = memo(function ChatInputArea({
                         placeholder="Xabar yozing..."
                         disabled={loading}
                         rows={1}
-                        className="chat-composer-input w-full bg-transparent outline-none text-sm resize-none leading-relaxed px-4"
-                        style={{ color: 'var(--text-primary)', minHeight: '64px', maxHeight: '160px', paddingTop: '14px', paddingBottom: '8px', overflowX: 'hidden', wordBreak: 'break-word', fontWeight: 500 }}
+                        className="w-full bg-transparent outline-none text-sm resize-none leading-relaxed px-4"
+                        style={{ color: 'var(--text-primary)', minHeight: '64px', maxHeight: '160px', paddingTop: '14px', paddingBottom: '8px', overflowX: 'hidden', wordBreak: 'break-word' }}
                     />
                     {/* Toolbar row */}
-                    <div
-                        className="flex items-center gap-2 px-3 pb-3"
-                        style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 68%, rgba(15,23,42,0.12) 32%)' }}
-                    >
+                    <div className="flex items-center gap-2 px-3 pb-3">
                         {/* Attach */}
                         <button type="button" onClick={() => fileInputRef.current?.click()} disabled={loading || uploadingFile}
                             className="h-8 w-8 flex items-center justify-center rounded-lg transition disabled:opacity-40"
