@@ -66,7 +66,7 @@ function preprocessMath(text: string): string {
 
 // TodoBlockMount: mounts → opens todo panel, shows a tap card in chat
 function TodoBlockMount({ items, onSetTodo }: { items: Omit<TodoItem, 'id' | 'done'>[], onSetTodo: (items: Omit<TodoItem, 'id' | 'done'>[]) => void }) {
-    useEffect(() => { onSetTodo(items) }, []) // eslint-disable-line
+    useEffect(() => { onSetTodo(items) }, [items, onSetTodo])
     return (
         <button onClick={() => onSetTodo(items)} className="my-3 flex items-center gap-2.5 px-4 py-3 rounded-xl w-full text-left transition"
             style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
@@ -392,7 +392,7 @@ interface ChatInputAreaProps {
     chatId: string | undefined
     loading: boolean
     thinkingMode: boolean
-    setThinkingMode: (v: boolean) => void
+    setThinkingMode: React.Dispatch<React.SetStateAction<boolean>>
     onSend: (text: string, files: AttachedFile[]) => void
     onStop: () => void
     blobUrlsRef: React.MutableRefObject<string[]>
@@ -570,7 +570,7 @@ const ChatInputArea = memo(function ChatInputArea({
                                 : <Paperclip className="h-3.5 w-3.5" />}
                         </button>
                         {/* Thinking mode */}
-                        <button type="button" onClick={() => setThinkingMode(!thinkingMode)}
+                        <button type="button" onClick={() => setThinkingMode(v => !v)}
                             title={thinkingMode ? 'Chuqur fikrlash yoqilgan' : 'Chuqur fikrlash'}
                             className="h-8 px-2.5 flex items-center gap-1.5 rounded-lg text-xs font-medium transition"
                             style={thinkingMode ? { background: 'var(--brand-light)', color: 'var(--brand)' } : { color: 'var(--text-muted)' }}
@@ -685,6 +685,11 @@ export default function ChatLayout() {
     const [deleteErr, setDeleteErr] = useState('')
     const [thinkingMode, setThinkingMode] = useState(false)
     const [thinkingText, setThinkingText] = useState('')
+    const thinkingModeRef = useRef(thinkingMode)
+    const todoItemsRef = useRef<TodoItem[]>([])
+    const visionIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+    const pendingHydrationChatIdRef = useRef<string | null>(null)
+    const isMountedRef = useRef(true)
     const scrollRef = useRef<HTMLDivElement>(null)
     const userScrolledRef = useRef(false)
     const blobUrlsRef = useRef<string[]>([])
@@ -701,6 +706,22 @@ export default function ChatLayout() {
     const completedAiTestsRef = useRef<Set<string>>((() => {
         try { return new Set(JSON.parse(localStorage.getItem('dtmmax_done_ai_tests') || '[]')) } catch { return new Set() }
     })())
+
+    useEffect(() => {
+        thinkingModeRef.current = thinkingMode
+    }, [thinkingMode])
+
+    useEffect(() => {
+        todoItemsRef.current = todoItems
+    }, [todoItems])
+
+    useEffect(() => {
+        return () => {
+            isMountedRef.current = false
+            if (visionIntervalRef.current) clearInterval(visionIntervalRef.current)
+            visionIntervalRef.current = null
+        }
+    }, [])
 
     // Hook'lar
     const {
@@ -1171,6 +1192,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                     })
                 })
                 await loadChats()
+                pendingHydrationChatIdRef.current = firstChat.id
+                setCurrentChat(firstChat)
                 nav(`/suhbat/${firstChat.id}`)
                 setTimeout(() => {
                     const welcomePrompt = `O'quvchi ${user?.name?.split(' ')[0]} platformaga yangi ro'yxatdan o'tdi. Fan: ${onboardingForm.subject}. Imtihon sanasi: ${onboardingForm.examDate || "belgilanmagan"}. Maqsad ball: ${onboardingForm.targetScore || 80}. Ularni shaxsiy, qisqa va samimiy tabriklang. Fan bo'yicha birinchi darsni taklif qiling. 3-4 jumladan oshirmang.`
@@ -1190,6 +1213,10 @@ Iltimos, har bir savolni tahlil qilib ber:
     }
 
     async function loadMessages(id: string) {
+        if (pendingHydrationChatIdRef.current === id) {
+            pendingHydrationChatIdRef.current = null
+            return
+        }
         loadControllerRef.current?.abort()
         const controller = new AbortController()
         loadControllerRef.current = controller
@@ -1235,12 +1262,14 @@ Iltimos, har bir savolni tahlil qilib ber:
         const controller = new AbortController()
         abortRef.current = controller
         let fullText = '' // local ref — stale closure muammosini oldini olish uchun
+        const requestThinkingMode = thinkingModeRef.current
+        const requestTodoContext = todoItemsRef.current.filter(t => !t.done)
         try {
             const token = localStorage.getItem('token')
             const res = await fetch(`/api/chat/${targetChatId}/stream`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ content: prompt, thinking: thinkingMode, ...(displayText !== undefined && { displayText }), todoContext: todoItems.filter(t => !t.done) }),
+                body: JSON.stringify({ content: prompt, thinking: requestThinkingMode, ...(displayText !== undefined && { displayText }), todoContext: requestTodoContext }),
                 signal: controller.signal
             })
             if (!res.ok) {
@@ -1350,10 +1379,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                     })
                 })
                 await loadChats()
+                pendingHydrationChatIdRef.current = data.id
+                setCurrentChat(data)
                 nav(`/suhbat/${data.id}`)
                 targetChatId = data.id
-                // Nav animatsiyasi uchun kichik kechikish
-                await new Promise(r => setTimeout(r, 100))
             } catch (err) {
                 console.error('Chat yaratishda xato:', err)
                 return
@@ -1604,6 +1633,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                 .filter(({ q }) => q.imageUrl)
             addUserMsg()
             setLoading(true)
+            if (visionIntervalRef.current) {
+                clearInterval(visionIntervalRef.current)
+                visionIntervalRef.current = null
+            }
             fetchApi('/tests/analyze-vision', {
                 method: 'POST',
                 body: JSON.stringify({
@@ -1616,16 +1649,20 @@ Iltimos, har bir savolni tahlil qilib ber:
                     }))
                 })
             }).then((data: any) => {
+                if (!isMountedRef.current) return
                 if (data?.analysis) {
                     const fullText = `🔍 **Rasmli savollar tahlili (AI Vision):**\n\n${data.analysis}`
                     // Animatsiya: streaming state orqali xarakter-xarakter chiqarish
                     let idx = 0
                     const CHUNK = 8
-                    const intervalId = setInterval(() => {
+                    visionIntervalRef.current = setInterval(() => {
+                        if (!visionIntervalRef.current) return
                         idx += CHUNK
                         setStreaming(fullText.slice(0, idx))
                         if (idx >= fullText.length) {
-                            clearInterval(intervalId)
+                            clearInterval(visionIntervalRef.current)
+                            visionIntervalRef.current = null
+                            if (!isMountedRef.current) return
                             setStreaming('')
                             setLoading(false)
                             setMessages(prev => [...prev, {
@@ -1637,9 +1674,21 @@ Iltimos, har bir savolni tahlil qilib ber:
                         }
                     }, 12)
                 } else {
+                    if (visionIntervalRef.current) {
+                        clearInterval(visionIntervalRef.current)
+                        visionIntervalRef.current = null
+                    }
+                    if (!isMountedRef.current) return
                     setLoading(false)
                 }
-            }).catch(() => { setLoading(false) })
+            }).catch(() => {
+                if (visionIntervalRef.current) {
+                    clearInterval(visionIntervalRef.current)
+                    visionIntervalRef.current = null
+                }
+                if (!isMountedRef.current) return
+                setLoading(false)
+            })
         }
 
         if (hasImages) {
@@ -1653,15 +1702,17 @@ Iltimos, har bir savolni tahlil qilib ber:
             } else {
                 setTimeout(async () => {
                     try {
-                        const data = await fetchApi('/chat/new', {
-                            method: 'POST',
-                            body: JSON.stringify({
-                                title: 'Test tahlili',
-                                subject: normalizeSubjectValue(profile?.subject) || undefined,
+                const data = await fetchApi('/chat/new', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        title: 'Test tahlili',
+                        subject: normalizeSubjectValue(profile?.subject) || undefined,
                                 subject2: normalizeSubjectValue(profile?.subject2) || undefined
                             })
                         })
                         await loadChats()
+                        pendingHydrationChatIdRef.current = data.id
+                        setCurrentChat(data)
                         nav(`/suhbat/${data.id}`)
                         setTimeout(() => {
                             runVisionAnalysis(() =>
@@ -1687,13 +1738,15 @@ Iltimos, har bir savolni tahlil qilib ber:
                             subject: normalizeSubjectValue(profile?.subject) || undefined,
                             subject2: normalizeSubjectValue(profile?.subject2) || undefined
                         })
-                    })
-                    await loadChats()
-                    nav(`/suhbat/${data.id}`)
-                    setTimeout(() => {
-                        setMessages([{ id: 'temp-u', role: 'user', content: displayMsg, createdAt: new Date().toISOString() }])
-                        streamToChat(data.id, summary, displayMsg)
-                    }, 300)
+                        })
+                        await loadChats()
+                        pendingHydrationChatIdRef.current = data.id
+                        setCurrentChat(data)
+                        nav(`/suhbat/${data.id}`)
+                        setTimeout(() => {
+                            setMessages([{ id: 'temp-u', role: 'user', content: displayMsg, createdAt: new Date().toISOString() }])
+                            streamToChat(data.id, summary, displayMsg)
+                        }, 300)
                 } catch (err) { console.error('submitTestPanel newChat:', err) }
             }, 500)
         }

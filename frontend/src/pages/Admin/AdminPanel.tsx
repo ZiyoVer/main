@@ -45,6 +45,7 @@ export default function AdminPanel() {
     const [testStats, setTestStats] = useState<any>(null)
     // Tests tab
     const [testsSearch, setTestsSearch] = useState('')
+    const [debouncedTestsSearch, setDebouncedTestsSearch] = useState('')
     const [testsVisibility, setTestsVisibility] = useState<'all' | 'public' | 'private'>('all')
     const [testsSubject, setTestsSubject] = useState('')
     const [testsSortBy, setTestsSortBy] = useState('createdAt')
@@ -83,6 +84,7 @@ export default function AdminPanel() {
     const [usersTotal, setUsersTotal] = useState(0)
     const [usersPages, setUsersPages] = useState(1)
     const [usersSearch, setUsersSearch] = useState('')
+    const [debouncedUsersSearch, setDebouncedUsersSearch] = useState('')
     const USERS_PER_PAGE = 50
 
     // Teachers tab
@@ -107,8 +109,16 @@ export default function AdminPanel() {
         return () => clearInterval(pingInterval)
     }, [])
     useEffect(() => { loadPeriodTrend(chartPeriod) }, [chartPeriod])
-    useEffect(() => { if (tab === 'users') loadUsers() }, [tab, usersPage, usersSearch])
-    useEffect(() => { if (tab === 'tests') loadTests() }, [tab, testsPage, testsSearch, testsVisibility, testsSubject, testsSortBy])
+    useEffect(() => {
+        const id = setTimeout(() => setDebouncedUsersSearch(usersSearch.trim()), 300)
+        return () => clearTimeout(id)
+    }, [usersSearch])
+    useEffect(() => {
+        const id = setTimeout(() => setDebouncedTestsSearch(testsSearch.trim()), 300)
+        return () => clearTimeout(id)
+    }, [testsSearch])
+    useEffect(() => { if (tab === 'users') loadUsers() }, [tab, usersPage, debouncedUsersSearch])
+    useEffect(() => { if (tab === 'tests') loadTests() }, [tab, testsPage, debouncedTestsSearch, testsVisibility, testsSubject, testsSortBy])
     useEffect(() => { if (tab === 'knowledge') loadKnowledge() }, [tab])
     useEffect(() => { if (tab === 'teachers') loadTeachers() }, [tab])
     useEffect(() => {
@@ -116,30 +126,51 @@ export default function AdminPanel() {
             loadActivity()
             activityTimerRef.current = setInterval(loadActivity, 30000)
         } else {
-            if (activityTimerRef.current) clearInterval(activityTimerRef.current)
+            if (activityTimerRef.current) {
+                clearInterval(activityTimerRef.current)
+                activityTimerRef.current = null
+            }
         }
-        return () => { if (activityTimerRef.current) clearInterval(activityTimerRef.current) }
+        return () => {
+            if (activityTimerRef.current) {
+                clearInterval(activityTimerRef.current)
+                activityTimerRef.current = null
+            }
+        }
     }, [tab, activityPage, activityFilter])
 
     async function loadStats() {
         setLoading(true)
-        try { setStats(await fetchApi('/analytics/stats')) } catch { setStats({}) }
-        try {
-            setTimeSpentLoading(true)
-            const data = await fetchApi('/analytics/time-spent')
-            setTimeSpentUsers(data.users || [])
-            setTrackedUsers(data.trackedUsers || 0)
-            setPresenceIntervalMinutes(data.intervalMinutes || 5)
-        } catch {
+        setTimeSpentLoading(true)
+        const [statsRes, timeSpentRes, docsRes, aiRes, defaultsRes, testStatsRes] = await Promise.allSettled([
+            fetchApi('/analytics/stats'),
+            fetchApi('/analytics/time-spent'),
+            fetchApi('/documents/list'),
+            fetchApi('/ai-settings'),
+            fetchApi('/ai-settings/defaults'),
+            fetchApi('/analytics/test-stats'),
+        ])
+
+        if (statsRes.status === 'fulfilled') setStats(statsRes.value)
+        else setStats({})
+
+        if (timeSpentRes.status === 'fulfilled') {
+            setTimeSpentUsers(timeSpentRes.value.users || [])
+            setTrackedUsers(timeSpentRes.value.trackedUsers || 0)
+            setPresenceIntervalMinutes(timeSpentRes.value.intervalMinutes || 5)
+        } else {
             setTimeSpentUsers([])
             setTrackedUsers(0)
-        } finally {
-            setTimeSpentLoading(false)
         }
-        try { setDocs(await fetchApi('/documents/list')) } catch { setDocs([]) }
-        try { const ai = await fetchApi('/ai-settings'); setAiConfig(ai) } catch { }
-        try { const d = await fetchApi('/ai-settings/defaults'); setDefaults(d) } catch { }
-        try { setTestStats(await fetchApi('/analytics/test-stats')) } catch { setTestStats(null) }
+        setTimeSpentLoading(false)
+
+        if (docsRes.status === 'fulfilled') setDocs(docsRes.value)
+        else setDocs([])
+
+        if (aiRes.status === 'fulfilled') setAiConfig(aiRes.value)
+        if (defaultsRes.status === 'fulfilled') setDefaults(defaultsRes.value)
+        if (testStatsRes.status === 'fulfilled') setTestStats(testStatsRes.value)
+        else setTestStats(null)
         setLoading(false)
     }
 
@@ -150,7 +181,7 @@ export default function AdminPanel() {
     async function loadTests() {
         try {
             const params = new URLSearchParams({ page: String(testsPage), sortBy: testsSortBy })
-            if (testsSearch.trim()) params.set('search', testsSearch.trim())
+            if (debouncedTestsSearch) params.set('search', debouncedTestsSearch)
             if (testsVisibility !== 'all') params.set('visibility', testsVisibility)
             if (testsSubject) params.set('subject', testsSubject)
             const data = await fetchApi(`/tests/all?${params}`)
@@ -164,7 +195,7 @@ export default function AdminPanel() {
     async function loadUsers() {
         try {
             const params = new URLSearchParams({ page: String(usersPage), limit: String(USERS_PER_PAGE) })
-            if (usersSearch.trim()) params.set('search', usersSearch.trim())
+            if (debouncedUsersSearch) params.set('search', debouncedUsersSearch)
             const data = await fetchApi(`/auth/users?${params}`)
             setUsers(data.users || [])
             setUsersTotal(data.total || 0)

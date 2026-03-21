@@ -1211,11 +1211,6 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
         const effectiveTotal = expandedTotal || test.questions.length
         const score = effectiveTotal > 0 ? (correct / effectiveTotal) * 100 : 0
 
-        // Rasch ability hisoblash
-        const profile = await prisma.studentProfile.findUnique({
-            where: { userId: req.user.id }
-        })
-        const currentAbility = Math.max(-5, Math.min(5, profile?.abilityLevel || 0.0))
         // Degenerate case: 0/n yoki n/n bo'lsa, yoki savollar < 3 ta bo'lsa
         // Rasch MLE diverge qiladi (±∞) — ability yangilanmasin
         const canUpdateRasch = results.length >= 3 && score > 0 && score < 100
@@ -1236,15 +1231,29 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
                 raschItems.push({ difficulty: r.difficulty, isCorrect: r.isCorrect })
             }
         })
-        const newAbility = canUpdateRasch
-            ? updateAbility(currentAbility, raschItems)
-            : currentAbility
-
         // $transaction yordamida ACID ta'minlash
         const finalScore = Math.round(score * 100) / 100
         const totalForResponse = effectiveTotal
 
         const attempt = await prisma.$transaction(async (tx) => {
+            let profile = await tx.studentProfile.findUnique({
+                where: { userId: req.user.id }
+            })
+
+            if (!profile) {
+                profile = await tx.studentProfile.create({
+                    data: {
+                        userId: req.user.id,
+                        subject: normalizeSubject(test.subject) ?? test.subject ?? null,
+                        onboardingDone: false
+                    }
+                })
+            }
+
+            const currentAbility = Math.max(-5, Math.min(5, profile.abilityLevel || 0.0))
+            const newAbility = canUpdateRasch
+                ? updateAbility(currentAbility, raschItems)
+                : currentAbility
             const att = await tx.testAttempt.create({
                 data: {
                     testId: test.id,
@@ -1255,18 +1264,19 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
                 }
             })
 
-            if (profile) {
-                await tx.studentProfile.update({
-                    where: { userId: req.user.id },
-                    data: {
-                        abilityLevel: newAbility,
-                        totalTests: { increment: 1 },
-                        avgScore: Math.round(((profile.avgScore * profile.totalTests + score) / (profile.totalTests + 1)) * 100) / 100
-                    }
-                })
-            }
+            const nextTotalTests = profile.totalTests + 1
+            const nextAvgScore = Math.round((((profile.avgScore || 0) * profile.totalTests + finalScore) / nextTotalTests) * 100) / 100
 
-            return att;
+            await tx.studentProfile.update({
+                where: { userId: req.user.id },
+                data: {
+                    abilityLevel: newAbility,
+                    totalTests: nextTotalTests,
+                    avgScore: nextAvgScore
+                }
+            })
+
+            return { attempt: att, newAbility }
         })
 
         // Submit dan keyin to'g'ri javoblarni qaytaramiz (oldin emas!)
@@ -1290,12 +1300,12 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
         const ms = getMsBall(correct, totalForResponse)
 
         res.json({
-            attempt,
+            attempt: attempt.attempt,
             score: Math.round(score * 100) / 100,
             grade: getGrade(Math.round(score * 100) / 100),
             correct,
             total: totalForResponse,
-            newAbility,
+            newAbility: attempt.newAbility,
             testType: (test as any).testType || 'milliy_sertifikat',
             dtmBall: dtm.ball,
             dtmMax: dtm.max,
@@ -1388,8 +1398,18 @@ router.get('/:testId/analytics', authenticate, requireRole('TEACHER', 'ADMIN'), 
         const studentRows = test.attempts.map((a: any) => {
             let answers: any[] = []
             try { answers = typeof a.answers === 'string' ? JSON.parse(a.answers) : (a.answers || []) } catch { }
-            const correctCount = answers.filter((r: any) => r.isCorrect).length
-            const total = test.questions.length
+            let correctCount = 0
+            let total = 0
+            answers.forEach((r: any) => {
+                if ((r.totalSubs || 0) > 0) {
+                    total += r.totalSubs || 0
+                    correctCount += r.correctSubCount || 0
+                } else {
+                    total += 1
+                    correctCount += r.isCorrect ? 1 : 0
+                }
+            })
+            if (total === 0) total = test.questions.length
             const scoreVal = Math.round(a.score * 10) / 10
             const dtm = getDtmBall(test.subject || null, correctCount, total)
             const ms = getMsBall(correctCount, total)

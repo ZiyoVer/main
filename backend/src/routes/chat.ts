@@ -1393,6 +1393,18 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
             take: 80
         })
         const history = historyRaw.reverse()
+        const isFirstMessage = history.length <= 1
+        const titleSrc = displayText?.trim() || content
+
+        if (isFirstMessage) {
+            try {
+                const shortTitle = titleSrc.substring(0, 40) + (titleSrc.length > 40 ? '...' : '')
+                await prisma.chat.update({ where: { id: chat.id }, data: { title: shortTitle } })
+                chat.title = shortTitle
+            } catch (titleErr) {
+                console.error('Chat title update failed:', titleErr)
+            }
+        }
 
         // Profile olish
         const profile = await prisma.studentProfile.findUnique({
@@ -1407,8 +1419,6 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
         const ragSection = ragContext
             ? `\n\n--- RASMIY MANBA KONTEKSTI (faqat ma'lumot uchun) ---\n${ragContext}\n--- MANBA KONTEKSTI TUGADI ---`
             : ''
-
-        const isFirstMessage = history.length <= 1
 
         // Kunlik reja konteksti — foydalanuvchi yuborgan todo ro'yxati
         const todoSection = (Array.isArray(todoContext) && todoContext.length > 0)
@@ -1530,14 +1540,6 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
             console.error('Message save failed:', dbErr)
             res.write(`data: ${JSON.stringify({ done: true })}\n\n`)
             return res.end()
-        }
-
-        // Chat title yangilash — faqat birinchi xabar (history da faqat user xabar bor: length === 1)
-        // history allaqachon yangi user xabarni o'z ichiga oladi, shuning uchun 1 = birinchi xabar
-        if (history.length === 1) {
-            const titleSrc = displayText?.trim() || content
-            const shortTitle = titleSrc.substring(0, 40) + (titleSrc.length > 40 ? '...' : '')
-            await prisma.chat.update({ where: { id: chat.id }, data: { title: shortTitle } })
         }
 
         res.write(`data: ${JSON.stringify({ done: true, id: saved.id })}\n\n`)

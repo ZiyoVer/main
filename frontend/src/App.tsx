@@ -39,20 +39,39 @@ function ProtectedRoute({ children, roles }: { children: React.ReactNode, roles?
     const location = useLocation()
 
     // Token bor lekin user store da yo'q — /auth/me orqali tiklaymiz
-    const storedToken = localStorage.getItem('token')
+    const [storedToken, setStoredToken] = useState(() => localStorage.getItem('token'))
     const [checking, setChecking] = useState(!user && !!storedToken)
 
     useEffect(() => {
+        const syncToken = () => setStoredToken(localStorage.getItem('token'))
+        window.addEventListener('storage', syncToken)
+        return () => window.removeEventListener('storage', syncToken)
+    }, [])
+
+    useEffect(() => {
+        if (!storedToken || user) {
+            setChecking(false)
+            return
+        }
+
+        let active = true
         if (!user && storedToken) {
             fetchApi('/auth/me')
-                .then(data => { login(storedToken, data); setChecking(false) })
+                .then(data => {
+                    if (!active) return
+                    login(storedToken, data)
+                    setChecking(false)
+                })
                 .catch(() => {
+                    if (!active) return
                     localStorage.removeItem('token')
                     localStorage.removeItem('user')
+                    setStoredToken(null)
                     setChecking(false)
                 })
         }
-    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+        return () => { active = false }
+    }, [user, storedToken, login])
 
     // Tekshiruv davomida bo'sh sahifa — login flicker oldini oladi
     if (checking) return <div className="h-screen w-full" style={{ background: 'var(--bg-main)' }} />

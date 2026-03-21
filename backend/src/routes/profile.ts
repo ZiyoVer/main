@@ -4,6 +4,40 @@ import { authenticate, AuthRequest } from '../middleware/auth'
 import { normalizeSubject } from '../utils/subjects'
 
 const router = Router()
+const MAX_PROFILE_TEXT_LENGTH = 1000
+const MAX_TOPIC_ITEMS = 30
+const MAX_TOPIC_LENGTH = 120
+
+function clampText(value: unknown, fieldName: string) {
+    if (value === undefined) return undefined
+    if (value === null || value === '') return null
+    if (typeof value !== 'string') {
+        throw new Error(`${fieldName} matn bo'lishi kerak`)
+    }
+    const trimmed = value.trim()
+    if (trimmed.length > MAX_PROFILE_TEXT_LENGTH) {
+        throw new Error(`${fieldName} juda uzun`)
+    }
+    return trimmed || null
+}
+
+function normalizeTopicList(value: unknown, fieldName: string) {
+    if (value === undefined) return undefined
+    if (value === null || value === '') return null
+    if (!Array.isArray(value)) {
+        throw new Error(`${fieldName} array bo'lishi kerak`)
+    }
+    if (value.length > MAX_TOPIC_ITEMS) {
+        throw new Error(`${fieldName} juda ko'p elementdan iborat`)
+    }
+    const items = value
+        .map(item => typeof item === 'string' ? item.trim() : '')
+        .filter(Boolean)
+    if (items.some(item => item.length > MAX_TOPIC_LENGTH)) {
+        throw new Error(`${fieldName} ichidagi element juda uzun`)
+    }
+    return items.length > 0 ? JSON.stringify(items) : null
+}
 
 // Profil olish
 router.get('/', authenticate, async (req: AuthRequest, res) => {
@@ -23,6 +57,9 @@ router.put('/', authenticate, async (req: AuthRequest, res) => {
         const { subject, subject2, examType, targetScore, weakTopics, strongTopics, concerns, examDate, studyHoursPerDay, onboardingDone } = req.body
         const normalizedSubject = subject !== undefined ? normalizeSubject(subject) : undefined
         const normalizedSubject2 = subject2 !== undefined ? normalizeSubject(subject2) : undefined
+        const normalizedConcerns = clampText(concerns, 'concerns')
+        const normalizedWeakTopics = normalizeTopicList(weakTopics, 'weakTopics')
+        const normalizedStrongTopics = normalizeTopicList(strongTopics, 'strongTopics')
 
         let profile = await prisma.studentProfile.findUnique({
             where: { userId: req.user.id }
@@ -32,9 +69,9 @@ router.put('/', authenticate, async (req: AuthRequest, res) => {
             profile = await prisma.studentProfile.create({
                 data: {
                     userId: req.user.id,
-                    subject: normalizedSubject ?? null, subject2: normalizedSubject2 ?? null, examType, targetScore, concerns, studyHoursPerDay,
-                    weakTopics: weakTopics ? JSON.stringify(weakTopics) : null,
-                    strongTopics: strongTopics ? JSON.stringify(strongTopics) : null,
+                    subject: normalizedSubject ?? null, subject2: normalizedSubject2 ?? null, examType, targetScore, concerns: normalizedConcerns, studyHoursPerDay,
+                    weakTopics: normalizedWeakTopics,
+                    strongTopics: normalizedStrongTopics,
                     examDate: examDate ? new Date(examDate) : null,
                     onboardingDone: onboardingDone !== undefined ? onboardingDone : true
                 }
@@ -47,19 +84,21 @@ router.put('/', authenticate, async (req: AuthRequest, res) => {
                     ...(subject2 !== undefined && { subject2: normalizedSubject2 }),
                     ...(examType !== undefined && { examType }),
                     ...(targetScore !== undefined && { targetScore }),
-                    ...(concerns !== undefined && { concerns }),
+                    ...(concerns !== undefined && { concerns: normalizedConcerns }),
                     ...(studyHoursPerDay !== undefined && { studyHoursPerDay }),
-                    ...(weakTopics !== undefined && { weakTopics: weakTopics ? JSON.stringify(weakTopics) : null }),
-                    ...(strongTopics !== undefined && { strongTopics: strongTopics ? JSON.stringify(strongTopics) : null }),
+                    ...(weakTopics !== undefined && { weakTopics: normalizedWeakTopics }),
+                    ...(strongTopics !== undefined && { strongTopics: normalizedStrongTopics }),
                     ...(examDate !== undefined && { examDate: examDate ? new Date(examDate) : null }),
                     ...(onboardingDone !== undefined && { onboardingDone })
                 }
             })
         }
         res.json(profile)
-    } catch (e) {
+    } catch (e: any) {
         console.error(e)
-        res.status(500).json({ error: 'Server xatoligi' })
+        const message = e?.message || 'Server xatoligi'
+        const isValidationError = /matn bo'lishi kerak|juda uzun|array bo'lishi kerak|juda ko'p element/.test(message)
+        res.status(isValidationError ? 400 : 500).json({ error: isValidationError ? message : 'Server xatoligi' })
     }
 })
 

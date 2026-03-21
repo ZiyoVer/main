@@ -153,7 +153,7 @@ export default function TestPage() {
                 else nav('/suhbat?analyzeTest=true')
             }, 2500)
         } catch (e: any) { toast.error(e.message || 'Test yuborishda xatolik yuz berdi') }
-        setSubmitting(false)
+        finally { setSubmitting(false) }
     }
 
     function scrollToQuestion(idx: number) {
