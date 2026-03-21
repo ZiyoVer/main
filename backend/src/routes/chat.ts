@@ -826,7 +826,7 @@ Jadvaldan oldin va keyin bo'sh qator bo'lsin.
 
 ## Kun rejasi / Todo formati
 
-O'quvchi "reja tuz", "kunlik reja", "jadval qil", "bugun nima qilaman" desa — \`\`\`todo JSON formatida ber:
+O'quvchi reja yoki o'qish tartibini so'rasa — masalan "reja tuz", "kunlik reja", "jadval qil", "plan tuz", "checklist qil", "bugun nima qilaman", "qayerdan boshlay", "bugun nima o'qiyman", "bosqichma-bosqich yoz" — \`\`\`todo JSON formatida ber:
 \`\`\`todo
 [{"time":"09:00","task":"Trigonometriya formulalari","duration":45,"subject":"Matematika"},{"time":"10:30","task":"Present Perfect mashqlar","duration":30,"subject":"Ingliz tili"}]
 \`\`\`
@@ -834,7 +834,9 @@ O'quvchi "reja tuz", "kunlik reja", "jadval qil", "bugun nima qilaman" desa — 
 - task: nima qilish kerak
 - duration: daqiqada taxminiy vaqt
 - subject: fan nomi
-- Rejani tuzishdan OLDIN o'quvchidan so'ra: "Bugun qaysi mavzulardan ishlaysiz?" yoki "Qayerdan boshlaymiz?"
+- Agar fan/mavzu umuman noma'lum bo'lsa, reja tuzishdan OLDIN bitta qisqa aniqlashtiruvchi savol ber: "Bugun qaysi mavzulardan ishlaysiz?" yoki "Qayerdan boshlaymiz?"
+- Agar fan/mavzu allaqachon ma'lum bo'lsa — darhol \`\`\`todo ber, qayta so'rama
+- Reja, plan, checklist so'rovlarida oddiy matn emas, avval \`\`\`todo blok chiqar
 - O'quvchining imtihon sana va vaqtini hisobga ol
 - Tungi vaqt (23:00-07:00) uchun rejalar berma`)
 
@@ -1040,6 +1042,65 @@ const STOP_WORDS = new Set([
     'the', 'and', 'for', 'with', 'this', 'that', 'from', 'have', 'are', 'was',
     'bir', 'ikkita', 'uchta', 'men', 'sen', 'biz', 'siz', 'ular', 'u', 'o'
 ])
+
+type TodoContextItem = {
+    task: string
+    subject?: string
+    time?: string
+    duration?: number
+}
+
+function normalizeTodoText(text: string): string {
+    return String(text || '')
+        .toLowerCase()
+        .replace(/[`*_~[\]{}()<>#@!?.,:;"/\\|-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+}
+
+function extractTodoKeywords(text: string): string[] {
+    return normalizeTodoText(text)
+        .split(' ')
+        .filter(word => word.length >= 3 && !STOP_WORDS.has(word))
+}
+
+function findAutoDoneTodoTask(content: string, reply: string, todoContext: TodoContextItem[]): string | null {
+    if (!Array.isArray(todoContext) || todoContext.length === 0) return null
+    if (/```(?:todo|test|flashcard|essay|formula|vocab)\b/i.test(reply)) return null
+    if (/```todo-done\b/i.test(reply)) return null
+
+    const normalizedContent = normalizeTodoText(content)
+    const normalizedReply = normalizeTodoText(reply)
+    if (!normalizedContent || !normalizedReply || normalizedReply.startsWith('ai javob bera olmadi')) return null
+
+    const contentKeywords = extractTodoKeywords(content)
+    let bestMatch: { task: string; score: number } | null = null
+
+    for (const item of todoContext) {
+        const task = String(item.task || '').trim()
+        if (!task) continue
+
+        const taskNorm = normalizeTodoText(task)
+        const taskKeywords = extractTodoKeywords(task)
+        const overlap = taskKeywords.filter(keyword => contentKeywords.includes(keyword)).length
+
+        let score = 0
+        if (normalizedContent === taskNorm) score += 10
+        if (normalizedContent.includes(taskNorm) || taskNorm.includes(normalizedContent)) score += 7
+        if (overlap > 0) score += overlap * 2
+
+        const subjectNorm = normalizeTodoText(item.subject || '')
+        if (subjectNorm && normalizedContent.includes(subjectNorm)) score += 1
+
+        if (taskNorm && normalizedReply.includes(taskNorm)) score += 2
+
+        if (!bestMatch || score > bestMatch.score) {
+            bestMatch = { task, score }
+        }
+    }
+
+    return bestMatch && bestMatch.score >= 6 ? bestMatch.task : null
+}
 const RAG_DOCUMENT_CHUNK_LIMIT = 80
 const RAG_KNOWLEDGE_LIMIT = 30
 
@@ -1365,6 +1426,16 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
     try {
         const { content, thinking, displayText, todoContext } = req.body
         if (!content?.trim()) return res.status(400).json({ error: 'Xabar bo\'sh' })
+        const parsedTodoContext: TodoContextItem[] = Array.isArray(todoContext)
+            ? todoContext
+                .filter((item: any) => item && typeof item.task === 'string' && item.task.trim().length > 0)
+                .map((item: any) => ({
+                    task: item.task.trim(),
+                    subject: typeof item.subject === 'string' ? item.subject.trim() : undefined,
+                    time: typeof item.time === 'string' ? item.time.trim() : undefined,
+                    duration: typeof item.duration === 'number' ? item.duration : undefined
+                }))
+            : []
 
         const chat = await prisma.chat.findFirst({
             where: { id: (req.params.chatId as string), userId: req.user.id }
@@ -1423,8 +1494,8 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
             : ''
 
         // Kunlik reja konteksti — foydalanuvchi yuborgan todo ro'yxati
-        const todoSection = (Array.isArray(todoContext) && todoContext.length > 0)
-            ? `\n\n--- FOYDALANUVCHINING BUGUNGI KUNLIK REJASI ---\nQuyidagi vazifalar hali bajarilmagan. Agar foydalanuvchi biror vazifaga to'g'ri keladigan mavzuni so'rasa va sen uni to'liq tushuntirgan bo'lsang, javob oxirida FAQAT bitta shu formatda blok qo'sh:\n\`\`\`todo-done\n{"task":"ANIQ_VAZIFA_NOMI"}\n\`\`\`\nMUHIM: task nomini ro'yxatdagi ANIQ yozilganidek qo'y. Ko'p qo'yma, faqat tushuntirilgan vazifa uchun bir marta.\nBajarilmagan vazifalar:\n${todoContext.map((t: any, i: number) => `${i + 1}. ${t.task}${t.time ? ' (' + t.time + ')' : ''}`).join('\n')}\n--- REJA TUGADI ---`
+        const todoSection = parsedTodoContext.length > 0
+            ? `\n\n--- FOYDALANUVCHINING BUGUNGI KUNLIK REJASI ---\nQuyidagi vazifalar hali bajarilmagan.\n\nAGAR joriy user xabari shu vazifalardan birini bajarishga qaratilgan bo'lsa va sen shu vazifani amalda tushuntirib/yakunlab bergan bo'lsang, javob OXIRIDA FAQAT bitta shu blokni qo'sh:\n\`\`\`todo-done\n{"task":"ANIQ_VAZIFA_NOMI"}\n\`\`\`\n\nQoidalar:\n- task nomini ro'yxatdagi ANIQ yozilganidek qo'y\n- Bitta javobda ko'pi bilan bitta todo-done blok bo'lsin\n- Agar user aynan shu vazifani bajarganini aytsa ("bajarildi", "tugatdim") — ham todo-done qo'sh\n- Agar faqat umumiy suhbat bo'lsa yoki vazifa hali tugamagan bo'lsa — todo-done qo'shma\n\nBajarilmagan vazifalar:\n${parsedTodoContext.map((t, i) => `${i + 1}. ${t.task}${t.time ? ' (' + t.time + ')' : ''}`).join('\n')}\n--- REJA TUGADI ---`
             : ''
 
         const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, chat.subject2 || undefined, aiSettings.extraRules, aiSettings.promptOverrides, isFirstMessage) + ragSection + todoSection
@@ -1530,6 +1601,15 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
                 }
             }
             return res.end()
+        }
+
+        if (parsedTodoContext.length > 0 && !/```todo-done\b/i.test(fullReply)) {
+            const autoDoneTask = findAutoDoneTodoTask(content, fullReply, parsedTodoContext)
+            if (autoDoneTask) {
+                const appendedBlock = `\n\n\`\`\`todo-done\n${JSON.stringify({ task: autoDoneTask })}\n\`\`\``
+                fullReply += appendedBlock
+                res.write(`data: ${JSON.stringify({ content: appendedBlock })}\n\n`)
+            }
         }
 
         // Stream tugagandan keyin bazaga saqlash

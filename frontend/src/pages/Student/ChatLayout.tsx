@@ -688,6 +688,7 @@ export default function ChatLayout() {
     const [thinkingText, setThinkingText] = useState('')
     const thinkingModeRef = useRef(thinkingMode)
     const todoItemsRef = useRef<TodoItem[]>([])
+    const todoAutoCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const visionIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const pendingHydrationChatIdRef = useRef<string | null>(null)
     const isMountedRef = useRef(true)
@@ -719,6 +720,7 @@ export default function ChatLayout() {
     useEffect(() => {
         return () => {
             isMountedRef.current = false
+            if (todoAutoCloseRef.current) clearTimeout(todoAutoCloseRef.current)
             if (visionIntervalRef.current) clearInterval(visionIntervalRef.current)
             visionIntervalRef.current = null
         }
@@ -1481,6 +1483,10 @@ Iltimos, har bir savolni tahlil qilib ber:
 
     // Todo panel — test/flash/essay yopiladi
     const handleSetTodo = useCallback((items: Omit<TodoItem, 'id' | 'done'>[]) => {
+        if (todoAutoCloseRef.current) {
+            clearTimeout(todoAutoCloseRef.current)
+            todoAutoCloseRef.current = null
+        }
         setTodoItems(items.map((item, i) => ({ ...item, id: `todo-${i}-${Date.now()}`, done: false })))
         setTestPanel(null)      // test yopiladi
         setFlashPanel(null)     // flashcard yopiladi
@@ -1488,11 +1494,7 @@ Iltimos, har bir savolni tahlil qilib ber:
         setTodoOpen(true)
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
     const markTodoDone = useCallback((id: string) => {
-        // Avval done=true (animation uchun), keyin 500ms dan so'ng o'chiramiz
         setTodoItems(prev => prev.map(t => t.id === id ? { ...t, done: true } : t))
-        setTimeout(() => {
-            setTodoItems(prev => prev.filter(t => t.id !== id))
-        }, 500)
     }, [])
 
     // AI todo-done bloki: vazifa nomini topib, bajarildi deb belgilash
@@ -1505,11 +1507,31 @@ Iltimos, har bir savolni tahlil qilib ber:
                 norm(taskName).includes(norm(t.task))
             ))
             if (!match) return prev
-            // Mark done, then remove after animation
-            setTimeout(() => setTodoItems(p => p.filter(t => t.id !== match.id)), 600)
             return prev.map(t => t.id === match.id ? { ...t, done: true } : t)
         })
     }, [])
+
+    useEffect(() => {
+        if (todoAutoCloseRef.current) {
+            clearTimeout(todoAutoCloseRef.current)
+            todoAutoCloseRef.current = null
+        }
+
+        if (todoItems.length === 0 || !todoItems.every(item => item.done)) return
+
+        todoAutoCloseRef.current = setTimeout(() => {
+            setTodoOpen(false)
+            setTodoItems([])
+            todoAutoCloseRef.current = null
+        }, 1500)
+
+        return () => {
+            if (todoAutoCloseRef.current) {
+                clearTimeout(todoAutoCloseRef.current)
+                todoAutoCloseRef.current = null
+            }
+        }
+    }, [todoItems])
 
     // Essay submit — AI ga baholash uchun yuborish
     async function submitEssay() {
