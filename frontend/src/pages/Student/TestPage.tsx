@@ -422,7 +422,8 @@ export default function TestPage() {
 function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap, submitting, submit, answeredCount, total, isGuest, analysisReady, focusedQ, setFocusedQ, questionsRef, scrollToQuestion, nav, token }: any) {
     const shareLink = test?.shareLink
     const questions: any[] = test?.questions || []
-    const [showResults, setShowResults] = useState(false)
+    const [isCompactLayout, setIsCompactLayout] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 1024 : false)
+    const [isAnswerSheetOpen, setIsAnswerSheetOpen] = useState(false)
 
     function markAnswer(qId: string, oi: number, qi: number) {
         if (submitted || isGuest) return
@@ -431,10 +432,217 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
         scrollToQuestion(qi)
     }
 
-    // After submit: show results overlay
     useEffect(() => {
-        if (submitted) setShowResults(true)
-    }, [submitted])
+        if (typeof window === 'undefined') return
+        const mediaQuery = window.matchMedia('(max-width: 1023px)')
+        const handleMediaChange = (event?: MediaQueryListEvent) => {
+            setIsCompactLayout(event ? event.matches : mediaQuery.matches)
+        }
+
+        handleMediaChange()
+
+        if (typeof mediaQuery.addEventListener === 'function') {
+            mediaQuery.addEventListener('change', handleMediaChange)
+            return () => mediaQuery.removeEventListener('change', handleMediaChange)
+        }
+
+        mediaQuery.addListener(handleMediaChange)
+        return () => mediaQuery.removeListener(handleMediaChange)
+    }, [])
+
+    useEffect(() => {
+        if (!isCompactLayout) {
+            setIsAnswerSheetOpen(false)
+        }
+    }, [isCompactLayout])
+
+    function renderSheetRows() {
+        return questions.map((q: any, qi: number) => {
+            const correct = submitted ? correctMap[q.id] : null
+            const correctIdx = correct?.idx ?? -1
+            const selectedAnswer = answers[q.id]
+            const isFocused = focusedQ === qi
+            const isMatching = q.questionType === 'matching'
+
+            if (isMatching) {
+                let matchingData: { answers?: string[]; subQuestions?: Array<{ text: string }> } = { answers: [], subQuestions: [] }
+                try { matchingData = JSON.parse(q.options) } catch { }
+                const selectedMap = (selectedAnswer || {}) as Record<number, number>
+                const answerCount = matchingData.answers?.length || 6
+                const alphabet = 'ABCDEF'
+
+                return (
+                    <div key={q.id}>
+                        <div className="flex items-center px-4 py-1" style={{ background: 'color-mix(in srgb, #8b5cf6 6%, transparent)' }}>
+                            <span className="text-[10px] font-bold" style={{ color: '#8b5cf6' }}>
+                                {qi + 1}. Moslashtirish ({matchingData.subQuestions?.length || 0} kichik savol)
+                            </span>
+                        </div>
+                        <div className="flex items-center px-4 py-0.5" style={{ borderBottom: '1px solid var(--border)' }}>
+                            <span className="w-12 flex-shrink-0" />
+                            {Array.from({ length: answerCount }, (_, answerIndex) => (
+                                <span key={answerIndex} className="flex-1 text-center text-[10px] font-bold" style={{ color: '#8b5cf6' }}>{alphabet[answerIndex]}</span>
+                            ))}
+                        </div>
+                        {(matchingData.subQuestions || []).map((subQuestion, subIndex) => {
+                            const selectedSubAnswer = selectedMap[subIndex]
+                            const correctSubIdx = correct?.matchingCorrect?.[subIndex] ?? -1
+
+                            return (
+                                <div key={subIndex}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => scrollToQuestion(qi)}
+                                    onKeyDown={event => {
+                                        if (event.key === 'Enter' || event.key === ' ') {
+                                            event.preventDefault()
+                                            scrollToQuestion(qi)
+                                        }
+                                    }}
+                                    className="w-full flex items-center px-4 transition"
+                                    style={{
+                                        height: 32,
+                                        background: isFocused ? 'color-mix(in srgb, #8b5cf6 6%, transparent)' : 'transparent',
+                                        borderLeft: isFocused ? '3px solid #8b5cf6' : '3px solid transparent'
+                                    }}>
+                                    <span className="w-12 flex-shrink-0 text-[11px] font-semibold text-left" style={{ color: isFocused ? '#8b5cf6' : 'var(--text-muted)' }}>
+                                        {qi + 1}.{subIndex + 1}
+                                    </span>
+                                    {Array.from({ length: answerCount }, (_, answerIndex) => {
+                                        const isSelected = selectedSubAnswer === answerIndex
+                                        const isCorrect = submitted && answerIndex === correctSubIdx
+                                        const isWrong = submitted && isSelected && !isCorrect
+
+                                        return (
+                                            <button key={answerIndex}
+                                                onClick={event => {
+                                                    event.stopPropagation()
+                                                    if (submitted || isGuest) return
+                                                    setAnswers((currentAnswers: any) => ({ ...currentAnswers, [q.id]: { ...(currentAnswers[q.id] || {}), [subIndex]: answerIndex } }))
+                                                    setFocusedQ(qi)
+                                                    scrollToQuestion(qi)
+                                                }}
+                                                disabled={submitted || isGuest}
+                                                className="flex-1 flex items-center justify-center"
+                                                style={{ cursor: submitted || isGuest ? 'default' : 'pointer' }}>
+                                                {isSelected || isCorrect ? (
+                                                    <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-all"
+                                                        style={{
+                                                            background: isWrong ? 'var(--danger)' : isCorrect ? 'var(--success)' : '#8b5cf6',
+                                                            color: 'white',
+                                                            transform: isSelected && !submitted ? 'scale(1.1)' : 'scale(1)'
+                                                        }}>
+                                                        {alphabet[answerIndex]}
+                                                    </span>
+                                                ) : (
+                                                    <span className="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all"
+                                                        style={{ borderColor: 'var(--border-strong)', opacity: submitted ? 0.2 : 1 }} />
+                                                )}
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                            )
+                        })}
+                    </div>
+                )
+            }
+
+            return (
+                <div key={q.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => scrollToQuestion(qi)}
+                    onKeyDown={event => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            scrollToQuestion(qi)
+                        }
+                    }}
+                    className="w-full flex items-center px-4 transition"
+                    style={{
+                        height: 36,
+                        background: isFocused ? 'color-mix(in srgb, var(--brand) 8%, transparent)' : 'transparent',
+                        borderLeft: isFocused ? '3px solid var(--brand)' : '3px solid transparent'
+                    }}>
+                    <span className="w-9 flex-shrink-0 text-[12px] font-semibold text-left" style={{ color: isFocused ? 'var(--brand)' : 'var(--text-muted)' }}>
+                        {qi + 1}
+                    </span>
+                    {[0, 1, 2, 3].map(answerIndex => {
+                        const isSelected = selectedAnswer === answerIndex
+                        const isCorrect = submitted && answerIndex === correctIdx
+                        const isWrong = submitted && isSelected && !isCorrect
+
+                        return (
+                            <button key={answerIndex}
+                                onClick={event => {
+                                    event.stopPropagation()
+                                    markAnswer(q.id, answerIndex, qi)
+                                }}
+                                disabled={submitted || isGuest}
+                                className="flex-1 flex items-center justify-center"
+                                style={{ cursor: submitted || isGuest ? 'default' : 'pointer' }}>
+                                {isSelected || isCorrect ? (
+                                    <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all"
+                                        style={{
+                                            background: isWrong ? 'var(--danger)' : isCorrect ? 'var(--success)' : 'var(--text-primary)',
+                                            color: 'white',
+                                            transform: isSelected && !submitted ? 'scale(1.1)' : 'scale(1)'
+                                        }}>
+                                        {OPTS[answerIndex]}
+                                    </span>
+                                ) : (
+                                    <span className="w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all hover:border-current"
+                                        style={{ borderColor: 'var(--border-strong)', opacity: submitted ? 0.25 : 1 }} />
+                                )}
+                            </button>
+                        )
+                    })}
+                </div>
+            )
+        })
+    }
+
+    function renderSheetFooter(isCompactFooter = false) {
+        const footerPadding = isCompactFooter ? 'p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]' : 'p-3'
+        const buttonHeight = isCompactFooter ? 'h-10' : 'h-9'
+
+        if (isGuest) {
+            return (
+                <div className={footerPadding} style={{ borderTop: '1px solid var(--border)' }}>
+                    <button onClick={() => nav('/kirish', { state: { from: `/test/${shareLink}` } })} className={`w-full ${buttonHeight} rounded-xl text-[12px] font-semibold text-white flex items-center justify-center gap-1.5`} style={{ background: 'var(--brand)' }}>
+                        <LogIn className="h-3.5 w-3.5" /> Kiring
+                    </button>
+                </div>
+            )
+        }
+
+        if (submitted) {
+            return (
+                <div className={footerPadding} style={{ borderTop: '1px solid var(--border)' }}>
+                    <div className="text-center">
+                        <p className="text-xl font-extrabold" style={{ color: result?.score >= 70 ? 'var(--success)' : result?.score >= 50 ? 'var(--warning)' : 'var(--danger)' }}>{result?.score ?? 0}%</p>
+                        <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{result?.correct}/{result?.total} ball</p>
+                        {analysisReady && (
+                            <button onClick={() => { const id = localStorage.getItem('dtmmax_analysis_chat_id'); nav(id ? `/suhbat/${id}` : '/suhbat?analyzeTest=true') }} className={`mt-2 w-full ${buttonHeight} rounded-lg text-[12px] font-semibold text-white flex items-center justify-center gap-1.5`} style={{ background: 'var(--brand)' }}>
+                                <Sparkles className="h-3 w-3" /> AI tahlil
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )
+        }
+
+        return (
+            <div className={footerPadding} style={{ borderTop: '1px solid var(--border)' }}>
+                <button onClick={submit} disabled={submitting || answeredCount === 0}
+                    className={`w-full ${buttonHeight} rounded-xl text-[12px] font-semibold text-white transition disabled:opacity-40`}
+                    style={{ background: answeredCount === total ? 'var(--success)' : 'var(--text-primary)' }}>
+                    {submitting ? '...' : answeredCount === total ? 'Topshirish ✓' : `Topshirish (${answeredCount}/${total})`}
+                </button>
+            </div>
+        )
+    }
 
     return (
         <div className="flex flex-col overflow-hidden w-full" style={{ background: 'var(--bg-page)', height: '100dvh', overscrollBehaviorY: 'none' }}>
@@ -452,12 +660,12 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                             {answeredCount}/{total}
                         </span>
                     )}
-                    {isGuest && (
+                    {isGuest && !isCompactLayout && (
                         <button onClick={() => nav('/kirish', { state: { from: `/test/${shareLink}` } })} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-white" style={{ background: 'var(--brand)' }}>
                             <LogIn className="h-3.5 w-3.5" /> Kirish
                         </button>
                     )}
-                    {!submitted && !isGuest && (
+                    {!submitted && !isGuest && !isCompactLayout && (
                         <button onClick={submit} disabled={submitting || answeredCount === 0} className="px-4 h-8 rounded-lg text-[13px] font-semibold text-white transition disabled:opacity-40" style={{ background: answeredCount === total ? 'var(--success)' : 'var(--text-primary)' }}>
                             {submitting ? 'Tekshirilmoqda...' : 'Topshirish'}
                         </button>
@@ -473,9 +681,9 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
             )}
 
             {/* ── Main split body ── */}
-            <div className="flex-1 flex overflow-hidden min-h-0">
+            <div className={`flex-1 min-h-0 overflow-hidden ${isCompactLayout ? 'flex flex-col' : 'flex'}`}>
                 {/* ════ LEFT: Questions ════ */}
-                <div ref={questionsRef} className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4 min-w-0 min-h-0">
+                <div ref={questionsRef} className={`flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4 min-w-0 min-h-0 ${isCompactLayout ? 'pb-28 sm:pb-32' : ''}`}>
                     {questions.map((q: any, qi: number) => {
                         let opts: string[] = []
                         let matchingData: any = null
@@ -606,6 +814,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                 </div>
 
                 {/* ════ RIGHT: DTM Blanka ════ */}
+                {!isCompactLayout && (
                 <div className="w-[300px] sm:w-[360px] flex-shrink-0 flex flex-col overflow-hidden min-h-0"
                     style={{ background: 'var(--bg-card)', borderLeft: '1px solid var(--border)' }}>
                     {/* Blanka header */}
@@ -624,182 +833,73 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
 
                     {/* Blanka rows */}
                     <div className="flex-1 overflow-y-auto overscroll-contain py-1 min-h-0">
-                        {questions.map((q: any, qi: number) => {
-                            const correct = submitted ? correctMap[q.id] : null
-                            const correctIdx = correct?.idx ?? -1
-                            const sel = answers[q.id]
-                            const isFocused = focusedQ === qi
-                            const isMatching = q.questionType === 'matching'
-
-                            if (isMatching) {
-                                // Matching: parse sub-questions and show expanded rows with A-F bubbles
-                                let matchingData: any = { answers: [], subQuestions: [] }
-                                try { matchingData = JSON.parse(q.options) } catch { }
-                                const selMap = (sel || {}) as Record<number, number>
-                                const ansCount = matchingData.answers?.length || 6
-                                const ALPHA = 'ABCDEF'
-
-                                return (
-                                    <div key={q.id}>
-                                        {/* Matching group header */}
-                                        <div className="flex items-center px-4 py-1" style={{ background: 'color-mix(in srgb, #8b5cf6 6%, transparent)' }}>
-                                            <span className="text-[10px] font-bold" style={{ color: '#8b5cf6' }}>
-                                                {qi + 1}. Moslashtirish ({matchingData.subQuestions?.length || 0} kichik savol)
-                                            </span>
-                                        </div>
-                                        {/* A-F sub-header for matching */}
-                                        <div className="flex items-center px-4 py-0.5" style={{ borderBottom: '1px solid var(--border)' }}>
-                                            <span className="w-12 flex-shrink-0" />
-                                            {Array.from({ length: ansCount }, (_, ai) => (
-                                                <span key={ai} className="flex-1 text-center text-[10px] font-bold" style={{ color: '#8b5cf6' }}>{ALPHA[ai]}</span>
-                                            ))}
-                                        </div>
-                                        {/* Each sub-question as a blanka row */}
-                                        {(matchingData.subQuestions || []).map((sq: any, si: number) => {
-                                            const subSel = selMap[si]
-                                            const correctSubIdx = correct?.matchingCorrect?.[si] ?? -1
-                                            const isSubFocused = isFocused
-
-                                            return (
-                                                <div key={si}
-                                                    role="button"
-                                                    tabIndex={0}
-                                                    onClick={() => scrollToQuestion(qi)}
-                                                    onKeyDown={e => {
-                                                        if (e.key === 'Enter' || e.key === ' ') {
-                                                            e.preventDefault()
-                                                            scrollToQuestion(qi)
-                                                        }
-                                                    }}
-                                                    className="w-full flex items-center px-4 transition"
-                                                    style={{
-                                                        height: 32,
-                                                        background: isSubFocused ? 'color-mix(in srgb, #8b5cf6 6%, transparent)' : 'transparent',
-                                                        borderLeft: isSubFocused ? '3px solid #8b5cf6' : '3px solid transparent'
-                                                    }}>
-                                                    <span className="w-12 flex-shrink-0 text-[11px] font-semibold text-left" style={{ color: isSubFocused ? '#8b5cf6' : 'var(--text-muted)' }}>
-                                                        {qi + 1}.{si + 1}
-                                                    </span>
-                                                    {Array.from({ length: ansCount }, (_, ai) => {
-                                                        const isSelected = subSel === ai
-                                                        const isCorrect = submitted && ai === correctSubIdx
-                                                        const isWrong = submitted && isSelected && !isCorrect
-                                                        return (
-                                                            <button key={ai}
-                                                                onClick={e => {
-                                                                    e.stopPropagation()
-                                                                    if (submitted || isGuest) return
-                                                                    setAnswers((a: any) => ({ ...a, [q.id]: { ...(a[q.id] || {}), [si]: ai } }))
-                                                                    setFocusedQ(qi)
-                                                                    scrollToQuestion(qi)
-                                                                }}
-                                                                disabled={submitted || isGuest}
-                                                                className="flex-1 flex items-center justify-center"
-                                                                style={{ cursor: submitted || isGuest ? 'default' : 'pointer' }}>
-                                                                {isSelected || isCorrect ? (
-                                                                    <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-all"
-                                                                        style={{
-                                                                            background: isWrong ? 'var(--danger)' : isCorrect ? 'var(--success)' : '#8b5cf6',
-                                                                            color: 'white',
-                                                                            transform: isSelected && !submitted ? 'scale(1.1)' : 'scale(1)'
-                                                                        }}>
-                                                                        {ALPHA[ai]}
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all"
-                                                                        style={{ borderColor: 'var(--border-strong)', opacity: submitted ? 0.2 : 1 }} />
-                                                                )}
-                                                            </button>
-                                                        )
-                                                    })}
-                                                </div>
-                                            )
-                                        })}
-                                    </div>
-                                )
-                            }
-
-                            // Regular MCQ row
-                            return (
-                                <div key={q.id}
-                                    role="button"
-                                    tabIndex={0}
-                                    onClick={() => scrollToQuestion(qi)}
-                                    onKeyDown={e => {
-                                        if (e.key === 'Enter' || e.key === ' ') {
-                                            e.preventDefault()
-                                            scrollToQuestion(qi)
-                                        }
-                                    }}
-                                    className="w-full flex items-center px-4 transition"
-                                    style={{
-                                        height: 36,
-                                        background: isFocused ? 'color-mix(in srgb, var(--brand) 8%, transparent)' : 'transparent',
-                                        borderLeft: isFocused ? '3px solid var(--brand)' : '3px solid transparent'
-                                    }}>
-                                    {/* Number */}
-                                    <span className="w-9 flex-shrink-0 text-[12px] font-semibold text-left" style={{ color: isFocused ? 'var(--brand)' : 'var(--text-muted)' }}>
-                                        {qi + 1}
-                                    </span>
-                                    {/* Bubbles */}
-                                    {[0, 1, 2, 3].map(oi => {
-                                        const isSelected = sel === oi
-                                        const isCorrect = submitted && oi === correctIdx
-                                        const isWrong = submitted && isSelected && !isCorrect
-
-                                        return (
-                                            <button key={oi}
-                                                onClick={e => { e.stopPropagation(); markAnswer(q.id, oi, qi) }}
-                                                disabled={submitted || isGuest}
-                                                className="flex-1 flex items-center justify-center"
-                                                style={{ cursor: submitted || isGuest ? 'default' : 'pointer' }}>
-                                                {isSelected || isCorrect ? (
-                                                    <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all"
-                                                        style={{
-                                                            background: isWrong ? 'var(--danger)' : isCorrect ? 'var(--success)' : 'var(--text-primary)',
-                                                            color: 'white',
-                                                            transform: isSelected && !submitted ? 'scale(1.1)' : 'scale(1)'
-                                                        }}>
-                                                        {OPTS[oi]}
-                                                    </span>
-                                                ) : (
-                                                    <span className="w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all hover:border-current"
-                                                        style={{ borderColor: 'var(--border-strong)', opacity: submitted ? 0.25 : 1 }} />
-                                                )}
-                                            </button>
-                                        )
-                                    })}
-                                </div>
-                            )
-                        })}
+                        {renderSheetRows()}
                     </div>
 
                     {/* Blanka footer — submit / score */}
-                    <div className="flex-shrink-0 p-3" style={{ borderTop: '1px solid var(--border)' }}>
-                        {isGuest ? (
-                            <button onClick={() => nav('/kirish', { state: { from: `/test/${shareLink}` } })} className="w-full h-9 rounded-xl text-[12px] font-semibold text-white flex items-center justify-center gap-1.5" style={{ background: 'var(--brand)' }}>
-                                <LogIn className="h-3.5 w-3.5" /> Kiring
-                            </button>
-                        ) : submitted ? (
-                            <div className="text-center">
-                                <p className="text-xl font-extrabold" style={{ color: result?.score >= 70 ? 'var(--success)' : result?.score >= 50 ? 'var(--warning)' : 'var(--danger)' }}>{result?.score ?? 0}%</p>
-                                <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{result?.correct}/{result?.total} ball</p>
-                                {analysisReady && (
-                                    <button onClick={() => { const id = localStorage.getItem('dtmmax_analysis_chat_id'); nav(id ? `/suhbat/${id}` : '/suhbat?analyzeTest=true') }} className="mt-2 w-full h-8 rounded-lg text-[12px] font-semibold text-white flex items-center justify-center gap-1.5" style={{ background: 'var(--brand)' }}>
-                                        <Sparkles className="h-3 w-3" /> AI tahlil
-                                    </button>
-                                )}
-                            </div>
-                        ) : (
-                            <button onClick={submit} disabled={submitting || answeredCount === 0}
-                                className="w-full h-9 rounded-xl text-[12px] font-semibold text-white transition disabled:opacity-40"
-                                style={{ background: answeredCount === total ? 'var(--success)' : 'var(--text-primary)' }}>
-                                {submitting ? '...' : answeredCount === total ? 'Topshirish ✓' : `Topshirish (${answeredCount}/${total})`}
-                            </button>
-                        )}
-                    </div>
+                    {renderSheetFooter()}
                 </div>
+                )}
             </div>
+
+            {isCompactLayout && (
+                <>
+                    <div className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] lg:hidden pointer-events-none">
+                        <div className="mx-auto max-w-xl rounded-2xl p-2 shadow-lg pointer-events-auto flex items-center gap-2" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: '0 12px 32px color-mix(in srgb, var(--text-primary) 8%, transparent)' }}>
+                            <button onClick={() => setIsAnswerSheetOpen(true)} className="flex-1 h-11 rounded-xl text-[13px] font-semibold transition" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
+                                Javoblar · {answeredCount}/{total}
+                            </button>
+                            {isGuest ? (
+                                <button onClick={() => nav('/kirish', { state: { from: `/test/${shareLink}` } })} className="h-11 px-4 rounded-xl text-[13px] font-semibold text-white flex items-center justify-center gap-1.5" style={{ background: 'var(--brand)' }}>
+                                    <LogIn className="h-3.5 w-3.5" /> Kirish
+                                </button>
+                            ) : submitted ? (
+                                <button onClick={() => { const id = localStorage.getItem('dtmmax_analysis_chat_id'); nav(analysisReady && id ? `/suhbat/${id}` : analysisReady ? '/suhbat?analyzeTest=true' : '/suhbat') }} className="h-11 px-4 rounded-xl text-[13px] font-semibold text-white flex items-center justify-center gap-1.5" style={{ background: 'var(--brand)' }}>
+                                    {analysisReady ? <Sparkles className="h-3.5 w-3.5" /> : <MessageSquare className="h-3.5 w-3.5" />}
+                                    {analysisReady ? 'AI tahlil' : 'Chatga qaytish'}
+                                </button>
+                            ) : (
+                                <button onClick={submit} disabled={submitting || answeredCount === 0} className="h-11 px-4 rounded-xl text-[13px] font-semibold text-white transition disabled:opacity-40" style={{ background: answeredCount === total ? 'var(--success)' : 'var(--text-primary)' }}>
+                                    {submitting ? '...' : 'Topshirish'}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {isAnswerSheetOpen && (
+                        <div className="fixed inset-0 z-50 lg:hidden">
+                            <button aria-label="Javoblar varaqasini yopish" onClick={() => setIsAnswerSheetOpen(false)} className="absolute inset-0" style={{ background: 'rgba(15, 23, 42, 0.38)' }} />
+                            <div className="absolute inset-x-0 bottom-0 flex max-h-[78dvh] flex-col overflow-hidden rounded-t-3xl" style={{ background: 'var(--bg-card)', borderTop: '1px solid var(--border)', boxShadow: '0 -18px 50px rgba(15, 23, 42, 0.2)' }}>
+                                <div className="flex-shrink-0 px-4 pt-2 pb-3" style={{ borderBottom: '1px solid var(--border)' }}>
+                                    <div className="mx-auto h-1.5 w-12 rounded-full" style={{ background: 'var(--border-strong)' }} />
+                                    <div className="mt-3 flex items-center justify-between gap-3">
+                                        <div>
+                                            <p className="text-[11px] font-bold tracking-widest uppercase" style={{ color: 'var(--text-muted)' }}>Javoblar Varaqasi</p>
+                                            <p className="text-[11px] mt-1" style={{ color: 'var(--text-secondary)' }}>{test?.subject} · {answeredCount}/{total}</p>
+                                        </div>
+                                        <button onClick={() => setIsAnswerSheetOpen(false)} className="h-8 px-3 rounded-lg text-[12px] font-semibold transition" style={{ background: 'var(--bg-surface)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
+                                            Yopish
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="flex-shrink-0 flex items-center px-4 py-1.5" style={{ borderBottom: '1px solid var(--border)' }}>
+                                    <span className="w-9 flex-shrink-0" />
+                                    {OPTS.map(label => (
+                                        <span key={label} className="flex-1 text-center text-[11px] font-bold" style={{ color: 'var(--text-muted)' }}>{label}</span>
+                                    ))}
+                                </div>
+
+                                <div className="flex-1 overflow-y-auto overscroll-contain py-1 min-h-0">
+                                    {renderSheetRows()}
+                                </div>
+
+                                {renderSheetFooter(true)}
+                            </div>
+                        </div>
+                    )}
+                </>
+            )}
         </div>
     )
 }
