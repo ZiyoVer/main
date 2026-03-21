@@ -750,6 +750,8 @@ html.dark {
     align-items: center;
     gap: 0.5rem;
     white-space: nowrap;
+    text-decoration: none;
+    padding: 0.125rem 0;
 }
 
 .telegram-rail-link {
@@ -765,7 +767,7 @@ html.dark {
     transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
 }
 
-.telegram-rail-link:hover {
+.telegram-rail-item:hover .telegram-rail-link {
     transform: scale(1.05);
     background: color-mix(in srgb, var(--brand) 16%, transparent);
     border-color: color-mix(in srgb, var(--brand) 28%, transparent);
@@ -776,7 +778,7 @@ html.dark {
         animation-duration: 22s;
     }
 
-    .telegram-rail-group {
+    .telegram-rail-sequence {
         gap: 1.25rem;
         padding-right: 1.25rem;
     }

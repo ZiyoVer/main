@@ -2253,20 +2253,20 @@ Iltimos, har bir savolni tahlil qilib ber:
                                     {[0, 1].map(sequenceIndex => (
                                         <div key={sequenceIndex} className="telegram-rail-sequence" aria-hidden={sequenceIndex === 1}>
                                             {TELEGRAM_RAIL_SEQUENCE.map((item, itemIndex) => (
-                                                <div key={`${sequenceIndex}-${item.handle}-${itemIndex}`} className="telegram-rail-item">
-                                                    <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{item.label}</span>
-                                                    <span className="text-[12px] font-medium" style={{ color: 'var(--text-primary)' }}>{item.handle}</span>
-                                                    <a
-                                                        href={item.href}
-                                                        target="_blank"
-                                                        rel="noreferrer"
-                                                        className="telegram-rail-link"
-                                                        title={`${item.handle} ochish`}
-                                                        aria-label={`${item.handle} ochish`}
-                                                    >
+                                                <a
+                                                    key={`${sequenceIndex}-${item.handle}-${itemIndex}`}
+                                                    href={item.href}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="telegram-rail-item"
+                                                    title={`${item.label} — ${item.handle}`}
+                                                    aria-label={`${item.label} — ${item.handle}`}
+                                                >
+                                                    <span className="text-[12px] font-medium" style={{ color: 'var(--text-primary)' }}>{item.label}</span>
+                                                    <span className="telegram-rail-link" aria-hidden="true">
                                                         <TelegramIcon />
-                                                    </a>
-                                                </div>
+                                                    </span>
+                                                </a>
                                             ))}
                                         </div>
                                     ))}
