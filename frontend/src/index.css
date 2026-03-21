@@ -387,8 +387,8 @@ html.dark {
 .bubble-user {
     background-color: #f4f0e6;
     border: 1px solid rgba(15, 23, 42, 0.04);
-    border-radius: 1.35rem;
-    padding: 0.75rem 1.1rem;
+    border-radius: 1rem;
+    padding: 0.62rem 0.92rem;
     max-width: 72%;
     font-size: 0.9375rem;
     line-height: 1.6;
@@ -1100,8 +1100,8 @@ html.dark .md-content pre {
     .bubble-user {
         max-width: 88%;
         font-size: 0.8125rem;
-        padding: 0.65rem 0.95rem;
-        border-radius: 1.2rem;
+        padding: 0.56rem 0.82rem;
+        border-radius: 0.92rem;
     }
 
     /* Markdown in chat */
