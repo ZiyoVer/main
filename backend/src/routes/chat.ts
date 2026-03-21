@@ -778,6 +778,13 @@ DTM testida:
 - Har savol "testType":"dtm" bo'lishi kerak
 - Natija: DTM baholash tizimi bo'yicha ko'rsatiladi
 
+## Structured block tanlash qoidasi
+
+- Bir javobda ko'pi bilan BITTA structured block ishlat: \`\`\`test, \`\`\`todo, \`\`\`flashcard, \`\`\`formula, \`\`\`essay, \`\`\`vocab yoki \`\`\`todo-done
+- Oddiy tushuntirish, izoh, farq, misol, yechim so'rovlarida structured block qo'shma
+- Agar structured block ishlatsang, boshqa structured block bilan aralashtirma
+- Structured block user maqsadiga aniq yordam bersagina ishlat; shunchaki imkoniyat bor deb qo'shma
+
 ## Essay / Writing topshirig'i formati
 
 O'quvchi essay topshirig'i, writing mashq, yoki "essay ber" so'rasa — FAQAT \`\`\`essay JSON formatida ber:
@@ -1042,6 +1049,113 @@ const STOP_WORDS = new Set([
     'the', 'and', 'for', 'with', 'this', 'that', 'from', 'have', 'are', 'was',
     'bir', 'ikkita', 'uchta', 'men', 'sen', 'biz', 'siz', 'ular', 'u', 'o'
 ])
+
+type StructuredTool = 'todo' | 'test' | 'flashcard' | 'formula' | 'essay' | 'vocab'
+
+function normalizeIntentText(text: string): string {
+    return String(text || '')
+        .toLowerCase()
+        .replace(/['`"ʼ’‘]/g, '')
+        .replace(/o‘/g, 'o')
+        .replace(/g‘/g, 'g')
+        .replace(/sh/g, 'sh')
+        .replace(/\s+/g, ' ')
+        .trim()
+}
+
+function scoreIntentPatterns(content: string, patterns: Array<{ phrase: string; score: number }>): number {
+    return patterns.reduce((score, pattern) => score + (content.includes(pattern.phrase) ? pattern.score : 0), 0)
+}
+
+function buildToolIntentGuidance(content: string): string {
+    const normalized = normalizeIntentText(content)
+    if (!normalized) {
+        return '\n\n--- TURN TOOL GUIDANCE ---\nBu turda toolni majburlama. User maqsadi juda aniq bo‘lsa bitta structured block ishlat, aks holda oddiy javob ber.\n--- TURN TOOL GUIDANCE END ---'
+    }
+
+    const toolSignals: Record<StructuredTool, Array<{ phrase: string; score: number }>> = {
+        todo: [
+            { phrase: 'kunlik reja', score: 8 },
+            { phrase: 'reja tuz', score: 8 },
+            { phrase: 'plan tuz', score: 8 },
+            { phrase: 'checklist', score: 7 },
+            { phrase: 'jadval qil', score: 7 },
+            { phrase: 'qayerdan boshlay', score: 7 },
+            { phrase: 'bugun nima qilaman', score: 8 },
+            { phrase: 'bugun nima oqiyman', score: 8 },
+            { phrase: 'bosqichma bosqich', score: 6 },
+            { phrase: 'oqish reja', score: 7 },
+        ],
+        test: [
+            { phrase: 'test ber', score: 8 },
+            { phrase: 'sinov test', score: 8 },
+            { phrase: 'mock test', score: 9 },
+            { phrase: 'bilimimni tekshir', score: 8 },
+            { phrase: 'darajamni aniqla', score: 8 },
+            { phrase: 'darajamni aniqlab ber', score: 8 },
+            { phrase: 'diagnostika', score: 8 },
+            { phrase: 'quiz', score: 8 },
+            { phrase: 'variant', score: 5 },
+        ],
+        flashcard: [
+            { phrase: 'flashcard', score: 9 },
+            { phrase: 'kartochka', score: 9 },
+            { phrase: 'yodlash', score: 7 },
+            { phrase: 'eslab qolish', score: 7 },
+            { phrase: 'memorize', score: 7 },
+        ],
+        formula: [
+            { phrase: 'formulalar', score: 8 },
+            { phrase: 'formula ber', score: 7 },
+            { phrase: 'formula jadval', score: 8 },
+            { phrase: 'formula royxat', score: 8 },
+            { phrase: 'formulalarni ber', score: 8 },
+            { phrase: 'formula sheet', score: 7 },
+        ],
+        essay: [
+            { phrase: 'essay', score: 9 },
+            { phrase: 'writing task', score: 9 },
+            { phrase: 'task 1', score: 8 },
+            { phrase: 'task 2', score: 8 },
+            { phrase: 'insho', score: 7 },
+        ],
+        vocab: [
+            { phrase: 'vocab', score: 8 },
+            { phrase: 'lugat', score: 7 },
+            { phrase: 'sozlar royxati', score: 8 },
+            { phrase: 'phrasal verb', score: 8 },
+            { phrase: 'collocation', score: 8 },
+            { phrase: 'soz boyligi', score: 7 },
+        ],
+    }
+
+    const explanationScore = scoreIntentPatterns(normalized, [
+        { phrase: 'tushuntir', score: 5 },
+        { phrase: 'izohla', score: 5 },
+        { phrase: 'misol bilan', score: 4 },
+        { phrase: 'farqi nima', score: 5 },
+        { phrase: 'qanday ishlaydi', score: 5 },
+        { phrase: 'nega', score: 3 },
+        { phrase: 'yechib ber', score: 5 },
+        { phrase: 'tahlil qil', score: 4 },
+    ])
+
+    const scoredTools = (Object.entries(toolSignals) as Array<[StructuredTool, Array<{ phrase: string; score: number }>]>)
+        .map(([tool, patterns]) => ({ tool, score: scoreIntentPatterns(normalized, patterns) }))
+        .sort((a, b) => b.score - a.score)
+
+    const best = scoredTools[0]
+
+    if (best && best.score >= 7) {
+        return `\n\n--- TURN TOOL GUIDANCE ---\nJoriy user so‘rovi eng ko‘p ${best.tool.toUpperCase()} formatiga mos keladi.\n- Javobni shu tool bilan hal qila olsang, FAQAT bitta \`\`\`${best.tool} block ishlat\n- Boshqa structured block qo‘shma\n- Agar user maqsadi amaliy format bo‘lsa, keraksiz uzun izoh yozma\n--- TURN TOOL GUIDANCE END ---`
+    }
+
+    if (explanationScore >= 5 && (!best || best.score < 7)) {
+        return '\n\n--- TURN TOOL GUIDANCE ---\nJoriy user so‘rovi tushuntirish/izoh turida. Structured block ishlatma. To‘g‘ridan-to‘g‘ri javob ber, faqat user aniq amaliy format so‘rasa toolga o‘t.\n--- TURN TOOL GUIDANCE END ---'
+    }
+
+    return '\n\n--- TURN TOOL GUIDANCE ---\nBu turda toolni majburlama. User maqsadi aniq amaliy formatga mos bo‘lsa bitta structured block ishlat, aks holda oddiy javob ber.\n--- TURN TOOL GUIDANCE END ---'
+}
 
 type TodoContextItem = {
     task: string
@@ -1497,8 +1611,9 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
         const todoSection = parsedTodoContext.length > 0
             ? `\n\n--- FOYDALANUVCHINING BUGUNGI KUNLIK REJASI ---\nQuyidagi vazifalar hali bajarilmagan.\n\nAGAR joriy user xabari shu vazifalardan birini bajarishga qaratilgan bo'lsa va sen shu vazifani amalda tushuntirib/yakunlab bergan bo'lsang, javob OXIRIDA FAQAT bitta shu blokni qo'sh:\n\`\`\`todo-done\n{"task":"ANIQ_VAZIFA_NOMI"}\n\`\`\`\n\nQoidalar:\n- task nomini ro'yxatdagi ANIQ yozilganidek qo'y\n- Bitta javobda ko'pi bilan bitta todo-done blok bo'lsin\n- Agar user aynan shu vazifani bajarganini aytsa ("bajarildi", "tugatdim") — ham todo-done qo'sh\n- Agar faqat umumiy suhbat bo'lsa yoki vazifa hali tugamagan bo'lsa — todo-done qo'shma\n\nBajarilmagan vazifalar:\n${parsedTodoContext.map((t, i) => `${i + 1}. ${t.task}${t.time ? ' (' + t.time + ')' : ''}`).join('\n')}\n--- REJA TUGADI ---`
             : ''
+        const toolIntentSection = buildToolIntentGuidance(content)
 
-        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, chat.subject2 || undefined, aiSettings.extraRules, aiSettings.promptOverrides, isFirstMessage) + ragSection + todoSection
+        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, chat.subject2 || undefined, aiSettings.extraRules, aiSettings.promptOverrides, isFirstMessage) + ragSection + todoSection + toolIntentSection
 
         // History: oxirgi user xabar (hozir saqlanganini) alohida olamiz
         // DeepSeek image_url qabul qilmaydi — OCR matni content ichida keladi
@@ -1677,7 +1792,8 @@ router.post('/:chatId/send', authenticate, async (req: AuthRequest, res) => {
         const ragSection = ragContext
             ? `\n\n--- RASMIY MANBA KONTEKSTI (faqat ma'lumot uchun) ---\n${ragContext}\n--- MANBA KONTEKSTI TUGADI ---`
             : ''
-        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, chat.subject2 || undefined, aiSettings.extraRules, aiSettings.promptOverrides) + ragSection
+        const toolIntentSection = buildToolIntentGuidance(content)
+        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, chat.subject2 || undefined, aiSettings.extraRules, aiSettings.promptOverrides) + ragSection + toolIntentSection
 
 
         const msgs: any[] = [
