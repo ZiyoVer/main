@@ -39,13 +39,15 @@ export default function Register() {
             const data = await fetchApi(`/auth/check-email?email=${encodeURIComponent(form.email.trim())}`)
             if (!data.available) {
                 setErr('Bu email allaqachon ro\'yxatdan o\'tilgan. Kirish sahifasiga o\'ting.')
-            } else {
-                setStep(2)
+                return
             }
-        } catch {
             setStep(2)
+        } catch {
+            setErr('Email tekshirib bo\'lmadi. Internet yoki server holatini tekshirib qayta urinib ko\'ring.')
+            return
+        } finally {
+            setCheckingEmail(false)
         }
-        setCheckingEmail(false)
     }
 
     const hasGuestTestResult = () => !!localStorage.getItem('dtmmax_guest_test_result')

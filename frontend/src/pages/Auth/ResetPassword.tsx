@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { BrainCircuit, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
@@ -6,6 +6,7 @@ import { fetchApi } from '@/lib/api'
 export default function ResetPassword() {
     const { token } = useParams<{ token: string }>()
     const nav = useNavigate()
+    const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const [password, setPassword] = useState('')
     const [confirm, setConfirm] = useState('')
     const [showPw, setShowPw] = useState(false)
@@ -16,6 +17,15 @@ export default function ResetPassword() {
     useEffect(() => {
         if (!token) nav('/kirish', { replace: true })
     }, [token])
+
+    useEffect(() => {
+        return () => {
+            if (redirectTimerRef.current) {
+                clearTimeout(redirectTimerRef.current)
+                redirectTimerRef.current = null
+            }
+        }
+    }, [])
 
     const submit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -31,7 +41,11 @@ export default function ResetPassword() {
                 body: JSON.stringify({ token, password })
             })
             setSuccess(true)
-            setTimeout(() => nav('/kirish', { replace: true }), 3000)
+            if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current)
+            redirectTimerRef.current = setTimeout(() => {
+                nav('/kirish', { replace: true })
+                redirectTimerRef.current = null
+            }, 3000)
         } catch (e: any) {
             setErr(e.message)
         }
