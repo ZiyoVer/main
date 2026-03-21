@@ -28,7 +28,8 @@ const TELEGRAM_RAIL_ITEMS = [
     { label: 'Yangiliklar', handle: '@TonggiShula', href: 'https://t.me/TonggiShula' },
     { label: 'Support', handle: '@uzdatalabsupport', href: 'https://t.me/uzdatalabsupport' },
 ] as const
-const TELEGRAM_RAIL_COPIES = 4
+const TELEGRAM_RAIL_REPEAT = 4
+const TELEGRAM_RAIL_SEQUENCE = Array.from({ length: TELEGRAM_RAIL_REPEAT }, () => TELEGRAM_RAIL_ITEMS).flat()
 
 function TelegramIcon() {
     return (
@@ -2249,10 +2250,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                             <span className="text-[11px] font-semibold flex-shrink-0" style={{ color: 'var(--brand)' }}>Telegram</span>
                             <div className="telegram-rail-viewport flex-1 min-w-0">
                                 <div className="telegram-rail-track">
-                                    {Array.from({ length: TELEGRAM_RAIL_COPIES }, (_, copy) => (
-                                        <div key={copy} className="telegram-rail-group">
-                                            {TELEGRAM_RAIL_ITEMS.map(item => (
-                                                <div key={`${copy}-${item.handle}`} className="telegram-rail-item">
+                                    {[0, 1].map(sequenceIndex => (
+                                        <div key={sequenceIndex} className="telegram-rail-sequence" aria-hidden={sequenceIndex === 1}>
+                                            {TELEGRAM_RAIL_SEQUENCE.map((item, itemIndex) => (
+                                                <div key={`${sequenceIndex}-${item.handle}-${itemIndex}`} className="telegram-rail-item">
                                                     <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{item.label}</span>
                                                     <span className="text-[12px] font-medium" style={{ color: 'var(--text-primary)' }}>{item.handle}</span>
                                                     <a

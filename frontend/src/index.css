@@ -713,7 +713,7 @@ html.dark {
     }
 
     to {
-        transform: translateX(-25%);
+        transform: translateX(-50%);
     }
 }
 
@@ -723,14 +723,13 @@ html.dark {
 
 .telegram-rail-viewport {
     overflow: hidden;
-    display: flex;
-    justify-content: flex-end;
 }
 
 .telegram-rail-track {
     display: flex;
     width: max-content;
-    animation: telegramRailScroll 28s linear infinite;
+    min-width: max-content;
+    animation: telegramRailScroll 32s linear infinite;
     will-change: transform;
 }
 
@@ -738,7 +737,7 @@ html.dark {
     animation-play-state: paused;
 }
 
-.telegram-rail-group {
+.telegram-rail-sequence {
     display: flex;
     align-items: center;
     gap: 2rem;
