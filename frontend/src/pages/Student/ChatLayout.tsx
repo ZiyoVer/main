@@ -520,7 +520,14 @@ const ChatInputArea = memo(function ChatInputArea({
             )}
             <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
                 <input ref={fileInputRef} type="file" multiple accept=".pdf,.doc,.docx,.txt,image/*" className="hidden" onChange={handleFileSelect} />
-                <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                <div
+                    className="chat-composer-shell rounded-2xl overflow-hidden"
+                    style={{
+                        background: 'var(--bg-card)',
+                        border: '1px solid color-mix(in srgb, var(--border) 82%, rgba(15,23,42,0.2) 18%)',
+                        boxShadow: '0 12px 30px rgba(15,23,42,0.06), 0 2px 8px rgba(15,23,42,0.05)'
+                    }}
+                >
                     {/* Attached files */}
                     {attachedFiles.length > 0 && (
                         <div className="flex flex-wrap gap-2 px-4 pt-3">
@@ -554,11 +561,14 @@ const ChatInputArea = memo(function ChatInputArea({
                         placeholder="Xabar yozing..."
                         disabled={loading}
                         rows={1}
-                        className="w-full bg-transparent outline-none text-sm resize-none leading-relaxed px-4"
-                        style={{ color: 'var(--text-primary)', minHeight: '64px', maxHeight: '160px', paddingTop: '14px', paddingBottom: '8px', overflowX: 'hidden', wordBreak: 'break-word' }}
+                        className="chat-composer-input w-full bg-transparent outline-none text-sm resize-none leading-relaxed px-4"
+                        style={{ color: 'var(--text-primary)', minHeight: '64px', maxHeight: '160px', paddingTop: '14px', paddingBottom: '8px', overflowX: 'hidden', wordBreak: 'break-word', fontWeight: 500 }}
                     />
                     {/* Toolbar row */}
-                    <div className="flex items-center gap-2 px-3 pb-3">
+                    <div
+                        className="flex items-center gap-2 px-3 pb-3"
+                        style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 68%, rgba(15,23,42,0.12) 32%)' }}
+                    >
                         {/* Attach */}
                         <button type="button" onClick={() => fileInputRef.current?.click()} disabled={loading || uploadingFile}
                             className="h-8 w-8 flex items-center justify-center rounded-lg transition disabled:opacity-40"
@@ -1877,12 +1887,12 @@ Iltimos, har bir savolni tahlil qilib ber:
                         width: sideOpen ? (isMobile ? '280px' : `${sidebarWidth}px`) : '0px',
                         minWidth: sideOpen ? (isMobile ? '280px' : `${sidebarWidth}px`) : '0px',
                         background: 'var(--bg-surface)',
-                        borderRight: '1px solid var(--border)',
+                        borderRight: '1px solid color-mix(in srgb, var(--border) 76%, rgba(15,23,42,0.12) 24%)',
                         ...(isMobile && sideOpen ? { position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 50 } : {})
                     }}
                     className="flex flex-col transition-all duration-200 overflow-hidden flex-shrink-0 relative"
                 >
-                    <div className="p-3 flex items-center justify-between h-14 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+                    <div className="p-3 flex items-center justify-between h-14 flex-shrink-0" style={{ borderBottom: '1px solid color-mix(in srgb, var(--border) 76%, rgba(15,23,42,0.12) 24%)' }}>
                         <div className="flex items-center gap-2">
                             <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--brand)' }}>
                                 <BrainCircuit className="h-3.5 w-3.5 text-white" />
@@ -1896,8 +1906,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                     <div className="px-2 pt-1 pb-2 flex-shrink-0 space-y-0.5">
                         {/* Yangi suhbat */}
                         <button onClick={createChat} disabled={creating}
-                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition disabled:opacity-50"
-                            style={{ color: 'var(--text-secondary)' }}
+                            className="sidebar-nav-button w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[15px] font-semibold tracking-[-0.01em] transition disabled:opacity-50"
+                            style={{ color: 'var(--text-primary)' }}
                             onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                         >
@@ -1905,8 +1915,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                         </button>
                         {/* Testlar */}
                         <button onClick={() => { setOverlayPanel(overlayPanel === 'tests' ? null : 'tests'); markTestsSeen(); if (overlayPanel !== 'tests') { loadPublicTests(); loadMyResults() } }}
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition"
-                            style={overlayPanel === 'tests' ? { background: 'var(--bg-muted)', color: 'var(--text-primary)' } : { color: 'var(--text-secondary)' }}
+                            className="sidebar-nav-button w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-[15px] font-semibold tracking-[-0.01em] transition"
+                            style={overlayPanel === 'tests'
+                                ? { background: 'color-mix(in srgb, var(--bg-muted) 88%, white 12%)', color: 'var(--text-primary)', borderColor: 'color-mix(in srgb, var(--border) 70%, rgba(15,23,42,0.12) 30%)' }
+                                : { color: 'var(--text-primary)' }}
                             onMouseEnter={e => { if (overlayPanel !== 'tests') e.currentTarget.style.background = 'var(--bg-muted)' }}
                             onMouseLeave={e => { if (overlayPanel !== 'tests') e.currentTarget.style.background = 'transparent' }}
                         >
@@ -1916,8 +1928,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                         </button>
                         {/* Kartochkalar */}
                         <button onClick={() => { setOverlayPanel(overlayPanel === 'flashcards' ? null : 'flashcards'); if (overlayPanel !== 'flashcards') setDueCount(0) }}
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition"
-                            style={overlayPanel === 'flashcards' ? { background: 'var(--bg-muted)', color: 'var(--text-primary)' } : { color: 'var(--text-secondary)' }}
+                            className="sidebar-nav-button w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-[15px] font-semibold tracking-[-0.01em] transition"
+                            style={overlayPanel === 'flashcards'
+                                ? { background: 'color-mix(in srgb, var(--bg-muted) 88%, white 12%)', color: 'var(--text-primary)', borderColor: 'color-mix(in srgb, var(--border) 70%, rgba(15,23,42,0.12) 30%)' }
+                                : { color: 'var(--text-primary)' }}
                             onMouseEnter={e => { if (overlayPanel !== 'flashcards') e.currentTarget.style.background = 'var(--bg-muted)' }}
                             onMouseLeave={e => { if (overlayPanel !== 'flashcards') e.currentTarget.style.background = 'transparent' }}
                         >
@@ -1927,8 +1941,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                         </button>
                         {/* Natijalar */}
                         <button onClick={() => setOverlayPanel(overlayPanel === 'progress' ? null : 'progress')}
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition"
-                            style={overlayPanel === 'progress' ? { background: 'var(--bg-muted)', color: 'var(--text-primary)' } : { color: 'var(--text-secondary)' }}
+                            className="sidebar-nav-button w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-[15px] font-semibold tracking-[-0.01em] transition"
+                            style={overlayPanel === 'progress'
+                                ? { background: 'color-mix(in srgb, var(--bg-muted) 88%, white 12%)', color: 'var(--text-primary)', borderColor: 'color-mix(in srgb, var(--border) 70%, rgba(15,23,42,0.12) 30%)' }
+                                : { color: 'var(--text-primary)' }}
                             onMouseEnter={e => { if (overlayPanel !== 'progress') e.currentTarget.style.background = 'var(--bg-muted)' }}
                             onMouseLeave={e => { if (overlayPanel !== 'progress') e.currentTarget.style.background = 'transparent' }}
                         >
@@ -1945,8 +1961,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                             }
                             setTodoOpen(v => !v)
                         }}
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition"
-                            style={todoOpen ? { background: 'var(--bg-muted)', color: 'var(--text-primary)' } : { color: 'var(--text-secondary)' }}
+                            className="sidebar-nav-button w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-[15px] font-semibold tracking-[-0.01em] transition"
+                            style={todoOpen
+                                ? { background: 'color-mix(in srgb, var(--bg-muted) 88%, white 12%)', color: 'var(--text-primary)', borderColor: 'color-mix(in srgb, var(--border) 70%, rgba(15,23,42,0.12) 30%)' }
+                                : { color: 'var(--text-primary)' }}
                             onMouseEnter={e => { if (!todoOpen) e.currentTarget.style.background = 'var(--bg-muted)' }}
                             onMouseLeave={e => { if (!todoOpen) e.currentTarget.style.background = 'transparent' }}
                         >
@@ -1960,7 +1978,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                         </button>
                     </div>
 
-                    <div className="mx-3 flex-shrink-0" style={{ height: '1px', background: 'var(--border)' }} />
+                    <div className="mx-3 flex-shrink-0" style={{ height: '1px', background: 'color-mix(in srgb, var(--border) 76%, rgba(15,23,42,0.12) 24%)' }} />
 
                     {/* Chat list — doim ko'rinadi */}
                     {true && (
@@ -2220,7 +2238,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                     )}
 
                     {/* User footer */}
-                    <div className="p-3 flex-shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
+                    <div className="p-3 flex-shrink-0" style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 76%, rgba(15,23,42,0.12) 24%)' }}>
                         <div className="flex items-center gap-2.5 px-2 py-1.5">
                             <div className="h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-semibold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>{user?.name?.[0]?.toUpperCase()}</div>
                             <div className="flex-1 min-w-0"><p className="text-[13px] font-medium truncate">{user?.name}</p></div>
@@ -2239,7 +2257,7 @@ Iltimos, har bir savolni tahlil qilib ber:
 
                 {/* Main */}
                 <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-                    <div className="h-14 flex items-center px-4 gap-2 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+                    <div className="h-14 flex items-center px-4 gap-2 flex-shrink-0" style={{ borderBottom: '1px solid color-mix(in srgb, var(--border) 74%, rgba(15,23,42,0.12) 26%)' }}>
                         {/* ☰ doim ko'rinadi — sidebar toggle */}
                         <button onClick={() => setSideOpen(v => !v)} className="h-8 w-8 flex items-center justify-center rounded-lg transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} title="Yonpanel"><Menu className="h-4 w-4" /></button>
                         <span className="text-sm font-medium truncate flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>{currentChat?.title || ''}</span>
