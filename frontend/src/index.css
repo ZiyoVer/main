@@ -884,7 +884,7 @@ html.dark .hero-gradient {
 }
 
 .faq-answer.open {
-    max-height: 200px;
+    max-height: 60rem;
     padding-bottom: 1rem;
 }
 
