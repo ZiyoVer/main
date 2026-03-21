@@ -69,7 +69,16 @@ export default function TestPage() {
     const [focusedQ, setFocusedQ] = useState(0) // for DTM mode: highlight active question
 
     const questionsRef = useRef<HTMLDivElement>(null)
+    const analysisNavTimeoutRef = useRef<number | null>(null)
     const isGuest = !token || !user
+
+    useEffect(() => {
+        return () => {
+            if (analysisNavTimeoutRef.current != null) {
+                window.clearTimeout(analysisNavTimeoutRef.current)
+            }
+        }
+    }, [])
 
     useEffect(() => {
         if (!shareLink) return
@@ -146,7 +155,10 @@ export default function TestPage() {
             localStorage.removeItem('dtmmax_analysis_chat_id')
             localStorage.setItem('dtmmax_guest_test_result', JSON.stringify({ title: test.title, subject: test.subject, score: res.correct, total: res.total, questions: questionsForAnalysis }))
             setAnalysisReady(true)
-            setTimeout(() => {
+            if (analysisNavTimeoutRef.current != null) {
+                window.clearTimeout(analysisNavTimeoutRef.current)
+            }
+            analysisNavTimeoutRef.current = window.setTimeout(() => {
                 // If analysis chat already exists from a previous submit, go there; else trigger new analysis
                 const existingChatId = localStorage.getItem('dtmmax_analysis_chat_id')
                 if (existingChatId) nav(`/suhbat/${existingChatId}`)

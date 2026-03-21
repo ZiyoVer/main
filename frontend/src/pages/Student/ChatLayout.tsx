@@ -755,7 +755,7 @@ export default function ChatLayout() {
     const sidebarWidth = (() => {
         const w = window.innerWidth
         if (w < 768) return 280
-        if (w <= 1024) return 260
+        if (w <= 1100) return 240
         return 280
     })()
 
@@ -2056,7 +2056,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
                             onClick={e => { if (e.target === e.currentTarget) setShowSettings(false) }}
                         >
-                            <div className="card" style={{ width: '100%', maxWidth: '700px', height: '580px', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '16px' }}>
+                            <div className="card" style={{ width: '100%', maxWidth: '700px', height: 'min(580px, calc(100dvh - 32px))', maxHeight: 'calc(100dvh - 32px)', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '16px' }}>
                                 {/* Header */}
                                 <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                                     <h2 className="text-base font-semibold">Sozlamalar</h2>
