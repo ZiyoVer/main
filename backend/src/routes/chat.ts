@@ -732,6 +732,19 @@ Ingliz tilida test berganingda:
 
 O'quvchiga keraksiz savollar berma: "Tushunarlimi?", "Yana nimani tushuntiray?", "Tayyor bo'lsangiz..." — bularni QILMA.`)
 
+    const continuationSection = get('prompt_continuation', `## Suhbatni davom ettirish (MAJBURIY)
+
+- O'quvchini javobdan keyin bo'sh qoldirma — foydali bo'lsa BITTA aniq keyingi qadam ber
+- Generic savollar taqiqlangan: "Tushunarlimi?", "Yana nima qilamiz?", "Yana savol bormi?" dema
+- Buning o'rniga bitta amaliy yo'nalish ber:
+  - 3 ta mini savol
+  - 15–20 daqiqalik kichik reja
+  - 5 ta mashq
+  - 5 ta kartochka
+- Bir javobda faqat BIRTA next step bo'lsin
+- Agar structured block allaqachon berilgan bo'lsa, uni o'zi next step hisobla — ustiga yana 2-3 taklif qo'shma
+- Agar o'quvchining aktiv todo rejalari bo'lsa, avval shu reja doirasida keyingi qadamni ayt`)
+
     const formatSection = get('prompt_format', `## Matematik formulalar — LaTeX (MAJBURIY)
 
 Barcha matematik ifodalarni LaTeX da yoz:
@@ -945,6 +958,9 @@ ${[
 ## Qanday ishlaysan
 ${teachSection}
 
+## Suhbat oqimi
+${continuationSection}
+
 ## Formatlash
 ${formatSection}
 
@@ -1052,6 +1068,16 @@ const STOP_WORDS = new Set([
 
 type StructuredTool = 'todo' | 'test' | 'flashcard' | 'formula' | 'essay' | 'vocab'
 
+type ToolIntentAnalysis = {
+    normalized: string
+    bestTool: StructuredTool | null
+    bestToolScore: number
+    explanationScore: number
+    greetingScore: number
+    confusionScore: number
+    completionScore: number
+}
+
 function normalizeIntentText(text: string): string {
     return String(text || '')
         .toLowerCase()
@@ -1067,10 +1093,18 @@ function scoreIntentPatterns(content: string, patterns: Array<{ phrase: string; 
     return patterns.reduce((score, pattern) => score + (content.includes(pattern.phrase) ? pattern.score : 0), 0)
 }
 
-function buildToolIntentGuidance(content: string): string {
+function analyzeToolIntent(content: string): ToolIntentAnalysis {
     const normalized = normalizeIntentText(content)
     if (!normalized) {
-        return '\n\n--- TURN TOOL GUIDANCE ---\nBu turda toolni majburlama. User maqsadi juda aniq bo‘lsa bitta structured block ishlat, aks holda oddiy javob ber.\n--- TURN TOOL GUIDANCE END ---'
+        return {
+            normalized,
+            bestTool: null,
+            bestToolScore: 0,
+            explanationScore: 0,
+            greetingScore: 0,
+            confusionScore: 0,
+            completionScore: 0,
+        }
     }
 
     const toolSignals: Record<StructuredTool, Array<{ phrase: string; score: number }>> = {
@@ -1081,10 +1115,15 @@ function buildToolIntentGuidance(content: string): string {
             { phrase: 'checklist', score: 7 },
             { phrase: 'jadval qil', score: 7 },
             { phrase: 'qayerdan boshlay', score: 7 },
+            { phrase: 'nimadan boshlay', score: 7 },
+            { phrase: 'nima qilay', score: 7 },
             { phrase: 'bugun nima qilaman', score: 8 },
             { phrase: 'bugun nima oqiyman', score: 8 },
             { phrase: 'bosqichma bosqich', score: 6 },
             { phrase: 'oqish reja', score: 7 },
+            { phrase: 'qanday tayyorlansam', score: 6 },
+            { phrase: 'vaqtim kam', score: 6 },
+            { phrase: 'ulgurmayapman', score: 6 },
         ],
         test: [
             { phrase: 'test ber', score: 8 },
@@ -1096,6 +1135,11 @@ function buildToolIntentGuidance(content: string): string {
             { phrase: 'diagnostika', score: 8 },
             { phrase: 'quiz', score: 8 },
             { phrase: 'variant', score: 5 },
+            { phrase: 'savol ber', score: 6 },
+            { phrase: 'mashq ber', score: 6 },
+            { phrase: 'masala ber', score: 6 },
+            { phrase: 'sinab kor', score: 7 },
+            { phrase: 'tekshirib kor', score: 6 },
         ],
         flashcard: [
             { phrase: 'flashcard', score: 9 },
@@ -1103,6 +1147,8 @@ function buildToolIntentGuidance(content: string): string {
             { phrase: 'yodlash', score: 7 },
             { phrase: 'eslab qolish', score: 7 },
             { phrase: 'memorize', score: 7 },
+            { phrase: 'qaytarish', score: 6 },
+            { phrase: 'eslab qololmayapman', score: 7 },
         ],
         formula: [
             { phrase: 'formulalar', score: 8 },
@@ -1111,6 +1157,8 @@ function buildToolIntentGuidance(content: string): string {
             { phrase: 'formula royxat', score: 8 },
             { phrase: 'formulalarni ber', score: 8 },
             { phrase: 'formula sheet', score: 7 },
+            { phrase: 'qoidalar jamlanmasi', score: 7 },
+            { phrase: 'asosiy formulalar', score: 7 },
         ],
         essay: [
             { phrase: 'essay', score: 9 },
@@ -1118,6 +1166,7 @@ function buildToolIntentGuidance(content: string): string {
             { phrase: 'task 1', score: 8 },
             { phrase: 'task 2', score: 8 },
             { phrase: 'insho', score: 7 },
+            { phrase: 'writing ber', score: 8 },
         ],
         vocab: [
             { phrase: 'vocab', score: 8 },
@@ -1126,6 +1175,7 @@ function buildToolIntentGuidance(content: string): string {
             { phrase: 'phrasal verb', score: 8 },
             { phrase: 'collocation', score: 8 },
             { phrase: 'soz boyligi', score: 7 },
+            { phrase: 'word list', score: 7 },
         ],
     }
 
@@ -1140,21 +1190,98 @@ function buildToolIntentGuidance(content: string): string {
         { phrase: 'tahlil qil', score: 4 },
     ])
 
+    const greetingScore = scoreIntentPatterns(normalized, [
+        { phrase: 'salom', score: 4 },
+        { phrase: 'assalomu alaykum', score: 5 },
+        { phrase: 'hello', score: 4 },
+        { phrase: 'hi', score: 3 },
+        { phrase: 'yordam ber', score: 4 },
+        { phrase: 'boshladik', score: 4 },
+    ])
+
+    const confusionScore = scoreIntentPatterns(normalized, [
+        { phrase: 'qayerdan boshlay', score: 6 },
+        { phrase: 'nimadan boshlay', score: 6 },
+        { phrase: 'nima qilay', score: 6 },
+        { phrase: 'qanday tayyorlansam', score: 5 },
+        { phrase: 'vaqtim kam', score: 5 },
+        { phrase: 'ulgurmayapman', score: 5 },
+        { phrase: 'yordam kerak', score: 4 },
+    ])
+
+    const completionScore = scoreIntentPatterns(normalized, [
+        { phrase: 'bajarildi', score: 7 },
+        { phrase: 'bajardim', score: 7 },
+        { phrase: 'tugatdim', score: 7 },
+        { phrase: 'bitirdim', score: 7 },
+        { phrase: 'yechdim', score: 6 },
+        { phrase: 'ishladim', score: 5 },
+        { phrase: 'tayyor', score: 4 },
+        { phrase: 'boldi', score: 4 },
+    ])
+
     const scoredTools = (Object.entries(toolSignals) as Array<[StructuredTool, Array<{ phrase: string; score: number }>]>)
         .map(([tool, patterns]) => ({ tool, score: scoreIntentPatterns(normalized, patterns) }))
         .sort((a, b) => b.score - a.score)
 
     const best = scoredTools[0]
 
-    if (best && best.score >= 7) {
-        return `\n\n--- TURN TOOL GUIDANCE ---\nJoriy user so‘rovi eng ko‘p ${best.tool.toUpperCase()} formatiga mos keladi.\n- Javobni shu tool bilan hal qila olsang, FAQAT bitta \`\`\`${best.tool} block ishlat\n- Boshqa structured block qo‘shma\n- Agar user maqsadi amaliy format bo‘lsa, keraksiz uzun izoh yozma\n--- TURN TOOL GUIDANCE END ---`
+    return {
+        normalized,
+        bestTool: best?.tool ?? null,
+        bestToolScore: best?.score ?? 0,
+        explanationScore,
+        greetingScore,
+        confusionScore,
+        completionScore,
+    }
+}
+
+function buildToolIntentGuidance(content: string): string {
+    const analysis = analyzeToolIntent(content)
+    if (!analysis.normalized) {
+        return '\n\n--- TURN TOOL GUIDANCE ---\nBu turda toolni majburlama. User maqsadi juda aniq bo‘lsa bitta structured block ishlat, aks holda oddiy javob ber.\n--- TURN TOOL GUIDANCE END ---'
     }
 
-    if (explanationScore >= 5 && (!best || best.score < 7)) {
+    if (analysis.bestTool && analysis.bestToolScore >= 7) {
+        return `\n\n--- TURN TOOL GUIDANCE ---\nJoriy user so‘rovi eng ko‘p ${analysis.bestTool.toUpperCase()} formatiga mos keladi.\n- Javobni shu tool bilan hal qila olsang, FAQAT bitta \`\`\`${analysis.bestTool} block ishlat\n- Boshqa structured block qo‘shma\n- Agar user maqsadi amaliy format bo‘lsa, keraksiz uzun izoh yozma\n--- TURN TOOL GUIDANCE END ---`
+    }
+
+    if (analysis.explanationScore >= 5 && analysis.bestToolScore < 7) {
         return '\n\n--- TURN TOOL GUIDANCE ---\nJoriy user so‘rovi tushuntirish/izoh turida. Structured block ishlatma. To‘g‘ridan-to‘g‘ri javob ber, faqat user aniq amaliy format so‘rasa toolga o‘t.\n--- TURN TOOL GUIDANCE END ---'
     }
 
     return '\n\n--- TURN TOOL GUIDANCE ---\nBu turda toolni majburlama. User maqsadi aniq amaliy formatga mos bo‘lsa bitta structured block ishlat, aks holda oddiy javob ber.\n--- TURN TOOL GUIDANCE END ---'
+}
+
+function buildRetentionGuidance(content: string, hasPendingTodo = false, isFirstMessage = false): string {
+    const analysis = analyzeToolIntent(content)
+
+    if (!analysis.normalized) {
+        return '\n\n--- TURN FLOW GUIDANCE ---\nJuda qisqa javoblarda ham userni bo‘sh qoldirma. Kerak bo‘lsa bitta aniq keyingi qadam taklif qil, lekin majburlama.\n--- TURN FLOW GUIDANCE END ---'
+    }
+
+    if (analysis.bestTool && analysis.bestToolScore >= 7) {
+        return `\n\n--- TURN FLOW GUIDANCE ---\nBu turnning asosiy next-step'i ${analysis.bestTool.toUpperCase()} ning o‘zi. Shu structured blockni bergach, yana qo‘shimcha 2-3 taklif yozma. Eng ko‘pi bilan bitta qisqa yo‘naltiruvchi gap bo‘lishi mumkin.\n--- TURN FLOW GUIDANCE END ---`
+    }
+
+    if (hasPendingTodo && analysis.completionScore >= 6) {
+        return '\n\n--- TURN FLOW GUIDANCE ---\nUser vazifa tugaganini aytyapti. Todo-done qoidasi mos kelsa uni qo‘llab, javob oxirida pending reja ichidan KEYINGI BITTA aniq vazifani ayt. Yangi reja ochma, generic savol berma.\n--- TURN FLOW GUIDANCE END ---'
+    }
+
+    if (hasPendingTodo) {
+        return '\n\n--- TURN FLOW GUIDANCE ---\nUserda aktiv todo bor. Javobni shu reja bilan bog‘la va oxirida rejaning KEYINGI BITTA aniq qadamini ayt. Yangi structured blockni faqat user aniq so‘raganda och.\n--- TURN FLOW GUIDANCE END ---'
+    }
+
+    if (isFirstMessage || analysis.greetingScore >= 4 || analysis.confusionScore >= 6) {
+        return '\n\n--- TURN FLOW GUIDANCE ---\nBu turn start/vague turida. Userni bo‘sh qoldirma:\n- Agar fan yoki mavzu aniq bo‘lsa, bitta aniq boshlash yo‘lini taklif qil: 3 ta mini savol YOKI 15-20 daqiqalik reja\n- Agar fan noma’lum bo‘lsa, faqat bitta qisqa yo‘naltiruvchi savol ber\n- Variantlarni ko‘paytirma va uzun intro yozma\n--- TURN FLOW GUIDANCE END ---'
+    }
+
+    if (analysis.explanationScore >= 5) {
+        return '\n\n--- TURN FLOW GUIDANCE ---\nBu turn tushuntirish/yechim turida. Asosiy javobni bergach, oxirida BITTA aniq next-step bilan yop: masalan 3 ta mini savol, 5 ta mashq yoki 15 daqiqalik reja. Generic “Tushunarlimi?” yoki “Yana nima qilamiz?” dema.\n--- TURN FLOW GUIDANCE END ---'
+    }
+
+    return '\n\n--- TURN FLOW GUIDANCE ---\nJavob foydali bo‘lgach, kerak bo‘lsa oxirida BITTA aniq keyingi qadam ayt. Bir javobda bir nechta yo‘nalish berma, generic follow-up yozma.\n--- TURN FLOW GUIDANCE END ---'
 }
 
 type TodoContextItem = {
@@ -1612,8 +1739,9 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
             ? `\n\n--- FOYDALANUVCHINING BUGUNGI KUNLIK REJASI ---\nQuyidagi vazifalar hali bajarilmagan.\n\nAGAR joriy user xabari shu vazifalardan birini bajarishga qaratilgan bo'lsa va sen shu vazifani amalda tushuntirib/yakunlab bergan bo'lsang, javob OXIRIDA FAQAT bitta shu blokni qo'sh:\n\`\`\`todo-done\n{"task":"ANIQ_VAZIFA_NOMI"}\n\`\`\`\n\nQoidalar:\n- task nomini ro'yxatdagi ANIQ yozilganidek qo'y\n- Bitta javobda ko'pi bilan bitta todo-done blok bo'lsin\n- Agar user aynan shu vazifani bajarganini aytsa ("bajarildi", "tugatdim") — ham todo-done qo'sh\n- Agar faqat umumiy suhbat bo'lsa yoki vazifa hali tugamagan bo'lsa — todo-done qo'shma\n\nBajarilmagan vazifalar:\n${parsedTodoContext.map((t, i) => `${i + 1}. ${t.task}${t.time ? ' (' + t.time + ')' : ''}`).join('\n')}\n--- REJA TUGADI ---`
             : ''
         const toolIntentSection = buildToolIntentGuidance(content)
+        const retentionSection = buildRetentionGuidance(content, parsedTodoContext.length > 0, isFirstMessage)
 
-        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, chat.subject2 || undefined, aiSettings.extraRules, aiSettings.promptOverrides, isFirstMessage) + ragSection + todoSection + toolIntentSection
+        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, chat.subject2 || undefined, aiSettings.extraRules, aiSettings.promptOverrides, isFirstMessage) + ragSection + todoSection + toolIntentSection + retentionSection
 
         // History: oxirgi user xabar (hozir saqlanganini) alohida olamiz
         // DeepSeek image_url qabul qilmaydi — OCR matni content ichida keladi
@@ -1793,7 +1921,9 @@ router.post('/:chatId/send', authenticate, async (req: AuthRequest, res) => {
             ? `\n\n--- RASMIY MANBA KONTEKSTI (faqat ma'lumot uchun) ---\n${ragContext}\n--- MANBA KONTEKSTI TUGADI ---`
             : ''
         const toolIntentSection = buildToolIntentGuidance(content)
-        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, chat.subject2 || undefined, aiSettings.extraRules, aiSettings.promptOverrides) + ragSection + toolIntentSection
+        const isFirstMessage = history.length <= 1
+        const retentionSection = buildRetentionGuidance(content, false, isFirstMessage)
+        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, chat.subject2 || undefined, aiSettings.extraRules, aiSettings.promptOverrides, isFirstMessage) + ragSection + toolIntentSection + retentionSection
 
 
         const msgs: any[] = [
