@@ -47,6 +47,47 @@ function normalizeOpenAnswer(text: string | null | undefined): string {
         .toLowerCase()
 }
 
+function isAnalysisAnswerCorrect(questionType: string | null | undefined, studentAnswer: string | null | undefined, correctAnswer: string | null | undefined): boolean {
+    if (questionType === 'open' || questionType === 'multipart_open') {
+        return normalizeOpenAnswer(studentAnswer) !== '' && normalizeOpenAnswer(studentAnswer) === normalizeOpenAnswer(correctAnswer)
+    }
+    return String(studentAnswer || '').trim().toUpperCase() !== ''
+        && String(studentAnswer || '').trim().toUpperCase() === String(correctAnswer || '').trim().toUpperCase()
+}
+
+function formatQuestionForAnalysis(question: any, index: number): string {
+    const questionType = question?.questionType || 'mcq'
+    const questionText = String(question?.text || 'Savol').substring(0, 180)
+
+    if ((questionType === 'matching' || questionType === 'multipart_open') && Array.isArray(question?.subAnswers)) {
+        const subLines = question.subAnswers.map((subAnswer: any, subIndex: number) => {
+            const studentAnswer = String(subAnswer?.studentAnswer || '—')
+            const correctAnswer = String(subAnswer?.correctAnswer || '—')
+            const isCorrect = isAnalysisAnswerCorrect(questionType, studentAnswer, correctAnswer)
+            const label = String(subAnswer?.label || (questionType === 'multipart_open' ? String.fromCharCode(65 + subIndex) : subIndex + 1))
+            const subText = String(subAnswer?.subText || 'Bo\'lim').substring(0, 140)
+            return `   ${isCorrect ? '✅' : '❌'} ${label}. ${subText} — O'quvchi: ${studentAnswer} | To'g'ri: ${correctAnswer}`
+        }).join('\n')
+
+        const allCorrect = question.subAnswers.length > 0 && question.subAnswers.every((subAnswer: any) =>
+            isAnalysisAnswerCorrect(questionType, subAnswer?.studentAnswer, subAnswer?.correctAnswer)
+        )
+
+        return `${allCorrect ? '✅' : '❌'} ${index + 1}. ${questionText}\n${subLines}`
+    }
+
+    const optLabels = ['A', 'B', 'C', 'D']
+    const variants = ['a', 'b', 'c', 'd']
+        .map((key, optionIndex) => question?.[key] ? `${optLabels[optionIndex]}) ${question[key]}` : null)
+        .filter(Boolean)
+        .join(' | ')
+    const studentAnswer = String(question?.studentAnswer || '—')
+    const correctAnswer = String(question?.correctAnswer || '—')
+    const isCorrect = isAnalysisAnswerCorrect(questionType, studentAnswer, correctAnswer)
+
+    return `${isCorrect ? '✅' : '❌'} ${index + 1}. ${questionText}${variants ? `\n   Variantlar: ${variants}` : ''}\n   O'quvchi: ${studentAnswer.toUpperCase()} | To'g'ri: ${correctAnswer.toUpperCase()}`
+}
+
 async function evaluateOpenAnswer(studentAnswer: string, correctAnswer: string): Promise<boolean> {
     const normalizedStudent = normalizeOpenAnswer(studentAnswer)
     const normalizedCorrect = normalizeOpenAnswer(correctAnswer)
@@ -581,6 +622,18 @@ router.get('/by-link/:shareLink', optionalAuthenticate, testReadLimiter, async (
                     return { ...q, imageUrl: resolvedImageUrl, options: JSON.stringify(sanitized) }
                 } catch { return { ...q, imageUrl: resolvedImageUrl } }
             }
+            if (q.questionType === 'multipart_open' && q.options) {
+                try {
+                    const parsed = JSON.parse(q.options as string)
+                    const sanitized = {
+                        subQuestions: (parsed.subQuestions || []).map((subQuestion: any, subIndex: number) => ({
+                            label: String(subQuestion.label || String.fromCharCode(65 + subIndex)),
+                            text: subQuestion.text
+                        }))
+                    }
+                    return { ...q, imageUrl: resolvedImageUrl, options: JSON.stringify(sanitized) }
+                } catch { return { ...q, imageUrl: resolvedImageUrl } }
+            }
             return { ...q, imageUrl: resolvedImageUrl }
         }))
         res.json({ ...test, questions: sanitizedQuestions })
@@ -1082,7 +1135,6 @@ router.post('/analyze-result', optionalAuthenticate, async (req: AuthRequest, re
 
         // Rasmli savollar bo'lsa vision AI (GPT-4o — rasmni aniq o'qiydi va matematikani to'g'ri yechadi)
         if (hasImages && process.env.OPENAI_API_KEY) {
-            const optLabels = ['A', 'B', 'C', 'D']
             const imgQs = questions.filter((q: any) => q.imageUrl).slice(0, 10)
             const systemMsg = `Sen tajribali matematika o'qituvchisisiz. O'quvchi test yechdi va natijasini tahlil qilishingiz kerak.
 
@@ -1102,24 +1154,15 @@ QOIDALAR:
             for (const [idx, q] of imgQs.entries()) {
                 const imageUrl = await resolveStoredS3Url(q.imageUrl)
                 if (!imageUrl) continue
-                const opts = ['a', 'b', 'c', 'd'].map((k, i) => q[k] ? `${optLabels[i]}) ${q[k]}` : null).filter(Boolean).join(' | ')
-                const studentLabel = (q.studentAnswer || '?').toUpperCase()
-                const correctLabel = (q.correctAnswer || '?').toUpperCase()
-                const isCorrect = q.studentAnswer === q.correctAnswer
-                const status = isCorrect ? '✅ TO\'G\'RI' : '❌ XATO'
-                content.push({ type: 'text', text: `\n---\n${status} — Savol ${idx + 1}${q.text ? ': ' + q.text : ''}${opts ? '\nVariantlar: ' + opts : ''}\nO'quvchi javobi: ${studentLabel} | To'g'ri javob: ${correctLabel}\nRasmni diqqat bilan o'qi:` })
+                content.push({ type: 'text', text: `\n---\n${formatQuestionForAnalysis(q, idx)}\nRasmni diqqat bilan o'qi:` })
                 content.push({ type: 'image_url', image_url: { url: imageUrl, detail: 'high' } })
             }
 
             // Rasmsiz savollar ham bo'lsa — ularni matn sifatida qo'shamiz
             const textQs = questions.filter((q: any) => !q.imageUrl)
             if (textQs.length > 0) {
-                const textList = textQs.map((q: any, idx: number) => {
-                    const isCorrect = q.studentAnswer === q.correctAnswer
-                    const status = isCorrect ? '✅' : '❌'
-                    return `${status} ${idx + 1}. ${(q.text || 'Savol').substring(0, 150)} — O'quvchi: ${(q.studentAnswer || '?').toUpperCase()}, To'g'ri: ${(q.correctAnswer || '?').toUpperCase()}`
-                }).join('\n')
-                content.push({ type: 'text', text: `\n\nMatnsiz savollar:\n${textList}` })
+                const textList = textQs.map((q: any, idx: number) => formatQuestionForAnalysis(q, idx)).join('\n\n')
+                content.push({ type: 'text', text: `\n\nMatnli savollar:\n${textList}` })
             }
 
             content.push({ type: 'text', text: `\n\nOxirida umumiy xulosa yoz: qaysi mavzularda kuchli, qayerda zaif, nima o'rganish kerak.` })
@@ -1139,11 +1182,7 @@ QOIDALAR:
         // Rasmsiz — DeepSeek bilan BARCHA savollar tahlili
         const allList = questions
             .slice(0, 30)
-            .map((q: any, i: number) => {
-                const isCorrect = q.studentAnswer === q.correctAnswer
-                const status = isCorrect ? '✅' : '❌'
-                return `${status} ${i + 1}. ${(q.text || 'Savol').substring(0, 150)} — O'quvchi: ${(q.studentAnswer || '?').toUpperCase()}, To'g'ri: ${(q.correctAnswer || '?').toUpperCase()}`
-            })
+            .map((q: any, i: number) => formatQuestionForAnalysis(q, i))
             .join('\n')
 
         const prompt = `O'quvchi "${title || 'Test'}" testini yechdi (${subject || ''}). Natija: ${score}/${total} (${total > 0 ? Math.round(score / total * 100) : 0}%).

@@ -827,36 +827,42 @@ export default function ChatLayout() {
 
                 const displayText = `📊 "${guestData.title}" testi tahlili (${guestData.score}/${guestData.total} to'g'ri)`
 
-                // Rasmli savollar bo'lsa — vision API orqali tahlil (GPT-4o ko'radi)
-                const hasImages = (guestData.questions || []).some((q: any) => q.imageUrl)
-                if (hasImages) {
-                    try {
-                        const visionRes = await fetchApi('/tests/analyze-result', {
-                            method: 'POST',
-                            body: JSON.stringify({
-                                title: guestData.title, subject: guestData.subject,
-                                score: guestData.score, total: guestData.total,
-                                questions: guestData.questions
-                            })
+                try {
+                    const analysisRes = await fetchApi('/tests/analyze-result', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            title: guestData.title,
+                            subject: guestData.subject,
+                            score: guestData.score,
+                            total: guestData.total,
+                            questions: guestData.questions
                         })
-                        if (visionRes?.analysis) {
-                            nav(`/suhbat/${chatData.id}`, { state: { pendingAnalysis: { preComputed: visionRes.analysis, displayText } } })
-                            return
-                        }
-                    } catch (e) { console.error('vision analyze-result:', e) }
+                    })
+                    if (analysisRes?.analysis) {
+                        nav(`/suhbat/${chatData.id}`, { state: { pendingAnalysis: { preComputed: analysisRes.analysis, displayText } } })
+                        return
+                    }
+                } catch (e) {
+                    console.error('analyze-result:', e)
                 }
 
-                // Rasmsiz yoki vision muvaffaqiyatsiz — DeepSeek matn tahlili
+                // Fallback — local prompt bilan DeepSeek text tahlili
                 const optLabels = ['A', 'B', 'C', 'D']
                 const allList = (guestData.questions || []).map((q: any, i: number) => {
-                    const isCorrect = q.studentAnswer === q.correctAnswer
-                    const status = isCorrect ? '✅' : '❌'
                     if (q.questionType === 'matching' && q.subAnswers) {
                         const subList = (q.subAnswers || []).map((sa: any, si: number) =>
                             `   ${si + 1}. ${sa.subText} — Men: ${sa.studentAnswer}, To'g'ri: ${sa.correctAnswer}`
                         ).join('\n')
                         return `${i + 1}. Moslashtirish: ${q.text || ''}\n${subList}`
                     }
+                    if (q.questionType === 'multipart_open' && q.subAnswers) {
+                        const subList = (q.subAnswers || []).map((sa: any, si: number) =>
+                            `   ${sa.label || String.fromCharCode(65 + si)}. ${sa.subText} — Men: ${sa.studentAnswer}, To'g'ri: ${sa.correctAnswer}`
+                        ).join('\n')
+                        return `${i + 1}. Multi-part yozma savol: ${q.text || ''}\n${subList}`
+                    }
+                    const isCorrect = q.studentAnswer === q.correctAnswer
+                    const status = isCorrect ? '✅' : '❌'
                     const opts = ['a', 'b', 'c', 'd'].map((k, oi) => q[k] ? `${optLabels[oi]}) ${q[k]}` : null).filter(Boolean).join(' | ')
                     return `${status} ${i + 1}. ${(q.text || 'Savol').substring(0, 200)}\n   ${opts ? 'Variantlar: ' + opts : ''}\n   Men: ${(q.studentAnswer || '—').toUpperCase()}, To'g'ri: ${(q.correctAnswer || '—').toUpperCase()}`
                 }).join('\n\n')
@@ -1554,6 +1560,12 @@ Iltimos, har bir savolni tahlil qilib ber:
         try {
             const data = await fetchApi(`/tests/by-link/${t.shareLink}`)
             const rawQuestions = data.questions || []
+            const hasComplexQuestions = rawQuestions.some((question: any) => ['open', 'matching', 'multipart_open'].includes(question.questionType))
+            if (hasComplexQuestions) {
+                setLoadingPublicTest(false)
+                nav(`/test/${t.shareLink}`)
+                return
+            }
             // correctIdx submit qaytarmaguncha ko'rsatilmaydi — default 'a' (submit keyin yangilanadi)
             const converted = rawQuestions.map((q: any) => {
                 let opts: string[] = []
