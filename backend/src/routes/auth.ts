@@ -290,13 +290,19 @@ router.post('/create-teacher', authenticate, requireRole('ADMIN'), async (req: A
         if (!email || !password || !name) {
             return res.status(400).json({ error: 'Barcha maydonlarni to\'ldiring' })
         }
+        if (typeof name !== 'string' || name.trim().length < 2) {
+            return res.status(400).json({ error: 'Ism kamida 2 ta belgi bo\'lishi kerak' })
+        }
+        const teacherEmail = email?.trim().toLowerCase()
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(teacherEmail)) {
+            return res.status(400).json({ error: 'Email manzil noto\'g\'ri' })
+        }
         if (password.length < 8) {
             return res.status(400).json({ error: 'Parol kamida 8 ta belgi bo\'lishi kerak' })
         }
         if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
             return res.status(400).json({ error: 'Parolda kamida bitta harf va bitta raqam bo\'lishi shart' })
         }
-        const teacherEmail = email?.trim().toLowerCase()
         const existing = await prisma.user.findUnique({ where: { email: teacherEmail } })
         if (existing) return res.status(400).json({ error: 'Bu email allaqachon band' })
 

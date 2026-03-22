@@ -608,7 +608,7 @@ export default function TeacherPanel() {
                                             : { borderColor: 'var(--border)', background: 'transparent', color: 'var(--text-secondary)' }}>
                                         <span className="text-lg">📋</span>
                                         <span>Milliy Sertifikat</span>
-                                        <span className="text-[10px] font-normal" style={{ color: testType === 'milliy_sertifikat' ? '#8b5cf680' : 'var(--text-muted)' }}>20 ball sistema</span>
+                                        <span className="text-[10px] font-normal" style={{ color: testType === 'milliy_sertifikat' ? '#8b5cf680' : 'var(--text-muted)' }}>Rash modeli · 100 ball</span>
                                     </button>
                                     <button type="button" onClick={() => setTestType('dtm')}
                                         className="flex flex-col items-center gap-1 py-3 px-4 rounded-xl border-2 transition font-medium text-[13px]"

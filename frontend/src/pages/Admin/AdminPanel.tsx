@@ -893,7 +893,17 @@ export default function AdminPanel() {
                                     </div>
                                     <div className="relative">
                                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px]" style={{ color: 'var(--text-muted)' }}>🔑</span>
-                                        <input type="password" placeholder="Parol (kamida 6 ta belgi)" required minLength={6} value={tf.password} onChange={e => setTf({ ...tf, password: e.target.value })} className="input pl-8" />
+                                        <input
+                                            type="password"
+                                            placeholder="Parol (kamida 8 ta, harf va raqam)"
+                                            required
+                                            minLength={8}
+                                            pattern="(?=.*[A-Za-z])(?=.*\d).{8,}"
+                                            title="Parolda kamida 8 ta belgi, bitta harf va bitta raqam bo'lishi shart"
+                                            value={tf.password}
+                                            onChange={e => setTf({ ...tf, password: e.target.value })}
+                                            className="input pl-8"
+                                        />
                                     </div>
                                     <button type="submit" disabled={creating}
                                         className="w-full h-10 rounded-xl text-sm font-semibold text-white transition disabled:opacity-50 flex items-center justify-center gap-2"

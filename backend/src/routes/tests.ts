@@ -6,11 +6,11 @@ import OpenAI from 'openai'
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole, optionalAuthenticate } from '../middleware/auth'
-import { updateAbility } from '../utils/rasch'
+import { raschProbability, updateAbility } from '../utils/rasch'
 import { uploadToS3, getSignedS3Url, resolveStoredS3Url, toStoredS3Ref } from '../utils/s3'
 import { getSubjectVariants, isMandatoryDtmSubject, normalizeSubject } from '../utils/subjects'
 
-// MS (Milliy Sertifikat) Rasch model baho chegaralari — uzbmb.uz rasmiy ma'lumotlari asosida
+// MS (Milliy Sertifikat) Rash model baho chegaralari — uzbmb.uz rasmiy ma'lumotlari asosida
 function getGrade(score: number): string {
     if (score >= 70) return 'A+'
     if (score >= 65) return 'A'
@@ -35,13 +35,30 @@ function getDtmBall(subject: string | null, correct: number, total: number): { b
     }
 }
 
-// MS (Milliy Sertifikat) ball hisoblash
-// Har bir fan 20 balldan — foizga mutanosib
-function getMsBall(correct: number, total: number): { ball: number; max: number } {
-    if (total === 0) return { ball: 0, max: 20 }
+function roundScore(value: number): number {
+    return Math.round(value * 10) / 10
+}
+
+function getMsRaschScore(items: { difficulty: number; isCorrect: boolean }[]): { ball: number; max: number; ability: number } {
+    if (items.length === 0) return { ball: 0, max: 100, ability: 0 }
+
+    const correctCount = items.filter(item => item.isCorrect).length
+    let ability = 0
+
+    if (correctCount === 0) {
+        ability = -5
+    } else if (correctCount === items.length) {
+        ability = 5
+    } else {
+        ability = updateAbility(0, items)
+    }
+
+    const expectedScore = items.reduce((sum, item) => sum + raschProbability(ability, item.difficulty), 0) / items.length
+
     return {
-        ball: Math.round(correct / total * 20 * 10) / 10,
-        max: 20
+        ball: roundScore(expectedScore * 100),
+        max: 100,
+        ability
     }
 }
 
@@ -1232,7 +1249,12 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
             }
         })
         // $transaction yordamida ACID ta'minlash
-        const finalScore = Math.round(score * 100) / 100
+        const ms = test.testType === 'milliy_sertifikat'
+            ? getMsRaschScore(raschItems)
+            : null
+        const finalScore = test.testType === 'milliy_sertifikat'
+            ? ms!.ball
+            : roundScore(score)
         const totalForResponse = effectiveTotal
 
         const attempt = await prisma.$transaction(async (tx) => {
@@ -1265,7 +1287,7 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
             })
 
             const nextTotalTests = profile.totalTests + 1
-            const nextAvgScore = Math.round((((profile.avgScore || 0) * profile.totalTests + finalScore) / nextTotalTests) * 100) / 100
+            const nextAvgScore = roundScore((((profile.avgScore || 0) * profile.totalTests + finalScore) / nextTotalTests))
 
             await tx.studentProfile.update({
                 where: { userId: req.user.id },
@@ -1296,21 +1318,25 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
             }
         })
 
-        const dtm = getDtmBall(test.subject || null, correct, totalForResponse)
-        const ms = getMsBall(correct, totalForResponse)
+        const dtm = test.testType === 'dtm'
+            ? getDtmBall(test.subject || null, correct, totalForResponse)
+            : null
+        const msResult = test.testType === 'milliy_sertifikat'
+            ? { ball: finalScore, max: 100 }
+            : { ball: 0, max: 100 }
 
         res.json({
             attempt: attempt.attempt,
-            score: Math.round(score * 100) / 100,
-            grade: getGrade(Math.round(score * 100) / 100),
+            score: finalScore,
+            grade: getGrade(finalScore),
             correct,
             total: totalForResponse,
             newAbility: attempt.newAbility,
             testType: (test as any).testType || 'milliy_sertifikat',
-            dtmBall: dtm.ball,
-            dtmMax: dtm.max,
-            msBall: ms.ball,
-            msMax: ms.max,
+            dtmBall: dtm?.ball,
+            dtmMax: dtm?.max,
+            msBall: msResult.ball,
+            msMax: msResult.max,
             results,
             correctAnswers
         })
@@ -1410,17 +1436,21 @@ router.get('/:testId/analytics', authenticate, requireRole('TEACHER', 'ADMIN'), 
                 }
             })
             if (total === 0) total = test.questions.length
-            const scoreVal = Math.round(a.score * 10) / 10
-            const dtm = getDtmBall(test.subject || null, correctCount, total)
-            const ms = getMsBall(correctCount, total)
+            const scoreVal = roundScore(a.score)
+            const dtm = test.testType === 'dtm'
+                ? getDtmBall(test.subject || null, correctCount, total)
+                : null
+            const ms = test.testType === 'milliy_sertifikat'
+                ? { ball: scoreVal, max: 100 }
+                : { ball: 0, max: 100 }
             return {
                 name: a.user?.name || 'Noma\'lum',
                 email: a.user?.email || '',
                 score: scoreVal,
                 correct: correctCount,
                 total,
-                dtmBall: dtm.ball,
-                dtmMax: dtm.max,
+                dtmBall: dtm?.ball,
+                dtmMax: dtm?.max,
                 msBall: ms.ball,
                 msMax: ms.max,
                 grade: getGrade(scoreVal),
