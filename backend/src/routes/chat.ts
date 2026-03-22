@@ -1270,7 +1270,7 @@ function buildRetentionGuidance(content: string, hasPendingTodo = false, isFirst
     }
 
     if (hasPendingTodo) {
-        return '\n\n--- TURN FLOW GUIDANCE ---\nUserda aktiv todo bor. Javobni shu reja bilan bog‘la va oxirida rejaning KEYINGI BITTA aniq qadamini ayt. Yangi structured blockni faqat user aniq so‘raganda och.\n--- TURN FLOW GUIDANCE END ---'
+        return '\n\n--- TURN FLOW GUIDANCE ---\nUserda aktiv todo bor. Agar joriy xabar shu reja yoki shu mavzu bilan bog‘liq bo‘lsa, javob oxirida rejaning KEYINGI BITTA aniq qadamini ayt. Agar user boshqa mavzuga o‘tgan bo‘lsa, todo’ni majburlama va asosiy so‘rovga yopishib javob ber. Yangi structured blockni faqat user aniq so‘raganda och.\n--- TURN FLOW GUIDANCE END ---'
     }
 
     if (isFirstMessage || analysis.greetingScore >= 4 || analysis.confusionScore >= 6) {
