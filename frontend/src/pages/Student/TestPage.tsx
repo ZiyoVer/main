@@ -51,6 +51,14 @@ function TextWithMath({ text }: { text: string }) {
     </>
 }
 
+function formatAcceptedAnswerText(text: string | null | undefined) {
+    return String(text || '')
+        .split(/\r?\n+/)
+        .map(part => part.trim())
+        .filter(Boolean)
+        .join(' / ')
+}
+
 const OPTS = ['A', 'B', 'C', 'D'] as const
 type AnswerValue = number | string | string[] | Record<number, number>
 type CorrectAnswerMap = Record<string, { idx: number; text?: string; type: string; matchingCorrect?: number[]; multipartCorrectText?: Array<{ label: string; text: string; correctText: string }> }>
@@ -445,7 +453,7 @@ export default function TestPage() {
                                                         {isSubCorrect ? <CheckCircle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" /> : <XCircle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />}
                                                         <div>
                                                             <p>{isSubCorrect ? 'To\'g\'ri!' : 'To\'g\'ri javob:'}</p>
-                                                            {!isSubCorrect && <p className="font-semibold"><TextWithMath text={subResult?.correctText || correct?.multipartCorrectText?.[subIndex]?.correctText || ''} /></p>}
+                                                            {!isSubCorrect && <p className="font-semibold"><TextWithMath text={formatAcceptedAnswerText(subResult?.correctText || correct?.multipartCorrectText?.[subIndex]?.correctText || '')} /></p>}
                                                         </div>
                                                     </div>
                                                 )}
@@ -456,7 +464,7 @@ export default function TestPage() {
                             ) : isOpen ? (
                                 <div className="space-y-2">
                                     <textarea disabled={submitted || isGuest} value={textAnswer} onChange={e => setAnswers(a => ({ ...a, [q.id]: e.target.value }))} placeholder={isGuest ? "Yechish uchun kiring..." : "Javobingizni yozing..."} rows={3} className="w-full rounded-lg border px-3 py-2 text-[13px] resize-none outline-none" style={{ background: 'var(--bg-surface)', borderColor: submitted ? (isCorrectOpen ? 'var(--success)' : 'var(--danger)') : textAnswer.trim() ? 'var(--brand)' : 'var(--border)', color: 'var(--text-primary)' }} />
-                                    {submitted && <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: isCorrectOpen ? 'var(--success-light)' : 'var(--danger-light)', color: isCorrectOpen ? 'var(--success)' : 'var(--danger)' }}>{isCorrectOpen ? <><CheckCircle className="h-3.5 w-3.5 flex-shrink-0" /> To'g'ri!</> : <><XCircle className="h-3.5 w-3.5 flex-shrink-0" /> To'g'ri: <span className="font-semibold">{correct?.text}</span></>}</div>}
+                                    {submitted && <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: isCorrectOpen ? 'var(--success-light)' : 'var(--danger-light)', color: isCorrectOpen ? 'var(--success)' : 'var(--danger)' }}>{isCorrectOpen ? <><CheckCircle className="h-3.5 w-3.5 flex-shrink-0" /> To'g'ri!</> : <><XCircle className="h-3.5 w-3.5 flex-shrink-0" /> To'g'ri: <span className="font-semibold">{formatAcceptedAnswerText(correct?.text)}</span></>}</div>}
                                 </div>
                             ) : (
                                 <div className="space-y-2">

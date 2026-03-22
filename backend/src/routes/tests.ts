@@ -47,9 +47,24 @@ function normalizeOpenAnswer(text: string | null | undefined): string {
         .toLowerCase()
 }
 
+function parseAcceptedAnswers(text: string | null | undefined): string[] {
+    return String(text || '')
+        .split(/\r?\n+/)
+        .map((part) => part.trim())
+        .filter(Boolean)
+}
+
+function formatAcceptedAnswers(text: string | null | undefined): string {
+    const answers = parseAcceptedAnswers(text)
+    return answers.join(' / ')
+}
+
 function isAnalysisAnswerCorrect(questionType: string | null | undefined, studentAnswer: string | null | undefined, correctAnswer: string | null | undefined): boolean {
     if (questionType === 'open' || questionType === 'multipart_open') {
-        return normalizeOpenAnswer(studentAnswer) !== '' && normalizeOpenAnswer(studentAnswer) === normalizeOpenAnswer(correctAnswer)
+        const normalizedStudent = normalizeOpenAnswer(studentAnswer)
+        if (!normalizedStudent) return false
+        const acceptedAnswers = parseAcceptedAnswers(correctAnswer).map(normalizeOpenAnswer)
+        return acceptedAnswers.includes(normalizedStudent)
     }
     return String(studentAnswer || '').trim().toUpperCase() !== ''
         && String(studentAnswer || '').trim().toUpperCase() === String(correctAnswer || '').trim().toUpperCase()
@@ -62,8 +77,9 @@ function formatQuestionForAnalysis(question: any, index: number): string {
     if ((questionType === 'matching' || questionType === 'multipart_open') && Array.isArray(question?.subAnswers)) {
         const subLines = question.subAnswers.map((subAnswer: any, subIndex: number) => {
             const studentAnswer = String(subAnswer?.studentAnswer || '—')
-            const correctAnswer = String(subAnswer?.correctAnswer || '—')
-            const isCorrect = isAnalysisAnswerCorrect(questionType, studentAnswer, correctAnswer)
+            const rawCorrectAnswer = String(subAnswer?.correctAnswer || '—')
+            const correctAnswer = formatAcceptedAnswers(rawCorrectAnswer) || '—'
+            const isCorrect = isAnalysisAnswerCorrect(questionType, studentAnswer, rawCorrectAnswer)
             const label = String(subAnswer?.label || (questionType === 'multipart_open' ? String.fromCharCode(65 + subIndex) : subIndex + 1))
             const subText = String(subAnswer?.subText || 'Bo\'lim').substring(0, 140)
             return `   ${isCorrect ? '✅' : '❌'} ${label}. ${subText} — O'quvchi: ${studentAnswer} | To'g'ri: ${correctAnswer}`
@@ -82,21 +98,25 @@ function formatQuestionForAnalysis(question: any, index: number): string {
         .filter(Boolean)
         .join(' | ')
     const studentAnswer = String(question?.studentAnswer || '—')
-    const correctAnswer = String(question?.correctAnswer || '—')
-    const isCorrect = isAnalysisAnswerCorrect(questionType, studentAnswer, correctAnswer)
+    const rawCorrectAnswer = String(question?.correctAnswer || '—')
+    const correctAnswer = questionType === 'open'
+        ? (formatAcceptedAnswers(rawCorrectAnswer) || '—')
+        : rawCorrectAnswer
+    const isCorrect = isAnalysisAnswerCorrect(questionType, studentAnswer, rawCorrectAnswer)
 
     return `${isCorrect ? '✅' : '❌'} ${index + 1}. ${questionText}${variants ? `\n   Variantlar: ${variants}` : ''}\n   O'quvchi: ${studentAnswer.toUpperCase()} | To'g'ri: ${correctAnswer.toUpperCase()}`
 }
 
 async function evaluateOpenAnswer(studentAnswer: string, correctAnswer: string): Promise<boolean> {
     const normalizedStudent = normalizeOpenAnswer(studentAnswer)
-    const normalizedCorrect = normalizeOpenAnswer(correctAnswer)
+    const acceptedAnswers = parseAcceptedAnswers(correctAnswer)
+    const normalizedAnswers = [...new Set(acceptedAnswers.map(normalizeOpenAnswer).filter(Boolean))]
 
-    if (!normalizedStudent || !normalizedCorrect) {
+    if (!normalizedStudent || normalizedAnswers.length === 0) {
         return false
     }
 
-    if (normalizedStudent === normalizedCorrect) {
+    if (normalizedAnswers.includes(normalizedStudent)) {
         return true
     }
 
@@ -105,7 +125,7 @@ async function evaluateOpenAnswer(studentAnswer: string, correctAnswer: string):
             model: aiModel,
             messages: [{
                 role: 'user',
-                content: `Test savoliga to'g'ri javob: "${correctAnswer.trim()}"\nO'quvchi javobi: "${studentAnswer.trim()}"\n\nO'quvchining javobi to'g'rimi (ma'nosi bo'yicha, yozilishi farqli bo'lsa ham)? Faqat "HA" yoki "YOQ" deb javob ber.`
+                content: `Test savoli uchun to'g'ri javob variantlari:\n${acceptedAnswers.map((answer, index) => `${index + 1}) "${answer}"`).join('\n')}\n\nO'quvchi javobi: "${studentAnswer.trim()}"\n\nO'quvchining javobi shu variantlardan biriga ma'nosi bo'yicha mos keladimi? Faqat "HA" yoki "YOQ" deb javob ber.`
             }],
             max_tokens: 5,
             temperature: 0
@@ -113,7 +133,7 @@ async function evaluateOpenAnswer(studentAnswer: string, correctAnswer: string):
         const reply = aiCheck.choices[0]?.message?.content?.trim().toUpperCase() || ''
         return reply.startsWith('HA')
     } catch {
-        return normalizedStudent === normalizedCorrect
+        return false
     }
 }
 

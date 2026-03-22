@@ -31,6 +31,14 @@ function MathPreview({ text, inline }: { text: string; inline?: boolean }) {
     } catch { return null }
 }
 
+function formatAcceptedAnswerHint(text: string) {
+    return text
+        .split(/\r?\n+/)
+        .map(part => part.trim())
+        .filter(Boolean)
+        .join(' / ')
+}
+
 interface MatchingSubQ { text: string; correctIdx: number }
 interface MultipartOpenSubQ { label: string; text: string; correctText: string }
 interface Question {
@@ -869,15 +877,17 @@ export default function TeacherPanel() {
                                     {q.questionType === 'open' ? (
                                         /* Yozma savol uchun to'g'ri javob kirish maydoni */
                                         <div className="mt-1 space-y-1">
-                                            <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>To'g'ri javob (o'quvchi aynan shu yozadi):</p>
-                                            <input
-                                                placeholder="Masalan: 42 yoki x=3 yoki Parij"
+                                            <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>To'g'ri javob variantlari (har bir variantni yangi qatordan yozing):</p>
+                                            <textarea
+                                                placeholder={`Masalan:\n42\n42 ta\nx=3`}
                                                 value={q.correctText || ''}
                                                 onChange={e => updateQ(qi, 'correctText', e.target.value)}
-                                                className="input w-full text-[13px]"
-                                                style={{ padding: '0.4rem 0.75rem', borderColor: 'color-mix(in srgb, var(--success) 40%, transparent)', background: 'color-mix(in srgb, var(--success) 4%, transparent)' }}
+                                                rows={3}
+                                                className="input w-full text-[13px] resize-none"
+                                                style={{ padding: '0.55rem 0.75rem', borderColor: 'color-mix(in srgb, var(--success) 40%, transparent)', background: 'color-mix(in srgb, var(--success) 4%, transparent)' }}
                                             />
-                                            <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Katta-kichik harf farq qilmaydi · Matematik formulalar uchun oddiy yozing: 1/2, sqrt(2)</p>
+                                            {q.correctText?.trim() && <p className="text-[10px]" style={{ color: 'var(--success)' }}>Qabul qilinadigan variantlar: {formatAcceptedAnswerHint(q.correctText)}</p>}
+                                            <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Katta-kichik harf farq qilmaydi · Matematik formulalar uchun oddiy yozing: 1/2, sqrt(2) · Har yangi qatordagi matn alohida to'g'ri javob hisoblanadi</p>
                                         </div>
                                     ) : q.questionType === 'multipart_open' ? (
                                         <div className="space-y-3">
@@ -911,13 +921,15 @@ export default function TeacherPanel() {
                                                             />
                                                             <MathPreview text={subQuestion.text} />
                                                         </div>
-                                                        <input
+                                                        <textarea
                                                             value={subQuestion.correctText}
                                                             onChange={e => updateQ(qi, `multipartSubQ_${subIndex}_correctText`, e.target.value)}
-                                                            placeholder={`${subQuestion.label}) To'g'ri javob`}
-                                                            className="input w-full text-[13px]"
-                                                            style={{ padding: '0.4rem 0.75rem', borderColor: 'color-mix(in srgb, var(--success) 40%, transparent)', background: 'color-mix(in srgb, var(--success) 4%, transparent)' }}
+                                                            placeholder={`${subQuestion.label}) To'g'ri javob variantlari\nMasalan:\n2440\n2 440`}
+                                                            rows={3}
+                                                            className="input w-full text-[13px] resize-none"
+                                                            style={{ padding: '0.5rem 0.75rem', borderColor: 'color-mix(in srgb, var(--success) 40%, transparent)', background: 'color-mix(in srgb, var(--success) 4%, transparent)' }}
                                                         />
+                                                        {subQuestion.correctText?.trim() && <p className="text-[10px]" style={{ color: 'var(--success)' }}>Variantlar: {formatAcceptedAnswerHint(subQuestion.correctText)}</p>}
                                                     </div>
                                                 ))}
                                             </div>
@@ -929,7 +941,7 @@ export default function TeacherPanel() {
                                                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)' }}>
                                                 <Plus className="h-3 w-3" /> Bo'lim qo'shish
                                             </button>
-                                            <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Talaba javobni A), B), C) ko'rinishida alohida maydonlarga yozadi.</p>
+                                            <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Talaba javobni A), B), C) ko'rinishida alohida maydonlarga yozadi. Har bo'lim uchun bir nechta to'g'ri variantni yangi qatordan kiritsa bo'ladi.</p>
                                         </div>
                                     ) : q.questionType === 'matching' ? (
                                         /* Moslashtirish savol uchun UI */
