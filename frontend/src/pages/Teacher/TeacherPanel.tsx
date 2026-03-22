@@ -882,9 +882,9 @@ export default function TeacherPanel() {
                                                 placeholder={`Masalan:\n42\n42 ta\nx=3`}
                                                 value={q.correctText || ''}
                                                 onChange={e => updateQ(qi, 'correctText', e.target.value)}
-                                                rows={3}
+                                                rows={4}
                                                 className="input w-full text-[13px] resize-none"
-                                                style={{ padding: '0.55rem 0.75rem', borderColor: 'color-mix(in srgb, var(--success) 40%, transparent)', background: 'color-mix(in srgb, var(--success) 4%, transparent)' }}
+                                                style={{ minHeight: 108, padding: '0.7rem 0.85rem', borderColor: 'color-mix(in srgb, var(--success) 40%, transparent)', background: 'color-mix(in srgb, var(--success) 4%, transparent)' }}
                                             />
                                             {q.correctText?.trim() && <p className="text-[10px]" style={{ color: 'var(--success)' }}>Qabul qilinadigan variantlar: {formatAcceptedAnswerHint(q.correctText)}</p>}
                                             <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Katta-kichik harf farq qilmaydi · Matematik formulalar uchun oddiy yozing: 1/2, sqrt(2) · Har yangi qatordagi matn alohida to'g'ri javob hisoblanadi</p>
@@ -925,9 +925,9 @@ export default function TeacherPanel() {
                                                             value={subQuestion.correctText}
                                                             onChange={e => updateQ(qi, `multipartSubQ_${subIndex}_correctText`, e.target.value)}
                                                             placeholder={`${subQuestion.label}) To'g'ri javob variantlari\nMasalan:\n2440\n2 440`}
-                                                            rows={3}
+                                                            rows={4}
                                                             className="input w-full text-[13px] resize-none"
-                                                            style={{ padding: '0.5rem 0.75rem', borderColor: 'color-mix(in srgb, var(--success) 40%, transparent)', background: 'color-mix(in srgb, var(--success) 4%, transparent)' }}
+                                                            style={{ minHeight: 108, padding: '0.65rem 0.85rem', borderColor: 'color-mix(in srgb, var(--success) 40%, transparent)', background: 'color-mix(in srgb, var(--success) 4%, transparent)' }}
                                                         />
                                                         {subQuestion.correctText?.trim() && <p className="text-[10px]" style={{ color: 'var(--success)' }}>Variantlar: {formatAcceptedAnswerHint(subQuestion.correctText)}</p>}
                                                     </div>
