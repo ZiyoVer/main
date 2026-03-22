@@ -52,6 +52,8 @@ function TextWithMath({ text }: { text: string }) {
 }
 
 const OPTS = ['A', 'B', 'C', 'D'] as const
+type AnswerValue = number | string | string[] | Record<number, number>
+type CorrectAnswerMap = Record<string, { idx: number; text?: string; type: string; matchingCorrect?: number[]; multipartCorrectText?: Array<{ label: string; text: string; correctText: string }> }>
 
 export default function TestPage() {
     const { shareLink } = useParams<{ shareLink: string }>()
@@ -60,11 +62,11 @@ export default function TestPage() {
     const [test, setTest] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [err, setErr] = useState('')
-    const [answers, setAnswers] = useState<Record<string, number | string>>({})
+    const [answers, setAnswers] = useState<Record<string, AnswerValue>>({})
     const [submitted, setSubmitted] = useState(false)
     const [result, setResult] = useState<any>(null)
     const [submitting, setSubmitting] = useState(false)
-    const [correctMap, setCorrectMap] = useState<Record<string, { idx: number; text?: string; type: string; matchingCorrect?: number[] }>>({})
+    const [correctMap, setCorrectMap] = useState<CorrectAnswerMap>({})
     const [analysisReady, setAnalysisReady] = useState(false)
     const [focusedQ, setFocusedQ] = useState(0) // for DTM mode: highlight active question
 
@@ -111,6 +113,16 @@ export default function TestPage() {
         try {
             const payload = test.questions.map((q: any) => {
                 if (q.questionType === 'open') return { questionId: q.id, selectedIdx: -1, textAnswer: answers[q.id] ?? '' }
+                if (q.questionType === 'multipart_open') {
+                    let multipartData: { subQuestions?: Array<{ text: string }> } = { subQuestions: [] }
+                    try { multipartData = JSON.parse(q.options) } catch { }
+                    const textAnswers = Array.isArray(answers[q.id]) ? answers[q.id] as string[] : []
+                    return {
+                        questionId: q.id,
+                        selectedIdx: -1,
+                        textAnswers: (multipartData.subQuestions || []).map((_: { text: string }, subIndex: number) => textAnswers[subIndex] ?? '')
+                    }
+                }
                 if (q.questionType === 'matching') {
                     const selMap = (answers[q.id] || {}) as Record<number, number>
                     let matchingAnswers: number[] = []
@@ -124,17 +136,27 @@ export default function TestPage() {
             })
             const res = await fetchApi(`/tests/${test.id}/submit`, { method: 'POST', body: JSON.stringify({ answers: payload, shareLink }) })
             setResult(res)
-            const map: Record<string, { idx: number; text?: string; type: string; matchingCorrect?: number[] }> = {}
-            res.correctAnswers?.forEach((ca: any) => { map[ca.id] = { idx: ca.correctIdx, text: ca.correctText, type: ca.questionType || 'mcq', matchingCorrect: ca.matchingCorrect } })
+            const map: CorrectAnswerMap = {}
+            res.correctAnswers?.forEach((ca: any) => {
+                map[ca.id] = {
+                    idx: ca.correctIdx,
+                    text: ca.correctText,
+                    type: ca.questionType || 'mcq',
+                    matchingCorrect: ca.matchingCorrect,
+                    multipartCorrectText: ca.multipartCorrectText
+                }
+            })
             setCorrectMap(map)
             setSubmitted(true)
             const optLabels = ['a', 'b', 'c', 'd']
             const questionsForAnalysis = test.questions.map((q: any, i: number) => {
                 let opts: string[] = []
                 let matchingData: any = null
+                let multipartData: { subQuestions?: Array<{ label?: string; text: string; correctText: string }> } = { subQuestions: [] }
                 try {
                     const parsed = JSON.parse(q.options)
                     if (q.questionType === 'matching') matchingData = parsed
+                    else if (q.questionType === 'multipart_open') multipartData = parsed
                     else opts = parsed
                 } catch { opts = [] }
                 const ca = res.correctAnswers?.find((c: any) => c.id === q.id)
@@ -148,6 +170,16 @@ export default function TestPage() {
                         correctAnswer: ca?.matchingCorrect?.[si] !== undefined ? String.fromCharCode(65 + ca.matchingCorrect[si]) : '?'
                     }))
                     return { text: q.text, imageUrl: q.imageUrl || null, questionType: 'matching', matchingAnswers: matchingData.answers, subAnswers, studentAnswer: null, correctAnswer: null, a: null, b: null, c: null, d: null }
+                }
+                if (q.questionType === 'multipart_open' && multipartData) {
+                    const textAnswers = Array.isArray(answers[q.id]) ? answers[q.id] as string[] : []
+                    const subAnswers = (multipartData.subQuestions || []).map((subQuestion, subIndex) => ({
+                        label: subQuestion.label || String.fromCharCode(65 + subIndex),
+                        subText: subQuestion.text,
+                        studentAnswer: textAnswers[subIndex] || '—',
+                        correctAnswer: ca?.multipartCorrectText?.[subIndex]?.correctText || subQuestion.correctText || '—'
+                    }))
+                    return { text: q.text, imageUrl: q.imageUrl || null, questionType: 'multipart_open', subAnswers, studentAnswer: null, correctAnswer: null, a: null, b: null, c: null, d: null }
                 }
                 return { text: q.text, imageUrl: q.imageUrl || null, questionType: q.questionType || 'mcq', studentAnswer: studentIdx >= 0 ? optLabels[studentIdx] : (payload[i]?.textAnswer || null), correctAnswer: ca ? (ca.correctIdx >= 0 ? optLabels[ca.correctIdx] : ca.correctText) : null, a: opts[0], b: opts[1], c: opts[2], d: opts[3] }
             })
@@ -207,6 +239,14 @@ export default function TestPage() {
     const answeredCount = test?.questions?.filter((q: any) => {
         const a = answers[q.id]
         if (q.questionType === 'open') return typeof a === 'string' && a.trim().length > 0
+        if (q.questionType === 'multipart_open') {
+            if (!Array.isArray(a)) return false
+            try {
+                const opts = JSON.parse(q.options)
+                const numSubs = (opts.subQuestions || []).length
+                return numSubs > 0 && a.length >= numSubs && a.every(answer => typeof answer === 'string' && answer.trim().length > 0)
+            } catch { return false }
+        }
         if (q.questionType === 'matching') {
             if (!a || typeof a !== 'object') return false
             try {
@@ -304,16 +344,20 @@ export default function TestPage() {
                 {test?.questions?.map((q: any, qi: number) => {
                     let opts: string[] = []
                     let matchingData: any = null
+                    let multipartData: { subQuestions?: Array<{ label?: string; text: string; correctText: string }> } = { subQuestions: [] }
                     try {
                         const parsed = JSON.parse(q.options)
                         if (q.questionType === 'matching') matchingData = parsed
+                        else if (q.questionType === 'multipart_open') multipartData = parsed
                         else opts = parsed
                     } catch { opts = [] }
                     const correct = submitted ? correctMap[q.id] : null
                     const correctIdx = correct?.idx ?? -1
                     const isOpen = q.questionType === 'open'
+                    const isMultipartOpen = q.questionType === 'multipart_open'
                     const isMatching = q.questionType === 'matching'
                     const textAnswer = typeof answers[q.id] === 'string' ? answers[q.id] as string : ''
+                    const multipartAnswers = Array.isArray(answers[q.id]) ? answers[q.id] as string[] : []
                     const serverResult = result?.results?.find((r: any) => r.questionId === q.id)
                     const isCorrectOpen = submitted && correct?.type === 'open' ? (serverResult ? serverResult.isCorrect : textAnswer.trim().toLowerCase() === (correct.text || '').trim().toLowerCase()) : false
                     return (
@@ -373,6 +417,41 @@ export default function TestPage() {
                                             )
                                         })}
                                     </div>
+                                </div>
+                            ) : isMultipartOpen ? (
+                                <div className="space-y-2">
+                                    {(multipartData.subQuestions || []).map((subQuestion, subIndex) => {
+                                        const subResult = serverResult?.subResults?.[subIndex]
+                                        const isSubCorrect = submitted ? !!subResult?.isCorrect : false
+                                        const label = subQuestion.label || String.fromCharCode(65 + subIndex)
+                                        return (
+                                            <div key={subIndex} className="p-3 rounded-lg" style={{ border: `1px solid ${submitted ? (isSubCorrect ? 'var(--success)' : 'var(--danger)') : 'var(--border)'}`, background: 'var(--bg-surface)' }}>
+                                                <p className="text-[12px] mb-2 font-medium"><span style={{ color: '#0f766e' }}>{label})</span> <TextWithMath text={subQuestion.text} /></p>
+                                                <textarea
+                                                    disabled={submitted || isGuest}
+                                                    value={multipartAnswers[subIndex] || ''}
+                                                    onChange={event => !isGuest && setAnswers(currentAnswers => {
+                                                        const nextAnswers = Array.isArray(currentAnswers[q.id]) ? [...currentAnswers[q.id] as string[]] : []
+                                                        nextAnswers[subIndex] = event.target.value
+                                                        return { ...currentAnswers, [q.id]: nextAnswers }
+                                                    })}
+                                                    placeholder={isGuest ? "Yechish uchun kiring..." : `${label}) javobingizni yozing...`}
+                                                    rows={2}
+                                                    className="w-full rounded-lg border px-3 py-2 text-[13px] resize-none outline-none"
+                                                    style={{ background: 'var(--bg-card)', borderColor: submitted ? (isSubCorrect ? 'var(--success)' : 'var(--danger)') : (multipartAnswers[subIndex] || '').trim() ? '#0f766e' : 'var(--border)', color: 'var(--text-primary)' }}
+                                                />
+                                                {submitted && (
+                                                    <div className="mt-2 flex items-start gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: isSubCorrect ? 'var(--success-light)' : 'var(--danger-light)', color: isSubCorrect ? 'var(--success)' : 'var(--danger)' }}>
+                                                        {isSubCorrect ? <CheckCircle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" /> : <XCircle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />}
+                                                        <div>
+                                                            <p>{isSubCorrect ? 'To\'g\'ri!' : 'To\'g\'ri javob:'}</p>
+                                                            {!isSubCorrect && <p className="font-semibold"><TextWithMath text={subResult?.correctText || correct?.multipartCorrectText?.[subIndex]?.correctText || ''} /></p>}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )
+                                    })}
                                 </div>
                             ) : isOpen ? (
                                 <div className="space-y-2">

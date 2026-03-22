@@ -39,6 +39,43 @@ function roundScore(value: number): number {
     return Math.round(value * 10) / 10
 }
 
+function normalizeOpenAnswer(text: string | null | undefined): string {
+    return (text || '')
+        .trim()
+        .replace(/\s+/g, ' ')
+        .replace(/[’`]/g, '\'')
+        .toLowerCase()
+}
+
+async function evaluateOpenAnswer(studentAnswer: string, correctAnswer: string): Promise<boolean> {
+    const normalizedStudent = normalizeOpenAnswer(studentAnswer)
+    const normalizedCorrect = normalizeOpenAnswer(correctAnswer)
+
+    if (!normalizedStudent || !normalizedCorrect) {
+        return false
+    }
+
+    if (normalizedStudent === normalizedCorrect) {
+        return true
+    }
+
+    try {
+        const aiCheck = await aiClient.chat.completions.create({
+            model: aiModel,
+            messages: [{
+                role: 'user',
+                content: `Test savoliga to'g'ri javob: "${correctAnswer.trim()}"\nO'quvchi javobi: "${studentAnswer.trim()}"\n\nO'quvchining javobi to'g'rimi (ma'nosi bo'yicha, yozilishi farqli bo'lsa ham)? Faqat "HA" yoki "YOQ" deb javob ber.`
+            }],
+            max_tokens: 5,
+            temperature: 0
+        })
+        const reply = aiCheck.choices[0]?.message?.content?.trim().toUpperCase() || ''
+        return reply.startsWith('HA')
+    } catch {
+        return normalizedStudent === normalizedCorrect
+    }
+}
+
 function getMsRaschScore(items: { difficulty: number; isCorrect: boolean }[]): { ball: number; max: number; ability: number } {
     if (items.length === 0) return { ball: 0, max: 100, ability: 0 }
 
@@ -729,6 +766,9 @@ router.post('/:testId/questions', authenticate, requireRole('TEACHER', 'ADMIN'),
         if (!text || typeof text !== 'string' || !text.trim()) {
             return res.status(400).json({ error: 'Savol matni majburiy' })
         }
+        if (test.testType === 'dtm' && questionType === 'multipart_open') {
+            return res.status(400).json({ error: 'Multi-part yozma savol DTM testida qo\'llanmaydi' })
+        }
         if (text.trim().length > 2000) {
             return res.status(400).json({ error: 'Savol matni 2000 belgidan oshmasligi kerak' })
         }
@@ -743,6 +783,21 @@ router.post('/:testId/questions', authenticate, requireRole('TEACHER', 'ADMIN'),
             const mSubs = matchData.subQuestions || []
             if (mAnswers.length < 2) return res.status(400).json({ error: 'Kamida 2 ta javob varianti bo\'lishi kerak' })
             if (mSubs.length < 1) return res.status(400).json({ error: 'Kamida 1 ta kichik savol bo\'lishi kerak' })
+        } else if (questionType === 'multipart_open') {
+            let multipartData: any = {}
+            try { multipartData = typeof options === 'string' ? JSON.parse(options) : options } catch {
+                return res.status(400).json({ error: 'Multi-part format xato' })
+            }
+            const subQuestions = multipartData.subQuestions || []
+            if (subQuestions.length < 2) return res.status(400).json({ error: 'Kamida 2 ta bo\'lim bo\'lishi kerak' })
+            for (const subQuestion of subQuestions) {
+                if (typeof subQuestion?.text !== 'string' || !subQuestion.text.trim()) {
+                    return res.status(400).json({ error: 'Har bir bo\'lim savol matni bilan bo\'lishi kerak' })
+                }
+                if (typeof subQuestion?.correctText !== 'string' || !subQuestion.correctText.trim()) {
+                    return res.status(400).json({ error: 'Har bir bo\'lim uchun to\'g\'ri javob kerak' })
+                }
+            }
         } else if (questionType !== 'open') {
             if (!Array.isArray(options) || options.length < 2) {
                 return res.status(400).json({ error: 'Kamida 2 ta variant bo\'lishi kerak' })
@@ -759,9 +814,10 @@ router.post('/:testId/questions', authenticate, requireRole('TEACHER', 'ADMIN'),
                 imageUrl: imageUrl || null,
                 questionType: questionType || 'mcq',
                 options: questionType === 'open' ? '[]'
+                       : questionType === 'multipart_open' ? (typeof options === 'string' ? options : JSON.stringify(options))
                        : questionType === 'matching' ? (typeof options === 'string' ? options : JSON.stringify(options))
                        : JSON.stringify(options),
-                correctIdx: (questionType === 'open' || questionType === 'matching') ? -1 : (correctIdx ?? 0),
+                correctIdx: (questionType === 'open' || questionType === 'matching' || questionType === 'multipart_open') ? -1 : (correctIdx ?? 0),
                 orderIdx: orderIdx || 0,
                 difficulty: difficulty || 0.0
             }
@@ -800,6 +856,23 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
                 const mSubs = matchData.subQuestions || []
                 if (mAnswers.length < 2) return res.status(400).json({ error: `${i + 1}-savol: kamida 2 ta javob varianti bo'lishi kerak` })
                 if (mSubs.length < 1) return res.status(400).json({ error: `${i + 1}-savol: kamida 1 ta kichik savol bo'lishi kerak` })
+            } else if (q.questionType === 'multipart_open') {
+                let multipartData: any = {}
+                try { multipartData = typeof q.options === 'string' ? JSON.parse(q.options) : q.options } catch {
+                    return res.status(400).json({ error: `${i + 1}-savol: multi-part formati xato` })
+                }
+                const subQuestions = multipartData.subQuestions || []
+                if (subQuestions.length < 2) {
+                    return res.status(400).json({ error: `${i + 1}-savol: kamida 2 ta bo'lim bo'lishi kerak` })
+                }
+                for (let si = 0; si < subQuestions.length; si++) {
+                    if (typeof subQuestions[si]?.text !== 'string' || !subQuestions[si].text.trim()) {
+                        return res.status(400).json({ error: `${i + 1}-savol: ${si + 1}-bo'lim matni bo'sh` })
+                    }
+                    if (typeof subQuestions[si]?.correctText !== 'string' || !subQuestions[si].correctText.trim()) {
+                        return res.status(400).json({ error: `${i + 1}-savol: ${si + 1}-bo'lim uchun to'g'ri javob yo'q` })
+                    }
+                }
             } else if (q.questionType !== 'open') {
                 // MCQ validatsiyasi
                 let opts: any[]
@@ -824,6 +897,9 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
         }
 
         const validTestType = testType === 'dtm' ? 'dtm' : 'milliy_sertifikat'
+        if (validTestType === 'dtm' && questions.some((question: any) => question.questionType === 'multipart_open')) {
+            return res.status(400).json({ error: 'Multi-part yozma savollar faqat Milliy Sertifikat testlari uchun' })
+        }
         const test = await prisma.test.create({
             data: {
                 title,
@@ -841,9 +917,10 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
                         // mcq: options array → JSON.stringify kerak
                         // open: bo'sh array
                         options: q.questionType === 'open' ? '[]'
+                               : q.questionType === 'multipart_open' ? (typeof q.options === 'string' ? q.options : JSON.stringify(q.options))
                                : q.questionType === 'matching' ? (typeof q.options === 'string' ? q.options : JSON.stringify(q.options))
                                : JSON.stringify(q.options),
-                        correctIdx: (q.questionType === 'open' || q.questionType === 'matching') ? -1 : (q.correctIdx ?? 0),
+                        correctIdx: (q.questionType === 'open' || q.questionType === 'matching' || q.questionType === 'multipart_open') ? -1 : (q.correctIdx ?? 0),
                         correctText: q.questionType === 'open' ? (q.correctText?.trim() || null) : null,
                         questionType: q.questionType || 'mcq',
                         difficulty: q.difficulty || 0.0,
@@ -1159,29 +1236,36 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
                 if (q.questionType === 'open') {
                     const studentAns = (a.textAnswer || '').trim()
                     const correctAns = (q.correctText || '').trim()
-                    if (correctAns.length === 0 || studentAns.length === 0) {
-                        isCorrect = false
-                    } else if (studentAns.toLowerCase() === correctAns.toLowerCase()) {
-                        // To'liq mos — AI ga so'ramasdan
-                        isCorrect = true
-                    } else {
-                        // AI bilan semantik tekshirish
-                        try {
-                            const aiCheck = await aiClient.chat.completions.create({
-                                model: aiModel,
-                                messages: [{
-                                    role: 'user',
-                                    content: `Test savoliga to'g'ri javob: "${correctAns}"\nO'quvchi javobi: "${studentAns}"\n\nO'quvchining javobi to'g'rimi (ma'nosi bo'yicha, yozilishi farqli bo'lsa ham)? Faqat "HA" yoki "YOQ" deb javob ber.`
-                                }],
-                                max_tokens: 5,
-                                temperature: 0
-                            })
-                            const reply = aiCheck.choices[0]?.message?.content?.trim().toUpperCase() || ''
-                            isCorrect = reply.startsWith('HA')
-                        } catch {
-                            // AI xato bo'lsa — string solishtirish fallback
-                            isCorrect = studentAns.toLowerCase() === correctAns.toLowerCase()
+                    isCorrect = await evaluateOpenAnswer(studentAns, correctAns)
+                } else if (q.questionType === 'multipart_open') {
+                    let multipartData: any = { subQuestions: [] }
+                    try { multipartData = JSON.parse(q.options as string) } catch { }
+                    const subQuestions = multipartData.subQuestions || []
+                    const studentTextAnswers: string[] = Array.isArray(a.textAnswers) ? a.textAnswers.map((answer: string) => String(answer || '')) : []
+                    const subResults = await Promise.all(subQuestions.map(async (subQuestion: any, subIndex: number) => {
+                        const studentAnswer = (studentTextAnswers[subIndex] || '').trim()
+                        const correctText = String(subQuestion.correctText || '').trim()
+                        const subCorrect = await evaluateOpenAnswer(studentAnswer, correctText)
+                        return {
+                            label: String(subQuestion.label || String.fromCharCode(65 + subIndex)),
+                            subText: String(subQuestion.text || ''),
+                            studentAnswer,
+                            correctText,
+                            isCorrect: subCorrect
                         }
+                    }))
+                    const correctSubCount = subResults.filter((subResult) => subResult.isCorrect).length
+                    isCorrect = correctSubCount === subQuestions.length && subQuestions.length > 0
+                    return {
+                        questionId: a.questionId,
+                        selectedIdx: -1,
+                        textAnswer: null,
+                        textAnswers: studentTextAnswers,
+                        isCorrect,
+                        difficulty: q?.difficulty || 0.0,
+                        correctSubCount,
+                        totalSubs: subQuestions.length,
+                        subResults
                     }
                 } else if (q.questionType === 'matching') {
                     let matchingData: any = { answers: [], subQuestions: [] }
@@ -1212,12 +1296,12 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
             }
         }))
 
-        // Matching questions: partial credit per sub-question
+        // Matching va multi-part savollar: partial credit per sub-question
         let correct = 0
         let expandedTotal = 0
         results.forEach((r: any) => {
             const q = test.questions.find(q => q.id === r.questionId)
-            if (q && (q as any).questionType === 'matching') {
+            if (q && ((q as any).questionType === 'matching' || (q as any).questionType === 'multipart_open')) {
                 expandedTotal += r.totalSubs || 1
                 correct += r.correctSubCount || 0
             } else {
@@ -1235,15 +1319,22 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
         const raschItems: { difficulty: number; isCorrect: boolean }[] = []
         results.forEach((r: any) => {
             const q = test.questions.find(q => q.id === r.questionId)
-            if (q && (q as any).questionType === 'matching' && r.totalSubs > 0) {
+            if (q && ((q as any).questionType === 'matching' || (q as any).questionType === 'multipart_open') && r.totalSubs > 0) {
                 // Har bir sub-question uchun alohida Rasch item (bir xil difficulty)
-                let matchingData: any = { subQuestions: [] }
-                try { matchingData = JSON.parse((q as any).options as string) } catch { }
-                const subQs = matchingData.subQuestions || []
-                const studentAnss: number[] = r.matchingAnswers || []
-                subQs.forEach((sq: any, si: number) => {
-                    raschItems.push({ difficulty: r.difficulty, isCorrect: studentAnss[si] === sq.correctIdx })
-                })
+                let subQuestionsData: any = { subQuestions: [] }
+                try { subQuestionsData = JSON.parse((q as any).options as string) } catch { }
+                const subQs = subQuestionsData.subQuestions || []
+                if ((q as any).questionType === 'matching') {
+                    const studentAnss: number[] = r.matchingAnswers || []
+                    subQs.forEach((sq: any, si: number) => {
+                        raschItems.push({ difficulty: r.difficulty, isCorrect: studentAnss[si] === sq.correctIdx })
+                    })
+                } else {
+                    const subResults = r.subResults || []
+                    subQs.forEach((_: any, si: number) => {
+                        raschItems.push({ difficulty: r.difficulty, isCorrect: !!subResults[si]?.isCorrect })
+                    })
+                }
             } else {
                 raschItems.push({ difficulty: r.difficulty, isCorrect: r.isCorrect })
             }
@@ -1311,6 +1402,20 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
                     matchingCorrect: (matchingData.subQuestions || []).map((sq: any) => sq.correctIdx)
                 }
             }
+            if ((q as any).questionType === 'multipart_open') {
+                let multipartData: any = { subQuestions: [] }
+                try { multipartData = JSON.parse(q.options as string) } catch { }
+                return {
+                    id: q.id,
+                    correctIdx: -1,
+                    questionType: 'multipart_open',
+                    multipartCorrectText: (multipartData.subQuestions || []).map((subQuestion: any, subIndex: number) => ({
+                        label: String(subQuestion.label || String.fromCharCode(65 + subIndex)),
+                        text: String(subQuestion.text || ''),
+                        correctText: String(subQuestion.correctText || '')
+                    }))
+                }
+            }
             return {
                 id: q.id, correctIdx: q.correctIdx,
                 correctText: (q as any).questionType === 'open' ? (q as any).correctText : undefined,
@@ -1369,6 +1474,7 @@ router.get('/:testId/analytics', authenticate, requireRole('TEACHER', 'ADMIN'), 
         const questionStats = test.questions.map((q: any) => {
             let opts: any[]
             const isMatching = q.questionType === 'matching'
+            const isMultipartOpen = q.questionType === 'multipart_open'
             try {
                 const parsed = typeof q.options === 'string' ? JSON.parse(q.options) : q.options
                 if (isMatching) {
@@ -1397,10 +1503,15 @@ router.get('/:testId/analytics', authenticate, requireRole('TEACHER', 'ADMIN'), 
                 }
                 const ans = answers.find((a: any) => a.questionId === q.id)
                 if (ans != null) {
-                    totalAnswered++
-                    if (ans.isCorrect) correctCount++
+                    if ((isMatching || isMultipartOpen) && (ans.totalSubs || 0) > 0) {
+                        totalAnswered += ans.totalSubs || 0
+                        correctCount += ans.correctSubCount || 0
+                    } else {
+                        totalAnswered++
+                        if (ans.isCorrect) correctCount++
+                    }
                     // Matching uchun selectedIdx yo'q — optionCounts hisoblanmaydi
-                    if (!isMatching) {
+                    if (!isMatching && !isMultipartOpen) {
                         const idx = ans.selectedIdx
                         if (idx >= 0 && idx < opts.length) optionCounts[idx]++
                     }

@@ -32,12 +32,32 @@ function MathPreview({ text, inline }: { text: string; inline?: boolean }) {
 }
 
 interface MatchingSubQ { text: string; correctIdx: number }
+interface MultipartOpenSubQ { label: string; text: string; correctText: string }
 interface Question {
     text: string; imageUrl?: string | null; options: string[]; correctIdx: number
-    questionType: 'mcq' | 'open' | 'matching'; correctText?: string
+    questionType: 'mcq' | 'open' | 'matching' | 'multipart_open'; correctText?: string
     imagePreviewUrl?: string | null
     matchingAnswers?: string[]       // A–F shared answer bank
     matchingSubQuestions?: MatchingSubQ[]  // each sub-question + correct answer idx
+    multipartSubQuestions?: MultipartOpenSubQ[]
+}
+
+function createDefaultMultipartSubQuestions(): MultipartOpenSubQ[] {
+    return ['A', 'B', 'C'].map(label => ({ label, text: '', correctText: '' }))
+}
+
+function createEmptyQuestion(): Question {
+    return {
+        text: '',
+        imageUrl: null,
+        options: ['', '', '', ''],
+        correctIdx: 0,
+        questionType: 'mcq',
+        correctText: '',
+        matchingAnswers: ['', '', '', '', '', ''],
+        matchingSubQuestions: [{ text: '', correctIdx: 0 }],
+        multipartSubQuestions: createDefaultMultipartSubQuestions()
+    }
 }
 
 export default function TeacherPanel() {
@@ -51,7 +71,7 @@ export default function TeacherPanel() {
     const [isPublic, setIsPublic] = useState(false)
     const [testType, setTestType] = useState<'milliy_sertifikat' | 'dtm'>('milliy_sertifikat')
     const [timeLimit, setTimeLimit] = useState<number>(0)
-    const [questions, setQuestions] = useState<Question[]>([{ text: '', options: ['', '', '', ''], correctIdx: 0, questionType: 'mcq', correctText: '' }])
+    const [questions, setQuestions] = useState<Question[]>([createEmptyQuestion()])
     const [loading, setLoading] = useState(false)
     const [msg, setMsg] = useState('')
     const [copied, setCopied] = useState<string | null>(null)
@@ -112,7 +132,7 @@ export default function TeacherPanel() {
     }
 
     function addQuestion() {
-        setQuestions([...questions, { text: '', imageUrl: null, options: ['', '', '', ''], correctIdx: 0, questionType: 'mcq', correctText: '', matchingAnswers: ['', '', '', '', '', ''], matchingSubQuestions: [{ text: '', correctIdx: 0 }] }])
+        setQuestions([...questions, createEmptyQuestion()])
     }
 
     async function uploadQuestionImage(qi: number, file: File) {
@@ -161,7 +181,15 @@ export default function TeacherPanel() {
             if (field === 'imagePreviewUrl') return { ...q, imagePreviewUrl: value }
             if (field === 'correctIdx') return { ...q, correctIdx: value }
             if (field === 'correctText') return { ...q, correctText: value }
-            if (field === 'questionType') return { ...q, questionType: value }
+            if (field === 'questionType') {
+                return {
+                    ...q,
+                    questionType: value,
+                    matchingAnswers: q.matchingAnswers || ['', '', '', '', '', ''],
+                    matchingSubQuestions: q.matchingSubQuestions || [{ text: '', correctIdx: 0 }],
+                    multipartSubQuestions: q.multipartSubQuestions?.length ? q.multipartSubQuestions : createDefaultMultipartSubQuestions()
+                }
+            }
             if (field.startsWith('opt')) {
                 const oi = parseInt(field.replace('opt', ''))
                 const newOptions = [...q.options]
@@ -190,6 +218,30 @@ export default function TeacherPanel() {
             if (field.startsWith('removeMatchingSubQ_')) {
                 const si = parseInt(field.replace('removeMatchingSubQ_', ''))
                 return { ...q, matchingSubQuestions: (q.matchingSubQuestions || []).filter((_, ii) => ii !== si) }
+            }
+            if (field.startsWith('multipartSubQ_')) {
+                const parts = field.split('_')
+                const si = parseInt(parts[1])
+                const subField = parts[2] as 'text' | 'correctText' | 'label'
+                const newSubs = [...(q.multipartSubQuestions || createDefaultMultipartSubQuestions())]
+                newSubs[si] = { ...newSubs[si], [subField]: value }
+                return { ...q, multipartSubQuestions: newSubs }
+            }
+            if (field === 'addMultipartSubQ') {
+                const currentSubs = q.multipartSubQuestions || createDefaultMultipartSubQuestions()
+                const nextLabel = String.fromCharCode(65 + currentSubs.length)
+                return { ...q, multipartSubQuestions: [...currentSubs, { label: nextLabel, text: '', correctText: '' }] }
+            }
+            if (field.startsWith('removeMultipartSubQ_')) {
+                const si = parseInt(field.replace('removeMultipartSubQ_', ''))
+                const remaining = (q.multipartSubQuestions || []).filter((_, ii) => ii !== si)
+                return {
+                    ...q,
+                    multipartSubQuestions: remaining.map((subQuestion, subIndex) => ({
+                        ...subQuestion,
+                        label: String.fromCharCode(65 + subIndex)
+                    }))
+                }
             }
             return q
         }))
@@ -268,6 +320,16 @@ export default function TeacherPanel() {
             if (q.questionType === 'open') {
                 return { ...q, text: q.text?.trim() || (q.imageUrl ? ' ' : ''), options: [], correctIdx: -1 }
             }
+            if (q.questionType === 'multipart_open') {
+                const multipartPayload = {
+                    subQuestions: (q.multipartSubQuestions || []).map(subQuestion => ({
+                        label: subQuestion.label,
+                        text: subQuestion.text,
+                        correctText: subQuestion.correctText
+                    }))
+                }
+                return { ...q, text: q.text?.trim() || (q.imageUrl ? ' ' : ''), options: JSON.stringify(multipartPayload) as any, correctIdx: -1 }
+            }
             if (q.questionType === 'matching') {
                 // Serialize matching data into options JSON
                 const matchingPayload = {
@@ -288,6 +350,17 @@ export default function TeacherPanel() {
         for (let i = 0; i < finalQuestions.length; i++) {
             if (!finalQuestions[i].text?.trim() && !finalQuestions[i].imageUrl) { setMsg(`Savol ${i + 1} matni bo'sh`); return }
             if (finalQuestions[i].questionType === 'open') continue
+            if (finalQuestions[i].questionType === 'multipart_open') {
+                let multipartPayload: { subQuestions?: MultipartOpenSubQ[] } = {}
+                try { multipartPayload = JSON.parse(finalQuestions[i].options as any) } catch { }
+                const subQuestions = multipartPayload.subQuestions || []
+                if (subQuestions.length < 2) { setMsg(`Savol ${i + 1}: kamida 2 ta bo'lim bo'lishi kerak`); return }
+                for (let si = 0; si < subQuestions.length; si++) {
+                    if (!subQuestions[si].text?.trim()) { setMsg(`Savol ${i + 1}, bo'lim ${subQuestions[si].label || String.fromCharCode(65 + si)} matni bo'sh`); return }
+                    if (!subQuestions[si].correctText?.trim()) { setMsg(`Savol ${i + 1}, bo'lim ${subQuestions[si].label || String.fromCharCode(65 + si)} uchun to'g'ri javob bo'sh`); return }
+                }
+                continue
+            }
             if (finalQuestions[i].questionType === 'matching') {
                 // Matching validatsiyasi
                 let mp: any = {}
@@ -312,7 +385,7 @@ export default function TeacherPanel() {
             await fetchApi('/tests/create', { method: 'POST', body: JSON.stringify({ title, subject, isPublic, testType, timeLimit: timeLimit || null, questions: finalQuestions }) })
             setMsg('success')
             setTitle('')
-            setQuestions([{ text: '', options: ['', '', '', ''], correctIdx: 0, questionType: 'mcq', correctText: '', matchingAnswers: ['', '', '', '', '', ''], matchingSubQuestions: [{ text: '', correctIdx: 0 }] }])
+            setQuestions([createEmptyQuestion()])
             setTimeLimit(0); setIsPublic(false); setTestType('milliy_sertifikat')
             setAiFile(null); setAiDone(false)
             // fileInput ni tozalash — bir xil faylni qayta yuklash mumkin bo'lsin
@@ -734,7 +807,7 @@ export default function TeacherPanel() {
                                         <div className="flex items-center gap-2">
                                             <span className="text-[12px] font-semibold" style={secondaryText}>Savol {qi + 1}</span>
                                             {/* MCQ / Yozma / Moslashtirish toggle */}
-                                            <div className="flex rounded-md overflow-hidden border text-[11px] font-medium" style={{ borderColor: 'var(--border)' }}>
+                                            <div className="flex flex-wrap rounded-md overflow-hidden border text-[11px] font-medium" style={{ borderColor: 'var(--border)' }}>
                                                 <button type="button" onClick={() => updateQ(qi, 'questionType', 'mcq')}
                                                     className="px-2 py-0.5 transition"
                                                     style={q.questionType === 'mcq' ? { background: 'var(--brand)', color: '#fff' } : { background: 'transparent', color: 'var(--text-muted)' }}>
@@ -749,6 +822,17 @@ export default function TeacherPanel() {
                                                     className="px-2 py-0.5 transition"
                                                     style={q.questionType === 'matching' ? { background: '#8b5cf6', color: '#fff' } : { background: 'transparent', color: 'var(--text-muted)' }}>
                                                     Moslashtirish
+                                                </button>
+                                                <button type="button" onClick={() => updateQ(qi, 'questionType', 'multipart_open')}
+                                                    className="px-2 py-0.5 transition"
+                                                    disabled={testType === 'dtm'}
+                                                    title={testType === 'dtm' ? 'Multi-part yozma savol faqat Milliy Sertifikat uchun' : undefined}
+                                                    style={q.questionType === 'multipart_open'
+                                                        ? { background: '#0f766e', color: '#fff' }
+                                                        : testType === 'dtm'
+                                                            ? { background: 'transparent', color: 'var(--border-strong)', opacity: 0.5, cursor: 'not-allowed' }
+                                                            : { background: 'transparent', color: 'var(--text-muted)' }}>
+                                                    Multi-part
                                                 </button>
                                             </div>
                                         </div>
@@ -794,6 +878,58 @@ export default function TeacherPanel() {
                                                 style={{ padding: '0.4rem 0.75rem', borderColor: 'color-mix(in srgb, var(--success) 40%, transparent)', background: 'color-mix(in srgb, var(--success) 4%, transparent)' }}
                                             />
                                             <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Katta-kichik harf farq qilmaydi · Matematik formulalar uchun oddiy yozing: 1/2, sqrt(2)</p>
+                                        </div>
+                                    ) : q.questionType === 'multipart_open' ? (
+                                        <div className="space-y-3">
+                                            <div className="rounded-lg px-3 py-2 text-[11px]" style={{ background: 'color-mix(in srgb, #0f766e 8%, transparent)', border: '1px solid color-mix(in srgb, #0f766e 20%, transparent)', color: 'var(--text-secondary)' }}>
+                                                Bitta umumiy kontekst ostida A, B, C kabi bo'limli yozma savollar uchun.
+                                            </div>
+                                            <div className="space-y-2">
+                                                {(q.multipartSubQuestions || createDefaultMultipartSubQuestions()).map((subQuestion, subIndex) => (
+                                                    <div key={subIndex} className="rounded-lg p-3 space-y-2" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <span className="text-[11px] font-bold" style={{ color: '#0f766e' }}>{subQuestion.label}) Bo'lim</span>
+                                                            {(q.multipartSubQuestions || []).length > 2 && (
+                                                                <button type="button"
+                                                                    onClick={() => updateQ(qi, `removeMultipartSubQ_${subIndex}`, null)}
+                                                                    className="h-6 w-6 flex items-center justify-center rounded-md transition"
+                                                                    style={{ color: 'var(--border-strong)' }}
+                                                                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.background = 'var(--danger-light)' }}
+                                                                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--border-strong)'; e.currentTarget.style.background = 'transparent' }}>
+                                                                    <Trash2 className="h-3 w-3" />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                        <div>
+                                                            <textarea
+                                                                value={subQuestion.text}
+                                                                onChange={e => updateQ(qi, `multipartSubQ_${subIndex}_text`, e.target.value)}
+                                                                placeholder={`${subQuestion.label}) Savol matni`}
+                                                                className="input w-full resize-none text-[13px]"
+                                                                rows={2}
+                                                                style={{ padding: '0.45rem 0.7rem' }}
+                                                            />
+                                                            <MathPreview text={subQuestion.text} />
+                                                        </div>
+                                                        <input
+                                                            value={subQuestion.correctText}
+                                                            onChange={e => updateQ(qi, `multipartSubQ_${subIndex}_correctText`, e.target.value)}
+                                                            placeholder={`${subQuestion.label}) To'g'ri javob`}
+                                                            className="input w-full text-[13px]"
+                                                            style={{ padding: '0.4rem 0.75rem', borderColor: 'color-mix(in srgb, var(--success) 40%, transparent)', background: 'color-mix(in srgb, var(--success) 4%, transparent)' }}
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <button type="button"
+                                                onClick={() => updateQ(qi, 'addMultipartSubQ', null)}
+                                                className="w-full h-8 rounded-lg border-2 border-dashed text-[11px] transition flex items-center justify-center gap-1"
+                                                style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                                                onMouseEnter={e => { e.currentTarget.style.borderColor = '#0f766e'; e.currentTarget.style.color = '#0f766e' }}
+                                                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)' }}>
+                                                <Plus className="h-3 w-3" /> Bo'lim qo'shish
+                                            </button>
+                                            <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Talaba javobni A), B), C) ko'rinishida alohida maydonlarga yozadi.</p>
                                         </div>
                                     ) : q.questionType === 'matching' ? (
                                         /* Moslashtirish savol uchun UI */
@@ -890,7 +1026,7 @@ export default function TeacherPanel() {
                                             ))}
                                         </div>
                                     )}
-                                    {q.questionType !== 'open' && q.questionType !== 'matching' && <p className="text-[10px]" style={{ color: 'var(--border-strong)' }}>Yashil doira = to'g'ri javob · $formula$ yozsa KaTeX preview</p>}
+                                    {q.questionType !== 'open' && q.questionType !== 'matching' && q.questionType !== 'multipart_open' && <p className="text-[10px]" style={{ color: 'var(--border-strong)' }}>Yashil doira = to'g'ri javob · $formula$ yozsa KaTeX preview</p>}
                                     {q.questionType === 'matching' && <p className="text-[10px]" style={{ color: '#8b5cf660' }}>Binafsha = to'g'ri javob · Savol matni = umumiy kontekst (ixtiyoriy)</p>}
                                 </div>
                             ))}
