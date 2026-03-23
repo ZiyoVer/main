@@ -22,6 +22,13 @@ interface Msg { id: string; role: string; content: string; createdAt: string }
 interface Profile { onboardingDone: boolean; subject?: string; subject2?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string; totalTests?: number; avgScore?: number; abilityLevel?: number }
 interface PublicTest { id: string; title: string; shareLink: string; subject?: string; _count?: { questions: number; attempts: number } }
 interface MyResult { id: string; testId: string; score: number; total?: number; createdAt: string; test?: { title: string; subject?: string } }
+interface StarterAction {
+    key: string
+    title: string
+    description: string
+    prompt: string
+    Icon: React.ComponentType<{ className?: string }>
+}
 
 const TELEGRAM_RAIL_ITEMS = [
     { label: 'DTMMax', handle: '@dtmmax', href: 'https://t.me/dtmmax' },
@@ -1425,6 +1432,41 @@ Iltimos, har bir savolni tahlil qilib ber:
 
     // Days until exam
     const daysLeft = profile?.examDate ? Math.max(0, Math.ceil((new Date(profile.examDate).getTime() - Date.now()) / 86400000)) : null
+    const starterSubject = normalizeSubjectValue(profile?.subject) || 'tayyorlanayotgan fanim'
+    const starterActions = useMemo<StarterAction[]>(() => [
+        {
+            key: 'level',
+            title: 'Darajamni aniqlash',
+            description: '3 ta qisqa savol orqali hozirgi holatingizni bilib oling',
+            prompt: `${starterSubject} bo'yicha hozirgi darajamni aniqlash uchun 3 ta qisqa diagnostik savol bering. Oxirida kuchli va zaif tomonlarimni qisqa ayting.`,
+            Icon: BarChart2,
+        },
+        {
+            key: 'plan',
+            title: 'Bugungi reja',
+            description: 'Bugun nima qilish kerakligini aniq vazifalar bilan oling',
+            prompt: `Menga bugun ${starterSubject} bo'yicha 20 daqiqalik aniq reja tuzing. Vazifalarni qisqa va bajariladigan ko'rinishda bering.`,
+            Icon: Target,
+        },
+        {
+            key: 'mini-test',
+            title: 'Mini test',
+            description: 'Bilimingizni tez sinab, keyingi qadamni biling',
+            prompt: `${starterSubject} bo'yicha 3 ta mini diagnostik savol bering. Oxirida qaysi mavzuni davom ettirishim kerakligini ayting.`,
+            Icon: ClipboardList,
+        },
+        {
+            key: 'weakness',
+            title: 'Zaif mavzuni topish',
+            description: "Ko'proq qaysi joyda adashayotganingizni aniqlang",
+            prompt: `${starterSubject} bo'yicha eng zaif mavzuimni topish uchun qisqa diagnostika qiling va qaysi mavzudan boshlashim kerakligini ayting.`,
+            Icon: TrendingUp,
+        },
+    ], [starterSubject])
+    const starterPrompt = useMemo(
+        () => `Mening darajamni aniqlab, bugundan ${starterSubject} bo'yicha tayyorlanish uchun aniq reja tuzib bering.`,
+        [starterSubject]
+    )
 
     function markTestCompleted(testId: string) {
         completedTestIdsRef.current.add(testId)
@@ -1538,6 +1580,11 @@ Iltimos, har bir savolni tahlil qilib ber:
             }
         }
     }, [todoItems])
+
+    const handleStarterAction = useCallback((prompt: string) => {
+        if (loading) return
+        void handleSend(prompt, [])
+    }, [handleSend, loading])
 
     // Essay submit — AI ga baholash uchun yuborish
     async function submitEssay() {
@@ -2354,14 +2401,55 @@ Iltimos, har bir savolni tahlil qilib ber:
                         {(!chatId || (messages.length === 0 && !loading && !streaming)) ? (
                             <div className="h-full flex items-center justify-center" style={{ background: 'var(--bg-page)' }}>
                                 <div className="max-w-2xl w-full px-4 sm:px-6 anim-up">
-                                    <div className="text-center mb-6 sm:mb-10">
+                                    <div className="text-center mb-6 sm:mb-8">
                                         <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl flex items-center justify-center mx-auto mb-4 sm:mb-5" style={{ background: 'var(--brand)' }}><BrainCircuit className="h-6 w-6 sm:h-7 sm:w-7 text-white" /></div>
                                         <h2 className="text-xl sm:text-2xl font-bold mb-2">Salom, {user?.name?.split(' ')[0]}! 👋</h2>
-                                        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Bugun nima o'rganmoqchisiz?</p>
+                                        <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Bugun nimadan boshlaymiz?</p>
+                                        <p className="text-xs sm:text-sm mt-2" style={{ color: 'var(--text-muted)' }}>
+                                            Pastdagi yo'nalishlardan birini tanlang yoki savolingizni yozing.
+                                        </p>
                                     </div>
-                                    <p className="text-center text-sm mt-4" style={{ color: 'var(--text-muted)' }}>
-                                        Xabar yozing yoki savol bering — men yordam beraman 💬
-                                    </p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        {starterActions.map(action => (
+                                            <button
+                                                key={action.key}
+                                                onClick={() => handleStarterAction(action.prompt)}
+                                                className="text-left rounded-2xl p-4 transition group"
+                                                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
+                                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
+                                                onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-card)'}
+                                            >
+                                                <div className="flex items-start gap-3">
+                                                    <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 transition"
+                                                        style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
+                                                        <action.Icon className="h-4 w-4" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{action.title}</p>
+                                                            <ArrowUp className="h-3.5 w-3.5 rotate-45 opacity-50 group-hover:opacity-100 transition" style={{ color: 'var(--text-muted)' }} />
+                                                        </div>
+                                                        <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{action.description}</p>
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="mt-4 rounded-2xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <Sparkles className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--brand)' }} />
+                                            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Tayyor prompt</p>
+                                        </div>
+                                        <button
+                                            onClick={() => handleStarterAction(starterPrompt)}
+                                            className="w-full text-left rounded-xl px-3 py-3 text-sm transition"
+                                            style={{ background: 'var(--bg-page)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
+                                            onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-page)'}
+                                        >
+                                            {starterPrompt}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         ) : (
