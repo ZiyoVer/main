@@ -112,7 +112,7 @@ const authLimiter = rateLimit({
 })
 
 // Register — faqat STUDENT, token qaytaradi (alohida login shart emas)
-router.post('/register', async (req, res) => {
+router.post('/register', authLimiter, async (req, res) => {
     try {
         const { email, password, name, subject, subject2, examDate, targetScore, examType } = req.body
 
@@ -221,7 +221,7 @@ router.get('/check-email', authLimiter, async (req, res) => {
 })
 
 // Login
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
     try {
         const { email, password } = req.body
         if (!email || !password) {
@@ -435,7 +435,7 @@ router.post('/resend-verification', emailLimiter, authenticate, async (req: Auth
 })
 
 // Parolni unutdim — reset email yuborish
-router.post('/forgot-password', emailLimiter, async (req, res) => {
+router.post('/forgot-password', authLimiter, emailLimiter, async (req, res) => {
     try {
         const { email } = req.body
         if (!email) return res.status(400).json({ error: 'Email manzil kiritilmagan' })
@@ -459,7 +459,7 @@ router.post('/forgot-password', emailLimiter, async (req, res) => {
 })
 
 // Parolni tiklash — token + yangi parol
-router.post('/reset-password', async (req, res) => {
+router.post('/reset-password', authLimiter, async (req, res) => {
     try {
         const { token, password } = req.body
         if (!token || !password) return res.status(400).json({ error: 'Token va yangi parol kiritilmagan' })

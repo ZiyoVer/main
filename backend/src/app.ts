@@ -1,12 +1,14 @@
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
-import rateLimit from 'express-rate-limit'
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
 import dotenv from 'dotenv'
 import path from 'path'
 import fs from 'fs'
+import crypto from 'crypto'
 import prisma from './utils/db'
 import bcrypt from 'bcryptjs'
+import { optionalAuthenticate } from './middleware/auth'
 
 dotenv.config()
 
@@ -28,6 +30,17 @@ if (process.env.JWT_SECRET!.length < 32) {
 }
 
 const app = express()
+
+function getRateLimitKey(req: express.Request): string {
+    const authHeader = req.headers.authorization
+    if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.slice(7).trim()
+        if (token) {
+            return `token:${crypto.createHash('sha256').update(token).digest('hex')}`
+        }
+    }
+    return ipKeyGenerator(req.ip || req.socket.remoteAddress || '')
+}
 
 // Railway va boshqa reverse proxy-lar uchun trust proxy
 app.set('trust proxy', 1)
@@ -66,27 +79,14 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' }))
 
-// Auth endpointlari uchun rate limiting (brute force himoyasi)
-const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 daqiqa
-    max: 200,
-    message: { error: 'Juda ko\'p urinish. 15 daqiqadan keyin qayta urinib ko\'ring.' },
-    standardHeaders: true,
-    legacyHeaders: false,
-})
-
-// Fayl yuklash uchun rate limiting
-const uploadLimiter = rateLimit({
-    windowMs: 60 * 1000, // 1 daqiqa
-    max: 10,
-    message: { error: 'Fayl yuklash limiti. Bir daqiqadan keyin qayta urinib ko\'ring.' },
-})
-
 // Umumiy API uchun rate limiting
 const apiLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 200,
     message: { error: 'Juda ko\'p so\'rov. Biroz kuting.' },
+    keyGenerator: getRateLimitKey,
+    standardHeaders: true,
+    legacyHeaders: false,
 })
 
 // Routes
@@ -112,18 +112,18 @@ app.get('/api/health', async (_req, res) => {
     }
 })
 
-app.use('/api/auth', authLimiter, authRoutes)
-app.use('/api/chat', apiLimiter, chatRoutes)
-app.use('/api/tests', apiLimiter, testRoutes)
-app.use('/api/documents', apiLimiter, docRoutes)
-app.use('/api/analytics', apiLimiter, analyticsRoutes)
-app.use('/api/profile', apiLimiter, profileRoutes)
-app.use('/api/ai-settings', apiLimiter, aiSettingsRoutes)
-app.use('/api/progress', apiLimiter, progressRoutes)
-app.use('/api/flashcards', apiLimiter, flashcardsRoutes)
-app.use('/api/mock-exam', apiLimiter, mockExamRoutes)
-app.use('/api/notifications', apiLimiter, notificationsRoutes)
-app.use('/api/knowledge', apiLimiter, knowledgeRoutes)
+app.use('/api/auth', authRoutes)
+app.use('/api/chat', optionalAuthenticate, apiLimiter, chatRoutes)
+app.use('/api/tests', optionalAuthenticate, apiLimiter, testRoutes)
+app.use('/api/documents', optionalAuthenticate, apiLimiter, docRoutes)
+app.use('/api/analytics', optionalAuthenticate, apiLimiter, analyticsRoutes)
+app.use('/api/profile', optionalAuthenticate, apiLimiter, profileRoutes)
+app.use('/api/ai-settings', optionalAuthenticate, apiLimiter, aiSettingsRoutes)
+app.use('/api/progress', optionalAuthenticate, apiLimiter, progressRoutes)
+app.use('/api/flashcards', optionalAuthenticate, apiLimiter, flashcardsRoutes)
+app.use('/api/mock-exam', optionalAuthenticate, apiLimiter, mockExamRoutes)
+app.use('/api/notifications', optionalAuthenticate, apiLimiter, notificationsRoutes)
+app.use('/api/knowledge', optionalAuthenticate, apiLimiter, knowledgeRoutes)
 
 // 404 handler (API)
 app.use('/api', (_req, res) => {
