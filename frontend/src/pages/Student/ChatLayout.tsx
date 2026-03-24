@@ -30,6 +30,10 @@ interface StarterAction {
     Icon: React.ComponentType<{ className?: string }>
 }
 
+function ensureArray<T>(value: unknown): T[] {
+    return Array.isArray(value) ? value as T[] : []
+}
+
 const TELEGRAM_RAIL_ITEMS = [
     { label: 'DTMMax', handle: '@dtmmax', href: 'https://t.me/dtmmax' },
     { label: 'Motivatsion xabarlar', handle: '@TonggiShula', href: 'https://t.me/TonggiShula' },
@@ -658,8 +662,12 @@ export default function ChatLayout() {
     const [showSettings, setShowSettings] = useState(false)
     const [settingsSection, setSettingsSection] = useState<'profile' | 'notifications' | 'security'>('profile')
     const [darkMode, setDarkMode] = useState<boolean>(() => {
-        const saved = localStorage.getItem('darkMode')
-        return saved === 'true'
+        try {
+            const saved = localStorage.getItem('darkMode')
+            return saved === 'true'
+        } catch {
+            return false
+        }
     })
     const [publicTests, setPublicTests] = useState<PublicTest[]>([])
     const [myResults, setMyResults] = useState<MyResult[]>([])
@@ -669,7 +677,7 @@ export default function ChatLayout() {
     const [dueCount, setDueCount] = useState(0)
     const [totalFlashcards, setTotalFlashcards] = useState(0)
     const [flashIsReview, setFlashIsReview] = useState(false)
-    const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+    const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 768 : false)
     const [onboardingForm, setOnboardingForm] = useState({
         subject: 'Matematika', subject2: '', targetScore: 80, examDate: '',
         weakTopics: '', strongTopics: '', concerns: ''
@@ -677,9 +685,13 @@ export default function ChatLayout() {
     const [savingProfile, setSavingProfile] = useState(false)
     const [emailVerified, setEmailVerified] = useState<boolean>(user?.emailVerified ?? true)
     const [resendingVerif, setResendingVerif] = useState(false)
-    const [verifBannerDismissed, setVerifBannerDismissed] = useState(
-        () => localStorage.getItem('dtmmax_verif_dismissed') === '1'
-    )
+    const [verifBannerDismissed, setVerifBannerDismissed] = useState(() => {
+        try {
+            return localStorage.getItem('dtmmax_verif_dismissed') === '1'
+        } catch {
+            return false
+        }
+    })
     const [notifCount, setNotifCount] = useState(0)
     const [notifications, setNotifications] = useState<any[]>([])
     const [notifLoading, setNotifLoading] = useState(false)
@@ -762,6 +774,7 @@ export default function ChatLayout() {
     const isSubmittingRef = useRef(false)
     const submitTestPanelRef = useRef<() => void>(() => { })
     const sidebarWidth = (() => {
+        if (typeof window === 'undefined') return 280
         const w = window.innerWidth
         if (w < 768) return 280
         if (w <= 1100) return 240
@@ -1086,11 +1099,11 @@ Iltimos, har bir savolni tahlil qilib ber:
     async function loadProfile() {
         try {
             const p = await fetchApi('/profile')
-            const normalizedProfile = p ? {
+            const normalizedProfile = p && typeof p === 'object' && !Array.isArray(p) ? {
                 ...p,
                 subject: normalizeSubjectValue(p.subject) || undefined,
                 subject2: normalizeSubjectValue((p as any).subject2) || undefined
-            } : p
+            } : null
             setProfile(normalizedProfile)
             profileRef.current = normalizedProfile
             if (normalizedProfile && !normalizedProfile.onboardingDone) setShowOnboarding(true)
@@ -1120,13 +1133,14 @@ Iltimos, har bir savolni tahlil qilib ber:
         setTestsLoading(true)
         try {
             const data = await fetchApi('/tests/public')
-            setPublicTests(data)
+            const tests = ensureArray<PublicTest>(data)
+            setPublicTests(tests)
             // Ko'rilgan test IDlarini localStorage dan olish
             let seenIds: string[] = []
             try { seenIds = JSON.parse(localStorage.getItem('dtmmax_seen_tests') || '[]') } catch { }
             const seenSet = new Set(seenIds)
             // Yangi testlar = ko'rilmaganlar
-            const newIds = new Set<string>(data.filter((t: any) => !seenSet.has(t.id)).map((t: any) => t.id))
+            const newIds = new Set<string>(tests.filter((t: any) => !seenSet.has(t.id)).map((t: any) => t.id))
             setNewTestIds(newIds)
         } catch (err) { console.error('loadPublicTests:', err) } finally { setTestsLoading(false) }
     }
@@ -1140,22 +1154,26 @@ Iltimos, har bir savolni tahlil qilib ber:
     }
 
     async function loadMyResults() {
-        try { setMyResults(await fetchApi('/tests/my-results')) } catch (err) { console.error('loadMyResults:', err) }
+        try {
+            const data = await fetchApi('/tests/my-results')
+            setMyResults(ensureArray<MyResult>(data))
+        } catch (err) { console.error('loadMyResults:', err) }
     }
 
     async function loadProgress() {
         try {
             const data = await fetchApi('/progress/me')
-            setProgressData(data)
+            setProgressData(data && typeof data === 'object' && !Array.isArray(data) ? data : null)
         } catch (err) { console.error('loadProgress:', err) }
     }
 
     async function loadDueFlashcards() {
         try {
             const data = await fetchApi('/flashcards/due')
-            setDueFlashcards(data.cards || [])
-            setDueCount(data.dueCount || 0)
-            setTotalFlashcards(data.total || 0)
+            const cards = ensureArray<{ id: string; front: string; back: string; subject: string }>(data?.cards)
+            setDueFlashcards(cards)
+            setDueCount(typeof data?.dueCount === 'number' ? data.dueCount : 0)
+            setTotalFlashcards(typeof data?.total === 'number' ? data.total : 0)
         } catch (err) { console.error('loadDueFlashcards:', err) }
     }
 
@@ -1164,7 +1182,7 @@ Iltimos, har bir savolni tahlil qilib ber:
         setNotifCount(0) // darhol badge tozalanadi — async kutmasdan
         try {
             const data = await fetchApi('/notifications')
-            setNotifications(data)
+            setNotifications(ensureArray<any>(data))
             await fetchApi('/notifications/read-all', { method: 'PATCH' })
         } catch { } finally { setNotifLoading(false) }
     }
@@ -1223,8 +1241,9 @@ Iltimos, har bir savolni tahlil qilib ber:
     async function loadChats() {
         try {
             const c = await fetchApi('/chat/list')
-            setChats(c)
-            setStats(prev => ({ ...prev, chats: c.length }))
+            const chatsList = ensureArray<Chat>(c)
+            setChats(chatsList)
+            setStats(prev => ({ ...prev, chats: chatsList.length }))
         } catch (err) { console.error('loadChats:', err) }
     }
 
@@ -1239,8 +1258,10 @@ Iltimos, har bir savolni tahlil qilib ber:
         try {
             const data = await fetchApi(`/chat/${id}/messages`, { signal: controller.signal })
             if (controller.signal.aborted) return
-            setMessages(data.messages)
-            setCurrentChat(data.chat)
+            const nextMessages = ensureArray<Msg>(data?.messages)
+            const nextChat = data?.chat && typeof data.chat === 'object' && !Array.isArray(data.chat) ? data.chat as Chat : null
+            setMessages(nextMessages)
+            setCurrentChat(nextChat)
             // Yangi chatga kirganda pastga scroll qilish
             setTimeout(() => {
                 const el = scrollRef.current
