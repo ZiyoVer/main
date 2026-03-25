@@ -11,6 +11,7 @@ import 'katex/dist/katex.min.css'
 import katex from 'katex'
 import toast from 'react-hot-toast'
 import { fetchApi } from '@/lib/api'
+import { parseStructuredJson } from '@/lib/structuredJson'
 import { SUBJECTS, normalizeSubjectValue } from '@/constants'
 import { useAuthStore } from '@/store/authStore'
 import ChatContext, { useChatContext, EssayPanel, TodoItem } from '../../contexts/ChatContext'
@@ -29,6 +30,8 @@ interface StarterAction {
     prompt: string
     Icon: React.ComponentType<{ className?: string }>
 }
+
+type StructuredBlockType = 'test' | 'essay' | 'profile-update' | 'flashcard' | 'vocab' | 'formula' | 'todo-done' | 'todo' | null
 
 function ensureArray<T>(value: unknown): T[] {
     return Array.isArray(value) ? value as T[] : []
@@ -74,6 +77,38 @@ function preprocessMath(text: string): string {
             }
             return `$${inner}$`
         })
+}
+
+function detectStructuredBlockType(raw: string, className?: string): StructuredBlockType {
+    const lowerClass = className?.toLowerCase() || ''
+    if (lowerClass.includes('language-test')) return 'test'
+    if (lowerClass.includes('language-essay')) return 'essay'
+    if (lowerClass.includes('language-profile-update')) return 'profile-update'
+    if (lowerClass.includes('language-flashcard')) return 'flashcard'
+    if (lowerClass.includes('language-vocab')) return 'vocab'
+    if (lowerClass.includes('language-formula')) return 'formula'
+    if (lowerClass.includes('language-todo-done')) return 'todo-done'
+    if (lowerClass.includes('language-todo')) return 'todo'
+
+    const parsed = parseStructuredJson<unknown>(raw)
+    if (!parsed) return null
+
+    if (Array.isArray(parsed)) {
+        if (parsed.every(item => item && typeof item === 'object' && ('correctIdx' in item || 'correct' in item || 'options' in item || 'a' in item))) return 'test'
+        if (parsed.every(item => item && typeof item === 'object' && 'front' in item && 'back' in item)) return 'flashcard'
+        if (parsed.every(item => item && typeof item === 'object' && 'name' in item && 'formula' in item)) return 'formula'
+        if (parsed.every(item => typeof item === 'string' || (item && typeof item === 'object' && ('word' in item || 'w' in item)))) return 'vocab'
+        if (parsed.every(item => item && typeof item === 'object' && 'task' in item && ('time' in item || 'duration' in item || 'subject' in item))) return 'todo'
+        return null
+    }
+
+    if (parsed && typeof parsed === 'object') {
+        if ('prompt' in parsed) return 'essay'
+        if ('weakTopics' in parsed || 'strongTopics' in parsed) return 'profile-update'
+        if ('task' in parsed) return 'todo-done'
+    }
+
+    return null
 }
 
 // TodoBlockMount: mounts → opens todo panel, shows a tap card in chat
@@ -122,10 +157,12 @@ const MdMessage = memo(({ content, isStreaming }: {
             th: ({ children }) => <th className="px-3 py-2 text-left font-semibold" style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>{children}</th>,
             td: ({ children }) => <td className="px-3 py-2" style={{ border: '1px solid var(--border)', color: 'var(--text-primary)' }}>{children}</td>,
             code: ({ children, className }: any) => {
-                if (className?.includes('language-test')) {
-                    const jsonStr = String(children).trim()
-                    let qCount = 0
-                    try { qCount = JSON.parse(jsonStr).length } catch { }
+                const jsonStr = String(children).trim()
+                const structuredType = detectStructuredBlockType(jsonStr, className)
+
+                if (structuredType === 'test') {
+                    const parsedQuestions = parseStructuredJson<unknown[]>(jsonStr)
+                    const qCount = Array.isArray(parsedQuestions) ? parsedQuestions.length : 0
                     // 0 savol bo'lsa ko'rsatmaymiz — hali to'liq yuklanmagan
                     if (qCount === 0) return null
                     return (
@@ -165,10 +202,8 @@ const MdMessage = memo(({ content, isStreaming }: {
                         </div>
                     )
                 }
-                if (className?.includes('language-essay')) {
-                    const jsonStr = String(children).trim()
-                    let data: any = null
-                    try { data = JSON.parse(jsonStr) } catch { }
+                if (structuredType === 'essay') {
+                    const data = parseStructuredJson<{ task?: string; prompt?: string; time?: number; minWords?: number; maxWords?: number }>(jsonStr)
                     if (!data?.prompt) return null
                     const essayData = { task: data.task || 'Task 2', prompt: data.prompt, time: data.time || 30, minWords: data.minWords || 200, maxWords: data.maxWords || 280 }
                     return (
@@ -206,9 +241,8 @@ const MdMessage = memo(({ content, isStreaming }: {
                         </div>
                     )
                 }
-                if (className?.includes('language-profile-update')) {
-                    let data: { weakTopics?: string[]; strongTopics?: string[] } = {}
-                    try { data = JSON.parse(String(children).trim()) } catch { }
+                if (structuredType === 'profile-update') {
+                    const data = parseStructuredJson<{ weakTopics?: string[]; strongTopics?: string[] }>(String(children).trim()) || {}
                     const hasWeak = (data.weakTopics?.length ?? 0) > 0
                     const hasStrong = (data.strongTopics?.length ?? 0) > 0
                     return (
@@ -235,10 +269,9 @@ const MdMessage = memo(({ content, isStreaming }: {
                         </div>
                     )
                 }
-                if (className?.includes('language-flashcard')) {
-                    const jsonStr = String(children).trim()
-                    let count = 0
-                    try { count = JSON.parse(jsonStr).length } catch { }
+                if (structuredType === 'flashcard') {
+                    const parsedCards = parseStructuredJson<unknown[]>(jsonStr)
+                    const count = Array.isArray(parsedCards) ? parsedCards.length : 0
                     if (count === 0) return null
                     return (
                         <div className="my-3 rounded-2xl overflow-hidden" style={{
@@ -277,19 +310,15 @@ const MdMessage = memo(({ content, isStreaming }: {
                         </div>
                     )
                 }
-                if (className?.includes('language-vocab')) {
-                    const raw = String(children).trim()
-                    let items: { word: string; type?: string; hint?: string }[] = []
-                    try {
-                        const parsed = JSON.parse(raw)
-                        items = Array.isArray(parsed)
-                            ? parsed.map((x: any) => typeof x === 'string' ? { word: x } : {
-                                word: x.word || x.w,
-                                type: x.type || x.pos || '',
-                                hint: x.hint || x.h || x.translation || x.t || ''
-                            })
-                            : []
-                    } catch { return null }
+                if (structuredType === 'vocab') {
+                    const parsed = parseStructuredJson<Array<string | { word?: string; w?: string; type?: string; pos?: string; hint?: string; h?: string; translation?: string; t?: string }>>(jsonStr)
+                    const items: { word: string; type?: string; hint?: string }[] = Array.isArray(parsed)
+                        ? parsed.map((x) => typeof x === 'string' ? { word: x } : {
+                            word: x.word || x.w || '',
+                            type: x.type || x.pos || '',
+                            hint: x.hint || x.h || x.translation || x.t || ''
+                        }).filter(item => item.word.trim().length > 0)
+                        : []
                     if (items.length === 0) return null
                     const accentColors = ['#E07B39', '#6366f1', '#059669', '#d97706', '#0891b2', '#7c3aed', '#be185d', '#15803d']
                     const typeLabels: Record<string, string> = { noun: 'ot', verb: 'fe\'l', adj: 'sifat', adv: 'ravish', prep: 'ko\'m', phrase: 'ibora', phrasal: 'ph.v' }
@@ -331,15 +360,12 @@ const MdMessage = memo(({ content, isStreaming }: {
                         </div>
                     )
                 }
-                if (className?.includes('language-formula')) {
-                    const raw = String(children).trim()
-                    let items: { name: string; formula: string; hint?: string }[] = []
-                    try {
-                        const parsed = JSON.parse(raw)
-                        items = Array.isArray(parsed)
-                            ? parsed.map((x: any) => ({ name: x.name || x.n || '', formula: x.formula || x.f || '', hint: x.hint || x.h || '' }))
-                            : []
-                    } catch { return null }
+                if (structuredType === 'formula') {
+                    const parsed = parseStructuredJson<Array<{ name?: string; n?: string; formula?: string; f?: string; hint?: string; h?: string }>>(jsonStr)
+                    const items: { name: string; formula: string; hint?: string }[] = Array.isArray(parsed)
+                        ? parsed.map((x) => ({ name: x.name || x.n || '', formula: x.formula || x.f || '', hint: x.hint || x.h || '' }))
+                            .filter(item => item.name.trim().length > 0 && item.formula.trim().length > 0)
+                        : []
                     if (items.length === 0) return null
                     return (
                         <div className="my-3 rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
@@ -375,15 +401,14 @@ const MdMessage = memo(({ content, isStreaming }: {
                     )
                 }
                 // IMPORTANT: check todo-done BEFORE todo (language-todo includes language-todo-done)
-                if (className?.includes('language-todo-done')) {
-                    let data: { task: string } = { task: '' }
-                    try { data = JSON.parse(String(children).trim()) } catch { return null }
+                if (structuredType === 'todo-done') {
+                    const data = parseStructuredJson<{ task: string }>(String(children).trim())
+                    if (!data) return null
                     if (!data.task) return null
                     return <TodoDoneMount taskName={data.task} onMarkDone={onMarkTodoDoneByTask} />
                 }
-                if (className?.includes('language-todo')) {
-                    let rawItems: Omit<TodoItem, 'id' | 'done'>[] = []
-                    try { rawItems = JSON.parse(String(children).trim()) } catch { return null }
+                if (structuredType === 'todo') {
+                    const rawItems = parseStructuredJson<Omit<TodoItem, 'id' | 'done'>[]>(String(children).trim()) || []
                     if (!rawItems.length) return null
                     return <TodoBlockMount items={rawItems} onSetTodo={onSetTodo} />
                 }
@@ -1352,10 +1377,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         // Test avtomatik ochish
                                         const testMatch = fullText.match(/```test\s*([\s\S]*?)```/)
                                         if (testMatch) {
-                                            try {
-                                                JSON.parse(testMatch[1].trim())
+                                            const parsedTest = parseStructuredJson<unknown[]>(testMatch[1].trim())
+                                            if (Array.isArray(parsedTest) && parsedTest.length > 0) {
                                                 setTimeout(() => { setTodoOpen(false); openTestPanel(testMatch[1].trim()) }, 400)
-                                            } catch { }
+                                            }
                                         }
                                     }
                                 } catch { }
@@ -1522,20 +1547,18 @@ Iltimos, har bir savolni tahlil qilib ber:
 
     // Flashcard panelni ochish
     const handleOpenFlash = useCallback((jsonStr: string) => {
-        try {
-            const cards = JSON.parse(jsonStr)
-            if (!Array.isArray(cards) || cards.length === 0) return
-            setTestPanel(null) // testni yopamiz
-            setTodoOpen(false) // todoni yopamiz
-            openFlashPanel(jsonStr)
-            setFlashIsReview(false) // AI chatdan kelgan — review rejimi emas
-            // DB ga saqlaymiz — Kartochkalar tabida ko'rinishi uchun (background)
-            const subj = profileRef.current?.subject || 'Umumiy'
-            fetchApi('/flashcards', {
-                method: 'POST',
-                body: JSON.stringify({ subject: subj, cards: cards.map((c: any) => ({ front: String(c.front || ''), back: String(c.back || '') })) })
-            }).then(() => loadDueFlashcards()).catch((err: unknown) => { console.error('saveFlashcards:', err) })
-        } catch (err) { console.error('openFlashPanel:', err) }
+        const cards = parseStructuredJson<Array<{ front?: string; back?: string }>>(jsonStr)
+        if (!Array.isArray(cards) || cards.length === 0) return
+        setTestPanel(null) // testni yopamiz
+        setTodoOpen(false) // todoni yopamiz
+        openFlashPanel(jsonStr)
+        setFlashIsReview(false) // AI chatdan kelgan — review rejimi emas
+        // DB ga saqlaymiz — Kartochkalar tabida ko'rinishi uchun (background)
+        const subj = profileRef.current?.subject || 'Umumiy'
+        fetchApi('/flashcards', {
+            method: 'POST',
+            body: JSON.stringify({ subject: subj, cards: cards.map((c) => ({ front: String(c.front || ''), back: String(c.back || '') })) })
+        }).then(() => loadDueFlashcards()).catch((err: unknown) => { console.error('saveFlashcards:', err) })
     }, [openFlashPanel]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Essay panel ochish

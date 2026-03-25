@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 import { fetchApi } from '@/lib/api'
+import { extractStructuredPayload, parseStructuredJson } from '@/lib/structuredJson'
 
 export function useTestPanel(
   completedTestIdsRef: React.MutableRefObject<Set<string>>,
@@ -20,21 +21,25 @@ export function useTestPanel(
 
   // Open test in side panel
   const openTestPanel = useCallback((jsonStr: string) => {
-    const aiKey = jsonStr.substring(0, 500)  // BUG-11: 120 → 500, collision xavfini kamaytirish
+    const normalizedJson = extractStructuredPayload(jsonStr)
+    const parsedQuestions = parseStructuredJson<unknown[]>(normalizedJson)
+    if (!Array.isArray(parsedQuestions) || parsedQuestions.length === 0) return
+    const stableJson = JSON.stringify(parsedQuestions)
+    const aiKey = stableJson.substring(0, 500)  // BUG-11: 120 → 500, collision xavfini kamaytirish
     setRaschFeedback(null)
     setTestTimeLeft(null)
     if (completedAiTestsRef.current.has(aiKey)) {
       // Allaqachon yechilgan — saqlangan javoblar bilan ko'rish rejimi
       let savedAnswers: Record<number, string> = {}
       try { savedAnswers = JSON.parse(localStorage.getItem('dtmmax_ans_' + aiKey) || '{}') } catch { }
-      setTestPanel(jsonStr)
+      setTestPanel(stableJson)
       setTestAnswers(savedAnswers)
       setTestSubmitted(true)
       setTestReadOnly(true)
       setTestPanelMaximized(false)
       return
     }
-    setTestPanel(jsonStr)
+    setTestPanel(stableJson)
     setTestAnswers({})
     setTestSubmitted(false)
     setTestPanelMaximized(false)

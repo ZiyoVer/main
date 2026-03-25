@@ -59,6 +59,14 @@ function formatAcceptedAnswers(text: string | null | undefined): string {
     return answers.join(' / ')
 }
 
+function repairAiJson(raw: string): string {
+    return raw
+        .replace(/[“”]/g, '"')
+        .replace(/[‘’]/g, '\'')
+        .replace(/,\s*([}\]])/g, '$1')
+        .replace(/\\(?!["\\/bfnrtu])/g, '\\\\')
+}
+
 function isAnalysisAnswerCorrect(questionType: string | null | undefined, studentAnswer: string | null | undefined, correctAnswer: string | null | undefined): boolean {
     if (questionType === 'open' || questionType === 'multipart_open') {
         const normalizedStudent = normalizeOpenAnswer(studentAnswer)
@@ -418,13 +426,18 @@ function parseQuestionJson(aiContent: string): any[] {
 
     try {
         return JSON.parse(jsonStr)
-    } catch (e: any) {
-        const lastBrace = jsonStr.lastIndexOf('},{')
-        if (lastBrace > 0) {
-            const repaired = jsonStr.substring(0, lastBrace + 1) + ']'
-            return JSON.parse(repaired)
+    } catch {
+        const repairedJson = repairAiJson(jsonStr)
+        try {
+            return JSON.parse(repairedJson)
+        } catch (e: any) {
+            const lastBrace = repairedJson.lastIndexOf('},{')
+            if (lastBrace > 0) {
+                const truncated = repairedJson.substring(0, lastBrace + 1) + ']'
+                return JSON.parse(truncated)
+            }
+            throw e
         }
-        throw e
     }
 }
 
