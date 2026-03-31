@@ -10,6 +10,7 @@ import { tokenBlacklist } from '../utils/tokenBlacklist'
 import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/email'
 import { updateOnline } from '../utils/onlineTracker'
 import { normalizeSubject } from '../utils/subjects'
+import { parseOptionalExamDate, parseOptionalExamType, parseOptionalTargetScore } from '../utils/profileValidation'
 
 const router = Router()
 const JWT_SECRET = process.env.JWT_SECRET!
@@ -155,6 +156,9 @@ router.post('/register', authLimiter, async (req, res) => {
 
         const normalizedSubject = normalizeSubject(subject)
         const normalizedSubject2 = normalizeSubject(subject2)
+        const normalizedExamType = parseOptionalExamType(examType)
+        const normalizedExamDate = parseOptionalExamDate(examDate)
+        const normalizedTargetScore = parseOptionalTargetScore(targetScore)
 
         const user = await prisma.user.create({
             data: {
@@ -174,9 +178,9 @@ router.post('/register', authLimiter, async (req, res) => {
                 userId: user.id,
                 subject: normalizedSubject,
                 subject2: normalizedSubject2,
-                examType: examType || null,
-                examDate: examDate ? new Date(examDate) : null,
-                targetScore: targetScore ? parseInt(targetScore) : null,
+                examType: normalizedExamType ?? null,
+                examDate: normalizedExamDate ?? null,
+                targetScore: normalizedTargetScore ?? null,
                 onboardingDone: false,
             }
         })
@@ -204,7 +208,9 @@ router.post('/register', authLimiter, async (req, res) => {
         if (e?.code === 'P2002') {
             return res.status(400).json({ error: 'Bu email allaqachon ro\'yxatdan o\'tilgan' })
         }
-        res.status(500).json({ error: 'Server xatoligi. Qayta urinib ko\'ring.' })
+        const message = e?.message || 'Server xatoligi. Qayta urinib ko\'ring.'
+        const isValidationError = /examType|examDate|targetScore/.test(message)
+        res.status(isValidationError ? 400 : 500).json({ error: isValidationError ? message : 'Server xatoligi. Qayta urinib ko\'ring.' })
     }
 })
 

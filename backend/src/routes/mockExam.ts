@@ -24,6 +24,36 @@ const aiClient = new OpenAI({
 })
 const aiModel = hasDeepseek ? 'deepseek-chat' : 'gpt-4.1-mini'
 
+function repairAiJson(raw: string): string {
+    return raw
+        .replace(/[“”]/g, '"')
+        .replace(/[‘’]/g, '\'')
+        .replace(/,\s*([}\]])/g, '$1')
+        .replace(/\\(?!["\\/bfnrtu])/g, '\\\\')
+}
+
+function parseGeneratedQuestions(raw: string): any[] {
+    let jsonStr = raw.trim()
+    const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)
+    if (codeBlockMatch?.[1]) {
+        jsonStr = codeBlockMatch[1].trim()
+    } else {
+        const arrayMatch = jsonStr.match(/\[\s*[\s\S]*\]/)
+        if (arrayMatch?.[0]) jsonStr = arrayMatch[0].trim()
+    }
+
+    try {
+        return JSON.parse(jsonStr)
+    } catch {
+        const repaired = repairAiJson(jsonStr)
+        try {
+            return JSON.parse(repaired)
+        } catch {
+            throw new Error('AI to\'g\'ri format qaytarmadi, qayta urinib ko\'ring')
+        }
+    }
+}
+
 // DTM va Milliy Sertifikat mock exam formatini aniqlash
 function getMockExamConfig(subject: string, examType: 'DTM' | 'MS'): { count: number; timeMinutes: number; prompt: string } {
     if (examType === 'DTM') {
@@ -108,16 +138,11 @@ router.post('/generate', mockExamLimiter, async (req: AuthRequest, res) => {
 
         const raw = completion.choices[0]?.message?.content || ''
 
-        // JSON parsing — markdown code block ni tozalash
-        let jsonStr = raw.trim()
-        const match = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/)
-        if (match) jsonStr = match[1].trim()
-
         let questions: any[]
         try {
-            questions = JSON.parse(jsonStr)
-        } catch {
-            return res.status(500).json({ error: 'AI to\'g\'ri format qaytarmadi, qayta urinib ko\'ring' })
+            questions = parseGeneratedQuestions(raw)
+        } catch (parseErr: any) {
+            return res.status(500).json({ error: parseErr?.message || 'AI to\'g\'ri format qaytarmadi, qayta urinib ko\'ring' })
         }
 
         if (!Array.isArray(questions) || questions.length === 0) {

@@ -2,6 +2,7 @@ import { Router } from 'express'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest } from '../middleware/auth'
 import { normalizeSubject } from '../utils/subjects'
+import { parseOptionalExamDate, parseOptionalExamType, parseOptionalStudyHours, parseOptionalTargetScore } from '../utils/profileValidation'
 
 const router = Router()
 const MAX_PROFILE_TEXT_LENGTH = 1000
@@ -57,6 +58,10 @@ router.put('/', authenticate, async (req: AuthRequest, res) => {
         const { subject, subject2, examType, targetScore, weakTopics, strongTopics, concerns, examDate, studyHoursPerDay, onboardingDone } = req.body
         const normalizedSubject = subject !== undefined ? normalizeSubject(subject) : undefined
         const normalizedSubject2 = subject2 !== undefined ? normalizeSubject(subject2) : undefined
+        const normalizedExamType = parseOptionalExamType(examType)
+        const normalizedTargetScore = parseOptionalTargetScore(targetScore)
+        const normalizedExamDate = parseOptionalExamDate(examDate)
+        const normalizedStudyHours = parseOptionalStudyHours(studyHoursPerDay)
         const normalizedConcerns = clampText(concerns, 'concerns')
         const normalizedWeakTopics = normalizeTopicList(weakTopics, 'weakTopics')
         const normalizedStrongTopics = normalizeTopicList(strongTopics, 'strongTopics')
@@ -69,10 +74,15 @@ router.put('/', authenticate, async (req: AuthRequest, res) => {
             profile = await prisma.studentProfile.create({
                 data: {
                     userId: req.user.id,
-                    subject: normalizedSubject ?? null, subject2: normalizedSubject2 ?? null, examType, targetScore, concerns: normalizedConcerns, studyHoursPerDay,
+                    subject: normalizedSubject ?? null,
+                    subject2: normalizedSubject2 ?? null,
+                    examType: normalizedExamType ?? null,
+                    targetScore: normalizedTargetScore ?? null,
+                    concerns: normalizedConcerns,
+                    studyHoursPerDay: normalizedStudyHours ?? null,
                     weakTopics: normalizedWeakTopics,
                     strongTopics: normalizedStrongTopics,
-                    examDate: examDate ? new Date(examDate) : null,
+                    examDate: normalizedExamDate ?? null,
                     onboardingDone: onboardingDone !== undefined ? onboardingDone : true
                 }
             })
@@ -82,13 +92,13 @@ router.put('/', authenticate, async (req: AuthRequest, res) => {
                 data: {
                     ...(subject !== undefined && { subject: normalizedSubject }),
                     ...(subject2 !== undefined && { subject2: normalizedSubject2 }),
-                    ...(examType !== undefined && { examType }),
-                    ...(targetScore !== undefined && { targetScore }),
+                    ...(examType !== undefined && { examType: normalizedExamType }),
+                    ...(targetScore !== undefined && { targetScore: normalizedTargetScore }),
                     ...(concerns !== undefined && { concerns: normalizedConcerns }),
-                    ...(studyHoursPerDay !== undefined && { studyHoursPerDay }),
+                    ...(studyHoursPerDay !== undefined && { studyHoursPerDay: normalizedStudyHours }),
                     ...(weakTopics !== undefined && { weakTopics: normalizedWeakTopics }),
                     ...(strongTopics !== undefined && { strongTopics: normalizedStrongTopics }),
-                    ...(examDate !== undefined && { examDate: examDate ? new Date(examDate) : null }),
+                    ...(examDate !== undefined && { examDate: normalizedExamDate }),
                     ...(onboardingDone !== undefined && { onboardingDone })
                 }
             })
@@ -97,7 +107,7 @@ router.put('/', authenticate, async (req: AuthRequest, res) => {
     } catch (e: any) {
         console.error(e)
         const message = e?.message || 'Server xatoligi'
-        const isValidationError = /matn bo'lishi kerak|juda uzun|array bo'lishi kerak|juda ko'p element/.test(message)
+        const isValidationError = /matn bo'lishi kerak|juda uzun|array bo'lishi kerak|juda ko'p element|examType|examDate|targetScore|studyHoursPerDay/.test(message)
         res.status(isValidationError ? 400 : 500).json({ error: isValidationError ? message : 'Server xatoligi' })
     }
 })

@@ -73,8 +73,7 @@ function ProtectedRoute({ children, roles }: { children: React.ReactNode, roles?
         return () => { active = false }
     }, [user, storedToken, login])
 
-    // Tekshiruv davomida bo'sh sahifa — login flicker oldini oladi
-    if (checking) return <div className="h-screen w-full" style={{ background: 'var(--bg-main)' }} />
+    if (checking) return <PageLoader />
     if (!token || !user) return <Navigate to="/kirish" state={{ from: location.pathname }} replace />
     if (roles && !roles.includes(user.role)) return <Navigate to="/" replace />
     return <>{children}</>

@@ -5,11 +5,9 @@ export function extractStructuredPayload(raw: string): string {
     const codeBlockMatch = text.match(/```(?:json|test|flashcard|formula|todo|essay|vocab|profile-update|todo-done)?\s*([\s\S]*?)\s*```/i)
     if (codeBlockMatch?.[1]) return codeBlockMatch[1].trim()
 
-    const arrayMatch = text.match(/\[\s*[\s\S]*\]/)
-    if (arrayMatch?.[0]) return arrayMatch[0].trim()
+    if (text.startsWith('[') && text.endsWith(']')) return text
 
-    const objectMatch = text.match(/\{\s*[\s\S]*\}/)
-    if (objectMatch?.[0]) return objectMatch[0].trim()
+    if (text.startsWith('{') && text.endsWith('}')) return text
 
     return text
 }

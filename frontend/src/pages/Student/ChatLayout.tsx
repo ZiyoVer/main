@@ -1204,11 +1204,11 @@ Iltimos, har bir savolni tahlil qilib ber:
 
     const loadNotifications = async () => {
         setNotifLoading(true)
-        setNotifCount(0) // darhol badge tozalanadi — async kutmasdan
         try {
             const data = await fetchApi('/notifications')
             setNotifications(ensureArray<any>(data))
             await fetchApi('/notifications/read-all', { method: 'PATCH' })
+            setNotifCount(0)
         } catch { } finally { setNotifLoading(false) }
     }
 
@@ -1318,12 +1318,13 @@ Iltimos, har bir savolni tahlil qilib ber:
     }, [creating, profile])
 
     // Stream helper — displayText ixtiyoriy: chatda ko'rinadigan matn (prompt AI ga yuboriladi)
-    async function streamToChat(targetChatId: string, prompt: string, displayText?: string) {
+    async function streamToChat(targetChatId: string, prompt: string, displayText?: string): Promise<boolean> {
         const shown = displayText !== undefined ? displayText : prompt
         setLoading(true); setStreaming(''); setThinkingText('')
         const controller = new AbortController()
         abortRef.current = controller
         let fullText = '' // local ref — stale closure muammosini oldini olish uchun
+        let completed = false
         const requestThinkingMode = thinkingModeRef.current
         const requestTodoContext = todoItemsRef.current.filter(t => !t.done)
         try {
@@ -1366,6 +1367,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                     if (d.thinking) { thinkBuf += d.thinking; setThinkingText(thinkBuf) }
                                     if (d.content) { fullText += d.content; setStreaming(fullText) }
                                     if (d.done) {
+                                        completed = true
                                         setMessages(prev => {
                                             const filtered = prev.filter(m => m.id !== 'temp-u')
                                             return [...filtered,
@@ -1416,6 +1418,7 @@ Iltimos, har bir savolni tahlil qilib ber:
             setStreaming(''); setThinkingText('')
         }
         setLoading(false); abortRef.current = null
+        return completed && fullText.trim().length > 0
     }
 
     function stopGeneration() {
@@ -1425,7 +1428,6 @@ Iltimos, har bir savolni tahlil qilib ber:
 
     const handleSend = useCallback(async (text: string, files: AttachedFile[]) => {
         if (loading) return
-        logActivity(5)
 
         // chatId yo'q bo'lsa yangi chat yaratib, unga o'tamiz
         let targetChatId = chatId
@@ -1460,10 +1462,12 @@ Iltimos, har bir savolni tahlil qilib ber:
             })
             if (text) { promptText += `\n\n${text}`; displayText += `\n\n${text}` }
             setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: displayText.trim(), createdAt: new Date().toISOString() }])
-            await streamToChat(targetChatId!, promptText.trim(), displayText.trim())
+            const success = await streamToChat(targetChatId!, promptText.trim(), displayText.trim())
+            if (success) logActivity(5)
         } else {
             setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: text, createdAt: new Date().toISOString() }])
-            await streamToChat(targetChatId!, text)
+            const success = await streamToChat(targetChatId!, text)
+            if (success) logActivity(5)
         }
     }, [chatId, loading, profile])
 
@@ -2596,7 +2600,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                     <div className="flex flex-col flex-shrink-0" style={{ width: '320px', borderLeft: '1px solid var(--border)', background: 'var(--bg-page)' }}>
                         {/* Header */}
                         <div className="h-14 flex items-center justify-between px-5 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
-                            <p className="text-[15px] font-semibold" style={{ color: 'var(--text-primary)' }}>Progress</p>
+                            <p className="text-[15px] font-semibold" style={{ color: 'var(--text-primary)' }}>Reja</p>
                             <button onClick={() => setTodoOpen(false)} className="h-7 w-7 flex items-center justify-center rounded-lg transition"
                                 style={{ color: 'var(--text-muted)' }}
                                 onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
@@ -3125,7 +3129,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                                 {Math.round(result.score)}%
                                                             </span>
                                                         ) : (
-                                                            <button onClick={() => { window.location.href = `/test/${t.shareLink}` }}
+                                                            <button onClick={() => { void openPublicTest(t) }}
                                                                 className="text-xs font-semibold px-3 py-1.5 rounded-xl transition flex-shrink-0"
                                                                 style={{ background: 'var(--brand)', color: 'white' }}>
                                                                 Boshlash
