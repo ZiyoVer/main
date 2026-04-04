@@ -12,10 +12,15 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 
 
 // GET /api/knowledge — barchasi (admin)
 router.get('/', authenticate, requireRole('ADMIN'), async (_req, res) => {
-  const items = await prisma.knowledgeItem.findMany({
-    orderBy: [{ subject: 'asc' }, { createdAt: 'desc' }]
-  })
-  res.json(items)
+  try {
+    const items = await prisma.knowledgeItem.findMany({
+      orderBy: [{ subject: 'asc' }, { createdAt: 'desc' }]
+    })
+    res.json(items)
+  } catch (e: any) {
+    console.error('knowledge GET error:', e)
+    res.status(500).json({ error: 'Knowledge itemlarni olishda xatolik' })
+  }
 })
 
 // GET /api/knowledge/subjects — fanlar ro'yxati
@@ -96,9 +101,19 @@ router.put('/:id', authenticate, requireRole('ADMIN'), async (req: AuthRequest, 
 })
 
 // DELETE /api/knowledge/:id — o'chirish (admin)
-router.delete('/:id', authenticate, requireRole('ADMIN'), async (_req, res) => {
-  await prisma.knowledgeItem.delete({ where: { id: String(_req.params.id) } })
-  res.json({ ok: true })
+router.delete('/:id', authenticate, requireRole('ADMIN'), async (req, res) => {
+  try {
+    const id = String(req.params.id)
+    const item = await prisma.knowledgeItem.findUnique({ where: { id } })
+    if (!item) {
+      return res.status(404).json({ error: 'Item topilmadi' })
+    }
+    await prisma.knowledgeItem.delete({ where: { id } })
+    res.json({ ok: true })
+  } catch (e: any) {
+    console.error('knowledge DELETE error:', e)
+    res.status(500).json({ error: 'Knowledge itemni o\'chirishda xatolik' })
+  }
 })
 
 // POST /api/knowledge/backfill-embeddings — eski knowledge itemlar uchun embedding yaratish

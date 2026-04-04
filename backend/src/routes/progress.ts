@@ -241,15 +241,28 @@ router.post('/topic', async (req: any, res) => {
     try {
         const userId = req.user.id
         const { subject, topic, correct, total } = req.body
+        const normalizedSubject = typeof subject === 'string' ? subject.trim() : ''
+        const normalizedTopic = typeof topic === 'string' ? topic.trim() : ''
+        const totalValue = Number(total)
+        const correctValue = correct === undefined ? 0 : Number(correct)
 
-        if (!subject || !topic || total === undefined) {
+        if (!normalizedSubject || !normalizedTopic || total === undefined) {
             return res.status(400).json({ error: 'subject, topic, total majburiy' })
+        }
+        if (!Number.isFinite(totalValue) || totalValue <= 0 || !Number.isInteger(totalValue)) {
+            return res.status(400).json({ error: 'total musbat butun son bo\'lishi kerak' })
+        }
+        if (!Number.isFinite(correctValue) || correctValue < 0 || !Number.isInteger(correctValue)) {
+            return res.status(400).json({ error: 'correct manfiy bo\'lmagan butun son bo\'lishi kerak' })
+        }
+        if (correctValue > totalValue) {
+            return res.status(400).json({ error: 'correct total dan katta bo\'lishi mumkin emas' })
         }
 
         const stat = await prisma.topicStat.upsert({
-            where: { userId_subject_topic: { userId, subject, topic } },
-            create: { userId, subject, topic, correct: correct || 0, total, lastPracticed: new Date() },
-            update: { correct: { increment: correct || 0 }, total: { increment: total }, lastPracticed: new Date() }
+            where: { userId_subject_topic: { userId, subject: normalizedSubject, topic: normalizedTopic } },
+            create: { userId, subject: normalizedSubject, topic: normalizedTopic, correct: correctValue, total: totalValue, lastPracticed: new Date() },
+            update: { correct: { increment: correctValue }, total: { increment: totalValue }, lastPracticed: new Date() }
         })
 
         res.json(stat)

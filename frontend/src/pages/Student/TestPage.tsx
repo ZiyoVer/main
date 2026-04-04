@@ -59,6 +59,42 @@ function formatAcceptedAnswerText(text: string | null | undefined) {
         .join(' / ')
 }
 
+type ParsedQuestionOptions = string[] | {
+    answers?: string[]
+    subQuestions?: Array<{ label?: string; text: string; correctText?: string }>
+} | null
+type MatchingOptions = { answers?: string[]; subQuestions?: Array<{ text: string }> }
+type MultipartOptions = { subQuestions?: Array<{ label?: string; text: string; correctText?: string }> }
+
+function parseQuestionOptions(raw: unknown): ParsedQuestionOptions {
+    if (!raw) return null
+    if (typeof raw !== 'string') {
+        return typeof raw === 'object' ? raw as ParsedQuestionOptions : null
+    }
+    try {
+        return JSON.parse(raw) as ParsedQuestionOptions
+    } catch {
+        return null
+    }
+}
+
+function parseChoiceOptions(raw: unknown): string[] {
+    const parsed = parseQuestionOptions(raw)
+    return Array.isArray(parsed) ? parsed : []
+}
+
+function parseMatchingOptions(raw: unknown): MatchingOptions | null {
+    const parsed = parseQuestionOptions(raw)
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') return null
+    return parsed as MatchingOptions
+}
+
+function parseMultipartOptions(raw: unknown): MultipartOptions | null {
+    const parsed = parseQuestionOptions(raw)
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') return null
+    return parsed as MultipartOptions
+}
+
 const OPTS = ['A', 'B', 'C', 'D'] as const
 type AnswerValue = number | string | string[] | Record<number, number>
 type CorrectAnswerMap = Record<string, { idx: number; text?: string; type: string; matchingCorrect?: number[]; multipartCorrectText?: Array<{ label: string; text: string; correctText: string }> }>
@@ -122,22 +158,18 @@ export default function TestPage() {
             const payload = test.questions.map((q: any) => {
                 if (q.questionType === 'open') return { questionId: q.id, selectedIdx: -1, textAnswer: answers[q.id] ?? '' }
                 if (q.questionType === 'multipart_open') {
-                    let multipartData: { subQuestions?: Array<{ text: string }> } = { subQuestions: [] }
-                    try { multipartData = JSON.parse(q.options) } catch { }
+                    const multipartData = parseMultipartOptions(q.options)
                     const textAnswers = Array.isArray(answers[q.id]) ? answers[q.id] as string[] : []
                     return {
                         questionId: q.id,
                         selectedIdx: -1,
-                        textAnswers: (multipartData.subQuestions || []).map((_: { text: string }, subIndex: number) => textAnswers[subIndex] ?? '')
+                        textAnswers: (multipartData?.subQuestions || []).map((_: { text: string }, subIndex: number) => textAnswers[subIndex] ?? '')
                     }
                 }
                 if (q.questionType === 'matching') {
                     const selMap = (answers[q.id] || {}) as Record<number, number>
-                    let matchingAnswers: number[] = []
-                    try {
-                        const opts = JSON.parse(q.options)
-                        matchingAnswers = (opts.subQuestions || []).map((_: any, si: number) => selMap[si] ?? -1)
-                    } catch { }
+                    const parsedOptions = parseMatchingOptions(q.options)
+                    const matchingAnswers = (parsedOptions?.subQuestions || []).map((_, si: number) => selMap[si] ?? -1)
                     return { questionId: q.id, selectedIdx: -1, matchingAnswers }
                 }
                 return { questionId: q.id, selectedIdx: answers[q.id] ?? -1 }
@@ -158,15 +190,9 @@ export default function TestPage() {
             setSubmitted(true)
             const optLabels = ['a', 'b', 'c', 'd']
             const questionsForAnalysis = test.questions.map((q: any, i: number) => {
-                let opts: string[] = []
-                let matchingData: any = null
-                let multipartData: { subQuestions?: Array<{ label?: string; text: string; correctText: string }> } = { subQuestions: [] }
-                try {
-                    const parsed = JSON.parse(q.options)
-                    if (q.questionType === 'matching') matchingData = parsed
-                    else if (q.questionType === 'multipart_open') multipartData = parsed
-                    else opts = parsed
-                } catch { opts = [] }
+                const opts = parseChoiceOptions(q.options)
+                const matchingData = q.questionType === 'matching' ? parseMatchingOptions(q.options) : null
+                const multipartData = q.questionType === 'multipart_open' ? (parseMultipartOptions(q.options) || { subQuestions: [] }) : { subQuestions: [] }
                 const ca = res.correctAnswers?.find((c: any) => c.id === q.id)
                 const studentIdx = payload[i]?.selectedIdx ?? -1
                 if (q.questionType === 'matching' && matchingData) {
@@ -249,19 +275,15 @@ export default function TestPage() {
         if (q.questionType === 'open') return typeof a === 'string' && a.trim().length > 0
         if (q.questionType === 'multipart_open') {
             if (!Array.isArray(a)) return false
-            try {
-                const opts = JSON.parse(q.options)
-                const numSubs = (opts.subQuestions || []).length
-                return numSubs > 0 && a.length >= numSubs && a.every(answer => typeof answer === 'string' && answer.trim().length > 0)
-            } catch { return false }
+            const parsedOptions = parseMultipartOptions(q.options)
+            const numSubs = (parsedOptions?.subQuestions || []).length
+            return numSubs > 0 && a.length >= numSubs && a.every(answer => typeof answer === 'string' && answer.trim().length > 0)
         }
         if (q.questionType === 'matching') {
             if (!a || typeof a !== 'object') return false
-            try {
-                const opts = JSON.parse(q.options)
-                const numSubs = (opts.subQuestions || []).length
-                return numSubs > 0 && Object.keys(a as object).length >= numSubs
-            } catch { return false }
+            const parsedOptions = parseMatchingOptions(q.options)
+            const numSubs = (parsedOptions?.subQuestions || []).length
+            return numSubs > 0 && Object.keys(a as object).length >= numSubs
         }
         return typeof a === 'number'
     }).length ?? 0
@@ -350,15 +372,9 @@ export default function TestPage() {
 
                 {/* Questions */}
                 {test?.questions?.map((q: any, qi: number) => {
-                    let opts: string[] = []
-                    let matchingData: any = null
-                    let multipartData: { subQuestions?: Array<{ label?: string; text: string; correctText: string }> } = { subQuestions: [] }
-                    try {
-                        const parsed = JSON.parse(q.options)
-                        if (q.questionType === 'matching') matchingData = parsed
-                        else if (q.questionType === 'multipart_open') multipartData = parsed
-                        else opts = parsed
-                    } catch { opts = [] }
+                    const opts = parseChoiceOptions(q.options)
+                    const matchingData = q.questionType === 'matching' ? parseMatchingOptions(q.options) : null
+                    const multipartData = q.questionType === 'multipart_open' ? (parseMultipartOptions(q.options) || { subQuestions: [] }) : { subQuestions: [] }
                     const correct = submitted ? correctMap[q.id] : null
                     const correctIdx = correct?.idx ?? -1
                     const isOpen = q.questionType === 'open'
@@ -552,8 +568,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
             const isMatching = q.questionType === 'matching'
 
             if (isMatching) {
-                let matchingData: { answers?: string[]; subQuestions?: Array<{ text: string }> } = { answers: [], subQuestions: [] }
-                try { matchingData = JSON.parse(q.options) } catch { }
+                const matchingData = parseMatchingOptions(q.options) || { answers: [], subQuestions: [] }
                 const selectedMap = (selectedAnswer || {}) as Record<number, number>
                 const answerCount = matchingData.answers?.length || 6
                 const alphabet = 'ABCDEF'
@@ -772,13 +787,8 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                 {/* ════ LEFT: Questions ════ */}
                 <div ref={questionsRef} className={`flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4 min-w-0 min-h-0 ${isCompactLayout ? 'pb-28 sm:pb-32' : ''}`}>
                     {questions.map((q: any, qi: number) => {
-                        let opts: string[] = []
-                        let matchingData: any = null
-                        try {
-                            const parsed = JSON.parse(q.options)
-                            if (q.questionType === 'matching') matchingData = parsed
-                            else opts = parsed
-                        } catch { opts = [] }
+                        const opts = parseChoiceOptions(q.options)
+                        const matchingData = q.questionType === 'matching' ? parseMatchingOptions(q.options) : null
                         const correct = submitted ? correctMap[q.id] : null
                         const correctIdx = correct?.idx ?? -1
                         const isMatching = q.questionType === 'matching'

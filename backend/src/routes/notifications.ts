@@ -83,8 +83,11 @@ router.post('/send', requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, r
     }
 
     // Barcha o'quvchilarga yuborishda explicit tasdiqlash talab qilinadi
-    let targetIds: string[] = userIds
-    if (!targetIds?.length) {
+    let targetIds = Array.isArray(userIds)
+      ? userIds.map((userId: unknown) => String(userId || '').trim()).filter(Boolean)
+      : []
+
+    if (!targetIds.length) {
       if (!broadcastAll) {
         return res.status(400).json({
           error: 'userIds bo\'sh. Barcha foydalanuvchilarga yuborish uchun broadcastAll: true ni yuboring.'
@@ -97,8 +100,25 @@ router.post('/send', requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, r
       targetIds = students.map(s => s.id)
     }
 
+    targetIds = Array.from(new Set(targetIds))
+    if (targetIds.length === 0) {
+      return res.status(400).json({ error: 'Yuborish uchun o\'quvchi topilmadi' })
+    }
+
+    const targetStudents = await prisma.user.findMany({
+      where: {
+        id: { in: targetIds },
+        role: 'STUDENT'
+      },
+      select: { id: true }
+    })
+    const validTargetIds = targetStudents.map(student => student.id)
+    if (validTargetIds.length === 0) {
+      return res.status(400).json({ error: 'Faqat o\'quvchilarga xabar yuborish mumkin' })
+    }
+
     await prisma.notification.createMany({
-      data: targetIds.map(userId => ({
+      data: validTargetIds.map(userId => ({
         userId,
         senderId: req.user.id,
         title: title.trim(),
@@ -106,7 +126,7 @@ router.post('/send', requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, r
       }))
     })
 
-    res.json({ ok: true, sent: targetIds.length })
+    res.json({ ok: true, sent: validTargetIds.length })
   } catch (e: any) {
     console.error('notifications send error:', e)
     res.status(500).json({ error: 'Server xatoligi' })

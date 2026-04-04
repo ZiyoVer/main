@@ -62,7 +62,9 @@ export async function uploadFile(endpoint: string, formData: FormData, signal?: 
     const headers: HeadersInit = {}
     if (token) headers['Authorization'] = `Bearer ${token}`
     const res = await fetch(`${API}${endpoint}`, { method: 'POST', headers, body: formData, signal })
-    const data = await res.json()
+    const text = await res.text()
+    let data: any
+    try { data = text ? JSON.parse(text) : {} } catch { data = text }
     if (!res.ok) {
         const err = new Error(data?.error || 'Yuklashda xato') as ApiError
         err.status = res.status

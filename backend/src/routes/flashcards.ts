@@ -65,36 +65,51 @@ router.post('/', async (req: any, res) => {
         const userId = req.user.id
         const { subject, cards } = req.body
 
-        if (!subject || !Array.isArray(cards) || cards.length === 0) {
+        const normalizedSubject = typeof subject === 'string' ? subject.trim() : ''
+        if (!normalizedSubject || !Array.isArray(cards) || cards.length === 0) {
             return res.status(400).json({ error: 'subject va cards[] majburiy' })
+        }
+
+        const sanitizedCards = cards
+            .map((card: unknown) => {
+                if (!card || typeof card !== 'object') return null
+                const front = typeof (card as { front?: unknown }).front === 'string' ? (card as { front: string }).front.trim() : ''
+                const back = typeof (card as { back?: unknown }).back === 'string' ? (card as { back: string }).back.trim() : ''
+                if (!front) return null
+                return { front, back }
+            })
+            .filter((card): card is { front: string; back: string } => Boolean(card))
+
+        if (sanitizedCards.length === 0) {
+            return res.status(400).json({ error: 'cards ichida yaroqli kartochka topilmadi' })
         }
 
         // Mavjud kartlarning front textlarini olish (duplicate oldini olish)
         const existing = await prisma.flashcard.findMany({
-            where: { userId, subject },
+            where: { userId, subject: normalizedSubject },
             select: { front: true }
         })
         const existingFronts = new Set(existing.map(c => c.front.toLowerCase().trim()))
 
         // Faqat yangi (duplicate bo'lmagan) kartlarni saqlash
-        const newCards = cards.filter((c: { front: string; back: string }) =>
-            c.front?.trim() && !existingFronts.has(c.front.toLowerCase().trim())
+        const newCards = sanitizedCards.filter(card =>
+            !existingFronts.has(card.front.toLowerCase().trim())
         )
 
         if (newCards.length === 0) {
-            return res.json({ created: 0, skipped: cards.length, message: 'Barcha kartalar allaqachon mavjud' })
+            return res.json({ created: 0, skipped: sanitizedCards.length, message: 'Barcha kartalar allaqachon mavjud' })
         }
 
         const created = await prisma.flashcard.createMany({
             data: newCards.map((c: { front: string; back: string }) => ({
                 userId,
-                subject,
-                front: c.front.trim(),
-                back: c.back?.trim() || '',
+                subject: normalizedSubject,
+                front: c.front,
+                back: c.back,
             })),
         })
 
-        res.json({ created: created.count, skipped: cards.length - created.count })
+        res.json({ created: created.count, skipped: sanitizedCards.length - created.count })
     } catch (e) {
         console.error(e)
         res.status(500).json({ error: 'Server xatoligi' })
