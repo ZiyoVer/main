@@ -1487,28 +1487,28 @@ Iltimos, har bir savolni tahlil qilib ber:
         {
             key: 'level',
             title: 'Darajamni aniqlash',
-            description: '3 ta qisqa savol orqali hozirgi holatingizni bilib oling',
+            description: '3 ta savol bilan hozirgi holatingizni biling',
             prompt: `${starterSubject} bo'yicha hozirgi darajamni aniqlash uchun 3 ta qisqa diagnostik savol bering. Oxirida kuchli va zaif tomonlarimni qisqa ayting.`,
             Icon: BarChart2,
         },
         {
             key: 'plan',
             title: 'Bugungi reja',
-            description: 'Bugun nima qilish kerakligini aniq vazifalar bilan oling',
+            description: 'Bugungi aniq vazifalarni oling',
             prompt: `Menga bugun ${starterSubject} bo'yicha 20 daqiqalik aniq reja tuzing. Vazifalarni qisqa va bajariladigan ko'rinishda bering.`,
             Icon: Target,
         },
         {
             key: 'mini-test',
             title: 'Mini test',
-            description: 'Bilimingizni tez sinab, keyingi qadamni biling',
+            description: 'Tez sinov va keyingi qadam',
             prompt: `${starterSubject} bo'yicha 3 ta mini diagnostik savol bering. Oxirida qaysi mavzuni davom ettirishim kerakligini ayting.`,
             Icon: ClipboardList,
         },
         {
             key: 'weakness',
             title: 'Zaif mavzuni topish',
-            description: "Ko'proq qaysi joyda adashayotganingizni aniqlang",
+            description: "Qaysi joyda ko'proq adashayotganingizni biling",
             prompt: `${starterSubject} bo'yicha eng zaif mavzuimni topish uchun qisqa diagnostika qiling va qaysi mavzudan boshlashim kerakligini ayting.`,
             Icon: TrendingUp,
         },
@@ -2376,15 +2376,8 @@ Iltimos, har bir savolni tahlil qilib ber:
 
                 {/* Main */}
                 <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-                    <div className="h-14 flex items-center px-4 gap-2 flex-shrink-0" style={{ borderBottom: '1px solid color-mix(in srgb, var(--border) 74%, rgba(15,23,42,0.12) 26%)' }}>
-                        {/* ☰ doim ko'rinadi — sidebar toggle */}
-                        <button onClick={() => setSideOpen(v => !v)} className="h-8 w-8 flex items-center justify-center rounded-lg transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} title="Yonpanel"><Menu className="h-4 w-4" /></button>
-                        <span className="text-sm font-medium truncate flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>{currentChat?.title || ''}</span>
-                    </div>
-
                     {!telegramRailDismissed && (
-                        <div className="telegram-rail flex items-center gap-3 px-4 py-2 flex-shrink-0" style={{ borderBottom: '1px solid color-mix(in srgb, var(--brand) 16%, var(--border))' }}>
-                            <span className="text-[11px] font-semibold flex-shrink-0" style={{ color: 'var(--brand)' }}>Telegram</span>
+                        <div className="telegram-rail flex items-center gap-2 px-3 py-1.5 flex-shrink-0" style={{ borderBottom: '1px solid color-mix(in srgb, var(--brand) 14%, var(--border))' }}>
                             <div className="telegram-rail-viewport flex-1 min-w-0">
                                 <div className="telegram-rail-track">
                                     {[0, 1].map(sequenceIndex => (
@@ -2399,7 +2392,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     title={`${item.label} — ${item.handle}`}
                                                     aria-label={`${item.label} — ${item.handle}`}
                                                 >
-                                                    <span className="text-[12px] font-medium" style={{ color: 'var(--text-primary)' }}>{item.label}</span>
+                                                    <span className="text-[11px] font-medium" style={{ color: 'var(--text-primary)' }}>{item.label}</span>
                                                     <span className="telegram-rail-link" aria-hidden="true">
                                                         <TelegramIcon />
                                                     </span>
@@ -2411,7 +2404,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                             </div>
                             <button
                                 onClick={() => setTelegramRailDismissed(true)}
-                                className="h-7 w-7 rounded-lg flex items-center justify-center transition flex-shrink-0"
+                                className="h-6 w-6 rounded-md flex items-center justify-center transition flex-shrink-0"
                                 style={{ color: 'var(--text-muted)' }}
                                 onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
                                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -2421,6 +2414,11 @@ Iltimos, har bir savolni tahlil qilib ber:
                             </button>
                         </div>
                     )}
+
+                    <div className="h-14 flex items-center px-4 gap-2 flex-shrink-0" style={{ borderBottom: '1px solid color-mix(in srgb, var(--border) 74%, rgba(15,23,42,0.12) 26%)' }}>
+                        <button onClick={() => setSideOpen(v => !v)} className="h-8 w-8 flex items-center justify-center rounded-lg transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} title="Yonpanel"><Menu className="h-4 w-4" /></button>
+                        <span className="text-sm font-medium truncate flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>{currentChat?.title || ''}</span>
+                    </div>
 
                     {/* Email verification banner */}
                     {!emailVerified && !verifBannerDismissed && (
@@ -2448,49 +2446,49 @@ Iltimos, har bir savolni tahlil qilib ber:
                     <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
                         {(!chatId || (messages.length === 0 && !loading && !streaming)) ? (
                             <div className="h-full flex items-center justify-center" style={{ background: 'var(--bg-page)' }}>
-                                <div className="max-w-2xl w-full px-4 sm:px-6 anim-up">
-                                    <div className="text-center mb-6 sm:mb-8">
-                                        <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl flex items-center justify-center mx-auto mb-4 sm:mb-5" style={{ background: 'var(--brand)' }}><BrainCircuit className="h-6 w-6 sm:h-7 sm:w-7 text-white" /></div>
+                                <div className="max-w-xl w-full px-4 sm:px-6 anim-up">
+                                    <div className="text-center mb-5 sm:mb-6">
+                                        <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center mx-auto mb-3 sm:mb-4" style={{ background: 'var(--brand)' }}><BrainCircuit className="h-5 w-5 sm:h-6 sm:w-6 text-white" /></div>
                                         <h2 className="text-xl sm:text-2xl font-bold mb-2">Salom, {user?.name?.split(' ')[0]}! 👋</h2>
                                         <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Bugun nimadan boshlaymiz?</p>
                                         <p className="text-xs sm:text-sm mt-2" style={{ color: 'var(--text-muted)' }}>
                                             Pastdagi yo'nalishlardan birini tanlang yoki savolingizni yozing.
                                         </p>
                                     </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                                         {starterActions.map(action => (
                                             <button
                                                 key={action.key}
                                                 onClick={() => handleStarterAction(action.prompt)}
-                                                className="text-left rounded-2xl p-4 transition group"
+                                                className="text-left rounded-xl p-3 transition group"
                                                 style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
                                                 onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
                                                 onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-card)'}
                                             >
-                                                <div className="flex items-start gap-3">
-                                                    <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 transition"
+                                                <div className="flex items-start gap-2.5">
+                                                    <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 transition"
                                                         style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
-                                                        <action.Icon className="h-4 w-4" />
+                                                        <action.Icon className="h-3.5 w-3.5" />
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center justify-between gap-2">
-                                                            <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{action.title}</p>
-                                                            <ArrowUp className="h-3.5 w-3.5 rotate-45 opacity-50 group-hover:opacity-100 transition" style={{ color: 'var(--text-muted)' }} />
+                                                            <p className="text-[13px] font-semibold" style={{ color: 'var(--text-primary)' }}>{action.title}</p>
+                                                            <ArrowUp className="h-3 w-3 rotate-45 opacity-45 group-hover:opacity-100 transition" style={{ color: 'var(--text-muted)' }} />
                                                         </div>
-                                                        <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{action.description}</p>
+                                                        <p className="text-[11px] mt-1 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{action.description}</p>
                                                     </div>
                                                 </div>
                                             </button>
                                         ))}
                                     </div>
-                                    <div className="mt-4 rounded-2xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                    <div className="mt-3 rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
                                         <div className="flex items-center gap-2 mb-2">
-                                            <Sparkles className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--brand)' }} />
-                                            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Tayyor prompt</p>
+                                            <Sparkles className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--brand)' }} />
+                                            <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Tayyor prompt</p>
                                         </div>
                                         <button
                                             onClick={() => handleStarterAction(starterPrompt)}
-                                            className="w-full text-left rounded-xl px-3 py-3 text-sm transition"
+                                            className="w-full text-left rounded-lg px-3 py-2.5 text-[13px] leading-relaxed transition"
                                             style={{ background: 'var(--bg-page)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
                                             onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
                                             onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-page)'}
