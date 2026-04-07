@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, Sun, Moon, Search, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, Timer, Sparkles, User, Shield, ArrowUp, BarChart2 } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, Sun, Moon, Search, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, Timer, User, Shield, ArrowUp, BarChart2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import remarkGfm from 'remark-gfm'
@@ -1513,11 +1513,6 @@ Iltimos, har bir savolni tahlil qilib ber:
             Icon: TrendingUp,
         },
     ], [starterSubject])
-    const starterPrompt = useMemo(
-        () => `Mening darajamni aniqlab, bugundan ${starterSubject} bo'yicha tayyorlanish uchun aniq reja tuzib bering.`,
-        [starterSubject]
-    )
-
     function markTestCompleted(testId: string) {
         completedTestIdsRef.current.add(testId)
         try { localStorage.setItem('dtmmax_done_tests', JSON.stringify([...completedTestIdsRef.current])) } catch (err) { console.warn('localStorage limit to\'lgan:', err); toast.error("Xotira to'lgan, eski ma'lumotlar o'chirilishi mumkin") }
@@ -2446,55 +2441,45 @@ Iltimos, har bir savolni tahlil qilib ber:
                     <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
                         {(!chatId || (messages.length === 0 && !loading && !streaming)) ? (
                             <div className="h-full flex items-center justify-center" style={{ background: 'var(--bg-page)' }}>
-                                <div className="max-w-xl w-full px-4 sm:px-6 anim-up">
-                                    <div className="text-center mb-5 sm:mb-6">
+                                <div className="max-w-lg w-full px-4 sm:px-6 anim-up">
+                                    <div className="text-center mb-5">
                                         <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center mx-auto mb-3 sm:mb-4" style={{ background: 'var(--brand)' }}><BrainCircuit className="h-5 w-5 sm:h-6 sm:w-6 text-white" /></div>
                                         <h2 className="text-xl sm:text-2xl font-bold mb-2">Salom, {user?.name?.split(' ')[0]}! 👋</h2>
-                                        <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Bugun nimadan boshlaymiz?</p>
-                                        <p className="text-xs sm:text-sm mt-2" style={{ color: 'var(--text-muted)' }}>
-                                            Pastdagi yo'nalishlardan birini tanlang yoki savolingizni yozing.
-                                        </p>
+                                        <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Bugun nimani o'rganmoqchisiz?</p>
                                     </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                    <div className="rounded-2xl p-4 sm:p-5 mb-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                        <div className="flex items-start gap-3">
+                                            <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
+                                                <BrainCircuit className="h-4 w-4" />
+                                            </div>
+                                            <div className="text-left min-w-0">
+                                                <p className="text-[14px] sm:text-[15px] font-medium leading-relaxed" style={{ color: 'var(--text-primary)' }}>
+                                                    Men yordam beraman. Xohlasangiz, darajangizni aniqlaymiz, bugungi reja tuzamiz yoki mini testdan boshlaymiz.
+                                                </p>
+                                                <p className="text-[12px] mt-2" style={{ color: 'var(--text-muted)' }}>
+                                                    Savolingizni yozing yoki pastdagi qisqa yo'llardan birini tanlang.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-wrap items-center justify-center gap-2.5">
                                         {starterActions.map(action => (
                                             <button
                                                 key={action.key}
                                                 onClick={() => handleStarterAction(action.prompt)}
-                                                className="text-left rounded-xl p-3 transition group"
-                                                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
+                                                title={action.description}
+                                                className="inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-[12px] sm:text-[13px] font-medium transition"
+                                                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
                                                 onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
                                                 onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-card)'}
                                             >
-                                                <div className="flex items-start gap-2.5">
-                                                    <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 transition"
-                                                        style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
-                                                        <action.Icon className="h-3.5 w-3.5" />
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center justify-between gap-2">
-                                                            <p className="text-[13px] font-semibold" style={{ color: 'var(--text-primary)' }}>{action.title}</p>
-                                                            <ArrowUp className="h-3 w-3 rotate-45 opacity-45 group-hover:opacity-100 transition" style={{ color: 'var(--text-muted)' }} />
-                                                        </div>
-                                                        <p className="text-[11px] mt-1 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{action.description}</p>
-                                                    </div>
-                                                </div>
+                                                <span className="flex-shrink-0" style={{ color: 'var(--brand)' }}>
+                                                    <action.Icon className="h-3.5 w-3.5" />
+                                                </span>
+                                                <span>{action.title}</span>
+                                                <ArrowUp className="h-3 w-3 rotate-45 opacity-45" style={{ color: 'var(--text-muted)' }} />
                                             </button>
                                         ))}
-                                    </div>
-                                    <div className="mt-3 rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <Sparkles className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--brand)' }} />
-                                            <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Tayyor prompt</p>
-                                        </div>
-                                        <button
-                                            onClick={() => handleStarterAction(starterPrompt)}
-                                            className="w-full text-left rounded-lg px-3 py-2.5 text-[13px] leading-relaxed transition"
-                                            style={{ background: 'var(--bg-page)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
-                                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
-                                            onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-page)'}
-                                        >
-                                            {starterPrompt}
-                                        </button>
                                     </div>
                                 </div>
                             </div>
