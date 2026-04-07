@@ -1513,6 +1513,10 @@ Iltimos, har bir savolni tahlil qilib ber:
             Icon: TrendingUp,
         },
     ], [starterSubject])
+    const starterGreetingMessage = useMemo(
+        () => `Darajangizni aniqlaymizmi, bugungi reja tuzamizmi yoki mini testdan boshlaymizmi?`,
+        []
+    )
     function markTestCompleted(testId: string) {
         completedTestIdsRef.current.add(testId)
         try { localStorage.setItem('dtmmax_done_tests', JSON.stringify([...completedTestIdsRef.current])) } catch (err) { console.warn('localStorage limit to\'lgan:', err); toast.error("Xotira to'lgan, eski ma'lumotlar o'chirilishi mumkin") }
@@ -2447,19 +2451,9 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         <h2 className="text-xl sm:text-2xl font-bold mb-2">Salom, {user?.name?.split(' ')[0]}! 👋</h2>
                                         <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Bugun nimani o'rganmoqchisiz?</p>
                                     </div>
-                                    <div className="rounded-2xl p-4 sm:p-5 mb-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                        <div className="flex items-start gap-3">
-                                            <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
-                                                <BrainCircuit className="h-4 w-4" />
-                                            </div>
-                                            <div className="text-left min-w-0">
-                                                <p className="text-[14px] sm:text-[15px] font-medium leading-relaxed" style={{ color: 'var(--text-primary)' }}>
-                                                    Men yordam beraman. Xohlasangiz, darajangizni aniqlaymiz, bugungi reja tuzamiz yoki mini testdan boshlaymiz.
-                                                </p>
-                                                <p className="text-[12px] mt-2" style={{ color: 'var(--text-muted)' }}>
-                                                    Savolingizni yozing yoki pastdagi qisqa yo'llardan birini tanlang.
-                                                </p>
-                                            </div>
+                                    <div className="flex justify-start mb-4">
+                                        <div className="bubble-ai max-w-full">
+                                            <MdMessage content={starterGreetingMessage} />
                                         </div>
                                     </div>
                                     <div className="flex flex-wrap items-center justify-center gap-2.5">
