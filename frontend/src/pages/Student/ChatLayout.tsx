@@ -1240,7 +1240,7 @@ Iltimos, har bir savolni tahlil qilib ber:
             setShowOnboarding(false)
             await loadProfile()
             toast.success('Profil muvaffaqiyatli saqlandi!')
-            // Birinchi marta onboarding — avtomatik chat ochib AI tabriklash xabari
+            // Birinchi marta onboarding — avtomatik chat ochamiz
             if (!profile?.onboardingDone) {
                 const firstChat = await fetchApi('/chat/new', {
                     method: 'POST',
@@ -1251,13 +1251,9 @@ Iltimos, har bir savolni tahlil qilib ber:
                     })
                 })
                 await loadChats()
-                pendingHydrationChatIdRef.current = firstChat.id
+                setMessages([])
                 setCurrentChat(firstChat)
                 nav(`/suhbat/${firstChat.id}`)
-                setTimeout(() => {
-                    const welcomePrompt = `O'quvchi ${user?.name?.split(' ')[0]} platformaga yangi ro'yxatdan o'tdi. Fan: ${onboardingForm.subject}. Imtihon sanasi: ${onboardingForm.examDate || "belgilanmagan"}. Maqsad ball: ${onboardingForm.targetScore || 80}. Ularni shaxsiy, qisqa va samimiy tabriklang. Fan bo'yicha birinchi darsni taklif qiling. 3-4 jumladan oshirmang.`
-                    streamToChat(firstChat.id, welcomePrompt, 'Salom! 👋')
-                }, 300)
             }
         } catch (err) { console.error('saveOnboarding:', err) }
         setSavingProfile(false)
@@ -1272,6 +1268,21 @@ Iltimos, har bir savolni tahlil qilib ber:
         } catch (err) { console.error('loadChats:', err) }
     }
 
+    async function requestAutoGreeting(id: string): Promise<Msg | null> {
+        try {
+            const data = await fetchApi(`/chat/${id}/auto-greet`, {
+                method: 'POST',
+                silent: true
+            })
+            if (data?.message && typeof data.message === 'object' && !Array.isArray(data.message) && typeof data.message.content === 'string') {
+                return data.message as Msg
+            }
+        } catch (err) {
+            console.error('requestAutoGreeting:', err)
+        }
+        return null
+    }
+
     async function loadMessages(id: string) {
         if (pendingHydrationChatIdRef.current === id) {
             pendingHydrationChatIdRef.current = null
@@ -1283,8 +1294,15 @@ Iltimos, har bir savolni tahlil qilib ber:
         try {
             const data = await fetchApi(`/chat/${id}/messages`, { signal: controller.signal })
             if (controller.signal.aborted) return
-            const nextMessages = ensureArray<Msg>(data?.messages)
+            let nextMessages = ensureArray<Msg>(data?.messages)
             const nextChat = data?.chat && typeof data.chat === 'object' && !Array.isArray(data.chat) ? data.chat as Chat : null
+            if (nextMessages.length === 0) {
+                const autoGreeting = await requestAutoGreeting(id)
+                if (controller.signal.aborted) return
+                if (autoGreeting) {
+                    nextMessages = [autoGreeting]
+                }
+            }
             setMessages(nextMessages)
             setCurrentChat(nextChat)
             // Yangi chatga kirganda pastga scroll qilish
@@ -1312,6 +1330,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                 })
             })
             await loadChats()
+            setMessages([])
+            setCurrentChat(data)
             nav(`/suhbat/${data.id}`)
         } catch (err) { console.error('createChat:', err) }
         setCreating(false)
@@ -1513,10 +1533,6 @@ Iltimos, har bir savolni tahlil qilib ber:
             Icon: TrendingUp,
         },
     ], [starterSubject])
-    const starterGreetingMessage = useMemo(
-        () => `Darajangizni aniqlaymizmi, bugungi reja tuzamizmi yoki mini testdan boshlaymizmi?`,
-        []
-    )
     function markTestCompleted(testId: string) {
         completedTestIdsRef.current.add(testId)
         try { localStorage.setItem('dtmmax_done_tests', JSON.stringify([...completedTestIdsRef.current])) } catch (err) { console.warn('localStorage limit to\'lgan:', err); toast.error("Xotira to'lgan, eski ma'lumotlar o'chirilishi mumkin") }
@@ -2450,11 +2466,6 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center mx-auto mb-3 sm:mb-4" style={{ background: 'var(--brand)' }}><BrainCircuit className="h-5 w-5 sm:h-6 sm:w-6 text-white" /></div>
                                         <h2 className="text-xl sm:text-2xl font-bold mb-2">Salom, {user?.name?.split(' ')[0]}! 👋</h2>
                                         <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Bugun nimani o'rganmoqchisiz?</p>
-                                    </div>
-                                    <div className="flex justify-start mb-4">
-                                        <div className="bubble-ai max-w-full">
-                                            <MdMessage content={starterGreetingMessage} />
-                                        </div>
                                     </div>
                                     <div className="flex flex-wrap items-center justify-center gap-2.5">
                                         {starterActions.map(action => (

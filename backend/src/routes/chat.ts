@@ -983,6 +983,93 @@ ${dontsSection}
 Sana: ${now.toLocaleDateString('uz-UZ')} (Toshkent vaqti ${tashkentTimeStr}).${extraRules ? '\n\n## Admin qo\'shimcha qoidalari\n' + extraRules : ''}`
 }
 
+function getFirstName(fullName?: string | null): string {
+    return String(fullName || '').trim().split(/\s+/)[0] || 'do‘stim'
+}
+
+function getAutoGreetingFallback(name?: string | null): string {
+    return `Salom, ${getFirstName(name)}! Bugun nimani o'rganmoqchisiz?`
+}
+
+async function createAssistantOnlyGreeting(chat: { id: string; subject: string | null; subject2: string | null }, user: { id: string; name?: string | null }) {
+    const existingMessage = await prisma.message.findFirst({
+        where: { chatId: chat.id },
+        orderBy: { createdAt: 'asc' }
+    })
+    if (existingMessage) {
+        return existingMessage
+    }
+
+    const profile = await prisma.studentProfile.findUnique({
+        where: { userId: user.id }
+    })
+    const aiSettings = await getAISettings()
+    const firstName = getFirstName(user.name)
+    const systemPrompt = buildSystemPrompt(
+        profile,
+        chat.subject || profile?.subject || undefined,
+        chat.subject2 || profile?.subject2 || undefined,
+        aiSettings.extraRules,
+        aiSettings.promptOverrides,
+        true
+    ) + `
+
+## AUTO GREETING (ichki ko'rsatma)
+- Bu yangi bo'sh chat.
+- O'quvchiga SEN birinchi bo'lib yozasan.
+- Faqat 1-2 qisqa jumla yoz.
+- ${firstName} ismini ishlatishing mumkin.
+- Structured blocklar (\`\`\`test, \`\`\`todo, \`\`\`flashcard, \`\`\`formula, \`\`\`essay, \`\`\`vocab) chiqarmagin.
+- "Men yordam bera olaman" kabi uzun kirish yozma.
+- Tabiiy, sodda va chatga mos yoz.`
+
+    const completionMessages = [
+        { role: 'system' as const, content: systemPrompt },
+        { role: 'user' as const, content: `Salom. Men ${firstName}man.` }
+    ]
+
+    let reply = ''
+
+    try {
+        const completion = await chatClient.chat.completions.create({
+            model: chatModel,
+            messages: completionMessages,
+            max_tokens: 140,
+            temperature: Math.min(aiSettings.temperature, 0.6)
+        }, { timeout: 30000 })
+        reply = completion.choices[0]?.message?.content?.trim() || ''
+    } catch (firstErr: any) {
+        const status = firstErr?.status ?? 0
+        const msg = String(firstErr?.message || '').toLowerCase()
+        const isAuthErr = status === 401 || msg.includes('auth') || msg.includes('invalid api key')
+        if (!isAuthErr && hasDeepseek && process.env.OPENAI_API_KEY) {
+            try {
+                const completion = await gptClient.chat.completions.create({
+                    model: 'gpt-4.1-mini',
+                    messages: completionMessages,
+                    max_tokens: 140,
+                    temperature: 0.6
+                }, { timeout: 30000 })
+                reply = completion.choices[0]?.message?.content?.trim() || ''
+            } catch (fallbackErr) {
+                console.error('auto-greet fallback xatosi:', fallbackErr)
+            }
+        } else {
+            console.error('auto-greet xatosi:', firstErr)
+        }
+    }
+
+    const safeReply = reply || getAutoGreetingFallback(user.name)
+    const saved = await prisma.message.create({
+        data: { chatId: chat.id, role: 'assistant', content: safeReply }
+    })
+    await prisma.chat.update({
+        where: { id: chat.id },
+        data: { updatedAt: new Date() }
+    })
+    return saved
+}
+
 // Yangi chat ochish (yoki mavjud fan chatini qaytarish)
 router.post('/new', authenticate, async (req: AuthRequest, res) => {
     try {
@@ -1054,6 +1141,21 @@ router.get('/:chatId/messages', authenticate, async (req: AuthRequest, res) => {
         res.json({ chat, messages })
     } catch (e) {
         res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+router.post('/:chatId/auto-greet', authenticate, async (req: AuthRequest, res) => {
+    try {
+        const chat = await prisma.chat.findFirst({
+            where: { id: (req.params.chatId as string), userId: req.user.id }
+        })
+        if (!chat) return res.status(404).json({ error: 'Chat topilmadi' })
+
+        const message = await createAssistantOnlyGreeting(chat, req.user)
+        res.json({ message })
+    } catch (e) {
+        console.error('auto-greet:', e)
+        res.status(500).json({ error: 'Salomlashuv xabari yaratib bo\'lmadi' })
     }
 })
 
