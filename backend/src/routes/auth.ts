@@ -20,6 +20,10 @@ const PRESENCE_CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000
 const lastPresenceWrite = new Map<string, number>()
 let lastPresenceCleanupAt = 0
 
+function hashToken(token: string): string {
+    return crypto.createHash('sha256').update(token).digest('hex')
+}
+
 function isTemporaryDnsError(code?: string): boolean {
     return ['EAI_AGAIN', 'ETIMEOUT', 'ESERVFAIL', 'SERVFAIL', 'REFUSED', 'ECONNREFUSED'].includes(code || '')
 }
@@ -152,6 +156,7 @@ router.post('/register', authLimiter, async (req, res) => {
         // bcrypt cost 10 — tez va xavfsiz
         const hashed = await bcrypt.hash(password, 10)
         const verificationToken = crypto.randomBytes(32).toString('hex')
+        const hashedVerificationToken = hashToken(verificationToken)
         const verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 soat
 
         const normalizedSubject = normalizeSubject(subject)
@@ -167,7 +172,7 @@ router.post('/register', authLimiter, async (req, res) => {
                 name: name.trim(),
                 role: 'STUDENT',
                 emailVerified: false,
-                verificationToken,
+                verificationToken: hashedVerificationToken,
                 verificationTokenExpiry,
             }
         })
@@ -217,10 +222,7 @@ router.post('/register', authLimiter, async (req, res) => {
 // Email mavjudligini tekshirish (register step 1 uchun)
 router.get('/check-email', authLimiter, async (req, res) => {
     try {
-        const email = (req.query.email as string)?.trim().toLowerCase()
-        if (!email) return res.json({ available: true })
-        const existing = await prisma.user.findUnique({ where: { email } })
-        res.json({ available: !existing })
+        res.json({ available: true })
     } catch {
         res.json({ available: true })
     }
@@ -403,7 +405,7 @@ router.get('/verify-email/:token', async (req, res) => {
         if (!token || token.length !== 64) {
             return res.status(400).json({ error: 'Noto\'g\'ri tasdiqlash havolasi' })
         }
-        const user = await prisma.user.findUnique({ where: { verificationToken: token } })
+        const user = await prisma.user.findUnique({ where: { verificationToken: hashToken(token) } })
         if (!user) return res.status(400).json({ error: 'Havola noto\'g\'ri yoki muddati o\'tgan' })
         if (user.verificationTokenExpiry && user.verificationTokenExpiry < new Date()) {
             return res.status(400).json({ error: 'Tasdiqlash havolasi muddati o\'tgan. Yangi havola so\'rang.' })
@@ -427,10 +429,11 @@ router.post('/resend-verification', emailLimiter, authenticate, async (req: Auth
         if (user.emailVerified) return res.status(400).json({ error: 'Email allaqachon tasdiqlangan' })
 
         const verificationToken = crypto.randomBytes(32).toString('hex')
+        const hashedVerificationToken = hashToken(verificationToken)
         const verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000)
         await prisma.user.update({
             where: { id: user.id },
-            data: { verificationToken, verificationTokenExpiry }
+            data: { verificationToken: hashedVerificationToken, verificationTokenExpiry }
         })
         await sendVerificationEmail(user.email, user.name, verificationToken)
         res.json({ message: 'Tasdiqlash emaili yuborildi' })
@@ -451,10 +454,11 @@ router.post('/forgot-password', authLimiter, emailLimiter, async (req, res) => {
         if (!user) return res.json({ message: 'Agar bu email ro\'yxatda bo\'lsa, parol tiklash havolasi yuborildi.' })
 
         const resetToken = crypto.randomBytes(32).toString('hex')
+        const hashedResetToken = hashToken(resetToken)
         const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000) // 1 soat
         await prisma.user.update({
             where: { id: user.id },
-            data: { resetToken, resetTokenExpiry }
+            data: { resetToken: hashedResetToken, resetTokenExpiry }
         })
         await sendPasswordResetEmail(user.email, user.name, resetToken)
         res.json({ message: 'Agar bu email ro\'yxatda bo\'lsa, parol tiklash havolasi yuborildi.' })
@@ -474,7 +478,7 @@ router.post('/reset-password', authLimiter, async (req, res) => {
             return res.status(400).json({ error: 'Parolda kamida bitta harf va bitta raqam bo\'lishi shart' })
         }
 
-        const user = await prisma.user.findUnique({ where: { resetToken: token } })
+        const user = await prisma.user.findUnique({ where: { resetToken: hashToken(token) } })
         if (!user) return res.status(400).json({ error: 'Havola noto\'g\'ri yoki muddati o\'tgan' })
         if (user.resetTokenExpiry && user.resetTokenExpiry < new Date()) {
             return res.status(400).json({ error: 'Parol tiklash havolasi muddati o\'tgan. Yangi havola so\'rang.' })

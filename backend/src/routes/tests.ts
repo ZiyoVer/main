@@ -1159,7 +1159,7 @@ Javoblar O'zbek tilida, KaTeX formulalar bilan ($\\frac{a}{b}$ formatida) bo'lsi
 })
 
 // Test natijasini AI bilan tahlil qilish (TestPage uchun)
-router.post('/analyze-result', optionalAuthenticate, async (req: AuthRequest, res) => {
+router.post('/analyze-result', authenticate, async (req: AuthRequest, res) => {
     try {
         const { title, subject, score, total, questions } = req.body
         if (!Array.isArray(questions)) return res.json({ analysis: null })

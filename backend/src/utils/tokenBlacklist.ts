@@ -3,6 +3,7 @@ import Redis from 'ioredis'
 // Redis mavjud bo'lsa Redis, aks holda in-memory fallback
 let redis: Redis | null = null
 let redisHealthy = true
+const requirePersistentBlacklist = process.env.REDIS_REQUIRED === 'true'
 
 // Redis operatsiyasi uchun max kutish vaqti (ms)
 const REDIS_TIMEOUT_MS = 2000
@@ -39,6 +40,12 @@ const memoryBlacklist = new Set<string>()
 // Token muddati: 7 kun (JWT bilan bir xil)
 const TOKEN_TTL = 7 * 24 * 60 * 60 // soniyada
 
+function ensurePersistentStoreAvailable(): void {
+    if (requirePersistentBlacklist && (!redis || !redisHealthy)) {
+        throw new Error('Token blacklist uchun Redis majburiy')
+    }
+}
+
 export const tokenBlacklist = {
     async add(token: string): Promise<void> {
         if (redis && redisHealthy) {
@@ -49,6 +56,7 @@ export const tokenBlacklist = {
                 // Redis xato — in-memory fallback
             }
         }
+        ensurePersistentStoreAvailable()
         memoryBlacklist.add(token)
     },
 
@@ -61,6 +69,7 @@ export const tokenBlacklist = {
                 // Redis xato — in-memory fallback
             }
         }
+        ensurePersistentStoreAvailable()
         return memoryBlacklist.has(token)
     }
 }

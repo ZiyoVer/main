@@ -1796,11 +1796,7 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
             return res.json({ success: true, id: savedAi.id })
         }
 
-        // Foydalanuvchi xabarini saqlash (displayText — foydalanuvchiga ko'rinadigan matn)
         const savedUserContent = displayText?.trim() || content
-        await prisma.message.create({
-            data: { chatId: chat.id, role: 'user', content: savedUserContent }
-        })
 
         // Oldingi xabarlar — eng YANGI 80 ta (desc + reverse = to'g'ri tartib)
         const historyRaw = await prisma.message.findMany({
@@ -1809,18 +1805,8 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
             take: 80
         })
         const history = historyRaw.reverse()
-        const isFirstMessage = history.length <= 1
+        const isFirstMessage = history.length === 0
         const titleSrc = displayText?.trim() || content
-
-        if (isFirstMessage) {
-            try {
-                const shortTitle = titleSrc.substring(0, 40) + (titleSrc.length > 40 ? '...' : '')
-                await prisma.chat.update({ where: { id: chat.id }, data: { title: shortTitle } })
-                chat.title = shortTitle
-            } catch (titleErr) {
-                console.error('Chat title update failed:', titleErr)
-            }
-        }
 
         // Profile olish
         const profile = await prisma.studentProfile.findUnique({
@@ -1845,14 +1831,12 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
 
         const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, chat.subject2 || undefined, aiSettings.extraRules, aiSettings.promptOverrides, isFirstMessage) + ragSection + todoSection + toolIntentSection + retentionSection
 
-        // History: oxirgi user xabar (hozir saqlanganini) alohida olamiz
         // DeepSeek image_url qabul qilmaydi — OCR matni content ichida keladi
-        const historyWithoutLast = history.slice(0, -1)
         const currentUserContent: any = content
 
         const messages: any[] = [
             { role: 'system', content: systemPrompt },
-            ...historyWithoutLast.map(m => ({ role: m.role, content: m.content })),
+            ...history.map(m => ({ role: m.role, content: m.content })),
             { role: 'user', content: currentUserContent }
         ]
 
@@ -1908,6 +1892,20 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
                 stream = await gptClient.chat.completions.create(fallbackOpts) as any
             } else {
                 throw firstErr
+            }
+        }
+
+        await prisma.message.create({
+            data: { chatId: chat.id, role: 'user', content: savedUserContent }
+        })
+
+        if (isFirstMessage) {
+            try {
+                const shortTitle = titleSrc.substring(0, 40) + (titleSrc.length > 40 ? '...' : '')
+                await prisma.chat.update({ where: { id: chat.id }, data: { title: shortTitle } })
+                chat.title = shortTitle
+            } catch (titleErr) {
+                console.error('Chat title update failed:', titleErr)
             }
         }
 

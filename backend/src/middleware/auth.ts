@@ -1,8 +1,14 @@
 import { Request, Response, NextFunction } from 'express'
-import jwt from 'jsonwebtoken'
+import jwt, { JwtPayload } from 'jsonwebtoken'
+import prisma from '../utils/db'
 import { tokenBlacklist } from '../utils/tokenBlacklist'
 
 const JWT_SECRET = process.env.JWT_SECRET!
+
+interface DecodedToken extends JwtPayload {
+    id: string
+    role: string
+}
 
 export interface AuthRequest extends Request {
     user?: any
@@ -17,9 +23,9 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     const token = authHeader.split(' ')[1]
 
     // JWT ni avval tekshiramiz (tez, sinxron)
-    let decoded: any
+    let decoded: DecodedToken
     try {
-        decoded = jwt.verify(token, JWT_SECRET)
+        decoded = jwt.verify(token, JWT_SECRET) as DecodedToken
     } catch {
         res.status(401).json({ error: 'Token yaroqsiz' })
         return
@@ -52,7 +58,7 @@ export const optionalAuthenticate = async (req: AuthRequest, res: Response, next
     }
     const token = header.split(' ')[1]
     try {
-        const decoded = jwt.verify(token, JWT_SECRET) as any
+        const decoded = jwt.verify(token, JWT_SECRET) as DecodedToken
         try {
             const isBlacklisted = await tokenBlacklist.has(token)
             if (!isBlacklisted) {
@@ -67,9 +73,24 @@ export const optionalAuthenticate = async (req: AuthRequest, res: Response, next
 }
 
 export function requireRole(...roles: string[]) {
-    return (req: AuthRequest, res: Response, next: NextFunction): void => {
+    return async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
         if (!req.user || !roles.includes(req.user.role)) {
             res.status(403).json({ error: 'Ruxsat yo\'q' })
+            return
+        }
+        try {
+            const dbUser = await prisma.user.findUnique({
+                where: { id: req.user.id },
+                select: { role: true }
+            })
+            if (!dbUser || !roles.includes(dbUser.role)) {
+                res.status(403).json({ error: 'Ruxsat yo\'q' })
+                return
+            }
+            req.user = { ...req.user, role: dbUser.role }
+        } catch (err) {
+            console.error('requireRole DB tekshiruvida xato:', err)
+            res.status(503).json({ error: 'Ruxsat tekshiruvi vaqtincha ishlamayapti' })
             return
         }
         next()

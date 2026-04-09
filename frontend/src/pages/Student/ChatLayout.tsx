@@ -141,7 +141,7 @@ const MdMessage = memo(({ content, isStreaming }: {
     const { onOpenTest, onProfileUpdate, onOpenFlash, onOpenEssay, onSetTodo, onMarkTodoDoneByTask } = useChatContext()
     const processedContent = preprocessMath(content)
     return (
-        <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} components={{
+        <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeSanitize, rehypeKatex]} components={{
             img: ({ src, alt }) => <img src={src} alt={alt || ''} className="max-h-48 max-w-[90%] sm:max-w-sm md:max-w-md rounded-xl object-contain my-1" style={{ border: '1px solid var(--border)' }} />,
             p: ({ children }) => <p className="mb-2.5 last:mb-0 leading-relaxed">{children}</p>,
             strong: ({ children }) => <strong className="font-semibold" style={{ color: 'var(--text-primary)' }}>{children}</strong>,
@@ -1341,6 +1341,9 @@ Iltimos, har bir savolni tahlil qilib ber:
     async function streamToChat(targetChatId: string, prompt: string, displayText?: string): Promise<boolean> {
         const shown = displayText !== undefined ? displayText : prompt
         setLoading(true); setStreaming(''); setThinkingText('')
+        if (abortRef.current) {
+            abortRef.current.abort()
+        }
         const controller = new AbortController()
         abortRef.current = controller
         let fullText = '' // local ref — stale closure muammosini oldini olish uchun
@@ -1363,6 +1366,7 @@ Iltimos, har bir savolni tahlil qilib ber:
             const reader = res.body?.getReader()
             const decoder = new TextDecoder()
             let thinkBuf = ''
+            let streamErrored = false
             if (reader) {
                 try {
                     while (true) {
@@ -1382,6 +1386,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             ]
                                         })
                                         setStreaming(''); setThinkingText('')
+                                        streamErrored = true
+                                        await reader.cancel()
                                         break
                                     }
                                     if (d.thinking) { thinkBuf += d.thinking; setThinkingText(thinkBuf) }
@@ -1408,6 +1414,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                 } catch { }
                             }
                         }
+                        if (streamErrored) break
                     }
                 } finally {
                     try { reader?.cancel() } catch { }
@@ -1739,9 +1746,9 @@ Iltimos, har bir savolni tahlil qilib ber:
     }
 
     // Har render da ref ni yangilaymiz — stale closure muammosini hal qilish uchun
-    submitTestPanelRef.current = submitTestPanel
+    submitTestPanelRef.current = () => { void submitTestPanel() }
 
-    function submitTestPanel() {
+    async function submitTestPanel() {
         if (!testPanel) return
         if (testSubmitted) return  // BUG-2: double-submit race condition oldini olish
         if (isSubmittingRef.current) return
@@ -1895,60 +1902,66 @@ Iltimos, har bir savolni tahlil qilib ber:
                 } catch (err) { console.error('submitTestPanel newChat:', err) }
             }, 500)
         }
-        // Public test bo'lsa backendga ham yuborish (Rasch tracking)
-        if (activeTestId && activeTestQuestions.length > 0) {
-            const backendAnswers = activeTestQuestions.map((q: any, i: number) => ({
-                questionId: q.id,
-                selectedIdx: ['a', 'b', 'c', 'd'].indexOf(testAnswers[i] || '')
-            })).filter((a: any) => a.selectedIdx !== -1)
-            fetchApi(`/tests/${activeTestId}/submit`, { method: 'POST', body: JSON.stringify({ answers: backendAnswers }) })
-                .then((res: any) => {
-                    if (res?.newAbility !== undefined) {
-                        const prevAbility = profile?.abilityLevel ?? 0
-                        setRaschFeedback({ prev: prevAbility, next: res.newAbility })
-                        loadProfile()
-                        loadMyResults()
-                    }
-                    // Submit dan keyin to'g'ri javoblarni ko'rsatish va localStorage ga saqlash
-                    if (res?.correctAnswers && activeTestId) {
-                        // To'g'ri javoblarni saqlash (keyingi ochilishda ishlatish uchun)
-                        const correctMap: Record<string, number> = {}
-                        res.correctAnswers.forEach((c: any) => { correctMap[c.id] = c.correctIdx })
-                        try { localStorage.setItem('dtmmax_correct_' + activeTestId, JSON.stringify(correctMap)) } catch { }
-                        // User javoblarini ham saqlaymiz
-                        try { localStorage.setItem('dtmmax_pub_ans_' + activeTestId, JSON.stringify(testAnswers)) } catch { }
-                        setTestPanel(prev => {
-                            if (!prev) return prev
-                            try {
-                                const qs = JSON.parse(prev)
-                                const updated = qs.map((q: any) => {
-                                    const ci = correctMap[q.id]
-                                    return ci !== undefined ? { ...q, correct: (['a', 'b', 'c', 'd'] as const)[ci] ?? 'a' } : q
-                                })
-                                return JSON.stringify(updated)
-                            } catch { return prev }
-                        })
+        try {
+            // Public test bo'lsa backendga ham yuborish (Rasch tracking)
+            if (activeTestId && activeTestQuestions.length > 0) {
+                const backendAnswers = activeTestQuestions.map((q: any, i: number) => ({
+                    questionId: q.id,
+                    selectedIdx: ['a', 'b', 'c', 'd'].indexOf(testAnswers[i] || '')
+                })).filter((a: any) => a.selectedIdx !== -1)
+                const res = await fetchApi(`/tests/${activeTestId}/submit`, { method: 'POST', body: JSON.stringify({ answers: backendAnswers }) })
+                if (res?.newAbility !== undefined) {
+                    const prevAbility = profile?.abilityLevel ?? 0
+                    setRaschFeedback({ prev: prevAbility, next: res.newAbility })
+                    loadProfile()
+                    loadMyResults()
+                }
+                if (res?.correctAnswers && activeTestId) {
+                    const correctMap: Record<string, number> = {}
+                    res.correctAnswers.forEach((c: any) => { correctMap[c.id] = c.correctIdx })
+                    try { localStorage.setItem('dtmmax_correct_' + activeTestId, JSON.stringify(correctMap)) } catch { }
+                    try { localStorage.setItem('dtmmax_pub_ans_' + activeTestId, JSON.stringify(testAnswers)) } catch { }
+                    setTestPanel(prev => {
+                        if (!prev) return prev
+                        try {
+                            const qs = JSON.parse(prev)
+                            const updated = qs.map((q: any) => {
+                                const ci = correctMap[q.id]
+                                return ci !== undefined ? { ...q, correct: (['a', 'b', 'c', 'd'] as const)[ci] ?? 'a' } : q
+                            })
+                            return JSON.stringify(updated)
+                        } catch { return prev }
+                    })
+                }
+                markTestCompleted(activeTestId)
+            } else if (testPanel) {
+                const aiKey = testPanel.substring(0, 500)
+                try { localStorage.setItem('dtmmax_ans_' + aiKey, JSON.stringify(testAnswers)) } catch { }
+                const scorePercent = (score / questions.length) * 100
+                const raschResults = questions.map((q: any, i: number) => {
+                    const fallbackDifficulty = questions.length > 1
+                        ? -2 + (i / (questions.length - 1)) * 4
+                        : 0
+                    return {
+                        difficulty: typeof q.difficulty === 'number' && Number.isFinite(q.difficulty)
+                            ? q.difficulty
+                            : Math.round(fallbackDifficulty * 100) / 100,
+                        isCorrect: testAnswers[i] === q.correct
                     }
                 })
-                .catch(() => { })
-            markTestCompleted(activeTestId)
-        } else if (testPanel) {
-            // AI tomonidan yaratilgan test — javoblarni va yechilgan holatni saqlash
-            const aiKey = testPanel.substring(0, 500)  // BUG-11: collision oldini olish uchun 500 belgi
-            markAiTestCompleted(aiKey)
-            try { localStorage.setItem('dtmmax_ans_' + aiKey, JSON.stringify(testAnswers)) } catch { }
-            // AI test natijasini Rasch ga yuborish
-            const scorePercent = (score / questions.length) * 100
-            const raschResults = questions.map((q: any, i: number) => ({
-                difficulty: 0.0,
-                isCorrect: testAnswers[i] === q.correct
-            }))
-            fetchApi('/tests/submit-ai', {
-                method: 'POST',
-                body: JSON.stringify({ score: scorePercent, totalQuestions: questions.length, results: raschResults })
-            }).then(() => { loadProfile(); loadMyResults() }).catch(() => { })
+                await fetchApi('/tests/submit-ai', {
+                    method: 'POST',
+                    body: JSON.stringify({ score: scorePercent, totalQuestions: questions.length, results: raschResults })
+                })
+                markAiTestCompleted(aiKey)
+                loadProfile()
+                loadMyResults()
+            }
+        } catch (err: any) {
+            toast.error(err?.message || 'Test natijasini saqlashda xatolik yuz berdi')
+        } finally {
+            isSubmittingRef.current = false
         }
-        isSubmittingRef.current = false
     }
 
     // Onboarding

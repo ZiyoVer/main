@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import prisma from '../utils/db'
-import { authenticate, AuthRequest } from '../middleware/auth'
+import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
 import { normalizeSubject } from '../utils/subjects'
 import { parseOptionalExamDate, parseOptionalExamType, parseOptionalStudyHours, parseOptionalTargetScore } from '../utils/profileValidation'
 
@@ -41,7 +41,7 @@ function normalizeTopicList(value: unknown, fieldName: string) {
 }
 
 // Profil olish
-router.get('/', authenticate, async (req: AuthRequest, res) => {
+router.get('/', authenticate, requireRole('STUDENT'), async (req: AuthRequest, res) => {
     try {
         const profile = await prisma.studentProfile.findUnique({
             where: { userId: req.user.id }
@@ -53,7 +53,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
 })
 
 // Profil yangilash (onboarding)
-router.put('/', authenticate, async (req: AuthRequest, res) => {
+router.put('/', authenticate, requireRole('STUDENT'), async (req: AuthRequest, res) => {
     try {
         const { subject, subject2, examType, targetScore, weakTopics, strongTopics, concerns, examDate, studyHoursPerDay, onboardingDone } = req.body
         const normalizedSubject = subject !== undefined ? normalizeSubject(subject) : undefined

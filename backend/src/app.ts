@@ -46,7 +46,20 @@ function getRateLimitKey(req: express.Request): string {
 app.set('trust proxy', 1)
 
 // Security headers
-app.use(helmet({ contentSecurityPolicy: false }))
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+            styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://cdn.jsdelivr.net'],
+            fontSrc: ["'self'", 'https://fonts.gstatic.com', 'https://cdn.jsdelivr.net'],
+            imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+            connectSrc: ["'self'", 'https://api.deepseek.com', 'https://api.openai.com'],
+            objectSrc: ["'none'"],
+            baseUri: ["'self'"],
+        }
+    }
+}))
 
 // CORS — faqat o'z domenimiz
 const allowedOrigins = process.env.ALLOWED_ORIGINS
