@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Send, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, Flame, MessageSquare, FileText, Zap, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, Sun, Moon, Search, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, Timer, User, Shield, ArrowUp, BarChart2 } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, FileText, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, Sun, Moon, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, ArrowUp, BarChart2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import remarkGfm from 'remark-gfm'
@@ -22,13 +22,18 @@ interface Chat { id: string; title: string; subject?: string; subject2?: string;
 interface Msg { id: string; role: string; content: string; createdAt: string }
 interface Profile { onboardingDone: boolean; subject?: string; subject2?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string; totalTests?: number; avgScore?: number; abilityLevel?: number }
 interface PublicTest { id: string; title: string; shareLink: string; subject?: string; _count?: { questions: number; attempts: number } }
-interface MyResult { id: string; testId: string; score: number; total?: number; createdAt: string; test?: { title: string; subject?: string } }
-interface StarterAction {
-    key: string
-    title: string
-    description: string
-    prompt: string
-    Icon: React.ComponentType<{ className?: string }>
+interface MyResult { id: string; testId: string; score: number; total?: number; createdAt: string; answers?: string; test?: { title: string; subject?: string } }
+interface WeakTopicItem { subject?: string; topic: string; accuracy: number; total: number }
+interface RecentTestItem { id: string; title: string; subject?: string; score: number; date: string }
+interface ProgressData {
+    xp: number
+    streak: number
+    longestStreak: number
+    currentStreak: number
+    avgScore: number
+    weeklyActivity: Array<{ day: string; count: number }>
+    weakTopics?: WeakTopicItem[]
+    recentTests?: RecentTestItem[]
 }
 
 type StructuredBlockType = 'test' | 'essay' | 'profile-update' | 'flashcard' | 'vocab' | 'formula' | 'todo-done' | 'todo' | null
@@ -37,20 +42,23 @@ function ensureArray<T>(value: unknown): T[] {
     return Array.isArray(value) ? value as T[] : []
 }
 
-const TELEGRAM_RAIL_ITEMS = [
-    { label: 'DTMMax', handle: '@dtmmax', href: 'https://t.me/dtmmax' },
-    { label: 'Motivatsion xabarlar', handle: '@TonggiShula', href: 'https://t.me/TonggiShula' },
-    { label: 'Support', handle: '@uzdatalabsupport', href: 'https://t.me/uzdatalabsupport' },
-] as const
-const TELEGRAM_RAIL_REPEAT = 4
-const TELEGRAM_RAIL_SEQUENCE = Array.from({ length: TELEGRAM_RAIL_REPEAT }, () => TELEGRAM_RAIL_ITEMS).flat()
+function parseAttemptAnswers(raw?: string): Array<{ isCorrect?: boolean }> {
+    if (!raw) return []
+    try {
+        const parsed = JSON.parse(raw)
+        return Array.isArray(parsed) ? parsed : []
+    } catch {
+        return []
+    }
+}
 
-function TelegramIcon() {
-    return (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M21.5 4.5 18.5 19c-.22 1.03-.8 1.28-1.62.8l-4.48-3.3-2.16 2.08c-.24.24-.44.44-.9.44l.32-4.56 8.3-7.5c.36-.32-.08-.5-.56-.18l-10.26 6.46-4.42-1.38c-.96-.3-.98-.96.2-1.42L19.78 3.96c.78-.3 1.46.18 1.22 1.54Z" fill="currentColor" />
-        </svg>
-    )
+function getAttemptSummary(result: MyResult) {
+    const answers = parseAttemptAnswers(result.answers)
+    const answeredCount = answers.length
+    const correctCount = answers.filter(answer => Boolean(answer?.isCorrect)).length
+    const totalQuestions = result.total ?? 0
+    const percent = totalQuestions > 0 ? Math.round((result.score / totalQuestions) * 100) : Math.round(result.score)
+    return { answeredCount, correctCount, percent }
 }
 
 // Test paneli uchun inline KaTeX renderer (ReactMarkdown ishlatmaymiz, tez va engil)
@@ -183,7 +191,6 @@ const MdMessage = memo(({ content, isStreaming }: {
                                                     {qCount} ta savol
                                                 </span>
                                             </div>
-                                            <p className="text-[12px] mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>Yon oynada istalgan vaqtda yechishingiz mumkin</p>
                                         </div>
                                     </div>
                                     {!isStreaming && (
@@ -532,12 +539,9 @@ const ChatInputArea = memo(function ChatInputArea({
     }
 
     const QUICK_ACTIONS = [
-        { Icon: ClipboardList, l: 'Testla', p: "Shu mavzu bo'yicha test ber. Kamida 15 ta savol, osondan qiyinga tartibda." },
-        { Icon: BookOpen, l: 'Davom et', p: "Keyingi mavzuga o'tamiz. Nimani o'rganishimiz kerak?" },
-        { Icon: RotateCcw, l: 'Qayta tushuntir', p: 'Bu mavzuni boshqa usulda, oddiyroq tushuntiring' },
-        { Icon: Target, l: 'Reja tuz', p: "Imtihongacha qolgan vaqtga mos o'quv reja tuzing" },
-        { Icon: Lightbulb, l: 'Formulalar', p: 'Shu mavzuning barcha muhim formulalarini yozing' },
-        { Icon: Layers, l: 'Kartochkalar', p: "Shu mavzuning eng muhim formulalari va tushunchalarini kartochka formatida bering (```flashcard JSON format)." },
+        { Icon: ClipboardList, l: 'Test yech', p: "Shu mavzu bo'yicha qisqa test ber. Natijadan keyin zaif joylarimni ham ayting." },
+        { Icon: BookOpen, l: 'Tushuntir', p: 'Shu mavzuni oddiy va tushunarli usulda qayta tushuntiring.' },
+        { Icon: Layers, l: 'Kartochka', p: "Shu mavzuning eng muhim tushunchalari bo'yicha kartochkalar tayyorlang (```flashcard JSON format)." },
     ]
 
     return (
@@ -617,8 +621,6 @@ const ChatInputArea = memo(function ChatInputArea({
                             {thinkingMode && <span>Chuqur</span>}
                         </button>
                         <div className="flex-1" />
-                        {/* Model label */}
-                        <span className="text-xs font-medium select-none hidden sm:block" style={{ color: 'var(--text-muted)' }}>DTMMax</span>
                         {/* Send / Stop */}
                         {loading ? (
                             <button type="button" onClick={onStop}
@@ -637,7 +639,6 @@ const ChatInputArea = memo(function ChatInputArea({
                         )}
                     </div>
                 </div>
-                <p className="text-[10px] mt-1.5 text-center select-none" style={{ color: 'var(--text-muted)' }}>DTMMax xato qilishi mumkin — muhim ma'lumotlarni tekshirib ko'ring</p>
             </form>
         </div>
     )
@@ -679,13 +680,11 @@ export default function ChatLayout() {
     const [currentChat, setCurrentChat] = useState<Chat | null>(null)
     const [profile, setProfile] = useState<Profile | null>(null)
     const [showOnboarding, setShowOnboarding] = useState(false)
-    const [sideTab, setSideTab] = useState<'chats' | 'tests' | 'progress' | 'flashcards'>('chats')
     const [overlayPanel, setOverlayPanel] = useState<'tests' | 'flashcards' | 'progress' | null>(null)
     const [todoItems, setTodoItems] = useState<TodoItem[]>([])
     const [todoOpen, setTodoOpen] = useState(false)
-    const [telegramRailDismissed, setTelegramRailDismissed] = useState(false)
     const [showSettings, setShowSettings] = useState(false)
-    const [settingsSection, setSettingsSection] = useState<'profile' | 'notifications' | 'security'>('profile')
+    const [showNotifications, setShowNotifications] = useState(false)
     const [darkMode, setDarkMode] = useState<boolean>(() => {
         try {
             const saved = localStorage.getItem('darkMode')
@@ -696,8 +695,7 @@ export default function ChatLayout() {
     })
     const [publicTests, setPublicTests] = useState<PublicTest[]>([])
     const [myResults, setMyResults] = useState<MyResult[]>([])
-    const [stats, setStats] = useState({ chats: 0, messages: 0, streak: 0 })
-    const [progressData, setProgressData] = useState<{ xp: number; streak: number; longestStreak: number; currentStreak: number; avgScore: number; weeklyActivity: Array<{ day: string; count: number }> } | null>(null)
+    const [progressData, setProgressData] = useState<ProgressData | null>(null)
     const [dueFlashcards, setDueFlashcards] = useState<Array<{ id: string; front: string; back: string; subject: string }>>([])
     const [dueCount, setDueCount] = useState(0)
     const [totalFlashcards, setTotalFlashcards] = useState(0)
@@ -1188,7 +1186,7 @@ Iltimos, har bir savolni tahlil qilib ber:
     async function loadProgress() {
         try {
             const data = await fetchApi('/progress/me')
-            setProgressData(data && typeof data === 'object' && !Array.isArray(data) ? data : null)
+            setProgressData(data && typeof data === 'object' && !Array.isArray(data) ? data as ProgressData : null)
         } catch (err) { console.error('loadProgress:', err) }
     }
 
@@ -1207,9 +1205,17 @@ Iltimos, har bir savolni tahlil qilib ber:
         try {
             const data = await fetchApi('/notifications')
             setNotifications(ensureArray<any>(data))
+        } catch { } finally { setNotifLoading(false) }
+    }
+
+    const markNotificationsRead = async () => {
+        try {
             await fetchApi('/notifications/read-all', { method: 'PATCH' })
             setNotifCount(0)
-        } catch { } finally { setNotifLoading(false) }
+        } catch (err) {
+            console.error('markNotificationsRead:', err)
+            toast.error("Bildirishnomalarni yangilab bo'lmadi")
+        }
     }
 
     const resendVerification = async () => {
@@ -1264,7 +1270,6 @@ Iltimos, har bir savolni tahlil qilib ber:
             const c = await fetchApi('/chat/list')
             const chatsList = ensureArray<Chat>(c)
             setChats(chatsList)
-            setStats(prev => ({ ...prev, chats: chatsList.length }))
         } catch (err) { console.error('loadChats:', err) }
     }
 
@@ -1507,39 +1512,14 @@ Iltimos, har bir savolni tahlil qilib ber:
         } catch (err) { console.error('deleteChat:', err); toast.error("Suhbatni o'chirishda xatolik") }
     }
 
-    // Days until exam
-    const daysLeft = profile?.examDate ? Math.max(0, Math.ceil((new Date(profile.examDate).getTime() - Date.now()) / 86400000)) : null
     const starterSubject = normalizeSubjectValue(profile?.subject) || 'tayyorlanayotgan fanim'
-    const starterActions = useMemo<StarterAction[]>(() => [
-        {
-            key: 'level',
-            title: 'Darajamni aniqlash',
-            description: '3 ta savol bilan hozirgi holatingizni biling',
-            prompt: `${starterSubject} bo'yicha hozirgi darajamni aniqlash uchun 3 ta qisqa diagnostik savol bering. Oxirida kuchli va zaif tomonlarimni qisqa ayting.`,
-            Icon: BarChart2,
-        },
-        {
-            key: 'plan',
-            title: 'Bugungi reja',
-            description: 'Bugungi aniq vazifalarni oling',
-            prompt: `Menga bugun ${starterSubject} bo'yicha 20 daqiqalik aniq reja tuzing. Vazifalarni qisqa va bajariladigan ko'rinishda bering.`,
-            Icon: Target,
-        },
-        {
-            key: 'mini-test',
-            title: 'Mini test',
-            description: 'Tez sinov va keyingi qadam',
-            prompt: `${starterSubject} bo'yicha 3 ta mini diagnostik savol bering. Oxirida qaysi mavzuni davom ettirishim kerakligini ayting.`,
-            Icon: ClipboardList,
-        },
-        {
-            key: 'weakness',
-            title: 'Zaif mavzuni topish',
-            description: "Qaysi joyda ko'proq adashayotganingizni biling",
-            prompt: `${starterSubject} bo'yicha eng zaif mavzuimni topish uchun qisqa diagnostika qiling va qaysi mavzudan boshlashim kerakligini ayting.`,
-            Icon: TrendingUp,
-        },
-    ], [starterSubject])
+    const primaryStarterAction = useMemo(() => ({
+        title: "Bilim darajangizni tekshiring — 5 daqiqa",
+        description: `${starterSubject} bo'yicha 5 daqiqalik qisqa diagnostika oling va qaysi mavzudan boshlash kerakligini biling.`,
+        prompt: `${starterSubject} bo'yicha hozirgi darajamni aniqlash uchun 5 daqiqalik qisqa diagnostika qiling. 3-5 ta savol bering, oxirida kuchli va zaif tomonlarimni aytib, qaysi mavzudan boshlashim kerakligini yozing.`,
+    }), [starterSubject])
+    const reviewedFlashcards = Math.max(totalFlashcards - dueCount, 0)
+    const weakTopicSummary = (progressData?.weakTopics ?? []).slice(0, 2).map(item => item.topic).join(', ')
     function markTestCompleted(testId: string) {
         completedTestIdsRef.current.add(testId)
         try { localStorage.setItem('dtmmax_done_tests', JSON.stringify([...completedTestIdsRef.current])) } catch (err) { console.warn('localStorage limit to\'lgan:', err); toast.error("Xotira to'lgan, eski ma'lumotlar o'chirilishi mumkin") }
@@ -1993,12 +1973,6 @@ Iltimos, har bir savolni tahlil qilib ber:
                             <input type="date" value={onboardingForm.examDate} onChange={e => setOnboardingForm({ ...onboardingForm, examDate: e.target.value })} className="input" /></div>
                         <div><label className="text-sm font-medium block mb-1.5">Maqsad ball (0-100)</label>
                             <input type="number" min="0" max="100" value={onboardingForm.targetScore} onChange={e => setOnboardingForm({ ...onboardingForm, targetScore: parseInt(e.target.value) || 0 })} className="input" /></div>
-                        <div><label className="text-sm font-medium block mb-1.5">Qiyin mavzular <span style={{ color: 'var(--text-muted)' }}>(vergul bilan)</span></label>
-                            <input placeholder="masalan: trigonometriya, integrallar" value={onboardingForm.weakTopics} onChange={e => setOnboardingForm({ ...onboardingForm, weakTopics: e.target.value })} className="input" /></div>
-                        <div><label className="text-sm font-medium block mb-1.5">Kuchli mavzular</label>
-                            <input placeholder="masalan: algebra, geometriya" value={onboardingForm.strongTopics} onChange={e => setOnboardingForm({ ...onboardingForm, strongTopics: e.target.value })} className="input" /></div>
-                        <div><label className="text-sm font-medium block mb-1.5">Nima tashvishlantiradi?</label>
-                            <input placeholder="masalan: formulalarni eslab qolish" value={onboardingForm.concerns} onChange={e => setOnboardingForm({ ...onboardingForm, concerns: e.target.value })} className="input" /></div>
                         <div className="flex gap-3 pt-1">
                             <button type="submit" disabled={savingProfile} className="btn btn-primary" style={{ flex: 1 }}>{savingProfile ? 'Saqlanmoqda...' : 'Saqlash'}</button>
                             <button type="button" onClick={() => setShowOnboarding(false)} className="btn btn-outline">Bekor</button>
@@ -2073,19 +2047,6 @@ Iltimos, har bir savolni tahlil qilib ber:
                             Testlar
                             {newTestIds.size > 0 && <span className="ml-auto px-1.5 rounded-full text-white text-[10px] flex items-center font-bold" style={{ background: 'var(--danger)', height: '18px' }}>{newTestIds.size > 9 ? '9+' : newTestIds.size}</span>}
                         </button>
-                        {/* Kartochkalar */}
-                        <button onClick={() => { setOverlayPanel(overlayPanel === 'flashcards' ? null : 'flashcards'); if (overlayPanel !== 'flashcards') setDueCount(0) }}
-                            className="sidebar-nav-button w-full flex items-center gap-2 px-3 py-1.5 rounded-xl text-[14px] font-semibold tracking-[-0.01em] transition"
-                            style={overlayPanel === 'flashcards'
-                                ? { background: 'color-mix(in srgb, var(--bg-muted) 88%, white 12%)', color: 'var(--text-primary)', borderColor: 'color-mix(in srgb, var(--border) 70%, rgba(15,23,42,0.12) 30%)' }
-                                : { color: 'var(--text-primary)' }}
-                            onMouseEnter={e => { if (overlayPanel !== 'flashcards') e.currentTarget.style.background = 'var(--bg-muted)' }}
-                            onMouseLeave={e => { if (overlayPanel !== 'flashcards') e.currentTarget.style.background = 'transparent' }}
-                        >
-                            <Brain className="h-4 w-4 flex-shrink-0" />
-                            Kartochkalar
-                            {dueCount > 0 && <span className="ml-auto px-1.5 rounded-full text-white text-[10px] flex items-center font-bold" style={{ background: 'var(--danger)', height: '18px' }}>{dueCount > 9 ? '9+' : dueCount}</span>}
-                        </button>
                         {/* Natijalar */}
                         <button onClick={() => setOverlayPanel(overlayPanel === 'progress' ? null : 'progress')}
                             className="sidebar-nav-button w-full flex items-center gap-2 px-3 py-1.5 rounded-xl text-[14px] font-semibold tracking-[-0.01em] transition"
@@ -2096,32 +2057,6 @@ Iltimos, har bir savolni tahlil qilib ber:
                             onMouseLeave={e => { if (overlayPanel !== 'progress') e.currentTarget.style.background = 'transparent' }}
                         >
                             <TrendingUp className="h-4 w-4 flex-shrink-0" /> Natijalar
-                        </button>
-                        {/* Reja */}
-                        <button onClick={() => {
-                            const opening = !todoOpen
-                            if (opening) {
-                                // Todo ochilganda boshqa panellarni yopamiz
-                                setTestPanel(null)
-                                setFlashPanel(null)
-                                setEssayPanel(null)
-                            }
-                            setTodoOpen(v => !v)
-                        }}
-                            className="sidebar-nav-button w-full flex items-center gap-2 px-3 py-1.5 rounded-xl text-[14px] font-semibold tracking-[-0.01em] transition"
-                            style={todoOpen
-                                ? { background: 'color-mix(in srgb, var(--bg-muted) 88%, white 12%)', color: 'var(--text-primary)', borderColor: 'color-mix(in srgb, var(--border) 70%, rgba(15,23,42,0.12) 30%)' }
-                                : { color: 'var(--text-primary)' }}
-                            onMouseEnter={e => { if (!todoOpen) e.currentTarget.style.background = 'var(--bg-muted)' }}
-                            onMouseLeave={e => { if (!todoOpen) e.currentTarget.style.background = 'transparent' }}
-                        >
-                            <Target className="h-4 w-4 flex-shrink-0" /> Reja
-                            {todoItems.filter(t => !t.done).length > 0 && (
-                                <span className="ml-auto text-[11px] font-bold h-5 w-5 rounded-full flex items-center justify-center"
-                                    style={{ background: 'var(--brand)', color: 'white' }}>
-                                    {todoItems.filter(t => !t.done).length}
-                                </span>
-                            )}
                         </button>
                     </div>
 
@@ -2141,7 +2076,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             style={chatId === c.id ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' } : { color: 'var(--text-secondary)' }}
                                             onMouseEnter={e => { if (chatId !== c.id) e.currentTarget.style.background = 'var(--bg-muted)' }}
                                             onMouseLeave={e => { if (chatId !== c.id) e.currentTarget.style.background = 'transparent' }}
-                                            onClick={() => nav(`/suhbat/${c.id}`)}>
+                                            onClick={() => nav(`/suhbat/${c.id}`)}
+                                            title={c.title}>
                                             <span className="flex-1 truncate">{c.title}</span>
                                             <button onClick={(e) => deleteChat(c.id, e)} className="opacity-0 group-hover:opacity-100 h-5 w-5 flex items-center justify-center rounded transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)' }} onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)' }}><Trash2 className="h-3 w-3" /></button>
                                         </div>
@@ -2207,178 +2143,147 @@ Iltimos, har bir savolni tahlil qilib ber:
                         </div>
                     )}
 
+                    {showNotifications && (
+                        <div
+                            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
+                            onClick={e => { if (e.target === e.currentTarget) setShowNotifications(false) }}
+                        >
+                            <div className="card" style={{ width: '100%', maxWidth: '560px', maxHeight: 'calc(100dvh - 32px)', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '16px' }}>
+                                <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+                                    <div>
+                                        <h2 className="text-base font-semibold">Bildirishnomalar</h2>
+                                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Yangi xabarlar va eslatmalar shu yerda ko'rinadi</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={() => { void markNotificationsRead() }} className="btn btn-outline h-8 text-xs px-3">Hammasini o'qildi qilish</button>
+                                        <button onClick={() => setShowNotifications(false)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><X className="h-4 w-4" /></button>
+                                    </div>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-6">
+                                    {notifLoading ? (
+                                        <div className="flex items-center justify-center py-16">
+                                            <div className="h-5 w-5 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--brand)', borderTopColor: 'transparent' }} />
+                                        </div>
+                                    ) : notifications.length === 0 ? (
+                                        <div className="flex flex-col items-center justify-center py-16" style={{ color: 'var(--text-muted)' }}>
+                                            <Bell className="h-10 w-10 mb-3 opacity-20" />
+                                            <p className="text-sm">Yangi bildirishnomalar yo'q</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {notifications.map((n: any) => (
+                                                <div key={n.id} className="rounded-2xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                                    <p className="text-sm font-semibold mb-1">{n.title}</p>
+                                                    <p className="text-sm leading-6" style={{ color: 'var(--text-secondary)' }}>{n.message}</p>
+                                                    <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>{n.sender?.name} · {new Date(n.createdAt).toLocaleDateString('uz')}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Sozlamalar modal */}
                     {showSettings && (
                         <div
                             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
                             onClick={e => { if (e.target === e.currentTarget) setShowSettings(false) }}
                         >
-                            <div className="card" style={{ width: '100%', maxWidth: '700px', height: 'min(580px, calc(100dvh - 32px))', maxHeight: 'calc(100dvh - 32px)', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '16px' }}>
-                                {/* Header */}
+                            <div className="card" style={{ width: '100%', maxWidth: '560px', maxHeight: 'calc(100dvh - 32px)', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '16px' }}>
                                 <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
-                                    <h2 className="text-base font-semibold">Sozlamalar</h2>
+                                    <div>
+                                        <h2 className="text-base font-semibold">Profil va sozlamalar</h2>
+                                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Faqat eng kerakli ma'lumotlarni saqlang</p>
+                                    </div>
                                     <button onClick={() => setShowSettings(false)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><X className="h-4 w-4" /></button>
                                 </div>
-                                {/* Body */}
-                                <div className="flex flex-1 overflow-hidden">
-                                    {/* Left nav */}
-                                    <div className="flex-shrink-0 p-3 flex flex-col" style={{ width: '185px', borderRight: '1px solid var(--border)' }}>
-                                        <div className="flex-1 space-y-0.5">
-                                            {([
-                                                { k: 'profile' as const, l: 'Profil', Icon: User, badge: undefined as number | undefined },
-                                                { k: 'notifications' as const, l: 'Bildirishnomalar', Icon: Bell, badge: notifCount as number | undefined },
-                                                { k: 'security' as const, l: 'Xavfsizlik', Icon: Shield, badge: undefined as number | undefined },
-                                            ]).map(({ k, l, Icon, badge }) => (
-                                                <button key={k}
-                                                    onClick={() => { setSettingsSection(k); if (k === 'notifications') loadNotifications() }}
-                                                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition text-left"
-                                                    style={settingsSection === k ? { background: 'var(--brand-light)', color: 'var(--brand-hover)' } : { color: 'var(--text-secondary)' }}
-                                                    onMouseEnter={e => { if (settingsSection !== k) e.currentTarget.style.background = 'var(--bg-muted)' }}
-                                                    onMouseLeave={e => { if (settingsSection !== k) e.currentTarget.style.background = 'transparent' }}
-                                                >
-                                                    <Icon className="h-4 w-4 flex-shrink-0" />
-                                                    <span className="flex-1 truncate">{l}</span>
-                                                    {badge != null && badge > 0 && <span className="h-4 w-4 rounded-full text-white text-[9px] flex items-center justify-center font-bold flex-shrink-0" style={{ background: 'var(--danger)' }}>{badge > 9 ? '9+' : badge}</span>}
-                                                </button>
-                                            ))}
+                                <div className="flex-1 overflow-y-auto p-6">
+                                    <div className="flex items-center gap-3 pb-5" style={{ borderBottom: '1px solid var(--border)' }}>
+                                        <div className="h-12 w-12 rounded-full flex items-center justify-center text-base font-bold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>{user?.name?.[0]?.toUpperCase()}</div>
+                                        <div>
+                                            <p className="font-semibold">{user?.name}</p>
+                                            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
                                         </div>
-                                        {/* Tizimdan chiqish — pastda alohida */}
-                                        <button onClick={() => { setShowSettings(false); logout() }}
-                                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition text-left"
-                                            style={{ color: 'var(--danger)' }}
-                                            onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-light)'}
-                                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                        >
-                                            <LogOut className="h-4 w-4 flex-shrink-0" />
-                                            <span>Chiqish</span>
-                                        </button>
                                     </div>
 
-                                    {/* Right content — fixed height, scrollable */}
-                                    <div className="flex-1 overflow-y-auto p-6">
-
-                                        {/* ── PROFIL ── */}
-                                        {settingsSection === 'profile' && (
-                                            <div className="space-y-4">
-                                                {/* Avatar + user info */}
-                                                <div className="flex items-center gap-3 pb-4" style={{ borderBottom: '1px solid var(--border)' }}>
-                                                    <div className="h-12 w-12 rounded-full flex items-center justify-center text-base font-bold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>{user?.name?.[0]?.toUpperCase()}</div>
-                                                    <div>
-                                                        <p className="font-semibold">{user?.name}</p>
-                                                        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
-                                                    </div>
-                                                </div>
-                                                {/* Inline profil formasi */}
-                                                <form onSubmit={saveOnboarding} className="space-y-3">
-                                                    <div className="grid grid-cols-2 gap-3">
-                                                        <div>
-                                                            <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>Asosiy fan</label>
-                                                            <select value={onboardingForm.subject} onChange={e => setOnboardingForm(f => ({ ...f, subject: e.target.value }))} className="input text-sm h-9" style={{ cursor: 'pointer' }}>
-                                                                {SUBJECTS.map(f => <option key={f} value={f}>{f}</option>)}
-                                                            </select>
-                                                        </div>
-                                                        <div>
-                                                            <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>2-fan <span className="opacity-60">(ixtiyoriy)</span></label>
-                                                            <select value={onboardingForm.subject2} onChange={e => setOnboardingForm(f => ({ ...f, subject2: e.target.value }))} className="input text-sm h-9" style={{ cursor: 'pointer' }}>
-                                                                <option value="">— Tanlang —</option>
-                                                                {SUBJECTS.filter(s => s !== onboardingForm.subject).map(s => <option key={s} value={s}>{s}</option>)}
-                                                            </select>
-                                                        </div>
-                                                    </div>
-                                                    <div className="grid grid-cols-2 gap-3">
-                                                        <div>
-                                                            <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>Imtihon sanasi</label>
-                                                            <input type="date" value={onboardingForm.examDate} onChange={e => setOnboardingForm(f => ({ ...f, examDate: e.target.value }))} className="input text-sm h-9" />
-                                                        </div>
-                                                        <div>
-                                                            <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>Maqsad ball (0–100)</label>
-                                                            <input type="number" min="0" max="100" value={onboardingForm.targetScore} onChange={e => setOnboardingForm(f => ({ ...f, targetScore: parseInt(e.target.value) || 0 }))} className="input text-sm h-9" />
-                                                        </div>
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>Qiyin mavzular <span className="opacity-60">(vergul bilan)</span></label>
-                                                        <input placeholder="masalan: trigonometriya, integrallar" value={onboardingForm.weakTopics} onChange={e => setOnboardingForm(f => ({ ...f, weakTopics: e.target.value }))} className="input text-sm h-9" />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>Kuchli mavzular</label>
-                                                        <input placeholder="masalan: algebra, geometriya" value={onboardingForm.strongTopics} onChange={e => setOnboardingForm(f => ({ ...f, strongTopics: e.target.value }))} className="input text-sm h-9" />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>Nima tashvishlantiradi?</label>
-                                                        <input placeholder="masalan: formulalarni eslab qolish" value={onboardingForm.concerns} onChange={e => setOnboardingForm(f => ({ ...f, concerns: e.target.value }))} className="input text-sm h-9" />
-                                                    </div>
-                                                    <button type="submit" disabled={savingProfile} className="btn btn-primary h-9 text-sm px-5">
-                                                        {savingProfile ? 'Saqlanmoqda...' : 'Saqlash'}
-                                                    </button>
-                                                </form>
+                                    <form onSubmit={saveOnboarding} className="space-y-4 mt-5">
+                                        <div>
+                                            <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>Asosiy fan</label>
+                                            <select value={onboardingForm.subject} onChange={e => setOnboardingForm(f => ({ ...f, subject: e.target.value }))} className="input text-sm h-10" style={{ cursor: 'pointer' }}>
+                                                {SUBJECTS.map(f => <option key={f} value={f}>{f}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>Imtihon sanasi</label>
+                                                <input type="date" value={onboardingForm.examDate} onChange={e => setOnboardingForm(f => ({ ...f, examDate: e.target.value }))} className="input text-sm h-10" />
                                             </div>
-                                        )}
+                                            <div>
+                                                <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>Maqsad ball (0–100)</label>
+                                                <input type="number" min="0" max="100" value={onboardingForm.targetScore} onChange={e => setOnboardingForm(f => ({ ...f, targetScore: parseInt(e.target.value) || 0 }))} className="input text-sm h-10" />
+                                            </div>
+                                        </div>
+                                        <div className="rounded-2xl p-4 flex items-center justify-between gap-3" style={{ background: 'var(--bg-page)', border: '1px solid var(--border)' }}>
+                                            <div>
+                                                <p className="text-sm font-semibold">Ko'rinish</p>
+                                                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{darkMode ? 'Qorong‘i rejim yoqilgan' : 'Yorug‘ rejim yoqilgan'}</p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setDarkMode(!darkMode)}
+                                                className="btn btn-outline h-9 text-sm px-4"
+                                            >
+                                                {darkMode ? 'Yorug‘ rejim' : 'Qorong‘i rejim'}
+                                            </button>
+                                        </div>
+                                        <div className="flex flex-col sm:flex-row gap-3">
+                                            <button type="submit" disabled={savingProfile} className="btn btn-primary h-10 text-sm px-5 flex-1">
+                                                {savingProfile ? 'Saqlanmoqda...' : 'Saqlash'}
+                                            </button>
+                                            <button type="button" onClick={() => { setShowSettings(false); logout() }} className="btn btn-outline h-10 text-sm px-5 flex-1">
+                                                Chiqish
+                                            </button>
+                                        </div>
+                                    </form>
 
-                                        {/* ── BILDIRISHNOMALAR ── */}
-                                        {settingsSection === 'notifications' && (
+                                    <details className="mt-6 rounded-2xl p-4" style={{ background: 'var(--bg-page)', border: '1px solid var(--border)' }}>
+                                        <summary className="cursor-pointer text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Qo'shimcha xavfsizlik sozlamalari</summary>
+                                        <div className="space-y-4 mt-4">
                                             <div className="space-y-3">
-                                                <div className="flex items-center justify-between">
-                                                    <p className="text-sm font-semibold">Bildirishnomalar</p>
-                                                    {notifLoading && <div className="h-4 w-4 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--brand)', borderTopColor: 'transparent' }} />}
-                                                </div>
-                                                {!notifLoading && notifications.length === 0 ? (
-                                                    <div className="flex flex-col items-center justify-center py-16" style={{ color: 'var(--text-muted)' }}>
-                                                        <Bell className="h-10 w-10 mb-3 opacity-20" />
-                                                        <p className="text-sm">Yangi bildirishnomalar yo'q</p>
-                                                    </div>
-                                                ) : (
-                                                    <div className="space-y-2">
-                                                        {notifications.map((n: any) => (
-                                                            <div key={n.id} className="p-3 rounded-xl" style={{ background: 'var(--brand-light)', border: '1px solid var(--border)' }}>
-                                                                <p className="text-sm font-semibold mb-0.5">{n.title}</p>
-                                                                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{n.message}</p>
-                                                                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{n.sender?.name} · {new Date(n.createdAt).toLocaleDateString('uz')}</p>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
+                                                <p className="text-sm font-semibold">Parolni o'zgartirish</p>
+                                                {changePwOk && <div className="text-sm px-3 py-2 rounded-lg" style={{ background: '#D1FAE5', color: '#065F46' }}>Parol muvaffaqiyatli yangilandi!</div>}
+                                                {changePwErr && <div className="text-sm px-3 py-2 rounded-lg" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>{changePwErr}</div>}
+                                                <input type="password" placeholder="Joriy parol" value={changePwForm.current} onChange={e => setChangePwForm(f => ({ ...f, current: e.target.value }))} className="input text-sm h-9" />
+                                                <input type="password" placeholder="Yangi parol (kamida 8 belgi)" value={changePwForm.newPw} onChange={e => setChangePwForm(f => ({ ...f, newPw: e.target.value }))} className="input text-sm h-9" />
+                                                <input type="password" placeholder="Yangi parolni tasdiqlang" value={changePwForm.confirm} onChange={e => setChangePwForm(f => ({ ...f, confirm: e.target.value }))} className="input text-sm h-9" />
+                                                <button disabled={changePwLoading || !changePwForm.current || !changePwForm.newPw || !changePwForm.confirm}
+                                                    onClick={async () => {
+                                                        setChangePwErr(''); setChangePwOk(false)
+                                                        if (changePwForm.newPw !== changePwForm.confirm) { setChangePwErr('Yangi parollar mos kelmadi'); return }
+                                                        setChangePwLoading(true)
+                                                        try {
+                                                            await fetchApi('/auth/change-password', { method: 'PUT', body: JSON.stringify({ currentPassword: changePwForm.current, newPassword: changePwForm.newPw }) })
+                                                            setChangePwOk(true); setChangePwForm({ current: '', newPw: '', confirm: '' })
+                                                        } catch (e: any) { setChangePwErr(e.message || 'Xatolik yuz berdi') }
+                                                        setChangePwLoading(false)
+                                                    }}
+                                                    className="btn btn-outline h-9 text-sm px-5 disabled:opacity-40">{changePwLoading ? 'Saqlanmoqda...' : 'Parolni yangilash'}</button>
                                             </div>
-                                        )}
-
-                                        {/* ── XAVFSIZLIK ── */}
-                                        {settingsSection === 'security' && (
-                                            <div className="space-y-5">
-                                                <div className="space-y-3">
-                                                    <p className="text-sm font-semibold">Parolni o'zgartirish</p>
-                                                    {changePwOk && <div className="text-sm px-3 py-2 rounded-lg" style={{ background: '#D1FAE5', color: '#065F46' }}>Parol muvaffaqiyatli yangilandi!</div>}
-                                                    {changePwErr && <div className="text-sm px-3 py-2 rounded-lg" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>{changePwErr}</div>}
-                                                    <input type="password" placeholder="Joriy parol" value={changePwForm.current} onChange={e => setChangePwForm(f => ({ ...f, current: e.target.value }))} className="input text-sm h-9" />
-                                                    <input type="password" placeholder="Yangi parol (kamida 8 belgi)" value={changePwForm.newPw} onChange={e => setChangePwForm(f => ({ ...f, newPw: e.target.value }))} className="input text-sm h-9" />
-                                                    <input type="password" placeholder="Yangi parolni tasdiqlang" value={changePwForm.confirm} onChange={e => setChangePwForm(f => ({ ...f, confirm: e.target.value }))} className="input text-sm h-9" />
-                                                    <button disabled={changePwLoading || !changePwForm.current || !changePwForm.newPw || !changePwForm.confirm}
-                                                        onClick={async () => {
-                                                            setChangePwErr(''); setChangePwOk(false)
-                                                            if (changePwForm.newPw !== changePwForm.confirm) { setChangePwErr('Yangi parollar mos kelmadi'); return }
-                                                            setChangePwLoading(true)
-                                                            try {
-                                                                await fetchApi('/auth/change-password', { method: 'PUT', body: JSON.stringify({ currentPassword: changePwForm.current, newPassword: changePwForm.newPw }) })
-                                                                setChangePwOk(true); setChangePwForm({ current: '', newPw: '', confirm: '' })
-                                                            } catch (e: any) { setChangePwErr(e.message || 'Xatolik yuz berdi') }
-                                                            setChangePwLoading(false)
-                                                        }}
-                                                        className="btn btn-outline h-9 text-sm px-5 disabled:opacity-40">{changePwLoading ? 'Saqlanmoqda...' : 'Parolni yangilash'}</button>
-                                                </div>
-                                                {/* Xavfli zona */}
-                                                <div className="rounded-xl p-4 space-y-2" style={{ border: '1px solid var(--danger-light)' }}>
-                                                    <p className="text-sm font-semibold" style={{ color: 'var(--danger)' }}>Xavfli zona</p>
-                                                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Akkauntni o'chirib bo'lmaydi — barcha ma'lumotlar butunlay yo'qoladi.</p>
-                                                    <button onClick={() => { setShowDeleteModal(true); setDeleteErr(''); setDeletePassword('') }}
-                                                        className="h-9 flex items-center gap-2 text-sm font-medium rounded-lg px-4 transition"
-                                                        style={{ color: 'var(--danger)', border: '1px solid var(--danger)', background: 'transparent' }}
-                                                        onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-light)'}
-                                                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                                        Akkauntni o'chirish
-                                                    </button>
-                                                </div>
+                                            <div className="rounded-xl p-4 space-y-2" style={{ border: '1px solid var(--danger-light)' }}>
+                                                <p className="text-sm font-semibold" style={{ color: 'var(--danger)' }}>Xavfli zona</p>
+                                                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Akkauntni o'chirsangiz barcha ma'lumotlar butunlay yo'qoladi.</p>
+                                                <button onClick={() => { setShowDeleteModal(true); setDeleteErr(''); setDeletePassword('') }}
+                                                    className="h-9 flex items-center gap-2 text-sm font-medium rounded-lg px-4 transition"
+                                                    style={{ color: 'var(--danger)', border: '1px solid var(--danger)', background: 'transparent' }}
+                                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-light)'}
+                                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                                    Akkauntni o'chirish
+                                                </button>
                                             </div>
-                                        )}
-
-                                    </div>
+                                        </div>
+                                    </details>
                                 </div>
                             </div>
                         </div>
@@ -2387,16 +2292,46 @@ Iltimos, har bir savolni tahlil qilib ber:
                     {/* User footer */}
                     <div className="p-3 flex-shrink-0" style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 76%, rgba(15,23,42,0.12) 24%)' }}>
                         <div className="flex items-center gap-2.5 px-2 py-1.5">
-                            <div className="h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-semibold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>{user?.name?.[0]?.toUpperCase()}</div>
-                            <div className="flex-1 min-w-0"><p className="text-[13px] font-medium truncate">{user?.name}</p></div>
-                            <button onClick={() => setDarkMode(!darkMode)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} title={darkMode ? 'Yorug rejim' : 'Qorong\'i rejim'}>
-                                {darkMode ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-                            </button>
-                            <button onClick={() => { setSettingsSection('notifications'); loadNotifications(); setShowSettings(true) }} className="h-7 w-7 flex items-center justify-center rounded-lg transition relative" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} title="Bildirishnomalar">
-                                <Bell className="h-3.5 w-3.5" />
-                                {notifCount > 0 && <span className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 rounded-full text-white text-[8px] flex items-center justify-center font-bold" style={{ background: 'var(--danger)' }}>{notifCount > 9 ? '9+' : notifCount}</span>}
-                            </button>
-                            <button onClick={() => setShowSettings(true)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} title="Sozlamalar"><Settings className="h-3.5 w-3.5" /></button>
+                            <div className="h-8 w-8 rounded-full flex items-center justify-center text-[11px] font-semibold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>{user?.name?.[0]?.toUpperCase()}</div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[13px] font-medium truncate">{user?.name}</p>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <button
+                                    onClick={() => setDarkMode(!darkMode)}
+                                    className="min-w-[58px] h-10 px-2.5 flex flex-col items-center justify-center rounded-xl transition"
+                                    style={{ color: 'var(--text-muted)' }}
+                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                    title={darkMode ? 'Yorug rejim' : 'Qorong\'i rejim'}
+                                >
+                                    {darkMode ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+                                    <span className="text-[10px] mt-0.5">Rejim</span>
+                                </button>
+                                <button
+                                    onClick={() => { void loadNotifications(); setShowNotifications(true) }}
+                                    className="min-w-[70px] h-10 px-2.5 flex flex-col items-center justify-center rounded-xl transition relative"
+                                    style={{ color: 'var(--text-muted)' }}
+                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                    title="Bildirishnomalar"
+                                >
+                                    <Bell className="h-3.5 w-3.5" />
+                                    <span className="text-[10px] mt-0.5">Bildirish</span>
+                                    {notifCount > 0 && <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full text-white text-[8px] flex items-center justify-center font-bold" style={{ background: 'var(--danger)' }}>{notifCount > 9 ? '9+' : notifCount}</span>}
+                                </button>
+                                <button
+                                    onClick={() => setShowSettings(true)}
+                                    className="min-w-[58px] h-10 px-2.5 flex flex-col items-center justify-center rounded-xl transition"
+                                    style={{ color: 'var(--text-muted)' }}
+                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                    title="Sozlamalar"
+                                >
+                                    <Settings className="h-3.5 w-3.5" />
+                                    <span className="text-[10px] mt-0.5">Profil</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -2404,45 +2339,6 @@ Iltimos, har bir savolni tahlil qilib ber:
 
                 {/* Main */}
                 <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-                    {!telegramRailDismissed && (
-                        <div className="telegram-rail flex items-center gap-2 px-3 py-1.5 flex-shrink-0" style={{ borderBottom: '1px solid color-mix(in srgb, var(--brand) 14%, var(--border))' }}>
-                            <div className="telegram-rail-viewport flex-1 min-w-0">
-                                <div className="telegram-rail-track">
-                                    {[0, 1].map(sequenceIndex => (
-                                        <div key={sequenceIndex} className="telegram-rail-sequence" aria-hidden={sequenceIndex === 1}>
-                                            {TELEGRAM_RAIL_SEQUENCE.map((item, itemIndex) => (
-                                                <a
-                                                    key={`${sequenceIndex}-${item.handle}-${itemIndex}`}
-                                                    href={item.href}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    className="telegram-rail-item"
-                                                    title={`${item.label} — ${item.handle}`}
-                                                    aria-label={`${item.label} — ${item.handle}`}
-                                                >
-                                                    <span className="text-[11px] font-medium" style={{ color: 'var(--text-primary)' }}>{item.label}</span>
-                                                    <span className="telegram-rail-link" aria-hidden="true">
-                                                        <TelegramIcon />
-                                                    </span>
-                                                </a>
-                                            ))}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                            <button
-                                onClick={() => setTelegramRailDismissed(true)}
-                                className="h-6 w-6 rounded-md flex items-center justify-center transition flex-shrink-0"
-                                style={{ color: 'var(--text-muted)' }}
-                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                title="Yopish"
-                            >
-                                <X className="h-3.5 w-3.5" />
-                            </button>
-                        </div>
-                    )}
-
                     <div className="h-14 flex items-center px-4 gap-2 flex-shrink-0" style={{ borderBottom: '1px solid color-mix(in srgb, var(--border) 74%, rgba(15,23,42,0.12) 26%)' }}>
                         <button onClick={() => setSideOpen(v => !v)} className="h-8 w-8 flex items-center justify-center rounded-lg transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} title="Yonpanel"><Menu className="h-4 w-4" /></button>
                         <span className="text-sm font-medium truncate flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>{currentChat?.title || ''}</span>
@@ -2474,30 +2370,39 @@ Iltimos, har bir savolni tahlil qilib ber:
                     <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
                         {(!chatId || (messages.length === 0 && !loading && !streaming)) ? (
                             <div className="h-full flex items-center justify-center" style={{ background: 'var(--bg-page)' }}>
-                                <div className="max-w-lg w-full px-4 sm:px-6 anim-up">
-                                    <div className="text-center mb-5">
+                                <div className="max-w-xl w-full px-4 sm:px-6 anim-up">
+                                    <div className="text-center mb-6">
                                         <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center mx-auto mb-3 sm:mb-4" style={{ background: 'var(--brand)' }}><BrainCircuit className="h-5 w-5 sm:h-6 sm:w-6 text-white" /></div>
                                         <h2 className="text-xl sm:text-2xl font-bold mb-2">Salom, {user?.name?.split(' ')[0]}! 👋</h2>
-                                        <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Bugun nimani o'rganmoqchisiz?</p>
+                                        <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Yangi boshlash uchun bitta aniq qadam yetarli.</p>
                                     </div>
-                                    <div className="flex flex-wrap items-center justify-center gap-2.5">
-                                        {starterActions.map(action => (
-                                            <button
-                                                key={action.key}
-                                                onClick={() => handleStarterAction(action.prompt)}
-                                                title={action.description}
-                                                className="inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-[12px] sm:text-[13px] font-medium transition"
-                                                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
-                                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
-                                                onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-card)'}
-                                            >
-                                                <span className="flex-shrink-0" style={{ color: 'var(--brand)' }}>
-                                                    <action.Icon className="h-3.5 w-3.5" />
-                                                </span>
-                                                <span>{action.title}</span>
-                                                <ArrowUp className="h-3 w-3 rotate-45 opacity-45" style={{ color: 'var(--text-muted)' }} />
-                                            </button>
-                                        ))}
+                                    <div className="rounded-3xl p-5 sm:p-6 mb-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: '0 10px 30px rgba(15,23,42,0.05)' }}>
+                                        <div className="grid gap-3 sm:grid-cols-3">
+                                            {[
+                                                { step: '1', title: 'Fan tanlang', text: 'Asosiy faningiz bo\'yicha boshlang.' },
+                                                { step: '2', title: 'Test yeching', text: 'Qisqa diagnostika orqali holatingizni biling.' },
+                                                { step: '3', title: 'AI dan so\'rang', text: 'Zaif joylar va keyingi qadamni oling.' },
+                                            ].map(item => (
+                                                <div key={item.step} className="rounded-2xl p-4 text-left" style={{ background: 'var(--bg-page)', border: '1px solid var(--border)' }}>
+                                                    <div className="h-7 w-7 rounded-full flex items-center justify-center text-[12px] font-semibold mb-3" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>{item.step}</div>
+                                                    <p className="text-sm font-semibold mb-1">{item.title}</p>
+                                                    <p className="text-xs leading-5" style={{ color: 'var(--text-muted)' }}>{item.text}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-center">
+                                        <button
+                                            onClick={() => handleStarterAction(primaryStarterAction.prompt)}
+                                            title={primaryStarterAction.description}
+                                            className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-[13px] sm:text-[14px] font-semibold transition"
+                                            style={{ background: 'var(--brand)', color: '#fff', boxShadow: '0 10px 24px rgba(224,123,57,0.24)' }}
+                                            onMouseEnter={e => e.currentTarget.style.opacity = '0.9'}
+                                            onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                                        >
+                                            <BarChart2 className="h-4 w-4" />
+                                            <span>{primaryStarterAction.title}</span>
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -3124,11 +3029,40 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                         <div className="flex-1 min-w-0">
                                                             <p className="font-semibold text-sm truncate">{t.title}</p>
                                                             <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{t.subject} • {t._count?.questions ?? 0} savol</p>
+                                                            {result && (
+                                                                <div className="mt-2 space-y-2">
+                                                                    <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                                                                        {(() => {
+                                                                            const summary = getAttemptSummary(result)
+                                                                            return `${summary.correctCount}/${summary.answeredCount || t._count?.questions || 0} to'g'ri (${summary.percent}%)`
+                                                                        })()}
+                                                                    </p>
+                                                                    {weakTopicSummary && (
+                                                                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                                                                            Zaif: {weakTopicSummary}
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                         {result ? (
-                                                            <span className="text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0" style={{ background: 'rgba(16,185,129,0.12)', color: '#10b981' }}>
-                                                                {Math.round(result.score)}%
-                                                            </span>
+                                                            <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                                                                <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: 'rgba(16,185,129,0.12)', color: '#10b981' }}>
+                                                                    {getAttemptSummary(result).percent}%
+                                                                </span>
+                                                                {weakTopicSummary && (
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setOverlayPanel(null)
+                                                                            void handleSend(`Mening zaif mavzularim: ${weakTopicSummary}. Shu mavzularni bugun o'rganish uchun qisqa reja tuzing va asosiy tushunchalarni tushuntiring.`, [])
+                                                                        }}
+                                                                        className="text-[11px] font-semibold px-3 py-1.5 rounded-xl transition"
+                                                                        style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}
+                                                                    >
+                                                                        Zaif mavzuni o'rganish
+                                                                    </button>
+                                                                )}
+                                                            </div>
                                                         ) : (
                                                             <button onClick={() => { void openPublicTest(t) }}
                                                                 className="text-xs font-semibold px-3 py-1.5 rounded-xl transition flex-shrink-0"
@@ -3145,6 +3079,20 @@ Iltimos, har bir savolni tahlil qilib ber:
 
                                 {overlayPanel === 'flashcards' && (
                                     <div className="space-y-3">
+                                        <div className="rounded-2xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                            <div className="flex items-center justify-between gap-3 mb-3">
+                                                <div>
+                                                    <p className="text-sm font-semibold">Kartochkalar progressi</p>
+                                                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{reviewedFlashcards}/{totalFlashcards || 0} o'rganildi</p>
+                                                </div>
+                                                <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
+                                                    {totalFlashcards > 0 ? Math.round((reviewedFlashcards / totalFlashcards) * 100) : 0}%
+                                                </span>
+                                            </div>
+                                            <div className="progress-bar">
+                                                <div className="progress-bar-fill" style={{ width: `${totalFlashcards > 0 ? (reviewedFlashcards / totalFlashcards) * 100 : 0}%` }} />
+                                            </div>
+                                        </div>
                                         {dueFlashcards.length > 0 && (
                                             <div className="rounded-2xl p-4 mb-2" style={{ background: 'var(--danger-light)', border: '1px solid var(--danger)' }}>
                                                 <div className="flex items-center justify-between">
@@ -3181,12 +3129,11 @@ Iltimos, har bir savolni tahlil qilib ber:
                                 {overlayPanel === 'progress' && (
                                     <div className="space-y-4">
                                         {/* Stats grid */}
-                                        <div className="grid grid-cols-2 gap-3">
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                             {[
-                                                { label: 'XP', value: progressData?.xp ?? 0, icon: <Zap className="h-5 w-5" />, color: '#f59e0b' },
-                                                { label: 'Streak', value: `${progressData?.currentStreak ?? 0} kun`, icon: <Flame className="h-5 w-5" />, color: '#ef4444' },
+                                                { label: 'Yechilgan testlar', value: myResults.length, icon: <ClipboardList className="h-5 w-5" />, color: 'var(--brand)' },
                                                 { label: "O'rtacha ball", value: `${Math.round(progressData?.avgScore ?? 0)}%`, icon: <Trophy className="h-5 w-5" />, color: '#10b981' },
-                                                { label: 'Eng uzun streak', value: `${progressData?.longestStreak ?? 0} kun`, icon: <Target className="h-5 w-5" />, color: '#6366f1' },
+                                                { label: 'Kartochkalar', value: `${reviewedFlashcards}/${totalFlashcards || 0}`, icon: <Brain className="h-5 w-5" />, color: '#6366f1' },
                                             ].map((s, i) => (
                                                 <div key={i} className="rounded-2xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
                                                     <div className="flex items-center gap-2 mb-2">
@@ -3219,19 +3166,45 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             <div>
                                                 <p className="text-sm font-semibold mb-3">So'nggi testlar</p>
                                                 <div className="space-y-2">
-                                                    {myResults.slice(0, 5).map(r => (
-                                                        <div key={r.id} className="flex items-center gap-3 rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                                            <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                                                                style={{ background: ((r.total ?? 0) > 0 ? r.score/r.total! : r.score/100) >= 0.7 ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.1)', color: ((r.total ?? 0) > 0 ? r.score/r.total! : r.score/100) >= 0.7 ? '#10b981' : '#ef4444' }}>
-                                                                <Trophy className="h-4 w-4" />
+                                                    {myResults.slice(0, 5).map(r => {
+                                                        const summary = getAttemptSummary(r)
+                                                        return (
+                                                            <div key={r.id} className="rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                                                                        style={{ background: summary.percent >= 70 ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.1)', color: summary.percent >= 70 ? '#10b981' : '#ef4444' }}>
+                                                                        <Trophy className="h-4 w-4" />
+                                                                    </div>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <p className="text-sm font-medium truncate">{r.test?.title || publicTests.find(t => t.id === r.testId)?.title || 'Test'}</p>
+                                                                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{new Date(r.createdAt).toLocaleDateString('uz-UZ')}</p>
+                                                                    </div>
+                                                                    <span className="text-sm font-bold flex-shrink-0" style={{ color: summary.percent >= 70 ? '#10b981' : '#ef4444' }}>{summary.percent}%</span>
+                                                                </div>
+                                                                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
+                                                                    <span>{summary.correctCount}/{summary.answeredCount || r.total || 0} to'g'ri</span>
+                                                                    {weakTopicSummary && (
+                                                                        <>
+                                                                            <span style={{ color: 'var(--text-muted)' }}>•</span>
+                                                                            <span>Zaif: {weakTopicSummary}</span>
+                                                                        </>
+                                                                    )}
+                                                                </div>
+                                                                {weakTopicSummary && (
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setOverlayPanel(null)
+                                                                            void handleSend(`Mening zaif mavzularim: ${weakTopicSummary}. Shu mavzularni bugun o'rganish uchun qisqa reja tuzing va asosiy tushunchalarni tushuntiring.`, [])
+                                                                        }}
+                                                                        className="mt-3 text-xs font-semibold px-3 py-2 rounded-xl transition"
+                                                                        style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}
+                                                                    >
+                                                                        Zaif mavzuni o'rganish
+                                                                    </button>
+                                                                )}
                                                             </div>
-                                                            <div className="flex-1 min-w-0">
-                                                                <p className="text-sm font-medium truncate">{r.test?.title || publicTests.find(t => t.id === r.testId)?.title || 'Test'}</p>
-                                                                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{new Date(r.createdAt).toLocaleDateString('uz-UZ')}</p>
-                                                            </div>
-                                                            <span className="text-sm font-bold flex-shrink-0" style={{ color: ((r.total ?? 0) > 0 ? r.score/r.total! : r.score/100) >= 0.7 ? '#10b981' : '#ef4444' }}>{(r.total ?? 0) > 0 ? Math.round(r.score/r.total!*100) : r.score}%</span>
-                                                        </div>
-                                                    ))}
+                                                        )
+                                                    })}
                                                 </div>
                                             </div>
                                         )}
