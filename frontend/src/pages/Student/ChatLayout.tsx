@@ -2376,15 +2376,15 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         <h2 className="text-xl sm:text-2xl font-bold mb-2">Salom, {user?.name?.split(' ')[0]}! 👋</h2>
                                         <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Yangi boshlash uchun bitta aniq qadam yetarli.</p>
                                     </div>
-                                    <div className="rounded-3xl p-5 sm:p-6 mb-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: '0 10px 30px rgba(15,23,42,0.05)' }}>
+                                    <div className="empty-state-shell rounded-3xl p-5 sm:p-6 mb-5">
                                         <div className="grid gap-3 sm:grid-cols-3">
                                             {[
                                                 { step: '1', title: 'Fan tanlang', text: 'Asosiy faningiz bo\'yicha boshlang.' },
                                                 { step: '2', title: 'Test yeching', text: 'Qisqa diagnostika orqali holatingizni biling.' },
                                                 { step: '3', title: 'AI dan so\'rang', text: 'Zaif joylar va keyingi qadamni oling.' },
                                             ].map(item => (
-                                                <div key={item.step} className="rounded-2xl p-4 text-left" style={{ background: 'var(--bg-page)', border: '1px solid var(--border)' }}>
-                                                    <div className="h-7 w-7 rounded-full flex items-center justify-center text-[12px] font-semibold mb-3" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>{item.step}</div>
+                                                <div key={item.step} className="empty-state-step rounded-2xl p-4 text-left">
+                                                    <div className="empty-state-step-number h-7 w-7 rounded-full flex items-center justify-center text-[12px] font-semibold mb-3">{item.step}</div>
                                                     <p className="text-sm font-semibold mb-1">{item.title}</p>
                                                     <p className="text-xs leading-5" style={{ color: 'var(--text-muted)' }}>{item.text}</p>
                                                 </div>
@@ -2395,8 +2395,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         <button
                                             onClick={() => handleStarterAction(primaryStarterAction.prompt)}
                                             title={primaryStarterAction.description}
-                                            className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-[13px] sm:text-[14px] font-semibold transition"
-                                            style={{ background: 'var(--brand)', color: '#fff', boxShadow: '0 10px 24px rgba(224,123,57,0.24)' }}
+                                            className="empty-state-cta inline-flex items-center gap-2 rounded-full px-5 py-3 text-[13px] sm:text-[14px] font-semibold transition"
+                                            style={{ background: 'var(--brand)', color: '#fff' }}
                                             onMouseEnter={e => e.currentTarget.style.opacity = '0.9'}
                                             onMouseLeave={e => e.currentTarget.style.opacity = '1'}
                                         >

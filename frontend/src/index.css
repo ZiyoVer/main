@@ -867,6 +867,48 @@ html.dark .hero-gradient {
     transition: width 0.4s ease;
 }
 
+/* ---- Student empty state ---- */
+.empty-state-shell {
+    background:
+        radial-gradient(circle at top, color-mix(in srgb, var(--brand) 10%, transparent) 0%, transparent 58%),
+        color-mix(in srgb, var(--bg-card) 90%, white 10%);
+    box-shadow:
+        0 22px 48px rgba(15, 23, 42, 0.06),
+        inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.empty-state-step {
+    background: color-mix(in srgb, var(--bg-page) 84%, white 16%);
+    box-shadow:
+        0 8px 18px rgba(15, 23, 42, 0.04),
+        inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.empty-state-step-number {
+    background: color-mix(in srgb, var(--brand) 12%, transparent);
+    color: var(--brand);
+}
+
+.empty-state-cta {
+    box-shadow: 0 12px 30px rgba(224, 123, 57, 0.22);
+}
+
+html.dark .empty-state-shell {
+    background:
+        radial-gradient(circle at top, color-mix(in srgb, var(--brand) 16%, transparent) 0%, transparent 55%),
+        color-mix(in srgb, var(--bg-card) 92%, black 8%);
+    box-shadow:
+        0 22px 48px rgba(0, 0, 0, 0.28),
+        inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+html.dark .empty-state-step {
+    background: color-mix(in srgb, var(--bg-page) 82%, white 4%);
+    box-shadow:
+        0 10px 22px rgba(0, 0, 0, 0.18),
+        inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
 /* ---- Markdown in chat (prose) ---- */
 .md-content {
     line-height: 1.7;
