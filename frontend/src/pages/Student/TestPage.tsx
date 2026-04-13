@@ -494,9 +494,9 @@ export default function TestPage() {
                                             else { bg = 'var(--bg-surface)'; border = 'var(--border)'; color = 'var(--text-muted)' }
                                         }
                                         return (
-                                            <button key={oi} disabled={submitted || isGuest} onClick={() => !isGuest && setAnswers(a => ({ ...a, [q.id]: oi }))} className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border text-left text-[13px] transition" style={{ background: bg, borderColor: border, color, cursor: isGuest ? 'not-allowed' : 'pointer', opacity: isGuest ? 0.7 : 1 }}>
+                                            <button key={oi} type="button" disabled={submitted || isGuest} onClick={() => !isGuest && setAnswers(a => ({ ...a, [q.id]: oi }))} className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border text-left text-[13px] transition" style={{ background: bg, borderColor: border, color, cursor: isGuest ? 'not-allowed' : 'pointer', opacity: isGuest ? 0.7 : 1 }}>
                                                 <span className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 text-[10px] font-bold border-current">{OPTS[oi]}</span>
-                                                <span className="flex-1"><TextWithMath text={opt} /></span>
+                                                <span className="flex-1 pointer-events-none"><TextWithMath text={opt} /></span>
                                                 {submitted && oi === correctIdx && <CheckCircle className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--success)' }} />}
                                                 {submitted && sel === oi && oi !== correctIdx && <XCircle className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--danger)' }} />}
                                             </button>

@@ -24,10 +24,22 @@ function MathPreview({ text, inline }: { text: string; inline?: boolean }) {
             .replace(/\$([^$\n]+)\$/g, (_, m) => katex.renderToString(m.trim(), { throwOnError: false }))
 
         if (inline) {
-            return <span className="inline-block ml-1" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
+            return (
+                <span className="inline-flex items-center gap-1 text-[10px] ml-1 px-2 py-1 rounded-md"
+                    style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', color: 'var(--text-muted)', border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)' }}>
+                    <span style={{ fontWeight: 600 }}>Preview</span>
+                    <span dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
+                </span>
+            )
         }
 
-        return <div className="mt-1 px-2.5 py-1.5 rounded-lg text-sm overflow-x-auto" style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)', color: 'var(--text-primary)' }} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
+        return (
+            <div className="mt-2 px-2.5 py-2 rounded-lg overflow-x-auto"
+                style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)', color: 'var(--text-primary)' }}>
+                <p className="text-[10px] font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Formula preview</p>
+                <div className="text-sm" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
+            </div>
+        )
     } catch { return null }
 }
 
@@ -1037,16 +1049,16 @@ export default function TeacherPanel() {
                                         </div>
                                     ) : (
                                         /* MCQ variantlari */
-                                        <div className="grid grid-cols-2 gap-1.5">
+                                        <div className="grid grid-cols-2 gap-2">
                                             {q.options.map((o, oi) => (
-                                                <div key={oi}>
+                                                <div key={oi} className="space-y-1.5">
                                                     <label className="flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition"
                                                         style={q.correctIdx === oi ? { border: '1px solid color-mix(in srgb, var(--success) 40%, transparent)', background: 'color-mix(in srgb, var(--success) 6%, transparent)' } : { border: '1px solid var(--border)' }}>
                                                         <input type="radio" name={`correct-${qi}`} checked={q.correctIdx === oi} onChange={() => updateQ(qi, 'correctIdx', oi)} className="w-3 h-3 flex-shrink-0" style={{ accentColor: 'var(--success)' }} />
                                                         <input placeholder={`Variant ${String.fromCharCode(65 + oi)}`} required={!q.imageUrl} value={o} onChange={e => updateQ(qi, `opt${oi}`, e.target.value)}
                                                             className="flex-1 bg-transparent outline-none text-[13px] min-w-0" />
-                                                        <MathPreview text={o} inline={true} />
                                                     </label>
+                                                    <MathPreview text={o} />
                                                 </div>
                                             ))}
                                         </div>

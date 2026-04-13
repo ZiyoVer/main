@@ -2688,7 +2688,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                                     : { borderColor: 'var(--border)', background: 'var(--bg-card)' }
                                                             }
                                                             return (
-                                                                <button key={opt} disabled={testSubmitted}
+                                                                <button key={opt} type="button" disabled={testSubmitted}
                                                                     onClick={() => setTestAnswers(prev => ({ ...prev, [i]: opt }))}
                                                                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTestAnswers(prev => ({ ...prev, [i]: opt })) } }}
                                                                     tabIndex={0}
@@ -2696,7 +2696,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                                     aria-checked={testAnswers[i] === opt}
                                                                     className="w-full text-left px-4 py-3 rounded-xl text-[13px] border transition-all duration-200 outline-none"
                                                                     style={sty}>
-                                                                    <span className="font-bold mr-2" style={{ opacity: 0.6 }}>{opt.toUpperCase()})</span> <MathText text={q[opt]} />
+                                                                    <span className="font-bold mr-2" style={{ opacity: 0.6 }}>{opt.toUpperCase()})</span>
+                                                                    <span className="pointer-events-none">
+                                                                        <MathText text={q[opt]} />
+                                                                    </span>
                                                                     {testSubmitted && isCorrect && <span className="ml-2 inline-flex items-center justify-center h-5 w-5 rounded-full text-xs" style={{ background: 'var(--success-light)', color: 'var(--success)' }}>✓</span>}
                                                                     {testSubmitted && isSelected && !isCorrect && <span className="ml-2 inline-flex items-center justify-center h-5 w-5 rounded-full text-xs" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>✕</span>}
                                                                 </button>

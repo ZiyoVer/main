@@ -62,6 +62,8 @@ Bu fayl DTMMax platformasining rivojlanish tarixi, qilingan ishlar va rejalashti
 - Intro/empty state yumshatildi — qalin border o'rniga soft surface + shadow
 - Global ranglar iliqroq cream palette ga o'tkazildi
 - Teacher statistika modalida savol matnlari va variantlar uchun LaTeX render yaxshilandi
+- Student test variantlari click maydoni kuchaytirildi — matn/formula ustiga bosish ham javobni tanlaydi
+- Teacher paneldagi formula preview ko'rinishi aniqroq qilindi — "Formula preview" bloklari bilan
 
 ### Bosqich 3: To'liq audit (2026-04-13)
 - Platform to'liq audit qilindi (bug-finder, security, critic agentlar orqali)
