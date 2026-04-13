@@ -31,6 +31,19 @@ function MathPreview({ text, inline }: { text: string; inline?: boolean }) {
     } catch { return null }
 }
 
+function MathInlineText({ text, className = '' }: { text: string; className?: string }) {
+    const normalized = normalizeMathText(text || '')
+    if (!normalized.includes('$')) return <span className={className}>{text}</span>
+    try {
+        const html = normalized
+            .replace(/\$\$([^$]+)\$\$/g, (_, m) => katex.renderToString(m.trim(), { displayMode: true, throwOnError: false }))
+            .replace(/\$([^$\n]+)\$/g, (_, m) => katex.renderToString(m.trim(), { throwOnError: false }))
+        return <span className={className} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
+    } catch {
+        return <span className={className}>{text}</span>
+    }
+}
+
 function formatAcceptedAnswerHint(text: string) {
     return text
         .split(/\r?\n+/)
@@ -1206,7 +1219,9 @@ export default function TeacherPanel() {
                                             {analytics.questionStats.map((q: any, i: number) => (
                                                 <div key={q.id} className="rounded-xl p-3" style={{ background: 'var(--bg-surface)' }}>
                                                     <div className="flex items-start justify-between gap-2 mb-2.5">
-                                                        <p className="text-[12px] flex-1 leading-relaxed">{i + 1}. {q.text}</p>
+                                                        <p className="text-[12px] flex-1 leading-relaxed">
+                                                            {i + 1}. <MathInlineText text={q.text} />
+                                                        </p>
                                                         <span className="text-[11px] font-bold px-2 py-0.5 rounded-md flex-shrink-0"
                                                             style={q.errorRate >= 60 ? { background: 'color-mix(in srgb, var(--danger) 15%, transparent)', color: 'var(--danger)' } : q.errorRate >= 30 ? { background: 'color-mix(in srgb, #f59e0b 15%, transparent)', color: '#f59e0b' } : { background: 'color-mix(in srgb, var(--success) 15%, transparent)', color: 'var(--success)' }}>
                                                             {q.errorRate}% xato
@@ -1231,6 +1246,9 @@ export default function TeacherPanel() {
                                                                         </p>
                                                                         <p className="text-[15px] font-bold" style={isCorrect ? { color: 'var(--success)' } : pct > 0 ? {} : mutedText}>{pct}%</p>
                                                                         <p className="text-[10px]" style={mutedText}>{count} kishi</p>
+                                                                        <div className="mt-1 text-[10px] leading-4" style={mutedText}>
+                                                                            <MathInlineText text={opt} />
+                                                                        </div>
                                                                     </div>
                                                                 )
                                                             })}

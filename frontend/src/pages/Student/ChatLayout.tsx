@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, FileText, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, Sun, Moon, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, ArrowUp, BarChart2 } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, FileText, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, Sun, Moon, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, ArrowUp, BarChart2, User, Calendar, Shield } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import remarkGfm from 'remark-gfm'
@@ -1958,7 +1958,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                     </div>
                     <form onSubmit={saveOnboarding} className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         <div><label className="text-sm font-medium block mb-1.5">Qaysi fandan tayyorlanasiz?</label>
-                            <select value={onboardingForm.subject} onChange={e => setOnboardingForm({ ...onboardingForm, subject: e.target.value })} className="input" style={{ cursor: 'pointer' }}>
+                            <select value={onboardingForm.subject} onChange={e => setOnboardingForm(prev => ({ ...prev, subject: e.target.value }))} className="input" style={{ cursor: 'pointer' }}>
                                 {SUBJECTS.map(f => <option key={f} value={f}>{f}</option>)}
                             </select></div>
                         <div>
@@ -1970,9 +1970,9 @@ Iltimos, har bir savolni tahlil qilib ber:
                             </select>
                         </div>
                         <div><label className="text-sm font-medium block mb-1.5">Imtihon sanasi</label>
-                            <input type="date" value={onboardingForm.examDate} onChange={e => setOnboardingForm({ ...onboardingForm, examDate: e.target.value })} className="input" /></div>
+                            <input type="date" value={onboardingForm.examDate} onChange={e => setOnboardingForm(prev => ({ ...prev, examDate: e.target.value }))} className="input" /></div>
                         <div><label className="text-sm font-medium block mb-1.5">Maqsad ball (0-100)</label>
-                            <input type="number" min="0" max="100" value={onboardingForm.targetScore} onChange={e => setOnboardingForm({ ...onboardingForm, targetScore: parseInt(e.target.value) || 0 })} className="input" /></div>
+                            <input type="number" min="0" max="100" value={onboardingForm.targetScore} onChange={e => setOnboardingForm(prev => ({ ...prev, targetScore: parseInt(e.target.value) || 0 }))} className="input" /></div>
                         <div className="flex gap-3 pt-1">
                             <button type="submit" disabled={savingProfile} className="btn btn-primary" style={{ flex: 1 }}>{savingProfile ? 'Saqlanmoqda...' : 'Saqlash'}</button>
                             <button type="button" onClick={() => setShowOnboarding(false)} className="btn btn-outline">Bekor</button>
@@ -2210,25 +2210,39 @@ Iltimos, har bir savolni tahlil qilib ber:
 
                                     <form onSubmit={saveOnboarding} className="space-y-4 mt-5">
                                         <div>
-                                            <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>Asosiy fan</label>
+                                            <label className="text-xs font-medium flex items-center gap-2 mb-1" style={{ color: 'var(--text-muted)' }}>
+                                                <BookOpen className="h-3.5 w-3.5" />
+                                                Asosiy fan
+                                            </label>
                                             <select value={onboardingForm.subject} onChange={e => setOnboardingForm(f => ({ ...f, subject: e.target.value }))} className="input text-sm h-10" style={{ cursor: 'pointer' }}>
                                                 {SUBJECTS.map(f => <option key={f} value={f}>{f}</option>)}
                                             </select>
                                         </div>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                             <div>
-                                                <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>Imtihon sanasi</label>
+                                                <label className="text-xs font-medium flex items-center gap-2 mb-1" style={{ color: 'var(--text-muted)' }}>
+                                                    <Calendar className="h-3.5 w-3.5" />
+                                                    Imtihon sanasi
+                                                </label>
                                                 <input type="date" value={onboardingForm.examDate} onChange={e => setOnboardingForm(f => ({ ...f, examDate: e.target.value }))} className="input text-sm h-10" />
                                             </div>
                                             <div>
-                                                <label className="text-xs font-medium block mb-1" style={{ color: 'var(--text-muted)' }}>Maqsad ball (0–100)</label>
+                                                <label className="text-xs font-medium flex items-center gap-2 mb-1" style={{ color: 'var(--text-muted)' }}>
+                                                    <Target className="h-3.5 w-3.5" />
+                                                    Maqsad ball (0–100)
+                                                </label>
                                                 <input type="number" min="0" max="100" value={onboardingForm.targetScore} onChange={e => setOnboardingForm(f => ({ ...f, targetScore: parseInt(e.target.value) || 0 }))} className="input text-sm h-10" />
                                             </div>
                                         </div>
                                         <div className="rounded-2xl p-4 flex items-center justify-between gap-3" style={{ background: 'var(--bg-page)', border: '1px solid var(--border)' }}>
-                                            <div>
-                                                <p className="text-sm font-semibold">Ko'rinish</p>
-                                                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{darkMode ? 'Qorong‘i rejim yoqilgan' : 'Yorug‘ rejim yoqilgan'}</p>
+                                            <div className="flex items-center gap-3">
+                                                <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                                    {darkMode ? <Moon className="h-4 w-4" style={{ color: 'var(--brand)' }} /> : <Sun className="h-4 w-4" style={{ color: 'var(--brand)' }} />}
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-semibold">Ko'rinish</p>
+                                                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{darkMode ? 'Qorong‘i rejim yoqilgan' : 'Yorug‘ rejim yoqilgan'}</p>
+                                                </div>
                                             </div>
                                             <button
                                                 type="button"
@@ -2249,10 +2263,16 @@ Iltimos, har bir savolni tahlil qilib ber:
                                     </form>
 
                                     <details className="mt-6 rounded-2xl p-4" style={{ background: 'var(--bg-page)', border: '1px solid var(--border)' }}>
-                                        <summary className="cursor-pointer text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Qo'shimcha xavfsizlik sozlamalari</summary>
+                                        <summary className="cursor-pointer text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                            <Shield className="h-4 w-4" />
+                                            Qo'shimcha xavfsizlik sozlamalari
+                                        </summary>
                                         <div className="space-y-4 mt-4">
                                             <div className="space-y-3">
-                                                <p className="text-sm font-semibold">Parolni o'zgartirish</p>
+                                                <p className="text-sm font-semibold flex items-center gap-2">
+                                                    <User className="h-4 w-4" />
+                                                    Parolni o'zgartirish
+                                                </p>
                                                 {changePwOk && <div className="text-sm px-3 py-2 rounded-lg" style={{ background: '#D1FAE5', color: '#065F46' }}>Parol muvaffaqiyatli yangilandi!</div>}
                                                 {changePwErr && <div className="text-sm px-3 py-2 rounded-lg" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>{changePwErr}</div>}
                                                 <input type="password" placeholder="Joriy parol" value={changePwForm.current} onChange={e => setChangePwForm(f => ({ ...f, current: e.target.value }))} className="input text-sm h-9" />

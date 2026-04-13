@@ -5,7 +5,7 @@
 @import "tw-animate-css";
 
 /* ============================================================
-   msert Design System
+   DTMMax Design System
    Light mode default. Dark mode activated via .dark class on <html>.
    Accent: Amber. Palette: Stone (warm gray).
    Font: Inter
@@ -16,20 +16,20 @@
 /* ---- CSS Custom Properties ---- */
 :root {
     /* Backgrounds */
-    --bg-page: #FAFAF9;
-    --bg-card: #FFFFFF;
-    --bg-surface: #F5F5F4;
-    --bg-muted: #F0EFED;
+    --bg-page: #F7F5F2;
+    --bg-card: #FEFDFB;
+    --bg-surface: #F2EFEB;
+    --bg-muted: #ECE6DF;
 
     /* Text */
     --text-primary: #1C1917;
     --text-secondary: #78716C;
-    --text-muted: #A8A29E;
+    --text-muted: #8A8580;
     --text-inverse: #FAFAF9;
 
     /* Border */
-    --border: #E7E5E4;
-    --border-strong: #D6D3D1;
+    --border: #DDD8D0;
+    --border-strong: #CFC6BC;
 
     /* Brand (Amber) */
     --brand: #D97706;
@@ -61,8 +61,8 @@
 
 /* ---- Dark Mode Override ---- */
 html.dark {
-    --bg-page: #0C0A09;
-    --bg-card: #1C1917;
+    --bg-page: #111110;
+    --bg-card: #1A1918;
     --bg-surface: #292524;
     --bg-muted: #3C3936;
 
@@ -385,7 +385,7 @@ html.dark {
 }
 
 .bubble-user {
-    background-color: #f4f0e6;
+    background-color: #EDE8DA;
     border: 1px solid rgba(15, 23, 42, 0.04);
     border-radius: 0.82rem;
     padding: 0.5rem 0.78rem;
