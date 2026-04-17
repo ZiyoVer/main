@@ -64,6 +64,8 @@ Bu fayl DTMMax platformasining rivojlanish tarixi, qilingan ishlar va rejalashti
 - Teacher statistika modalida savol matnlari va variantlar uchun LaTeX render yaxshilandi
 - Student test variantlari click maydoni kuchaytirildi — matn/formula ustiga bosish ham javobni tanlaydi
 - Teacher paneldagi formula preview ko'rinishi aniqroq qilindi — "Formula preview" bloklari bilan
+- Teacher panel uchun umumiy math render helper qo'shildi — sof LaTeX (`\\frac{a}{b}` kabi) ham preview chiqadigan qilindi
+- Teacher statistika PDF exporti KaTeX CSS bilan yaxshilandi — formulali savollar print/exportda ham tozaroq ko'rinadi
 
 ### Bosqich 3: To'liq audit (2026-04-13)
 - Platform to'liq audit qilindi (bug-finder, security, critic agentlar orqali)
@@ -77,7 +79,7 @@ Bu fayl DTMMax platformasining rivojlanish tarixi, qilingan ishlar va rejalashti
 
 ---
 
-## Hozirgi holat va muammolar (2026-04-13)
+## Hozirgi holat va muammolar (2026-04-17)
 
 ### Kritik muammolar:
 1. **ChatLayout monolith** — Student sahifa bitta katta faylda qolmoqda, refactor kerak
@@ -88,7 +90,7 @@ Bu fayl DTMMax platformasining rivojlanish tarixi, qilingan ishlar va rejalashti
 ### Dizayn muammolari:
 5. Landing sahifada bo'sh joy muammosi qayta tekshirildi — footer bor, issue aniq reproduksiya qilinmadi
 6. Empty state va student shell ancha tozalandi, lekin umumiy information architecture hali ham soddalashtirilishi mumkin
-7. Teacher statistikadagi PDF/export oqimi alohida tekshiruv talab qiladi
+7. Teacher statistikadagi PDF/export oqimi yaxshilandi, lekin real formulali dataset bilan yana tekshirilib turishi kerak
 8. AI avtomatik salomlashuv ishlaydi, lekin copy va contextual greeting keyin yana yaxshilanishi mumkin
 
 ### Xavfsizlik muammolari:
@@ -187,4 +189,4 @@ Prompt fayllar:
 
 ---
 
-*Oxirgi yangilanish: 2026-04-13*
+*Oxirgi yangilanish: 2026-04-17*

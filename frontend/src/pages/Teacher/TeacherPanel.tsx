@@ -3,32 +3,21 @@ import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import { BrainCircuit, Plus, Trash2, LogOut, Copy, Check, Globe, Lock, ClipboardList, Upload, Sparkles, FileText, Image, BarChart2, X, Users, Bell } from 'lucide-react'
 import { fetchApi, uploadFile } from '@/lib/api'
+import { renderMathHtml } from '@/lib/mathRender'
 import { useAuthStore } from '@/store/authStore'
 import { SUBJECTS } from '../../constants'
-import katex from 'katex'
 import 'katex/dist/katex.min.css'
-import DOMPurify from 'dompurify'
-
-function normalizeMathText(text: string): string {
-    return text
-        .replace(/\\\[(\s*[\s\S]*?\s*)\\\]/g, (_, m) => `\n$$\n${m.trim()}\n$$\n`)
-        .replace(/\\\((\s*[\s\S]*?\s*)\\\)/g, (_, m) => `$${m.trim()}$`)
-}
 
 function MathPreview({ text, inline }: { text: string; inline?: boolean }) {
-    const normalized = normalizeMathText(text || '')
-    if (!normalized.includes('$')) return null
+    const html = renderMathHtml(text || '', inline ? 'inline' : 'display')
+    if (!html) return null
     try {
-        const html = normalized
-            .replace(/\$\$([^$]+)\$\$/g, (_, m) => katex.renderToString(m.trim(), { displayMode: true, throwOnError: false }))
-            .replace(/\$([^$\n]+)\$/g, (_, m) => katex.renderToString(m.trim(), { throwOnError: false }))
-
         if (inline) {
             return (
                 <span className="inline-flex items-center gap-1 text-[10px] ml-1 px-2 py-1 rounded-md"
                     style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', color: 'var(--text-muted)', border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)' }}>
                     <span style={{ fontWeight: 600 }}>Preview</span>
-                    <span dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
+                    <span dangerouslySetInnerHTML={{ __html: html }} />
                 </span>
             )
         }
@@ -37,23 +26,33 @@ function MathPreview({ text, inline }: { text: string; inline?: boolean }) {
             <div className="mt-2 px-2.5 py-2 rounded-lg overflow-x-auto"
                 style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)', color: 'var(--text-primary)' }}>
                 <p className="text-[10px] font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Formula preview</p>
-                <div className="text-sm" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
+                <div className="text-sm" dangerouslySetInnerHTML={{ __html: html }} />
             </div>
         )
     } catch { return null }
 }
 
 function MathInlineText({ text, className = '' }: { text: string; className?: string }) {
-    const normalized = normalizeMathText(text || '')
-    if (!normalized.includes('$')) return <span className={className}>{text}</span>
+    const html = renderMathHtml(text || '', 'inline')
+    if (!html) return <span className={className}>{text}</span>
     try {
-        const html = normalized
-            .replace(/\$\$([^$]+)\$\$/g, (_, m) => katex.renderToString(m.trim(), { displayMode: true, throwOnError: false }))
-            .replace(/\$([^$\n]+)\$/g, (_, m) => katex.renderToString(m.trim(), { throwOnError: false }))
-        return <span className={className} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
+        return <span className={className} dangerouslySetInnerHTML={{ __html: html }} />
     } catch {
         return <span className={className}>{text}</span>
     }
+}
+
+function escapeHtml(text: string): string {
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+}
+
+function renderPrintableMath(text: string, mode: 'inline' | 'display' = 'inline'): string {
+    return renderMathHtml(text, mode) || escapeHtml(text)
 }
 
 function formatAcceptedAnswerHint(text: string) {
@@ -511,7 +510,7 @@ export default function TeacherPanel() {
         const questionRows = (questionStats || []).map((q: any, i: number) => `
         <tr style="background:${i % 2 === 0 ? '#fff' : '#f9fafb'}">
             <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280">${i + 1}</td>
-            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${q.text?.substring(0, 100) || '—'}${(q.text?.length || 0) > 100 ? '...' : ''}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${renderPrintableMath(String(q.text || '—'))}</td>
             <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center">${q.totalAnswered}</td>
             <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:600;color:${q.errorRate > 50 ? '#dc2626' : q.errorRate > 30 ? '#d97706' : '#16a34a'}">${q.errorRate}%</td>
         </tr>`).join('')
@@ -521,6 +520,7 @@ export default function TeacherPanel() {
 <head>
 <meta charset="utf-8">
 <title>${test?.title || 'Test'} — Natijalar</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 <style>
   * { box-sizing: border-box; }
   body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 28px; color: #111; background: #fff; }
@@ -879,7 +879,7 @@ export default function TeacherPanel() {
                                         )}
                                     </div>
                                     <div className="relative">
-                                        <textarea placeholder="Savol matni ($formula$ yozsa preview chiqadi)" required={!q.imageUrl} value={q.text} onChange={e => updateQ(qi, 'text', e.target.value)} rows={2}
+                                        <textarea placeholder="Savol matni ($formula$ yoki \\frac{a}{b} yozsa preview chiqadi)" required={!q.imageUrl} value={q.text} onChange={e => updateQ(qi, 'text', e.target.value)} rows={2}
                                             className="input resize-none w-full pr-12" style={{ height: 'auto', padding: '0.5rem 0.75rem', fontSize: '13px' }} />
                                         <label className="absolute right-2 top-2 p-1.5 rounded-md cursor-pointer transition hover:bg-slate-100 dark:hover:bg-slate-800"
                                             title="Rasm yuklash yoki Ctrl+V (Paste) orqali kiritish">
@@ -1063,7 +1063,11 @@ export default function TeacherPanel() {
                                             ))}
                                         </div>
                                     )}
-                                    {q.questionType !== 'open' && q.questionType !== 'matching' && q.questionType !== 'multipart_open' && <p className="text-[10px]" style={{ color: 'var(--border-strong)' }}>Yashil doira = to'g'ri javob · $formula$ yozsa KaTeX preview</p>}
+                                    {q.questionType !== 'open' && q.questionType !== 'matching' && q.questionType !== 'multipart_open' && (
+                                        <p className="text-[10px]" style={{ color: 'var(--border-strong)' }}>
+                                            Yashil doira = to&apos;g&apos;ri javob · $formula$ yoki sof LaTeX (masalan: <code>{'\\frac{a}{b}'}</code>) yozsa preview chiqadi
+                                        </p>
+                                    )}
                                     {q.questionType === 'matching' && <p className="text-[10px]" style={{ color: '#8b5cf660' }}>Binafsha = to'g'ri javob · Savol matni = umumiy kontekst (ixtiyoriy)</p>}
                                 </div>
                             ))}
