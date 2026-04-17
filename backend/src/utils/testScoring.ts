@@ -1,4 +1,6 @@
-import { DtmBlockType, TestType } from '@prisma/client'
+import { DtmBlockType } from '@prisma/client'
+
+export type NormalizedTestType = 'REGULAR' | 'DTM_BLOCK' | 'MILLIY_SERTIFIKAT'
 import { raschProbability, updateAbility } from './rasch'
 import { isMandatoryDtmSubject } from './subjects'
 
@@ -43,7 +45,7 @@ export function roundScore(value: number): number {
     return Math.round(value * 10) / 10
 }
 
-export function normalizeTestType(value: string | null | undefined): TestType {
+export function normalizeTestType(value: string | null | undefined): NormalizedTestType {
     if (value === 'DTM_BLOCK' || value === 'dtm') return 'DTM_BLOCK'
     if (value === 'MILLIY_SERTIFIKAT' || value === 'milliy_sertifikat') return 'MILLIY_SERTIFIKAT'
     return 'REGULAR'

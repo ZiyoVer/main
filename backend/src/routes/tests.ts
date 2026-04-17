@@ -218,6 +218,50 @@ function parseQuestionCoefficient(value: unknown): number | null {
     return null
 }
 
+interface StoredMatchingData {
+    answers: string[]
+    subQuestions: Array<{ text: string; correctIdx: number }>
+}
+
+interface StoredMultipartData {
+    subQuestions: Array<{ label: string; text: string; correctText: string }>
+}
+
+function parseStoredQuestionOptions(questionType: string | null | undefined, rawOptions: string): string[] | StoredMatchingData | StoredMultipartData {
+    try {
+        const parsed = JSON.parse(rawOptions)
+        if (questionType === 'matching') {
+            const answers = Array.isArray((parsed as { answers?: unknown }).answers)
+                ? (parsed as { answers: unknown[] }).answers.map((answer) => String(answer || ''))
+                : []
+            const subQuestions = Array.isArray((parsed as { subQuestions?: unknown }).subQuestions)
+                ? (parsed as { subQuestions: Array<{ text?: unknown; correctIdx?: unknown }> }).subQuestions.map((subQuestion) => ({
+                    text: String(subQuestion.text || ''),
+                    correctIdx: typeof subQuestion.correctIdx === 'number' ? subQuestion.correctIdx : 0,
+                }))
+                : []
+            return { answers, subQuestions }
+        }
+
+        if (questionType === 'multipart_open') {
+            const subQuestions = Array.isArray((parsed as { subQuestions?: unknown }).subQuestions)
+                ? (parsed as { subQuestions: Array<{ label?: unknown; text?: unknown; correctText?: unknown }> }).subQuestions.map((subQuestion, subIndex) => ({
+                    label: String(subQuestion.label || String.fromCharCode(65 + subIndex)),
+                    text: String(subQuestion.text || ''),
+                    correctText: String(subQuestion.correctText || ''),
+                }))
+                : []
+            return { subQuestions }
+        }
+
+        return Array.isArray(parsed) ? parsed.map((option) => String(option || '')) : []
+    } catch {
+        if (questionType === 'matching') return { answers: [], subQuestions: [] }
+        if (questionType === 'multipart_open') return { subQuestions: [] }
+        return []
+    }
+}
+
 function buildQuestionGeneratorSystemPrompt() {
     return `Siz test savollari generatorisiz. Sizga berilgan matn yoki rasmdan savollarni AYNAN ajratib olasiz. FAQAT JSON array formatda javob bering, boshqa hech narsa yozmasdan.
 
@@ -493,8 +537,78 @@ router.get('/my-tests', authenticate, requireRole('TEACHER', 'ADMIN'), async (re
             include: { _count: { select: { questions: true, attempts: true } } },
             orderBy: { createdAt: 'desc' }
         })
-        res.json(tests)
+        const avgScores = tests.length > 0
+            ? await prisma.testAttempt.groupBy({
+                by: ['testId'],
+                where: { testId: { in: tests.map((test) => test.id) } },
+                _avg: { score: true },
+            })
+            : []
+
+        const avgScoreMap = new Map(avgScores.map((row) => [row.testId, roundScore(row._avg.score || 0)]))
+        res.json(tests.map((test) => ({
+            ...test,
+            avgScore: avgScoreMap.get(test.id) ?? 0
+        })))
     } catch (e) {
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+router.get('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, res) => {
+    try {
+        const where = req.user.role === 'ADMIN'
+            ? { id: req.params.testId as string }
+            : { id: req.params.testId as string, creatorId: req.user.id }
+
+        const test = await prisma.test.findFirst({
+            where,
+            include: {
+                questions: { orderBy: { orderIdx: 'asc' } },
+                _count: { select: { attempts: true } }
+            }
+        })
+
+        if (!test) {
+            return res.status(404).json({ error: 'Test topilmadi yoki ruxsat yo\'q' })
+        }
+
+        const normalizedTestType = normalizeTestType(test.testType)
+
+        res.json({
+            id: test.id,
+            title: test.title,
+            description: test.description,
+            subject: test.subject,
+            subject2: test.subject2,
+            isPublic: test.isPublic,
+            timeLimit: test.timeLimit,
+            testType: normalizedTestType,
+            attemptsCount: test._count.attempts,
+            questions: test.questions.map((question) => {
+                const parsedOptions = parseStoredQuestionOptions(question.questionType, question.options)
+                return {
+                    id: question.id,
+                    text: question.text,
+                    imageUrl: question.imageUrl,
+                    questionType: question.questionType,
+                    correctIdx: question.correctIdx,
+                    correctText: question.correctText,
+                    options: Array.isArray(parsedOptions) ? parsedOptions : [],
+                    matchingAnswers: !Array.isArray(parsedOptions) && 'answers' in parsedOptions ? parsedOptions.answers : ['', '', '', '', '', ''],
+                    matchingSubQuestions: !Array.isArray(parsedOptions) && 'answers' in parsedOptions ? parsedOptions.subQuestions : [{ text: '', correctIdx: 0 }],
+                    multipartSubQuestions: !Array.isArray(parsedOptions) && 'subQuestions' in parsedOptions && !('answers' in parsedOptions) ? parsedOptions.subQuestions : [],
+                    blockType: normalizeDtmBlockType(question.blockType),
+                    coefficient: typeof question.coefficient === 'number'
+                        ? roundScore(question.coefficient)
+                        : (normalizedTestType === 'DTM_BLOCK'
+                            ? getDefaultDtmCoefficient(normalizeDtmBlockType(question.blockType), test.subject)
+                            : null)
+                }
+            })
+        })
+    } catch (e) {
+        console.error(e)
         res.status(500).json({ error: 'Server xatoligi' })
     }
 })
@@ -952,10 +1066,13 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
                     return res.status(400).json({ error: `${i + 1}-savol: kamida 2 ta bo'lim bo'lishi kerak` })
                 }
                 for (let si = 0; si < subQuestions.length; si++) {
-                    if (typeof subQuestions[si]?.text !== 'string' || !subQuestions[si].text.trim()) {
+                    const subQuestion = subQuestions[si]
+                    const subQuestionText = typeof subQuestion?.text === 'string' ? subQuestion.text.trim() : ''
+                    if (!subQuestionText) {
                         return res.status(400).json({ error: `${i + 1}-savol: ${si + 1}-bo'lim matni bo'sh` })
                     }
-                    if (typeof subQuestions[si]?.correctText !== 'string' || !subQuestions[si].correctText.trim()) {
+                    const subQuestionCorrectText = typeof subQuestion?.correctText === 'string' ? subQuestion.correctText.trim() : ''
+                    if (!subQuestionCorrectText) {
                         return res.status(400).json({ error: `${i + 1}-savol: ${si + 1}-bo'lim uchun to'g'ri javob yo'q` })
                     }
                 }
@@ -1058,6 +1175,153 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
         }
 
         res.status(201).json(test)
+    } catch (e) {
+        console.error(e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+router.patch('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), testMutateLimiter, async (req: AuthRequest, res) => {
+    try {
+        const { title, description, subject, subject2, isPublic, questions, timeLimit, testType } = req.body
+        const where = req.user.role === 'ADMIN'
+            ? { id: req.params.testId as string }
+            : { id: req.params.testId as string, creatorId: req.user.id }
+
+        const existing = await prisma.test.findFirst({
+            where,
+            include: { _count: { select: { attempts: true } } }
+        })
+
+        if (!existing) {
+            return res.status(404).json({ error: 'Test topilmadi yoki ruxsat yo\'q' })
+        }
+
+        if (existing._count.attempts > 0) {
+            return res.status(409).json({ error: 'Bu testni tahrirlab bo\'lmaydi. Unda allaqachon urinishlar bor, nusxa yaratib ishlang.' })
+        }
+
+        const normalizedSubject = normalizeSubject(subject)
+        const normalizedSubject2 = normalizeSubject(subject2)
+        const normalizedTestType = normalizeTestType(typeof testType === 'string' ? testType : undefined)
+        if (!title || !Array.isArray(questions) || questions.length === 0) {
+            return res.status(400).json({ error: 'Test nomi va savollar kerak' })
+        }
+
+        for (let i = 0; i < questions.length; i++) {
+            const q = questions[i] as IncomingCreateQuestion
+            const questionType = q.questionType || 'mcq'
+            const hasText = q.text && typeof q.text === 'string' && q.text.trim().length > 0
+            const hasImage = q.imageUrl && typeof q.imageUrl === 'string' && q.imageUrl.trim().length > 0
+            if (!hasText && !hasImage) {
+                return res.status(400).json({ error: `${i + 1}-savol: savol matni yoki rasmi bo'lishi shart` })
+            }
+            if (normalizedTestType === 'DTM_BLOCK' && questionType !== 'mcq') {
+                return res.status(400).json({ error: `${i + 1}-savol: DTM blok testida faqat A/B/C/D savollar bo'lishi kerak` })
+            }
+            if (questionType === 'matching') {
+                let matchData: { answers?: string[]; subQuestions?: Array<{ text?: string; correctIdx?: number }> } = {}
+                try { matchData = typeof q.options === 'string' ? JSON.parse(q.options) : (q.options as typeof matchData) } catch {
+                    return res.status(400).json({ error: `${i + 1}-savol: matching options formati xato` })
+                }
+                const matchingAnswers = (matchData.answers || []).filter((answer) => typeof answer === 'string' && answer.trim())
+                const matchingSubQuestions = matchData.subQuestions || []
+                if (matchingAnswers.length < 2) return res.status(400).json({ error: `${i + 1}-savol: kamida 2 ta javob varianti bo'lishi kerak` })
+                if (matchingSubQuestions.length < 1) return res.status(400).json({ error: `${i + 1}-savol: kamida 1 ta kichik savol bo'lishi kerak` })
+            } else if (questionType === 'multipart_open') {
+                let multipartData: { subQuestions?: Array<{ text?: string; correctText?: string }> } = {}
+                try { multipartData = typeof q.options === 'string' ? JSON.parse(q.options) : (q.options as typeof multipartData) } catch {
+                    return res.status(400).json({ error: `${i + 1}-savol: multi-part formati xato` })
+                }
+                const subQuestions = multipartData.subQuestions || []
+                if (subQuestions.length < 2) {
+                    return res.status(400).json({ error: `${i + 1}-savol: kamida 2 ta bo'lim bo'lishi kerak` })
+                }
+                for (let si = 0; si < subQuestions.length; si++) {
+                    const subQuestion = subQuestions[si]
+                    const subQuestionText = typeof subQuestion?.text === 'string' ? subQuestion.text.trim() : ''
+                    if (!subQuestionText) {
+                        return res.status(400).json({ error: `${i + 1}-savol: ${si + 1}-bo'lim matni bo'sh` })
+                    }
+                    const subQuestionCorrectText = typeof subQuestion?.correctText === 'string' ? subQuestion.correctText.trim() : ''
+                    if (!subQuestionCorrectText) {
+                        return res.status(400).json({ error: `${i + 1}-savol: ${si + 1}-bo'lim uchun to'g'ri javob yo'q` })
+                    }
+                }
+            } else if (questionType !== 'open') {
+                let options: string[]
+                try {
+                    options = Array.isArray(q.options) ? q.options.map((option) => String(option || '')) : JSON.parse(q.options || '[]')
+                } catch {
+                    return res.status(400).json({ error: `${i + 1}-savol: options to'g'ri format emas` })
+                }
+                if (!Array.isArray(options) || options.length < 2) {
+                    return res.status(400).json({ error: `${i + 1}-savol: kamida 2 ta variant bo'lishi kerak` })
+                }
+                for (let j = 0; j < options.length; j++) {
+                    if (typeof options[j] !== 'string' || !options[j].trim()) {
+                        return res.status(400).json({ error: `${i + 1}-savol: ${String.fromCharCode(65 + j)} variant bo'sh bo'lishi mumkin emas` })
+                    }
+                }
+                const idx = q.correctIdx ?? 0
+                if (typeof idx !== 'number' || idx < 0 || idx >= options.length) {
+                    return res.status(400).json({ error: `${i + 1}-savol: correctIdx 0 dan ${options.length - 1} gacha bo'lishi kerak` })
+                }
+            }
+
+            if (normalizedTestType === 'DTM_BLOCK') {
+                const blockType = normalizeDtmBlockType(typeof q.blockType === 'string' ? q.blockType : undefined)
+                if (blockType === 'SPECIALTY_2' && !normalizedSubject2) {
+                    return res.status(400).json({ error: `${i + 1}-savol: 2-ixtisoslik bloki uchun 2-fan tanlanishi kerak` })
+                }
+                const coefficient = parseQuestionCoefficient(q.coefficient) ?? getDefaultDtmCoefficient(blockType, normalizedSubject)
+                if (!Number.isFinite(coefficient) || coefficient <= 0) {
+                    return res.status(400).json({ error: `${i + 1}-savol: koeffitsient xato` })
+                }
+            }
+        }
+
+        const updated = await prisma.test.update({
+            where: { id: existing.id },
+            data: {
+                title,
+                description: description || null,
+                subject: normalizedSubject,
+                subject2: normalizedSubject2,
+                isPublic: Boolean(isPublic),
+                testType: normalizedTestType,
+                timeLimit: timeLimit || null,
+                questions: {
+                    deleteMany: {},
+                    create: questions.map((q: IncomingCreateQuestion, i: number) => {
+                        const questionType = q.questionType || 'mcq'
+                        const blockType = normalizeDtmBlockType(typeof q.blockType === 'string' ? q.blockType : undefined)
+                        const coefficient = normalizedTestType === 'DTM_BLOCK'
+                            ? (parseQuestionCoefficient(q.coefficient) ?? getDefaultDtmCoefficient(blockType, normalizedSubject))
+                            : null
+
+                        return {
+                            text: q.text || '',
+                            imageUrl: q.imageUrl || null,
+                            options: questionType === 'open' ? '[]'
+                                : questionType === 'multipart_open' ? (typeof q.options === 'string' ? q.options : JSON.stringify(q.options))
+                                    : questionType === 'matching' ? (typeof q.options === 'string' ? q.options : JSON.stringify(q.options))
+                                        : JSON.stringify(q.options),
+                            correctIdx: (questionType === 'open' || questionType === 'matching' || questionType === 'multipart_open') ? -1 : (q.correctIdx ?? 0),
+                            correctText: questionType === 'open' ? (q.correctText?.trim() || null) : null,
+                            questionType,
+                            difficulty: q.difficulty || 0,
+                            orderIdx: i,
+                            blockType,
+                            coefficient
+                        }
+                    })
+                }
+            },
+            include: { questions: true }
+        })
+
+        res.json(updated)
     } catch (e) {
         console.error(e)
         res.status(500).json({ error: 'Server xatoligi' })
@@ -1687,6 +1951,7 @@ router.get('/:testId/analytics', authenticate, requireRole('TEACHER', 'ADMIN'), 
                 ? roundScore(a.scoreMax)
                 : (normalizedTestType === 'MILLIY_SERTIFIKAT' ? 75 : total)
             return {
+                attemptId: a.id,
                 name: a.user?.name || 'Noma\'lum',
                 email: a.user?.email || '',
                 score: scoreVal,
@@ -1709,6 +1974,138 @@ router.get('/:testId/analytics', authenticate, requireRole('TEACHER', 'ADMIN'), 
             totalAttempts, avgScore,
             students: studentRows,
             questionStats
+        })
+    } catch (e) {
+        console.error(e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+router.get('/:testId/attempts/:attemptId/detail', authenticate, requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, res) => {
+    try {
+        const where = req.user.role === 'ADMIN'
+            ? { id: req.params.testId as string }
+            : { id: req.params.testId as string, creatorId: req.user.id }
+
+        const test = await prisma.test.findFirst({
+            where,
+            include: {
+                questions: { orderBy: { orderIdx: 'asc' } },
+                attempts: {
+                    where: { id: req.params.attemptId as string },
+                    include: { user: { select: { name: true, email: true } } },
+                    take: 1
+                }
+            }
+        })
+
+        if (!test || test.attempts.length === 0) {
+            return res.status(404).json({ error: 'Urinish topilmadi yoki ruxsat yo\'q' })
+        }
+
+        const attempt = test.attempts[0]
+        let parsedAnswers: Array<Record<string, unknown>> = []
+        try {
+            parsedAnswers = typeof attempt.answers === 'string'
+                ? JSON.parse(attempt.answers)
+                : (attempt.answers as Array<Record<string, unknown>>)
+        } catch {
+            parsedAnswers = []
+        }
+
+        const questionDetails = test.questions.map((question) => {
+            const answer = parsedAnswers.find((item) => item.questionId === question.id)
+            const parsedOptions = parseStoredQuestionOptions(question.questionType, question.options)
+
+            if (question.questionType === 'matching') {
+                const matchingData = Array.isArray(parsedOptions) ? { answers: [], subQuestions: [] } : ('answers' in parsedOptions ? parsedOptions : { answers: [], subQuestions: [] })
+                const studentMatchingAnswers = Array.isArray(answer?.matchingAnswers)
+                    ? answer.matchingAnswers.map((selected) => typeof selected === 'number' ? selected : -1)
+                    : []
+                const details = matchingData.subQuestions.map((subQuestion, subIndex) => ({
+                    label: String(subIndex + 1),
+                    prompt: subQuestion.text,
+                    studentAnswer: matchingData.answers[studentMatchingAnswers[subIndex] || -1] || '—',
+                    correctAnswer: matchingData.answers[subQuestion.correctIdx] || '—',
+                    isCorrect: studentMatchingAnswers[subIndex] === subQuestion.correctIdx
+                }))
+                return {
+                    id: question.id,
+                    orderIdx: question.orderIdx,
+                    text: question.text,
+                    questionType: question.questionType,
+                    isCorrect: Boolean(answer?.isCorrect),
+                    details
+                }
+            }
+
+            if (question.questionType === 'multipart_open') {
+                const multipartData: StoredMultipartData = !Array.isArray(parsedOptions) && 'subQuestions' in parsedOptions && !('answers' in parsedOptions)
+                    ? parsedOptions
+                    : { subQuestions: [] }
+                const subResults = Array.isArray(answer?.subResults)
+                    ? answer.subResults.map((subResult) => ({
+                        label: String((subResult as { label?: unknown }).label || '—'),
+                        prompt: String((subResult as { subText?: unknown }).subText || ''),
+                        studentAnswer: String((subResult as { studentAnswer?: unknown }).studentAnswer || '—'),
+                        correctAnswer: String((subResult as { correctText?: unknown }).correctText || '—'),
+                        isCorrect: Boolean((subResult as { isCorrect?: unknown }).isCorrect)
+                    }))
+                    : multipartData.subQuestions.map((subQuestion) => ({
+                        label: subQuestion.label,
+                        prompt: subQuestion.text,
+                        studentAnswer: '—',
+                        correctAnswer: subQuestion.correctText,
+                        isCorrect: false
+                    }))
+                return {
+                    id: question.id,
+                    orderIdx: question.orderIdx,
+                    text: question.text,
+                    questionType: question.questionType,
+                    isCorrect: Boolean(answer?.isCorrect),
+                    details: subResults
+                }
+            }
+
+            const optionList = Array.isArray(parsedOptions) ? parsedOptions : []
+            const selectedIdx = typeof answer?.selectedIdx === 'number' ? answer.selectedIdx : -1
+            return {
+                id: question.id,
+                orderIdx: question.orderIdx,
+                text: question.text,
+                questionType: question.questionType,
+                isCorrect: Boolean(answer?.isCorrect),
+                options: optionList,
+                studentAnswer: question.questionType === 'open'
+                    ? String(answer?.textAnswer || '—')
+                    : (selectedIdx >= 0 ? optionList[selectedIdx] || '—' : '—'),
+                correctAnswer: question.questionType === 'open'
+                    ? formatAcceptedAnswers(question.correctText)
+                    : (question.correctIdx >= 0 ? optionList[question.correctIdx] || '—' : '—')
+            }
+        })
+
+        res.json({
+            test: {
+                id: test.id,
+                title: test.title,
+                subject: test.subject,
+                subject2: test.subject2,
+                testType: normalizeTestType(test.testType),
+                testTypeLabel: getTestTypeLabel(normalizeTestType(test.testType))
+            },
+            student: {
+                attemptId: attempt.id,
+                name: attempt.user?.name || 'Noma\'lum',
+                email: attempt.user?.email || '',
+                score: roundScore(attempt.score),
+                rawScore: typeof attempt.rawScore === 'number' ? roundScore(attempt.rawScore) : null,
+                scoreMax: typeof attempt.scoreMax === 'number' ? roundScore(attempt.scoreMax) : null,
+                grade: attempt.grade || null,
+                createdAt: attempt.createdAt
+            },
+            questions: questionDetails
         })
     } catch (e) {
         console.error(e)

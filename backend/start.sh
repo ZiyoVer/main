@@ -19,9 +19,9 @@ ENDSQL
 fi
 
 echo ">>> prisma migrate deploy ishlamoqda..."
-npx prisma migrate deploy 2>/dev/null || {
+if ! npx prisma migrate deploy; then
     echo ">>> migrate deploy amalga oshmadi, prisma db push ishlatilmoqda (birinchi deploy)..."
-    npx prisma db push
-}
+    npx prisma db push --skip-generate
+fi
 echo ">>> Server ishga tushmoqda..."
 exec node dist/app.js

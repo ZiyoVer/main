@@ -78,6 +78,122 @@ interface Question {
     coefficient?: number | null
 }
 
+interface TeacherTestListItem {
+    id: string
+    title: string
+    subject: string
+    subject2: string | null
+    isPublic: boolean
+    testType: string | null
+    timeLimit: number | null
+    shareLink: string
+    createdAt: string
+    avgScore: number
+    _count?: {
+        questions?: number
+        attempts?: number
+    }
+}
+
+interface AnalyticsStudentRow {
+    attemptId: string
+    name: string
+    email: string
+    score: number
+    rawScore?: number
+    scoreMax?: number
+    dtmBall?: number
+    dtmMax?: number
+    msBall?: number
+    msMax?: number
+    grade?: string | null
+    raschAbility?: number | null
+    createdAt: string
+}
+
+interface AnalyticsQuestionStat {
+    id: string
+    text: string
+    questionType: string
+    correctIdx: number
+    options: string[]
+    totalAnswered: number
+    correctCount: number
+    errorRate: number
+    optionCounts: number[]
+}
+
+interface AnalyticsResponse {
+    test: {
+        id: string
+        title: string
+        subject: string
+        subject2: string | null
+        testType: string
+        testTypeLabel: string
+        createdAt: string
+    }
+    totalAttempts: number
+    avgScore: number
+    students: AnalyticsStudentRow[]
+    questionStats: AnalyticsQuestionStat[]
+}
+
+interface TeacherTestDetailResponse {
+    id: string
+    title: string
+    description?: string | null
+    subject: string
+    subject2: string | null
+    isPublic: boolean
+    timeLimit: number | null
+    testType: TestTypeValue
+    attemptsCount: number
+    questions: Question[]
+}
+
+interface AttemptDetailItem {
+    label: string
+    prompt: string
+    studentAnswer: string
+    correctAnswer: string
+    isCorrect: boolean
+}
+
+interface AttemptDetailQuestion {
+    id: string
+    orderIdx: number
+    text: string
+    questionType: string
+    isCorrect: boolean
+    options?: string[]
+    studentAnswer?: string
+    correctAnswer?: string
+    details?: AttemptDetailItem[]
+}
+
+interface AttemptDetailResponse {
+    test: {
+        id: string
+        title: string
+        subject: string
+        subject2: string | null
+        testType: string
+        testTypeLabel: string
+    }
+    student: {
+        attemptId: string
+        name: string
+        email: string
+        score: number
+        rawScore: number | null
+        scoreMax: number | null
+        grade: string | null
+        createdAt: string
+    }
+    questions: AttemptDetailQuestion[]
+}
+
 const TEST_TYPES: Array<{ value: TestTypeValue; title: string; description: string; accent: string; icon: string }> = [
     { value: 'REGULAR', title: 'Oddiy test', description: 'Mavzuli, kichik va moslashuvchan test', accent: '#0f766e', icon: '🧩' },
     { value: 'DTM_BLOCK', title: 'DTM blok test', description: '189 ball · koeffitsientli bloklar', accent: '#d97706', icon: '🎯' },
@@ -125,7 +241,7 @@ export default function TeacherPanel() {
     const nav = useNavigate()
     const { logout } = useAuthStore()
     const [tab, setTab] = useState<'create' | 'list'>('list')
-    const [tests, setTests] = useState<any[]>([])
+    const [tests, setTests] = useState<TeacherTestListItem[]>([])
 
     const [title, setTitle] = useState('')
     const [subject, setSubject] = useState('Matematika')
@@ -139,9 +255,17 @@ export default function TeacherPanel() {
     const [msg, setMsg] = useState('')
     const [copied, setCopied] = useState<string | null>(null)
     const [analyticsId, setAnalyticsId] = useState<string | null>(null)
-    const [analytics, setAnalytics] = useState<any>(null)
+    const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null)
     const [loadingAnalytics, setLoadingAnalytics] = useState(false)
     const [analyticsError, setAnalyticsError] = useState('')
+    const [editingTestId, setEditingTestId] = useState<string | null>(null)
+    const [editingSourceTitle, setEditingSourceTitle] = useState('')
+    const [cloneMode, setCloneMode] = useState(false)
+    const [loadingEditor, setLoadingEditor] = useState(false)
+    const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(null)
+    const [attemptDetail, setAttemptDetail] = useState<AttemptDetailResponse | null>(null)
+    const [loadingAttemptDetail, setLoadingAttemptDetail] = useState(false)
+    const [attemptDetailError, setAttemptDetailError] = useState('')
 
     const [showNotifModal, setShowNotifModal] = useState(false)
     const [notifForm, setNotifForm] = useState({ title: '', message: '' })
@@ -186,6 +310,12 @@ export default function TeacherPanel() {
         try { setTests(await fetchApi('/tests/my-tests')) } catch { }
     }
 
+    function resetEditorState() {
+        setEditingTestId(null)
+        setEditingSourceTitle('')
+        setCloneMode(false)
+    }
+
     function selectTestType(nextType: TestTypeValue) {
         setTestType(nextType)
         setTimeLimitTouched(false)
@@ -226,6 +356,91 @@ export default function TeacherPanel() {
                 ? { ...createEmptyQuestion(), questionType: 'mcq', blockType: 'SPECIALTY_1', coefficient: 3.1 }
                 : createEmptyQuestion()
         ])
+    }
+
+    function applyOfficialDtmTemplate() {
+        if (!subject2) {
+            toast.error('DTM blok test uchun 2-ixtisoslik fanini tanlang')
+            return
+        }
+        const hasCustomContent = questions.some((question) => question.text.trim() || question.options.some((option) => option.trim()))
+        if (hasCustomContent && !confirm('Joriy savollar rasmiy 90 savollik shablon bilan almashtiriladi. Davom etasizmi?')) {
+            return
+        }
+
+        const template: Array<{ count: number; blockType: DtmBlockTypeValue }> = [
+            { count: 10, blockType: 'MANDATORY_LANGUAGE' },
+            { count: 10, blockType: 'MANDATORY_MATH' },
+            { count: 10, blockType: 'MANDATORY_HISTORY' },
+            { count: 30, blockType: 'SPECIALTY_1' },
+            { count: 30, blockType: 'SPECIALTY_2' },
+        ]
+
+        const nextQuestions = template.flatMap((group) =>
+            Array.from({ length: group.count }, () => ({
+                ...createEmptyQuestion(),
+                questionType: 'mcq' as const,
+                blockType: group.blockType,
+                coefficient: getDefaultCoefficient(group.blockType)
+            }))
+        )
+
+        setQuestions(nextQuestions)
+        setTimeLimitTouched(false)
+        toast.success('Rasmiy 90 savollik DTM shabloni qo\'yildi')
+    }
+
+    async function startEditing(testId: string, asClone = false) {
+        setLoadingEditor(true)
+        try {
+            const detail = await fetchApi(`/tests/${testId}`) as TeacherTestDetailResponse
+            setTitle(asClone || detail.attemptsCount > 0 ? `${detail.title} (nusxa)` : detail.title)
+            setSubject(detail.subject)
+            setSubject2(detail.subject2 || '')
+            setIsPublic(detail.isPublic)
+            setTestType(detail.testType)
+            setTimeLimit(detail.timeLimit || 0)
+            setTimeLimitTouched(Boolean(detail.timeLimit))
+            setQuestions(detail.questions.length > 0 ? detail.questions : [createEmptyQuestion()])
+            setTab('create')
+            setMsg('')
+            setAiFile(null)
+            setAiDone(false)
+            if (fileInputRef.current) fileInputRef.current.value = ''
+
+            if (asClone || detail.attemptsCount > 0) {
+                setEditingTestId(null)
+                setCloneMode(true)
+                setEditingSourceTitle(detail.title)
+                setMsg(detail.attemptsCount > 0
+                    ? 'Bu testda urinishlar bor. Xavfsizlik uchun nusxa rejimi ochildi — saqlasangiz yangi test yaratiladi.'
+                    : 'Nusxa rejimi ochildi — o\'zgartirib yangi test sifatida saqlaysiz.')
+            } else {
+                setEditingTestId(detail.id)
+                setEditingSourceTitle(detail.title)
+                setCloneMode(false)
+            }
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Test yuklanmadi'
+            toast.error(message)
+        } finally {
+            setLoadingEditor(false)
+        }
+    }
+
+    async function openAttemptDetail(testId: string, attemptId: string) {
+        setSelectedAttemptId(attemptId)
+        setAttemptDetail(null)
+        setAttemptDetailError('')
+        setLoadingAttemptDetail(true)
+        try {
+            const detail = await fetchApi(`/tests/${testId}/attempts/${attemptId}/detail`) as AttemptDetailResponse
+            setAttemptDetail(detail)
+        } catch (error) {
+            setAttemptDetailError(error instanceof Error ? error.message : 'Urinish yuklanmadi')
+        } finally {
+            setLoadingAttemptDetail(false)
+        }
     }
 
     async function uploadQuestionImage(qi: number, file: File) {
@@ -497,8 +712,8 @@ export default function TeacherPanel() {
         }
         setLoading(true); setMsg('')
         try {
-            await fetchApi('/tests/create', {
-                method: 'POST',
+            await fetchApi(editingTestId ? `/tests/${editingTestId}` : '/tests/create', {
+                method: editingTestId ? 'PATCH' : 'POST',
                 body: JSON.stringify({
                     title,
                     subject,
@@ -517,6 +732,7 @@ export default function TeacherPanel() {
             setIsPublic(false)
             setTestType('REGULAR')
             setSubject2('')
+            resetEditorState()
             setAiFile(null); setAiDone(false)
             // fileInput ni tozalash — bir xil faylni qayta yuklash mumkin bo'lsin
             if (fileInputRef.current) fileInputRef.current.value = ''
@@ -717,7 +933,19 @@ export default function TeacherPanel() {
                             style={tab === 'list' ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { color: 'var(--text-secondary)' }}>
                             <ClipboardList className="h-3.5 w-3.5" /> Testlarim
                         </button>
-                        <button onClick={() => { setTab('create'); setMsg('') }}
+                        <button onClick={() => {
+                            resetEditorState()
+                            setTitle('')
+                            setSubject('Matematika')
+                            setSubject2('')
+                            setIsPublic(false)
+                            setTestType('REGULAR')
+                            setTimeLimit(0)
+                            setTimeLimitTouched(false)
+                            setQuestions([createEmptyQuestion()])
+                            setTab('create')
+                            setMsg('')
+                        }}
                             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-[13px] font-medium transition"
                             style={tab === 'create' ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { color: 'var(--text-secondary)' }}>
                             <Plus className="h-3.5 w-3.5" /> Yangi Test
@@ -761,12 +989,22 @@ export default function TeacherPanel() {
                                             {t._count?.questions || 0} savol · {t._count?.attempts || 0} urinish · {t.subject}
                                             {t.subject2 ? ` + ${t.subject2}` : ''}
                                             {t.timeLimit ? ` · ⏱ ${t.timeLimit} min` : ''}
+                                            {` · ${new Date(t.createdAt).toLocaleDateString('uz-UZ')}`}
                                             {' · '}
                                             <span style={{ color: t.testType === 'DTM_BLOCK' ? '#f59e0b' : t.testType === 'MILLIY_SERTIFIKAT' ? '#8b5cf6' : '#0f766e' }}>
                                                 {getTestTypeLabel(t.testType)}
                                             </span>
+                                            {t._count?.attempts ? ` · O'rtacha ${t.avgScore}%` : ''}
                                         </p>
                                     </div>
+                                    <button
+                                        onClick={() => startEditing(t.id)}
+                                        disabled={loadingEditor}
+                                        className="h-7 px-2.5 flex items-center gap-1 rounded-lg text-[11px] font-medium transition flex-shrink-0"
+                                        style={{ color: 'var(--brand)', background: 'color-mix(in srgb, var(--brand) 10%, transparent)' }}
+                                    >
+                                        {t._count?.attempts ? 'Nusxa' : 'Tahrirlash'}
+                                    </button>
                                     <button
                                         onClick={() => toggleVisibility(t.id, t.isPublic)}
                                         className="h-7 px-2.5 flex items-center gap-1 rounded-lg text-[11px] font-medium transition flex-shrink-0"
@@ -808,6 +1046,38 @@ export default function TeacherPanel() {
                             )}
                             {msg && msg !== 'success' && (
                                 <div className="text-[13px] px-3 py-2 rounded-lg" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>{msg}</div>
+                            )}
+                            {(editingTestId || cloneMode) && (
+                                <div className="rounded-xl px-4 py-3 flex items-center justify-between gap-3" style={{ ...cardStyle, background: 'color-mix(in srgb, var(--brand) 5%, transparent)' }}>
+                                    <div>
+                                        <p className="text-[12px] font-semibold" style={secondaryText}>
+                                            {editingTestId ? 'Tahrirlash rejimi' : 'Nusxa rejimi'}
+                                        </p>
+                                        <p className="text-[11px]" style={mutedText}>
+                                            {editingTestId
+                                                ? `"${editingSourceTitle}" testini to'g'ridan-to'g'ri yangilayapsiz`
+                                                : `"${editingSourceTitle}" asosida yangi test yaratiladi`}
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="btn btn-outline btn-sm"
+                                        onClick={() => {
+                                            resetEditorState()
+                                            setTitle('')
+                                            setSubject('Matematika')
+                                            setSubject2('')
+                                            setIsPublic(false)
+                                            setTestType('REGULAR')
+                                            setTimeLimit(0)
+                                            setTimeLimitTouched(false)
+                                            setQuestions([createEmptyQuestion()])
+                                            setMsg('')
+                                        }}
+                                    >
+                                        Tozalash
+                                    </button>
+                                </div>
                             )}
 
                             {/* Test turi — birinchi va eng muhim */}
@@ -852,8 +1122,20 @@ export default function TeacherPanel() {
                                     </label>
                                 </div>
                                 {testType === 'DTM_BLOCK' && (
-                                    <div className="rounded-lg px-3 py-2 text-[11px]" style={{ background: 'color-mix(in srgb, #f59e0b 10%, transparent)', border: '1px solid color-mix(in srgb, #f59e0b 20%, transparent)', color: 'var(--text-secondary)' }}>
-                                        Har savolda blok turini tanlaysiz. Koeffitsient avtomatik keladi, xohlasangiz qo'lda ham o'zgartirasiz.
+                                    <div className="space-y-2">
+                                        <div className="rounded-lg px-3 py-2 text-[11px]" style={{ background: 'color-mix(in srgb, #f59e0b 10%, transparent)', border: '1px solid color-mix(in srgb, #f59e0b 20%, transparent)', color: 'var(--text-secondary)' }}>
+                                            Har savolda blok turini tanlaysiz. Koeffitsient avtomatik keladi, xohlasangiz qo'lda ham o'zgartirasiz.
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={applyOfficialDtmTemplate}
+                                                className="btn btn-outline btn-sm"
+                                            >
+                                                Rasmiy 90 savollik shablon
+                                            </button>
+                                            <span className="text-[11px] self-center" style={mutedText}>10 + 10 + 10 + 30 + 30 blok</span>
+                                        </div>
                                     </div>
                                 )}
                                 {/* Vaqt chegarasi */}
@@ -1224,7 +1506,7 @@ export default function TeacherPanel() {
                             </button>
                             <button type="submit" disabled={loading}
                                 className="btn btn-primary" style={{ width: '100%', height: '2.5rem' }}>
-                                {loading ? 'Saqlanmoqda...' : `Testni Saqlash (${questions.length} savol)`}
+                                {loading ? 'Saqlanmoqda...' : editingTestId ? `Testni Yangilash (${questions.length} savol)` : `Testni Saqlash (${questions.length} savol)`}
                             </button>
                         </form>
                     )}
@@ -1266,7 +1548,7 @@ export default function TeacherPanel() {
 
             {/* Analytics Modal */}
             {analyticsId && (
-                <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setAnalyticsId(null)}>
+                <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => { setAnalyticsId(null); setSelectedAttemptId(null) }}>
                     <div className="rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl" style={{ background: 'var(--bg-card)' }} onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-between px-5 py-3.5 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                             <div className="flex items-center gap-2.5">
@@ -1287,7 +1569,7 @@ export default function TeacherPanel() {
                                     <FileText className="h-3.5 w-3.5" />
                                     PDF yuklash
                                 </button>
-                                <button onClick={() => setAnalyticsId(null)} className="h-7 w-7 flex items-center justify-center rounded-lg transition"
+                                <button onClick={() => { setAnalyticsId(null); setSelectedAttemptId(null) }} className="h-7 w-7 flex items-center justify-center rounded-lg transition"
                                     style={mutedText}
                                     onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
                                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
@@ -1335,7 +1617,7 @@ export default function TeacherPanel() {
                                     </div>
                                 </div>
 
-                                {analytics?.students?.length > 0 && (
+                                {analytics && analytics.students.length > 0 && (
                                     <div>
                                         <h3 className="text-[11px] font-semibold uppercase tracking-wide mb-2" style={mutedText}>O'quvchilar reytingi</h3>
                                         <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
@@ -1350,13 +1632,18 @@ export default function TeacherPanel() {
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {analytics.students.map((s: any, i: number) => {
+                                                    {analytics.students.map((s: AnalyticsStudentRow, i: number) => {
                                                         const col = s.score >= 70 ? 'var(--success)' : s.score >= 50 ? '#f59e0b' : 'var(--danger)'
                                                         const scoreLabel = typeof s.rawScore === 'number' && typeof s.scoreMax === 'number'
                                                             ? `${s.rawScore} / ${s.scoreMax}`
                                                             : `${s.dtmBall ?? s.score}`
                                                         return (
-                                                            <tr key={i} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'var(--bg-surface)' }}>
+                                                            <tr
+                                                                key={s.attemptId}
+                                                                style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'var(--bg-surface)', cursor: 'pointer' }}
+                                                                onClick={() => openAttemptDetail(analytics.test.id, s.attemptId)}
+                                                                title="Batafsil natijani ko'rish"
+                                                            >
                                                                 <td className="px-3 py-2 font-bold" style={{ color: 'var(--text-muted)' }}>{i + 1}</td>
                                                                 <td className="px-3 py-2">
                                                                     <p className="font-medium" style={{ color: 'var(--text-primary)' }}>{s.name}</p>
@@ -1374,11 +1661,11 @@ export default function TeacherPanel() {
                                     </div>
                                 )}
 
-                                {analytics?.questionStats?.length > 0 && (
+                                {analytics && analytics.questionStats.length > 0 && (
                                     <div>
                                         <h3 className="text-[11px] font-semibold uppercase tracking-wide mb-2" style={mutedText}>Savollar tahlili</h3>
                                         <div className="space-y-2">
-                                            {analytics.questionStats.map((q: any, i: number) => (
+                                            {analytics.questionStats.map((q: AnalyticsQuestionStat, i: number) => (
                                                 <div key={q.id} className="rounded-xl p-3" style={{ background: 'var(--bg-surface)' }}>
                                                     <div className="flex items-start justify-between gap-2 mb-2.5">
                                                         <p className="text-[12px] flex-1 leading-relaxed">
@@ -1424,6 +1711,93 @@ export default function TeacherPanel() {
                                         </div>
                                     </div>
                                 )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {selectedAttemptId && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50" onClick={() => setSelectedAttemptId(null)}>
+                    <div className="rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl" style={{ background: 'var(--bg-card)' }} onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between px-5 py-3.5 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+                            <div>
+                                <h3 className="text-[14px] font-semibold">{attemptDetail?.student.name || 'Natija tafsiloti'}</h3>
+                                {attemptDetail && (
+                                    <p className="text-[11px]" style={mutedText}>
+                                        {attemptDetail.student.rawScore ?? attemptDetail.student.score} / {attemptDetail.student.scoreMax ?? 100}
+                                        {' · '}
+                                        {attemptDetail.student.score}%{attemptDetail.student.grade ? ` · ${attemptDetail.student.grade}` : ''}
+                                        {' · '}
+                                        {new Date(attemptDetail.student.createdAt).toLocaleString('uz-UZ')}
+                                    </p>
+                                )}
+                            </div>
+                            <button onClick={() => setSelectedAttemptId(null)} className="h-7 w-7 flex items-center justify-center rounded-lg transition"
+                                style={mutedText}
+                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                        {loadingAttemptDetail ? (
+                            <div className="flex-1 flex items-center justify-center p-12">
+                                <div className="h-5 w-5 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--brand)', borderTopColor: 'transparent' }} />
+                            </div>
+                        ) : attemptDetailError ? (
+                            <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
+                                <p className="text-sm font-medium mb-1">Natija ochilmadi</p>
+                                <p className="text-[12px] mb-4" style={mutedText}>{attemptDetailError}</p>
+                                {analyticsId && (
+                                    <button className="btn btn-primary btn-sm" onClick={() => openAttemptDetail(analyticsId, selectedAttemptId)}>
+                                        Qayta urinish
+                                    </button>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="flex-1 overflow-y-auto p-5 space-y-3">
+                                {attemptDetail?.questions.map((question, index) => (
+                                    <div key={question.id} className="rounded-xl p-4 space-y-2" style={{ border: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <p className="text-[12px] font-semibold" style={secondaryText}>
+                                                    Savol {index + 1}
+                                                </p>
+                                                <p className="text-[13px] leading-relaxed">
+                                                    <MathInlineText text={question.text} />
+                                                </p>
+                                            </div>
+                                            <span className="text-[11px] font-semibold px-2 py-1 rounded-md"
+                                                style={question.isCorrect
+                                                    ? { color: 'var(--success)', background: 'color-mix(in srgb, var(--success) 12%, transparent)' }
+                                                    : { color: 'var(--danger)', background: 'color-mix(in srgb, var(--danger) 12%, transparent)' }}>
+                                                {question.isCorrect ? 'To‘g‘ri' : 'Xato'}
+                                            </span>
+                                        </div>
+                                        {question.details?.length ? (
+                                            <div className="space-y-2">
+                                                {question.details.map((detail) => (
+                                                    <div key={`${question.id}-${detail.label}`} className="rounded-lg px-3 py-2" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                                        <p className="text-[11px] font-semibold mb-1" style={secondaryText}>{detail.label}. {detail.prompt}</p>
+                                                        <p className="text-[11px]" style={mutedText}>Talaba: <span style={{ color: detail.isCorrect ? 'var(--success)' : 'var(--danger)' }}>{detail.studentAnswer}</span></p>
+                                                        <p className="text-[11px]" style={mutedText}>To‘g‘ri javob: {detail.correctAnswer}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                <div className="rounded-lg px-3 py-2" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                                    <p className="text-[10px] uppercase tracking-wide mb-1" style={mutedText}>Talaba javobi</p>
+                                                    <p className="text-[12px]"><MathInlineText text={question.studentAnswer || '—'} /></p>
+                                                </div>
+                                                <div className="rounded-lg px-3 py-2" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                                    <p className="text-[10px] uppercase tracking-wide mb-1" style={mutedText}>To‘g‘ri javob</p>
+                                                    <p className="text-[12px]"><MathInlineText text={question.correctAnswer || '—'} /></p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
                             </div>
                         )}
                     </div>

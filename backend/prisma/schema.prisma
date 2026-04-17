@@ -132,7 +132,7 @@ model Test {
   shareLink   String         @unique @default(uuid())
   subject     String?
   subject2    String?
-  testType    TestType       @default(REGULAR)
+  testType    String         @default("REGULAR")
   timeLimit   Int?           // minutes, null = no limit
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt

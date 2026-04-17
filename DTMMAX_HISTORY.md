@@ -199,4 +199,46 @@ Prompt fayllar:
 
 ---
 
+## 2026-04-17 — Baholash contracti + ustoz paneli nazorati
+
+### Baholash tizimi
+- Testlar 3 turga ajratildi:
+  - `REGULAR`
+  - `DTM_BLOCK`
+  - `MILLIY_SERTIFIKAT`
+- `DTM_BLOCK` uchun 189 ballik koeffitsientli hisoblash qo'shildi
+- `MILLIY_SERTIFIKAT` uchun Rash/Rasch asosidagi 75 ball + harf baho saqlandi
+- `StudentProfile.abilityLevel` endi faqat `MILLIY_SERTIFIKAT` submitlaridan yangilanadi
+
+### Ustoz paneli
+- O'qituvchi paneliga 3 xil test turi tanlash aniq ko'rinishda berildi
+- `DTM blok test` uchun per-question:
+  - blok turi
+  - koeffitsient
+  nazorati qo'shildi
+- Test natijalarida `rawScore / scoreMax / grade` ko'rsatish kuchaytirildi
+- Testni qayta ishlash uchun:
+  - urinishsiz testlar → to'g'ridan-to'g'ri tahrirlash
+  - urinishli testlar → xavfsiz `nusxa` rejimi
+- Ustoz analytics modalidan o'quvchi urinishini batafsil ochish qo'shildi
+- `DTM blok test` uchun rasmiy 90 savollik shablon qo'shildi
+
+### Deploy / Prisma saboq
+- `Test.testType` ni Prisma enum qilish Railway fallback `db push` bilan to'qnashdi
+- Shu sabab `testType` schema darajasida `String` ga qaytarildi, qiymatlar esa app contract orqali boshqariladi:
+  - `REGULAR`
+  - `DTM_BLOCK`
+  - `MILLIY_SERTIFIKAT`
+- Alohida compat migration qo'shildi, shunda enum → text o'tishi xavfsizroq bo'ladi
+
+### Hali qolganlar
+- Admin analytics hali scale-aware emas
+- Teacher panelda:
+  - to'liq wizard polish
+  - chuqur student drill-down
+  - yanada kuchli test ops nazorati
+  keyingi batchda davom etadi
+
+---
+
 *Oxirgi yangilanish: 2026-04-17*
