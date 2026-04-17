@@ -47,6 +47,21 @@ enum Role {
   ADMIN
 }
 
+enum TestType {
+  REGULAR
+  DTM_BLOCK
+  MILLIY_SERTIFIKAT
+}
+
+enum DtmBlockType {
+  GENERIC
+  MANDATORY_LANGUAGE
+  MANDATORY_MATH
+  MANDATORY_HISTORY
+  SPECIALTY_1
+  SPECIALTY_2
+}
+
 model StudentProfile {
   id           String   @id @default(uuid())
   userId       String   @unique
@@ -116,7 +131,8 @@ model Test {
   isPublic    Boolean        @default(false)
   shareLink   String         @unique @default(uuid())
   subject     String?
-  testType    String         @default("milliy_sertifikat") // "milliy_sertifikat" | "dtm"
+  subject2    String?
+  testType    TestType       @default(REGULAR)
   timeLimit   Int?           // minutes, null = no limit
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
@@ -140,6 +156,8 @@ model TestQuestion {
   correctText  String? // To'g'ri javob matni (open-ended uchun)
   questionType String  @default("mcq") // "mcq" | "open"
   difficulty   Float   @default(0.0)   // Rasch difficulty
+  blockType    DtmBlockType @default(GENERIC)
+  coefficient  Float?
   orderIdx     Int     @default(0)
 }
 
@@ -151,6 +169,9 @@ model TestAttempt {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   answers   String   // JSON: [{questionId, selectedIdx, isCorrect}]
   score     Float
+  rawScore  Float?
+  scoreMax  Float?
+  grade     String?
   raschAbility Float @default(0.0)
   createdAt DateTime @default(now())
 

@@ -4,40 +4,22 @@ import pdfParse from 'pdf-parse'
 import mammoth from 'mammoth'
 import OpenAI from 'openai'
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
+import { DtmBlockType } from '@prisma/client'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole, optionalAuthenticate } from '../middleware/auth'
-import { raschProbability, updateAbility } from '../utils/rasch'
 import { uploadToS3, getSignedS3Url, resolveStoredS3Url, toStoredS3Ref } from '../utils/s3'
-import { getSubjectVariants, isMandatoryDtmSubject, normalizeSubject } from '../utils/subjects'
-
-// MS (Milliy Sertifikat) Rash model baho chegaralari — uzbmb.uz rasmiy ma'lumotlari asosida
-function getGrade(score: number): string {
-    if (score >= 70) return 'A+'
-    if (score >= 65) return 'A'
-    if (score >= 60) return 'B+'
-    if (score >= 55) return 'B'
-    if (score >= 50) return 'C+'
-    if (score >= 46) return 'C'
-    return 'D'
-}
-
-// DTM ball hisoblash
-// Majburiy fanlar (10 savol * 1.1 = max 11 ball)
-// Ixtisoslik 1-fan (30 savol * 3.1 = max 93 ball)
-// Ixtisoslik 2-fan (30 savol * 2.1 = max 63 ball)
-// Ustoz testlari uchun: bir fan bo'lgani uchun 3.1 koeffitsient ishlatiladi
-function getDtmBall(subject: string | null, correct: number, total: number): { ball: number; max: number; coefficient: number } {
-    const coef = isMandatoryDtmSubject(subject) ? 1.1 : 3.1
-    return {
-        ball: Math.round(correct * coef * 10) / 10,
-        max: Math.round(total * coef * 10) / 10,
-        coefficient: coef
-    }
-}
-
-function roundScore(value: number): number {
-    return Math.round(value * 10) / 10
-}
+import { getSubjectVariants, normalizeSubject } from '../utils/subjects'
+import {
+    getDefaultDtmCoefficient,
+    getMsGrade,
+    getTestTypeLabel,
+    normalizeDtmBlockType,
+    normalizeTestType,
+    roundScore,
+    scoreDtmBlockAttempt,
+    scoreMilliySertifikatAttempt,
+    scoreRegularAttempt,
+} from '../utils/testScoring'
 
 function normalizeOpenAnswer(text: string | null | undefined): string {
     return (text || '')
@@ -145,29 +127,6 @@ async function evaluateOpenAnswer(studentAnswer: string, correctAnswer: string):
     }
 }
 
-function getMsRaschScore(items: { difficulty: number; isCorrect: boolean }[]): { ball: number; max: number; ability: number } {
-    if (items.length === 0) return { ball: 0, max: 100, ability: 0 }
-
-    const correctCount = items.filter(item => item.isCorrect).length
-    let ability = 0
-
-    if (correctCount === 0) {
-        ability = -5
-    } else if (correctCount === items.length) {
-        ability = 5
-    } else {
-        ability = updateAbility(0, items)
-    }
-
-    const expectedScore = items.reduce((sum, item) => sum + raschProbability(ability, item.difficulty), 0) / items.length
-
-    return {
-        ball: roundScore(expectedScore * 100),
-        max: 100,
-        ability
-    }
-}
-
 const router = Router()
 
 // Test submit uchun rate limit (brute force javob topish oldini olish)
@@ -235,6 +194,29 @@ const QUESTION_GENERATION_TEXT_CHUNK_SIZE = 18000
 const QUESTION_GENERATION_TEXT_MAX_CHUNKS = 4
 const QUESTION_GENERATION_VISION_BATCH_PAGES = 2
 const QUESTION_GENERATION_VISION_MAX_PAGES = 12
+
+interface IncomingCreateQuestion {
+    text?: string
+    imageUrl?: string | null
+    options?: string[] | string
+    correctIdx?: number
+    correctText?: string | null
+    questionType?: string
+    difficulty?: number
+    blockType?: DtmBlockType | string | null
+    coefficient?: number | string | null
+}
+
+function parseQuestionCoefficient(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+        return roundScore(value)
+    }
+    if (typeof value === 'string' && value.trim()) {
+        const parsed = Number(value)
+        if (Number.isFinite(parsed) && parsed > 0) return roundScore(parsed)
+    }
+    return null
+}
 
 function buildQuestionGeneratorSystemPrompt() {
     return `Siz test savollari generatorisiz. Sizga berilgan matn yoki rasmdan savollarni AYNAN ajratib olasiz. FAQAT JSON array formatda javob bering, boshqa hech narsa yozmasdan.
@@ -599,7 +581,7 @@ router.get('/my-results', authenticate, async (req: AuthRequest, res) => {
     try {
         const attempts = await prisma.testAttempt.findMany({
             where: { userId: req.user.id },
-            include: { test: { select: { title: true, subject: true } } },
+            include: { test: { select: { title: true, subject: true, subject2: true, testType: true } } },
             orderBy: { createdAt: 'desc' }
         })
         res.json(attempts)
@@ -847,13 +829,14 @@ router.post('/:testId/questions', authenticate, requireRole('TEACHER', 'ADMIN'),
         }
 
         const { text, imageUrl, options, correctIdx, orderIdx, difficulty, questionType } = req.body
+        const normalizedTestType = normalizeTestType(test.testType)
 
         // Savol matni validatsiyasi
         if (!text || typeof text !== 'string' || !text.trim()) {
             return res.status(400).json({ error: 'Savol matni majburiy' })
         }
-        if (test.testType === 'dtm' && questionType === 'multipart_open') {
-            return res.status(400).json({ error: 'Multi-part yozma savol DTM testida qo\'llanmaydi' })
+        if (normalizedTestType === 'DTM_BLOCK' && questionType !== 'mcq') {
+            return res.status(400).json({ error: 'DTM blok testida faqat A/B/C/D savollar bo\'lishi kerak' })
         }
         if (text.trim().length > 2000) {
             return res.status(400).json({ error: 'Savol matni 2000 belgidan oshmasligi kerak' })
@@ -893,6 +876,13 @@ router.post('/:testId/questions', authenticate, requireRole('TEACHER', 'ADMIN'),
             }
         }
 
+        if (normalizedTestType === 'DTM_BLOCK' && questionType !== 'mcq') {
+            return res.status(400).json({ error: 'DTM blok testida faqat A/B/C/D savollar bo\'lishi kerak' })
+        }
+
+        const parsedBlockType = normalizeDtmBlockType(req.body.blockType)
+        const parsedCoefficient = parseQuestionCoefficient(req.body.coefficient)
+
         const q = await prisma.testQuestion.create({
             data: {
                 testId: test.id,
@@ -905,7 +895,11 @@ router.post('/:testId/questions', authenticate, requireRole('TEACHER', 'ADMIN'),
                        : JSON.stringify(options),
                 correctIdx: (questionType === 'open' || questionType === 'matching' || questionType === 'multipart_open') ? -1 : (correctIdx ?? 0),
                 orderIdx: orderIdx || 0,
-                difficulty: difficulty || 0.0
+                difficulty: difficulty || 0.0,
+                blockType: parsedBlockType,
+                coefficient: normalizedTestType === 'DTM_BLOCK'
+                    ? (parsedCoefficient ?? getDefaultDtmCoefficient(parsedBlockType, test.subject))
+                    : null
             }
         })
         res.status(201).json(q)
@@ -918,21 +912,27 @@ router.post('/:testId/questions', authenticate, requireRole('TEACHER', 'ADMIN'),
 // O'qituvchi: Test yaratish
 router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimiter, async (req: AuthRequest, res) => {
     try {
-        const { title, description, subject, isPublic, questions, timeLimit, testType } = req.body
+        const { title, description, subject, subject2, isPublic, questions, timeLimit, testType } = req.body
         const normalizedSubject = normalizeSubject(subject)
+        const normalizedSubject2 = normalizeSubject(subject2)
+        const normalizedTestType = normalizeTestType(typeof testType === 'string' ? testType : undefined)
         if (!title || !questions?.length) {
             return res.status(400).json({ error: 'Test nomi va savollar kerak' })
         }
 
         // Har bir savol validatsiyasi
         for (let i = 0; i < questions.length; i++) {
-            const q = questions[i]
+            const q = questions[i] as IncomingCreateQuestion
+            const questionType = q.questionType || 'mcq'
             const hasText = q.text && typeof q.text === 'string' && q.text.trim().length > 0
             const hasImage = q.imageUrl && typeof q.imageUrl === 'string' && q.imageUrl.trim().length > 0
             if (!hasText && !hasImage) {
                 return res.status(400).json({ error: `${i + 1}-savol: savol matni yoki rasmi bo'lishi shart` })
             }
-            if (q.questionType === 'matching') {
+            if (normalizedTestType === 'DTM_BLOCK' && questionType !== 'mcq') {
+                return res.status(400).json({ error: `${i + 1}-savol: DTM blok testida faqat A/B/C/D savollar bo'lishi kerak` })
+            }
+            if (questionType === 'matching') {
                 // Moslashtirish savol validatsiyasi
                 let matchData: any = {}
                 try { matchData = typeof q.options === 'string' ? JSON.parse(q.options) : q.options } catch {
@@ -942,7 +942,7 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
                 const mSubs = matchData.subQuestions || []
                 if (mAnswers.length < 2) return res.status(400).json({ error: `${i + 1}-savol: kamida 2 ta javob varianti bo'lishi kerak` })
                 if (mSubs.length < 1) return res.status(400).json({ error: `${i + 1}-savol: kamida 1 ta kichik savol bo'lishi kerak` })
-            } else if (q.questionType === 'multipart_open') {
+            } else if (questionType === 'multipart_open') {
                 let multipartData: any = {}
                 try { multipartData = typeof q.options === 'string' ? JSON.parse(q.options) : q.options } catch {
                     return res.status(400).json({ error: `${i + 1}-savol: multi-part formati xato` })
@@ -959,11 +959,11 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
                         return res.status(400).json({ error: `${i + 1}-savol: ${si + 1}-bo'lim uchun to'g'ri javob yo'q` })
                     }
                 }
-            } else if (q.questionType !== 'open') {
+            } else if (questionType !== 'open') {
                 // MCQ validatsiyasi
                 let opts: any[]
                 try {
-                    opts = Array.isArray(q.options) ? q.options : JSON.parse(q.options)
+                    opts = Array.isArray(q.options) ? q.options : JSON.parse(q.options || '[]')
                 } catch {
                     return res.status(400).json({ error: `${i + 1}-savol: options to'g'ri format emas` })
                 }
@@ -980,38 +980,55 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
                     return res.status(400).json({ error: `${i + 1}-savol: correctIdx 0 dan ${opts.length - 1} gacha bo'lishi kerak` })
                 }
             }
-        }
 
-        const validTestType = testType === 'dtm' ? 'dtm' : 'milliy_sertifikat'
-        if (validTestType === 'dtm' && questions.some((question: any) => question.questionType === 'multipart_open')) {
-            return res.status(400).json({ error: 'Multi-part yozma savollar faqat Milliy Sertifikat testlari uchun' })
+            if (normalizedTestType === 'DTM_BLOCK') {
+                const blockType = normalizeDtmBlockType(typeof q.blockType === 'string' ? q.blockType : undefined)
+                if (blockType === 'SPECIALTY_2' && !normalizedSubject2) {
+                    return res.status(400).json({ error: `${i + 1}-savol: 2-ixtisoslik bloki uchun 2-fan tanlanishi kerak` })
+                }
+                const coefficient = parseQuestionCoefficient(q.coefficient) ?? getDefaultDtmCoefficient(blockType, normalizedSubject)
+                if (!Number.isFinite(coefficient) || coefficient <= 0) {
+                    return res.status(400).json({ error: `${i + 1}-savol: koeffitsient xato` })
+                }
+            }
         }
         const test = await prisma.test.create({
             data: {
                 title,
                 description: description || null,
                 subject: normalizedSubject,
+                subject2: normalizedSubject2,
                 isPublic: isPublic || false,
-                ...(validTestType && { testType: validTestType } as any),
+                testType: normalizedTestType,
                 timeLimit: timeLimit || null,
                 creatorId: req.user.id,
                 questions: {
-                    create: questions.map((q: any, i: number) => ({
+                    create: questions.map((q: IncomingCreateQuestion, i: number) => {
+                        const questionType = q.questionType || 'mcq'
+                        const blockType = normalizeDtmBlockType(typeof q.blockType === 'string' ? q.blockType : undefined)
+                        const coefficient = normalizedTestType === 'DTM_BLOCK'
+                            ? (parseQuestionCoefficient(q.coefficient) ?? getDefaultDtmCoefficient(blockType, normalizedSubject))
+                            : null
+
+                        return ({
                         text: q.text,
                         imageUrl: q.imageUrl || null,
                         // matching: options allaqachon JSON string (frontend JSON.stringify qilgan)
                         // mcq: options array → JSON.stringify kerak
                         // open: bo'sh array
-                        options: q.questionType === 'open' ? '[]'
-                               : q.questionType === 'multipart_open' ? (typeof q.options === 'string' ? q.options : JSON.stringify(q.options))
-                               : q.questionType === 'matching' ? (typeof q.options === 'string' ? q.options : JSON.stringify(q.options))
+                        options: questionType === 'open' ? '[]'
+                               : questionType === 'multipart_open' ? (typeof q.options === 'string' ? q.options : JSON.stringify(q.options))
+                               : questionType === 'matching' ? (typeof q.options === 'string' ? q.options : JSON.stringify(q.options))
                                : JSON.stringify(q.options),
-                        correctIdx: (q.questionType === 'open' || q.questionType === 'matching' || q.questionType === 'multipart_open') ? -1 : (q.correctIdx ?? 0),
-                        correctText: q.questionType === 'open' ? (q.correctText?.trim() || null) : null,
-                        questionType: q.questionType || 'mcq',
+                        correctIdx: (questionType === 'open' || questionType === 'matching' || questionType === 'multipart_open') ? -1 : (q.correctIdx ?? 0),
+                        correctText: questionType === 'open' ? (q.correctText?.trim() || null) : null,
+                        questionType,
                         difficulty: q.difficulty || 0.0,
-                        orderIdx: i
-                    }))
+                        orderIdx: i,
+                        blockType,
+                        coefficient
+                    })
+                    })
                 }
             },
             include: { questions: true }
@@ -1294,6 +1311,7 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
             include: { questions: true }
         })
         if (!test) return res.status(404).json({ error: 'Test topilmadi' })
+        const normalizedTestType = normalizeTestType(test.testType)
 
         // Student public test yoki valid share-link bilan kirilgan private testni submit qila oladi
         if (!test.isPublic && req.user?.role === 'STUDENT' && shareLink !== test.shareLink) {
@@ -1301,70 +1319,94 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
         }
 
         // Javoblarni tekshirish
-        const results = await Promise.all(answers.map(async (a: any) => {
-            const q = test.questions.find(q => q.id === a.questionId)
+        const answerMap = new Map<string, Record<string, unknown>>(
+            answers
+                .filter((answer: unknown): answer is Record<string, unknown> => Boolean(answer) && typeof answer === 'object' && typeof (answer as { questionId?: unknown }).questionId === 'string')
+                .map((answer) => [String(answer.questionId), answer])
+        )
+
+        const results = await Promise.all(test.questions.map(async (q) => {
+            const a = answerMap.get(q.id)
             let isCorrect = false
-            if (q) {
-                if (q.questionType === 'open') {
-                    const studentAns = (a.textAnswer || '').trim()
-                    const correctAns = (q.correctText || '').trim()
-                    isCorrect = await evaluateOpenAnswer(studentAns, correctAns)
-                } else if (q.questionType === 'multipart_open') {
-                    let multipartData: any = { subQuestions: [] }
-                    try { multipartData = JSON.parse(q.options as string) } catch { }
-                    const subQuestions = multipartData.subQuestions || []
-                    const studentTextAnswers: string[] = Array.isArray(a.textAnswers) ? a.textAnswers.map((answer: string) => String(answer || '')) : []
-                    const subResults = await Promise.all(subQuestions.map(async (subQuestion: any, subIndex: number) => {
-                        const studentAnswer = (studentTextAnswers[subIndex] || '').trim()
-                        const correctText = String(subQuestion.correctText || '').trim()
-                        const subCorrect = await evaluateOpenAnswer(studentAnswer, correctText)
-                        return {
-                            label: String(subQuestion.label || String.fromCharCode(65 + subIndex)),
-                            subText: String(subQuestion.text || ''),
-                            studentAnswer,
-                            correctText,
-                            isCorrect: subCorrect
-                        }
-                    }))
-                    const correctSubCount = subResults.filter((subResult) => subResult.isCorrect).length
-                    isCorrect = correctSubCount === subQuestions.length && subQuestions.length > 0
-                    return {
-                        questionId: a.questionId,
-                        selectedIdx: -1,
-                        textAnswer: null,
-                        textAnswers: studentTextAnswers,
-                        isCorrect,
-                        difficulty: q?.difficulty || 0.0,
-                        correctSubCount,
-                        totalSubs: subQuestions.length,
-                        subResults
-                    }
-                } else if (q.questionType === 'matching') {
-                    let matchingData: any = { answers: [], subQuestions: [] }
-                    try { matchingData = JSON.parse(q.options as string) } catch { }
-                    const subQuestions = matchingData.subQuestions || []
-                    const studentMatchingAnswers: number[] = a.matchingAnswers || []
-                    let correctSubCount = 0
-                    subQuestions.forEach((sq: any, si: number) => {
-                        if (studentMatchingAnswers[si] === sq.correctIdx) correctSubCount++
-                    })
-                    isCorrect = correctSubCount === subQuestions.length && subQuestions.length > 0
-                    return {
-                        questionId: a.questionId, selectedIdx: -1, textAnswer: null,
-                        matchingAnswers: studentMatchingAnswers,
-                        isCorrect, difficulty: q?.difficulty || 0.0,
-                        correctSubCount, totalSubs: subQuestions.length
-                    }
-                } else {
-                    isCorrect = q.correctIdx === a.selectedIdx
+            if (q.questionType === 'open') {
+                const studentAns = typeof a?.textAnswer === 'string' ? a.textAnswer.trim() : ''
+                const correctAns = (q.correctText || '').trim()
+                isCorrect = studentAns ? await evaluateOpenAnswer(studentAns, correctAns) : false
+                return {
+                    questionId: q.id,
+                    selectedIdx: -1,
+                    textAnswer: studentAns || null,
+                    isCorrect,
+                    difficulty: q.difficulty || 0.0
                 }
             }
+
+            if (q.questionType === 'multipart_open') {
+                let multipartData: { subQuestions?: Array<{ label?: string; text?: string; correctText?: string }> } = { subQuestions: [] }
+                try { multipartData = JSON.parse(q.options as string) } catch { }
+                const subQuestions = multipartData.subQuestions || []
+                const studentTextAnswers = Array.isArray(a?.textAnswers)
+                    ? a.textAnswers.map(answer => String(answer || ''))
+                    : []
+                const subResults = await Promise.all(subQuestions.map(async (subQuestion, subIndex) => {
+                    const studentAnswer = (studentTextAnswers[subIndex] || '').trim()
+                    const correctText = String(subQuestion.correctText || '').trim()
+                    const subCorrect = studentAnswer ? await evaluateOpenAnswer(studentAnswer, correctText) : false
+                    return {
+                        label: String(subQuestion.label || String.fromCharCode(65 + subIndex)),
+                        subText: String(subQuestion.text || ''),
+                        studentAnswer,
+                        correctText,
+                        isCorrect: subCorrect
+                    }
+                }))
+                const correctSubCount = subResults.filter((subResult) => subResult.isCorrect).length
+                isCorrect = correctSubCount === subQuestions.length && subQuestions.length > 0
+                return {
+                    questionId: q.id,
+                    selectedIdx: -1,
+                    textAnswer: null,
+                    textAnswers: studentTextAnswers,
+                    isCorrect,
+                    difficulty: q.difficulty || 0.0,
+                    correctSubCount,
+                    totalSubs: subQuestions.length,
+                    subResults
+                }
+            }
+
+            if (q.questionType === 'matching') {
+                let matchingData: { subQuestions?: Array<{ correctIdx?: number }> } = { subQuestions: [] }
+                try { matchingData = JSON.parse(q.options as string) } catch { }
+                const subQuestions = matchingData.subQuestions || []
+                const studentMatchingAnswers = Array.isArray(a?.matchingAnswers)
+                    ? a.matchingAnswers.map(answer => typeof answer === 'number' ? answer : -1)
+                    : []
+                let correctSubCount = 0
+                subQuestions.forEach((sq, si) => {
+                    if (studentMatchingAnswers[si] === sq.correctIdx) correctSubCount++
+                })
+                isCorrect = correctSubCount === subQuestions.length && subQuestions.length > 0
+                return {
+                    questionId: q.id,
+                    selectedIdx: -1,
+                    textAnswer: null,
+                    matchingAnswers: studentMatchingAnswers,
+                    isCorrect,
+                    difficulty: q.difficulty || 0.0,
+                    correctSubCount,
+                    totalSubs: subQuestions.length
+                }
+            }
+
+            const selectedIdx = typeof a?.selectedIdx === 'number' ? a.selectedIdx : -1
+            isCorrect = q.correctIdx === selectedIdx
             return {
-                questionId: a.questionId,
-                selectedIdx: a.selectedIdx ?? -1,
-                textAnswer: a.textAnswer || null,
+                questionId: q.id,
+                selectedIdx,
+                textAnswer: typeof a?.textAnswer === 'string' ? a.textAnswer : null,
                 isCorrect,
-                difficulty: q?.difficulty || 0.0
+                difficulty: q.difficulty || 0.0
             }
         }))
 
@@ -1382,11 +1424,11 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
             }
         })
         const effectiveTotal = expandedTotal || test.questions.length
-        const score = effectiveTotal > 0 ? (correct / effectiveTotal) * 100 : 0
+        const scorePercent = effectiveTotal > 0 ? (correct / effectiveTotal) * 100 : 0
 
         // Degenerate case: 0/n yoki n/n bo'lsa, yoki savollar < 3 ta bo'lsa
         // Rasch MLE diverge qiladi (±∞) — ability yangilanmasin
-        const canUpdateRasch = results.length >= 3 && score > 0 && score < 100
+        const canUpdateRasch = normalizedTestType === 'MILLIY_SERTIFIKAT' && results.length >= 3 && scorePercent > 0 && scorePercent < 100
         // Matching savollar uchun Rasch: har bir kichik savol alohida item sifatida kengaytiriladi
         const raschItems: { difficulty: number; isCorrect: boolean }[] = []
         results.forEach((r: any) => {
@@ -1411,13 +1453,6 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
                 raschItems.push({ difficulty: r.difficulty, isCorrect: r.isCorrect })
             }
         })
-        // $transaction yordamida ACID ta'minlash
-        const ms = test.testType === 'milliy_sertifikat'
-            ? getMsRaschScore(raschItems)
-            : null
-        const finalScore = test.testType === 'milliy_sertifikat'
-            ? ms!.ball
-            : roundScore(score)
         const totalForResponse = effectiveTotal
 
         const attempt = await prisma.$transaction(async (tx) => {
@@ -1436,32 +1471,55 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
             }
 
             const currentAbility = Math.max(-5, Math.min(5, profile.abilityLevel || 0.0))
-            const newAbility = canUpdateRasch
-                ? updateAbility(currentAbility, raschItems)
-                : currentAbility
+            const computedScore = normalizedTestType === 'DTM_BLOCK'
+                ? scoreDtmBlockAttempt({
+                    questions: test.questions.map(question => ({
+                        difficulty: question.difficulty,
+                        coefficient: question.coefficient,
+                        blockType: question.blockType,
+                    })),
+                    results,
+                    fallbackSubject: test.subject,
+                    currentAbility,
+                })
+                : normalizedTestType === 'MILLIY_SERTIFIKAT'
+                    ? scoreMilliySertifikatAttempt({
+                        raschItems,
+                        canUpdateAbility: canUpdateRasch,
+                        currentAbility,
+                    })
+                    : scoreRegularAttempt({
+                        correctCount: correct,
+                        totalCount: totalForResponse,
+                        currentAbility,
+                    })
+
             const att = await tx.testAttempt.create({
                 data: {
                     testId: test.id,
                     userId: req.user.id,
                     answers: JSON.stringify(results),
-                    score: finalScore,
-                    raschAbility: newAbility
+                    score: computedScore.scorePercent,
+                    rawScore: computedScore.rawScore,
+                    scoreMax: computedScore.scoreMax,
+                    grade: computedScore.grade,
+                    raschAbility: normalizedTestType === 'MILLIY_SERTIFIKAT' ? computedScore.ability : currentAbility
                 }
             })
 
             const nextTotalTests = profile.totalTests + 1
-            const nextAvgScore = roundScore((((profile.avgScore || 0) * profile.totalTests + finalScore) / nextTotalTests))
+            const nextAvgScore = roundScore((((profile.avgScore || 0) * profile.totalTests + computedScore.scorePercent) / nextTotalTests))
 
             await tx.studentProfile.update({
                 where: { userId: req.user.id },
                 data: {
-                    abilityLevel: newAbility,
+                    abilityLevel: normalizedTestType === 'MILLIY_SERTIFIKAT' ? computedScore.ability : profile.abilityLevel,
                     totalTests: nextTotalTests,
                     avgScore: nextAvgScore
                 }
             })
 
-            return { attempt: att, newAbility }
+            return { attempt: att, newAbility: computedScore.ability, computedScore }
         })
 
         // Submit dan keyin to'g'ri javoblarni qaytaramiz (oldin emas!)
@@ -1495,25 +1553,24 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
             }
         })
 
-        const dtm = test.testType === 'dtm'
-            ? getDtmBall(test.subject || null, correct, totalForResponse)
-            : null
-        const msResult = test.testType === 'milliy_sertifikat'
-            ? { ball: finalScore, max: 100 }
-            : { ball: 0, max: 100 }
+        const computedScore = attempt.computedScore
 
         res.json({
             attempt: attempt.attempt,
-            score: finalScore,
-            grade: getGrade(finalScore),
+            score: computedScore.scorePercent,
+            rawScore: computedScore.rawScore,
+            scoreMax: computedScore.scoreMax,
+            grade: computedScore.grade,
             correct,
             total: totalForResponse,
-            newAbility: attempt.newAbility,
-            testType: (test as any).testType || 'milliy_sertifikat',
-            dtmBall: dtm?.ball,
-            dtmMax: dtm?.max,
-            msBall: msResult.ball,
-            msMax: msResult.max,
+            newAbility: normalizedTestType === 'MILLIY_SERTIFIKAT' ? attempt.newAbility : undefined,
+            testType: normalizedTestType,
+            testTypeLabel: getTestTypeLabel(normalizedTestType),
+            dtmBall: normalizedTestType === 'DTM_BLOCK' ? computedScore.rawScore : undefined,
+            dtmMax: normalizedTestType === 'DTM_BLOCK' ? computedScore.scoreMax : undefined,
+            dtmBreakdown: normalizedTestType === 'DTM_BLOCK' && 'breakdown' in computedScore ? computedScore.breakdown : undefined,
+            msBall: normalizedTestType === 'MILLIY_SERTIFIKAT' ? computedScore.rawScore : undefined,
+            msMax: normalizedTestType === 'MILLIY_SERTIFIKAT' ? computedScore.scoreMax : undefined,
             results,
             correctAnswers
         })
@@ -1602,6 +1659,7 @@ router.get('/:testId/analytics', authenticate, requireRole('TEACHER', 'ADMIN'), 
         const avgScore = totalAttempts > 0
             ? Math.round(test.attempts.reduce((s: number, a: any) => s + a.score, 0) / totalAttempts * 10) / 10
             : 0
+        const normalizedTestType = normalizeTestType(test.testType)
 
         // Har bir urinish uchun to'liq statistika (reyting uchun)
         const studentRows = test.attempts.map((a: any) => {
@@ -1620,30 +1678,34 @@ router.get('/:testId/analytics', authenticate, requireRole('TEACHER', 'ADMIN'), 
             })
             if (total === 0) total = test.questions.length
             const scoreVal = roundScore(a.score)
-            const dtm = test.testType === 'dtm'
-                ? getDtmBall(test.subject || null, correctCount, total)
-                : null
-            const ms = test.testType === 'milliy_sertifikat'
-                ? { ball: scoreVal, max: 100 }
-                : { ball: 0, max: 100 }
+            const rawScore = typeof a.rawScore === 'number'
+                ? roundScore(a.rawScore)
+                : (normalizedTestType === 'DTM_BLOCK'
+                    ? roundScore(correctCount * getDefaultDtmCoefficient(normalizeDtmBlockType('GENERIC'), test.subject))
+                    : roundScore(correctCount))
+            const scoreMax = typeof a.scoreMax === 'number'
+                ? roundScore(a.scoreMax)
+                : (normalizedTestType === 'MILLIY_SERTIFIKAT' ? 75 : total)
             return {
                 name: a.user?.name || 'Noma\'lum',
                 email: a.user?.email || '',
                 score: scoreVal,
+                rawScore,
+                scoreMax,
                 correct: correctCount,
                 total,
-                dtmBall: dtm?.ball,
-                dtmMax: dtm?.max,
-                msBall: ms.ball,
-                msMax: ms.max,
-                grade: getGrade(scoreVal),
+                dtmBall: normalizedTestType === 'DTM_BLOCK' ? rawScore : undefined,
+                dtmMax: normalizedTestType === 'DTM_BLOCK' ? scoreMax : undefined,
+                msBall: normalizedTestType === 'MILLIY_SERTIFIKAT' ? rawScore : undefined,
+                msMax: normalizedTestType === 'MILLIY_SERTIFIKAT' ? scoreMax : undefined,
+                grade: a.grade || (normalizedTestType === 'MILLIY_SERTIFIKAT' ? getMsGrade(rawScore) : null),
                 raschAbility: a.raschAbility ?? null,
                 createdAt: a.createdAt
             }
         }).sort((a: any, b: any) => b.score - a.score)
 
         res.json({
-            test: { id: test.id, title: test.title, subject: test.subject, createdAt: test.createdAt },
+            test: { id: test.id, title: test.title, subject: test.subject, subject2: test.subject2, testType: normalizedTestType, testTypeLabel: getTestTypeLabel(normalizedTestType), createdAt: test.createdAt },
             totalAttempts, avgScore,
             students: studentRows,
             questionStats

@@ -66,6 +66,13 @@ Bu fayl DTMMax platformasining rivojlanish tarixi, qilingan ishlar va rejalashti
 - Teacher paneldagi formula preview ko'rinishi aniqroq qilindi — "Formula preview" bloklari bilan
 - Teacher panel uchun umumiy math render helper qo'shildi — sof LaTeX (`\\frac{a}{b}` kabi) ham preview chiqadigan qilindi
 - Teacher statistika PDF exporti KaTeX CSS bilan yaxshilandi — formulali savollar print/exportda ham tozaroq ko'rinadi
+- Test baholash contracti 3 turga ajratildi: `REGULAR`, `DTM_BLOCK`, `MILLIY_SERTIFIKAT`
+- `TestQuestion` ga `blockType` va `coefficient`, `TestAttempt` ga `rawScore`, `scoreMax`, `grade` qo'shildi
+- DTM blok testlarda raw ball va foiz alohida saqlanadi; Milliy Sertifikat endi 75 ballik Rash shkalasiga bog'landi
+- O'qituvchi panelida 3 turdagi test builder va DTM blok uchun savol darajasida blok/kofitsient boshqaruvi qo'shildi
+- Student `TestPage` natijalari yangi shkalalarga moslashtirildi — xom natija va foiz birga ko'rsatiladi
+- Test submitdan keyingi avtomatik chat redirect olib tashlandi — AI tahlil endi explicit action
+- Mock exam yaratishda `testType` endi aniq saqlanadi
 
 ### Bosqich 3: To'liq audit (2026-04-13)
 - Platform to'liq audit qilindi (bug-finder, security, critic agentlar orqali)
@@ -83,9 +90,11 @@ Bu fayl DTMMax platformasining rivojlanish tarixi, qilingan ishlar va rejalashti
 
 ### Kritik muammolar:
 1. **ChatLayout monolith** — Student sahifa bitta katta faylda qolmoqda, refactor kerak
-2. **Teacher panel chuqur polish tugamagan** — test cardlar, batafsil o'quvchi natijasi, export tekshiruvlari hali bor
+2. **Teacher panel chuqur polish tugamagan** — test cardlar, batafsil o'quvchi natijasi, export va analytics drill-down hali bor
 3. **Email verification ixtiyoriy** — egasi qarori bilan hozircha majburiy qilinmaydi
 4. **Admin/teacher operational UX** — error state, loading state va analytics ko'rinishi hali pishitiladi
+5. **DTM blok wizard hali to'liq standartlashmagan** — 90 savollik preset, standart template va qat'iy guardrail keyingi batchga qoldi
+6. **Admin analytics hali scale-aware emas** — 189/75/oddiy test natijalarini alohida ko'rsatish keyingi batchda qilinadi
 
 ### Dizayn muammolari:
 5. Landing sahifada bo'sh joy muammosi qayta tekshirildi — footer bor, issue aniq reproduksiya qilinmadi
@@ -108,12 +117,13 @@ Bu fayl DTMMax platformasining rivojlanish tarixi, qilingan ishlar va rejalashti
 2. CODEX_UI_UX_PROMPT.md bo'yicha dizayn yaxshilash
 3. CODEX_TEACHER_PANEL_PROMPT.md bo'yicha ustoz panelini yaxshilash
 4. Email verification majburiy qilish — **hozircha deferred**, owner qarori bilan keyinga qoldirilgan
+5. DTM/MS scoring contract bo'yicha qolgan UI va analytics segmentatsiyasini tugatish
 
 ### O'rta muddatli (1 oy):
 5. ChatLayout.tsx ni kichik komponentlarga bo'lish (refactoring)
 6. Xavfsizlik zaifliklarni tuzatish
-7. Test natijalarini PDF yuklab olish
-8. O'qituvchi → o'quvchi aloqa tizimi yaxshilash
+7. O'qituvchi paneli uchun DTM block presetlar, edit flow va chuqur analytics
+8. Admin analytics ni test turiga qarab ajratish
 
 ### Uzoq muddatli:
 9. Mobile app (React Native)

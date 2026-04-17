@@ -65,6 +65,8 @@ function formatAcceptedAnswerHint(text: string) {
 
 interface MatchingSubQ { text: string; correctIdx: number }
 interface MultipartOpenSubQ { label: string; text: string; correctText: string }
+type TestTypeValue = 'REGULAR' | 'DTM_BLOCK' | 'MILLIY_SERTIFIKAT'
+type DtmBlockTypeValue = 'GENERIC' | 'MANDATORY_LANGUAGE' | 'MANDATORY_MATH' | 'MANDATORY_HISTORY' | 'SPECIALTY_1' | 'SPECIALTY_2'
 interface Question {
     text: string; imageUrl?: string | null; options: string[]; correctIdx: number
     questionType: 'mcq' | 'open' | 'matching' | 'multipart_open'; correctText?: string
@@ -72,6 +74,31 @@ interface Question {
     matchingAnswers?: string[]       // A–F shared answer bank
     matchingSubQuestions?: MatchingSubQ[]  // each sub-question + correct answer idx
     multipartSubQuestions?: MultipartOpenSubQ[]
+    blockType?: DtmBlockTypeValue
+    coefficient?: number | null
+}
+
+const TEST_TYPES: Array<{ value: TestTypeValue; title: string; description: string; accent: string; icon: string }> = [
+    { value: 'REGULAR', title: 'Oddiy test', description: 'Mavzuli, kichik va moslashuvchan test', accent: '#0f766e', icon: '🧩' },
+    { value: 'DTM_BLOCK', title: 'DTM blok test', description: '189 ball · koeffitsientli bloklar', accent: '#d97706', icon: '🎯' },
+    { value: 'MILLIY_SERTIFIKAT', title: 'Milliy Sertifikat', description: 'Rash modeli · 75 ball', accent: '#8b5cf6', icon: '📋' },
+]
+
+const DTM_BLOCK_OPTIONS: Array<{ value: DtmBlockTypeValue; label: string; coefficient: number }> = [
+    { value: 'MANDATORY_LANGUAGE', label: 'Ona tili', coefficient: 1.1 },
+    { value: 'MANDATORY_MATH', label: 'Majburiy matematika', coefficient: 1.1 },
+    { value: 'MANDATORY_HISTORY', label: 'O‘zbekiston tarixi', coefficient: 1.1 },
+    { value: 'SPECIALTY_1', label: '1-ixtisoslik', coefficient: 3.1 },
+    { value: 'SPECIALTY_2', label: '2-ixtisoslik', coefficient: 2.1 },
+]
+
+function getDefaultCoefficient(blockType: DtmBlockTypeValue): number {
+    return DTM_BLOCK_OPTIONS.find(option => option.value === blockType)?.coefficient ?? 3.1
+}
+
+function getTestTypeLabel(testType: string | null | undefined): string {
+    const matched = TEST_TYPES.find(item => item.value === testType)
+    return matched?.title || 'Oddiy test'
 }
 
 function createDefaultMultipartSubQuestions(): MultipartOpenSubQ[] {
@@ -88,7 +115,9 @@ function createEmptyQuestion(): Question {
         correctText: '',
         matchingAnswers: ['', '', '', '', '', ''],
         matchingSubQuestions: [{ text: '', correctIdx: 0 }],
-        multipartSubQuestions: createDefaultMultipartSubQuestions()
+        multipartSubQuestions: createDefaultMultipartSubQuestions(),
+        blockType: 'SPECIALTY_1',
+        coefficient: 3.1
     }
 }
 
@@ -100,9 +129,11 @@ export default function TeacherPanel() {
 
     const [title, setTitle] = useState('')
     const [subject, setSubject] = useState('Matematika')
+    const [subject2, setSubject2] = useState('')
     const [isPublic, setIsPublic] = useState(false)
-    const [testType, setTestType] = useState<'milliy_sertifikat' | 'dtm'>('milliy_sertifikat')
+    const [testType, setTestType] = useState<TestTypeValue>('REGULAR')
     const [timeLimit, setTimeLimit] = useState<number>(0)
+    const [timeLimitTouched, setTimeLimitTouched] = useState(false)
     const [questions, setQuestions] = useState<Question[]>([createEmptyQuestion()])
     const [loading, setLoading] = useState(false)
     const [msg, setMsg] = useState('')
@@ -136,14 +167,39 @@ export default function TeacherPanel() {
         window.addEventListener('keydown', handleEsc)
         return () => window.removeEventListener('keydown', handleEsc)
     }, [])
-    // Savollar soni o'zgarganda vaqtni avtomatik hisoblash (har bir savol uchun 1.5 daqiqa)
+    // Vaqtni aqlli default bilan to'ldirish — ustoz qo'lda o'zgartirsa qayta bosmaymiz
     useEffect(() => {
+        if (timeLimitTouched) return
+        if (testType === 'DTM_BLOCK') {
+            setTimeLimit(180)
+            return
+        }
+        if (testType === 'MILLIY_SERTIFIKAT') {
+            setTimeLimit(Math.max(45, Math.ceil(questions.length * 2)))
+            return
+        }
         const count = questions.length
         if (count >= 2) setTimeLimit(Math.ceil(count * 1.5))
         else setTimeLimit(0)
-    }, [questions.length])
+    }, [questions.length, testType, timeLimitTouched])
     async function loadTests() {
         try { setTests(await fetchApi('/tests/my-tests')) } catch { }
+    }
+
+    function selectTestType(nextType: TestTypeValue) {
+        setTestType(nextType)
+        setTimeLimitTouched(false)
+        setQuestions(prev => prev.map(question => {
+            if (nextType !== 'DTM_BLOCK') {
+                return question
+            }
+            return {
+                ...question,
+                questionType: 'mcq',
+                blockType: question.blockType || 'SPECIALTY_1',
+                coefficient: question.coefficient ?? getDefaultCoefficient(question.blockType || 'SPECIALTY_1')
+            }
+        }))
     }
 
     const sendNotification = async () => {
@@ -164,7 +220,12 @@ export default function TeacherPanel() {
     }
 
     function addQuestion() {
-        setQuestions([...questions, createEmptyQuestion()])
+        setQuestions(prev => [
+            ...prev,
+            testType === 'DTM_BLOCK'
+                ? { ...createEmptyQuestion(), questionType: 'mcq', blockType: 'SPECIALTY_1', coefficient: 3.1 }
+                : createEmptyQuestion()
+        ])
     }
 
     async function uploadQuestionImage(qi: number, file: File) {
@@ -213,6 +274,14 @@ export default function TeacherPanel() {
             if (field === 'imagePreviewUrl') return { ...q, imagePreviewUrl: value }
             if (field === 'correctIdx') return { ...q, correctIdx: value }
             if (field === 'correctText') return { ...q, correctText: value }
+            if (field === 'blockType') {
+                const blockType = value as DtmBlockTypeValue
+                return { ...q, blockType, coefficient: getDefaultCoefficient(blockType) }
+            }
+            if (field === 'coefficient') {
+                const parsed = Number(value)
+                return { ...q, coefficient: Number.isFinite(parsed) && parsed > 0 ? parsed : q.coefficient ?? 0 }
+            }
             if (field === 'questionType') {
                 return {
                     ...q,
@@ -280,8 +349,7 @@ export default function TeacherPanel() {
     }
 
     function removeQ(idx: number) {
-        if (questions.length <= 1) return
-        setQuestions(questions.filter((_, i) => i !== idx))
+        setQuestions(prev => prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx))
     }
 
     async function generateFromFile() {
@@ -317,7 +385,9 @@ export default function TeacherPanel() {
                         questionType: 'matching' as const,
                         correctText: '',
                         matchingAnswers,
-                        matchingSubQuestions
+                        matchingSubQuestions,
+                        blockType: 'SPECIALTY_1',
+                        coefficient: 3.1
                     }
                 }
                 // MCQ savol
@@ -328,12 +398,25 @@ export default function TeacherPanel() {
                     options: opts.slice(0, 4),
                     correctIdx: typeof q.correctIdx === 'number' ? q.correctIdx : 0,
                     questionType: 'mcq' as const,
-                    correctText: ''
+                    correctText: '',
+                    blockType: 'SPECIALTY_1',
+                    coefficient: 3.1
                 }
             })
-            setQuestions(mapped)
+            const normalizedMapped = testType === 'DTM_BLOCK'
+                ? mapped.filter(question => question.questionType === 'mcq').map(question => ({
+                    ...question,
+                    blockType: 'SPECIALTY_1' as const,
+                    coefficient: 3.1
+                }))
+                : mapped
+
+            setQuestions(normalizedMapped.length > 0 ? normalizedMapped : [createEmptyQuestion()])
             setAiDone(true)
             if (!title) setTitle(`${subject} testi`)
+            if (testType === 'DTM_BLOCK' && normalizedMapped.length !== mapped.length) {
+                setAiError('DTM blok testida faqat A/B/C/D savollar qoldirildi. Blok turini har savolda tekshiring.')
+            }
             if (data.truncated) {
                 setAiError('Fayl katta bo\'lgani uchun AI uni bo\'lib-bo\'lib tahlil qildi. Natijalarni tekshirib chiqing.')
             }
@@ -414,11 +497,26 @@ export default function TeacherPanel() {
         }
         setLoading(true); setMsg('')
         try {
-            await fetchApi('/tests/create', { method: 'POST', body: JSON.stringify({ title, subject, isPublic, testType, timeLimit: timeLimit || null, questions: finalQuestions }) })
+            await fetchApi('/tests/create', {
+                method: 'POST',
+                body: JSON.stringify({
+                    title,
+                    subject,
+                    subject2: testType === 'DTM_BLOCK' ? subject2 || null : null,
+                    isPublic,
+                    testType,
+                    timeLimit: timeLimit || null,
+                    questions: finalQuestions
+                })
+            })
             setMsg('success')
             setTitle('')
             setQuestions([createEmptyQuestion()])
-            setTimeLimit(0); setIsPublic(false); setTestType('milliy_sertifikat')
+            setTimeLimit(0)
+            setTimeLimitTouched(false)
+            setIsPublic(false)
+            setTestType('REGULAR')
+            setSubject2('')
             setAiFile(null); setAiDone(false)
             // fileInput ni tozalash — bir xil faylni qayta yuklash mumkin bo'lsin
             if (fileInputRef.current) fileInputRef.current.value = ''
@@ -493,7 +591,8 @@ export default function TeacherPanel() {
             : new Date().toLocaleDateString('uz-UZ')
 
         const rows = (students || []).map((s: any, i: number) => {
-            const ball = s.dtmBall ?? s.score
+            const ball = typeof s.rawScore === 'number' ? s.rawScore : (s.dtmBall ?? s.score)
+            const maxBall = typeof s.scoreMax === 'number' ? s.scoreMax : (s.dtmMax ?? 100)
             const foiz = s.score
             const daraja = s.grade || '—'
             const bg = rowBg(foiz)
@@ -501,7 +600,7 @@ export default function TeacherPanel() {
             return `<tr style="background:${bg}">
             <td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#374151">${i + 1}</td>
             <td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;font-weight:500">${s.name}</td>
-            <td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;color:${col}">${ball}</td>
+            <td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;color:${col}">${ball} / ${maxBall}</td>
             <td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;text-align:center;color:#374151">${foiz}%</td>
             <td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:800;color:${col}">${daraja}</td>
         </tr>`
@@ -557,7 +656,7 @@ export default function TeacherPanel() {
 <thead><tr>
   <th style="width:40px">#</th>
   <th>F.I.SH</th>
-  <th style="width:80px">BALL</th>
+  <th style="width:110px">NATIJA</th>
   <th style="width:70px">FOIZ</th>
   <th style="width:80px">DARAJA</th>
 </tr></thead>
@@ -658,7 +757,15 @@ export default function TeacherPanel() {
                                                 ? <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded flex-shrink-0" style={{ color: 'var(--success)', background: 'var(--success-light)' }}><Globe className="h-2.5 w-2.5" /> Public</span>
                                                 : <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded flex-shrink-0" style={{ color: 'var(--text-muted)', background: 'var(--bg-surface)' }}><Lock className="h-2.5 w-2.5" /> Private</span>}
                                         </div>
-                                        <p className="text-[11px]" style={mutedText}>{t._count?.questions || 0} savol · {t._count?.attempts || 0} urinish · {t.subject}{t.timeLimit ? ` · ⏱ ${t.timeLimit} min` : ''} · <span style={{ color: t.testType === 'dtm' ? '#f59e0b' : '#8b5cf6' }}>{t.testType === 'dtm' ? 'DTM' : 'Milliy Sertifikat'}</span></p>
+                                        <p className="text-[11px]" style={mutedText}>
+                                            {t._count?.questions || 0} savol · {t._count?.attempts || 0} urinish · {t.subject}
+                                            {t.subject2 ? ` + ${t.subject2}` : ''}
+                                            {t.timeLimit ? ` · ⏱ ${t.timeLimit} min` : ''}
+                                            {' · '}
+                                            <span style={{ color: t.testType === 'DTM_BLOCK' ? '#f59e0b' : t.testType === 'MILLIY_SERTIFIKAT' ? '#8b5cf6' : '#0f766e' }}>
+                                                {getTestTypeLabel(t.testType)}
+                                            </span>
+                                        </p>
                                     </div>
                                     <button
                                         onClick={() => toggleVisibility(t.id, t.isPublic)}
@@ -706,25 +813,18 @@ export default function TeacherPanel() {
                             {/* Test turi — birinchi va eng muhim */}
                             <div className="rounded-xl p-4" style={cardStyle}>
                                 <p className="text-[11px] font-semibold mb-2.5 uppercase tracking-wide" style={mutedText}>Test turi</p>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <button type="button" onClick={() => setTestType('milliy_sertifikat')}
-                                        className="flex flex-col items-center gap-1 py-3 px-4 rounded-xl border-2 transition font-medium text-[13px]"
-                                        style={testType === 'milliy_sertifikat'
-                                            ? { borderColor: '#8b5cf6', background: 'color-mix(in srgb, #8b5cf6 10%, transparent)', color: '#8b5cf6' }
-                                            : { borderColor: 'var(--border)', background: 'transparent', color: 'var(--text-secondary)' }}>
-                                        <span className="text-lg">📋</span>
-                                        <span>Milliy Sertifikat</span>
-                                        <span className="text-[10px] font-normal" style={{ color: testType === 'milliy_sertifikat' ? '#8b5cf680' : 'var(--text-muted)' }}>Rash modeli · 100 ball</span>
-                                    </button>
-                                    <button type="button" onClick={() => setTestType('dtm')}
-                                        className="flex flex-col items-center gap-1 py-3 px-4 rounded-xl border-2 transition font-medium text-[13px]"
-                                        style={testType === 'dtm'
-                                            ? { borderColor: '#f59e0b', background: 'color-mix(in srgb, #f59e0b 10%, transparent)', color: '#d97706' }
-                                            : { borderColor: 'var(--border)', background: 'transparent', color: 'var(--text-secondary)' }}>
-                                        <span className="text-lg">🎯</span>
-                                        <span>DTM</span>
-                                        <span className="text-[10px] font-normal" style={{ color: testType === 'dtm' ? '#f59e0b80' : 'var(--text-muted)' }}>Koeffitsient sistema</span>
-                                    </button>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                    {TEST_TYPES.map(type => (
+                                        <button key={type.value} type="button" onClick={() => selectTestType(type.value)}
+                                            className="flex flex-col items-start gap-1 py-3 px-4 rounded-xl border-2 transition font-medium text-[13px] text-left"
+                                            style={testType === type.value
+                                                ? { borderColor: type.accent, background: `color-mix(in srgb, ${type.accent} 10%, transparent)`, color: type.accent }
+                                                : { borderColor: 'var(--border)', background: 'transparent', color: 'var(--text-secondary)' }}>
+                                            <span className="text-lg">{type.icon}</span>
+                                            <span>{type.title}</span>
+                                            <span className="text-[10px] font-normal" style={{ color: testType === type.value ? `${type.accent}cc` : 'var(--text-muted)' }}>{type.description}</span>
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
 
@@ -738,26 +838,39 @@ export default function TeacherPanel() {
                                         className="input" style={{ flex: 1, cursor: 'pointer' }}>
                                         {SUBJECTS.map(f => <option key={f} value={f}>{f}</option>)}
                                     </select>
+                                    {testType === 'DTM_BLOCK' && (
+                                        <select value={subject2} onChange={e => setSubject2(e.target.value)}
+                                            className="input" style={{ flex: 1, cursor: 'pointer' }}>
+                                            <option value="">2-ixtisoslik</option>
+                                            {SUBJECTS.filter(f => f !== subject).map(f => <option key={f} value={f}>{f}</option>)}
+                                        </select>
+                                    )}
                                     <label className="flex items-center gap-2 text-[13px] cursor-pointer select-none h-9 px-3 rounded-lg transition"
                                         style={{ border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)' }}>
                                         <input type="checkbox" checked={isPublic} onChange={e => setIsPublic(e.target.checked)} className="w-3.5 h-3.5 rounded" style={{ accentColor: 'var(--brand)' }} />
                                         <span>Public</span>
                                     </label>
                                 </div>
+                                {testType === 'DTM_BLOCK' && (
+                                    <div className="rounded-lg px-3 py-2 text-[11px]" style={{ background: 'color-mix(in srgb, #f59e0b 10%, transparent)', border: '1px solid color-mix(in srgb, #f59e0b 20%, transparent)', color: 'var(--text-secondary)' }}>
+                                        Har savolda blok turini tanlaysiz. Koeffitsient avtomatik keladi, xohlasangiz qo'lda ham o'zgartirasiz.
+                                    </div>
+                                )}
                                 {/* Vaqt chegarasi */}
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                     <span className="text-[11px] mr-1" style={mutedText}>⏱ Vaqt:</span>
-                                    {[0, 30, 45, 60, 90].map(min => (
-                                        <button key={min} type="button" onClick={() => setTimeLimit(min)}
+                                    {[0, 30, 45, 60, 90, 180].map(min => (
+                                        <button key={min} type="button" onClick={() => { setTimeLimit(min); setTimeLimitTouched(true) }}
                                             className="h-7 px-2.5 rounded-md text-[11px] font-medium transition"
                                             style={timeLimit === min ? { background: 'var(--brand)', color: '#fff' } : { background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>
                                             {min === 0 ? 'Cheksiz' : `${min} min`}
                                         </button>
                                     ))}
                                     <input type="number" min="1" max="180" placeholder="boshqa (min)"
-                                        value={timeLimit > 0 && ![30, 45, 60, 90].includes(timeLimit) ? String(timeLimit) : ''}
+                                        value={timeLimit > 0 && ![30, 45, 60, 90, 180].includes(timeLimit) ? String(timeLimit) : ''}
                                         onChange={e => {
                                             const val = parseInt(e.target.value)
+                                            setTimeLimitTouched(true)
                                             if (!isNaN(val) && val > 0) setTimeLimit(val)
                                             else if (e.target.value === '') setTimeLimit(0)
                                         }}
@@ -846,27 +959,29 @@ export default function TeacherPanel() {
                                                     style={q.questionType === 'mcq' ? { background: 'var(--brand)', color: '#fff' } : { background: 'transparent', color: 'var(--text-muted)' }}>
                                                     A/B/C/D
                                                 </button>
-                                                <button type="button" onClick={() => updateQ(qi, 'questionType', 'open')}
-                                                    className="px-2 py-0.5 transition"
-                                                    style={q.questionType === 'open' ? { background: 'var(--brand)', color: '#fff' } : { background: 'transparent', color: 'var(--text-muted)' }}>
-                                                    Yozma
-                                                </button>
-                                                <button type="button" onClick={() => updateQ(qi, 'questionType', 'matching')}
-                                                    className="px-2 py-0.5 transition"
-                                                    style={q.questionType === 'matching' ? { background: '#8b5cf6', color: '#fff' } : { background: 'transparent', color: 'var(--text-muted)' }}>
-                                                    Moslashtirish
-                                                </button>
-                                                <button type="button" onClick={() => updateQ(qi, 'questionType', 'multipart_open')}
-                                                    className="px-2 py-0.5 transition"
-                                                    disabled={testType === 'dtm'}
-                                                    title={testType === 'dtm' ? 'Multi-part yozma savol faqat Milliy Sertifikat uchun' : undefined}
-                                                    style={q.questionType === 'multipart_open'
-                                                        ? { background: '#0f766e', color: '#fff' }
-                                                        : testType === 'dtm'
-                                                            ? { background: 'transparent', color: 'var(--border-strong)', opacity: 0.5, cursor: 'not-allowed' }
+                                                {testType !== 'DTM_BLOCK' && (
+                                                    <>
+                                                        <button type="button" onClick={() => updateQ(qi, 'questionType', 'open')}
+                                                            className="px-2 py-0.5 transition"
+                                                            style={q.questionType === 'open' ? { background: 'var(--brand)', color: '#fff' } : { background: 'transparent', color: 'var(--text-muted)' }}>
+                                                            Yozma
+                                                        </button>
+                                                        <button type="button" onClick={() => updateQ(qi, 'questionType', 'matching')}
+                                                            className="px-2 py-0.5 transition"
+                                                            style={q.questionType === 'matching' ? { background: '#8b5cf6', color: '#fff' } : { background: 'transparent', color: 'var(--text-muted)' }}>
+                                                            Moslashtirish
+                                                        </button>
+                                                    </>
+                                                )}
+                                                {testType === 'MILLIY_SERTIFIKAT' && (
+                                                    <button type="button" onClick={() => updateQ(qi, 'questionType', 'multipart_open')}
+                                                        className="px-2 py-0.5 transition"
+                                                        style={q.questionType === 'multipart_open'
+                                                            ? { background: '#0f766e', color: '#fff' }
                                                             : { background: 'transparent', color: 'var(--text-muted)' }}>
-                                                    Multi-part
-                                                </button>
+                                                        Multi-part
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                         {questions.length > 1 && (
@@ -899,6 +1014,34 @@ export default function TeacherPanel() {
                                         </div>
                                     )}
                                     <MathPreview text={q.text} />
+                                    {testType === 'DTM_BLOCK' && (
+                                        <div className="grid grid-cols-1 sm:grid-cols-[1fr_120px] gap-2">
+                                            <div>
+                                                <label className="text-[11px] font-medium mb-1 block" style={mutedText}>Blok turi</label>
+                                                <select
+                                                    value={q.blockType || 'SPECIALTY_1'}
+                                                    onChange={event => updateQ(qi, 'blockType', event.target.value)}
+                                                    className="input"
+                                                    style={{ cursor: 'pointer' }}
+                                                >
+                                                    {DTM_BLOCK_OPTIONS.map(option => (
+                                                        <option key={option.value} value={option.value}>{option.label} · {option.coefficient}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-[11px] font-medium mb-1 block" style={mutedText}>Koeffitsient</label>
+                                                <input
+                                                    type="number"
+                                                    min="0.1"
+                                                    step="0.1"
+                                                    value={q.coefficient ?? getDefaultCoefficient(q.blockType || 'SPECIALTY_1')}
+                                                    onChange={event => updateQ(qi, 'coefficient', event.target.value)}
+                                                    className="input"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
                                     {q.questionType === 'open' ? (
                                         /* Yozma savol uchun to'g'ri javob kirish maydoni */
                                         <div className="mt-1 space-y-1">
@@ -1201,7 +1344,7 @@ export default function TeacherPanel() {
                                                     <tr style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)' }}>
                                                         <th className="text-left px-3 py-2 font-semibold" style={{ color: 'var(--text-muted)', width: 28 }}>#</th>
                                                         <th className="text-left px-3 py-2 font-semibold" style={{ color: 'var(--text-muted)' }}>F.I.SH</th>
-                                                        <th className="text-center px-2 py-2 font-semibold" style={{ color: 'var(--text-muted)', width: 60 }}>BALL</th>
+                                                        <th className="text-center px-2 py-2 font-semibold" style={{ color: 'var(--text-muted)', width: 110 }}>NATIJA</th>
                                                         <th className="text-center px-2 py-2 font-semibold" style={{ color: 'var(--text-muted)', width: 55 }}>FOIZ</th>
                                                         <th className="text-center px-2 py-2 font-semibold" style={{ color: 'var(--text-muted)', width: 60 }}>DARAJA</th>
                                                     </tr>
@@ -1209,6 +1352,9 @@ export default function TeacherPanel() {
                                                 <tbody>
                                                     {analytics.students.map((s: any, i: number) => {
                                                         const col = s.score >= 70 ? 'var(--success)' : s.score >= 50 ? '#f59e0b' : 'var(--danger)'
+                                                        const scoreLabel = typeof s.rawScore === 'number' && typeof s.scoreMax === 'number'
+                                                            ? `${s.rawScore} / ${s.scoreMax}`
+                                                            : `${s.dtmBall ?? s.score}`
                                                         return (
                                                             <tr key={i} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'var(--bg-surface)' }}>
                                                                 <td className="px-3 py-2 font-bold" style={{ color: 'var(--text-muted)' }}>{i + 1}</td>
@@ -1216,7 +1362,7 @@ export default function TeacherPanel() {
                                                                     <p className="font-medium" style={{ color: 'var(--text-primary)' }}>{s.name}</p>
                                                                     <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{new Date(s.createdAt).toLocaleDateString('uz')}</p>
                                                                 </td>
-                                                                <td className="px-2 py-2 text-center font-bold" style={{ color: col }}>{s.dtmBall ?? s.score}</td>
+                                                                <td className="px-2 py-2 text-center font-bold" style={{ color: col }}>{scoreLabel}</td>
                                                                 <td className="px-2 py-2 text-center" style={{ color: 'var(--text-secondary)' }}>{s.score}%</td>
                                                                 <td className="px-2 py-2 text-center font-extrabold" style={{ color: col }}>{s.grade || '—'}</td>
                                                             </tr>

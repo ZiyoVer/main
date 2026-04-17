@@ -22,7 +22,18 @@ interface Chat { id: string; title: string; subject?: string; subject2?: string;
 interface Msg { id: string; role: string; content: string; createdAt: string }
 interface Profile { onboardingDone: boolean; subject?: string; subject2?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string; totalTests?: number; avgScore?: number; abilityLevel?: number }
 interface PublicTest { id: string; title: string; shareLink: string; subject?: string; _count?: { questions: number; attempts: number } }
-interface MyResult { id: string; testId: string; score: number; total?: number; createdAt: string; answers?: string; test?: { title: string; subject?: string } }
+interface MyResult {
+    id: string
+    testId: string
+    score: number
+    rawScore?: number | null
+    scoreMax?: number | null
+    grade?: string | null
+    total?: number
+    createdAt: string
+    answers?: string
+    test?: { title: string; subject?: string; subject2?: string; testType?: string }
+}
 interface WeakTopicItem { subject?: string; topic: string; accuracy: number; total: number }
 interface RecentTestItem { id: string; title: string; subject?: string; score: number; date: string }
 interface ProgressData {
@@ -56,9 +67,15 @@ function getAttemptSummary(result: MyResult) {
     const answers = parseAttemptAnswers(result.answers)
     const answeredCount = answers.length
     const correctCount = answers.filter(answer => Boolean(answer?.isCorrect)).length
-    const totalQuestions = result.total ?? 0
-    const percent = totalQuestions > 0 ? Math.round((result.score / totalQuestions) * 100) : Math.round(result.score)
+    const percent = Math.round(result.score)
     return { answeredCount, correctCount, percent }
+}
+
+function getAttemptMeta(result: MyResult) {
+    if (typeof result.rawScore === 'number' && typeof result.scoreMax === 'number') {
+        return `${result.rawScore} / ${result.scoreMax}`
+    }
+    return `${result.score}%`
 }
 
 // Test paneli uchun inline KaTeX renderer (ReactMarkdown ishlatmaymiz, tez va engil)
@@ -3198,14 +3215,22 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                                         style={{ background: summary.percent >= 70 ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.1)', color: summary.percent >= 70 ? '#10b981' : '#ef4444' }}>
                                                                         <Trophy className="h-4 w-4" />
                                                                     </div>
-                                                                    <div className="flex-1 min-w-0">
-                                                                        <p className="text-sm font-medium truncate">{r.test?.title || publicTests.find(t => t.id === r.testId)?.title || 'Test'}</p>
-                                                                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{new Date(r.createdAt).toLocaleDateString('uz-UZ')}</p>
-                                                                    </div>
-                                                                    <span className="text-sm font-bold flex-shrink-0" style={{ color: summary.percent >= 70 ? '#10b981' : '#ef4444' }}>{summary.percent}%</span>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="text-sm font-medium truncate">{r.test?.title || publicTests.find(t => t.id === r.testId)?.title || 'Test'}</p>
+                                                                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{new Date(r.createdAt).toLocaleDateString('uz-UZ')}</p>
+                                                                </div>
+                                                                    <span className="text-sm font-bold flex-shrink-0" style={{ color: summary.percent >= 70 ? '#10b981' : '#ef4444' }}>{getAttemptMeta(r)}</span>
                                                                 </div>
                                                                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
                                                                     <span>{summary.correctCount}/{summary.answeredCount || r.total || 0} to'g'ri</span>
+                                                                    <span style={{ color: 'var(--text-muted)' }}>•</span>
+                                                                    <span>{summary.percent}%</span>
+                                                                    {r.grade && (
+                                                                        <>
+                                                                            <span style={{ color: 'var(--text-muted)' }}>•</span>
+                                                                            <span>{r.grade}</span>
+                                                                        </>
+                                                                    )}
                                                                     {weakTopicSummary && (
                                                                         <>
                                                                             <span style={{ color: 'var(--text-muted)' }}>•</span>

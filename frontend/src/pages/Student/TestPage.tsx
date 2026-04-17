@@ -98,6 +98,34 @@ function parseMultipartOptions(raw: unknown): MultipartOptions | null {
 const OPTS = ['A', 'B', 'C', 'D'] as const
 type AnswerValue = number | string | string[] | Record<number, number>
 type CorrectAnswerMap = Record<string, { idx: number; text?: string; type: string; matchingCorrect?: number[]; multipartCorrectText?: Array<{ label: string; text: string; correctText: string }> }>
+type TestTypeValue = 'REGULAR' | 'DTM_BLOCK' | 'MILLIY_SERTIFIKAT'
+
+function normalizeTestType(value: string | null | undefined): TestTypeValue {
+    if (value === 'DTM_BLOCK' || value === 'dtm') return 'DTM_BLOCK'
+    if (value === 'MILLIY_SERTIFIKAT' || value === 'milliy_sertifikat') return 'MILLIY_SERTIFIKAT'
+    return 'REGULAR'
+}
+
+function getResultMeta(result: any, testType: TestTypeValue) {
+    const rawScore = typeof result?.rawScore === 'number' ? result.rawScore : undefined
+    const scoreMax = typeof result?.scoreMax === 'number' ? result.scoreMax : undefined
+    if (testType === 'DTM_BLOCK') {
+        return {
+            label: 'DTM natijasi',
+            value: rawScore !== undefined && scoreMax !== undefined ? `${rawScore} / ${scoreMax}` : `${result?.dtmBall ?? 0} / ${result?.dtmMax ?? 0}`,
+        }
+    }
+    if (testType === 'MILLIY_SERTIFIKAT') {
+        return {
+            label: 'Sertifikat natijasi',
+            value: rawScore !== undefined && scoreMax !== undefined ? `${rawScore} / ${scoreMax}` : `${result?.msBall ?? 0} / ${result?.msMax ?? 0}`,
+        }
+    }
+    return {
+        label: 'Xom natija',
+        value: rawScore !== undefined && scoreMax !== undefined ? `${rawScore} / ${scoreMax}` : `${result?.correct ?? 0} / ${result?.total ?? 0}`,
+    }
+}
 
 export default function TestPage() {
     const { shareLink } = useParams<{ shareLink: string }>()
@@ -115,16 +143,7 @@ export default function TestPage() {
     const [focusedQ, setFocusedQ] = useState(0) // for DTM mode: highlight active question
 
     const questionsRef = useRef<HTMLDivElement>(null)
-    const analysisNavTimeoutRef = useRef<number | null>(null)
     const isGuest = !token || !user
-
-    useEffect(() => {
-        return () => {
-            if (analysisNavTimeoutRef.current != null) {
-                window.clearTimeout(analysisNavTimeoutRef.current)
-            }
-        }
-    }, [])
 
     useEffect(() => {
         if (!shareLink) return
@@ -221,15 +240,6 @@ export default function TestPage() {
             localStorage.removeItem('dtmmax_analysis_chat_id')
             localStorage.setItem('dtmmax_guest_test_result', JSON.stringify({ title: test.title, subject: test.subject, score: res.correct, total: res.total, questions: questionsForAnalysis }))
             setAnalysisReady(true)
-            if (analysisNavTimeoutRef.current != null) {
-                window.clearTimeout(analysisNavTimeoutRef.current)
-            }
-            analysisNavTimeoutRef.current = window.setTimeout(() => {
-                // If analysis chat already exists from a previous submit, go there; else trigger new analysis
-                const existingChatId = localStorage.getItem('dtmmax_analysis_chat_id')
-                if (existingChatId) nav(`/suhbat/${existingChatId}`)
-                else nav('/suhbat?analyzeTest=true')
-            }, 2500)
         } catch (e: any) { toast.error(e.message || 'Test yuborishda xatolik yuz berdi') }
         finally { setSubmitting(false) }
     }
@@ -288,7 +298,8 @@ export default function TestPage() {
         return typeof a === 'number'
     }).length ?? 0
     const total = test?.questions?.length || 0
-    const isDtm = test?.testType === 'dtm'
+    const normalizedTestType = normalizeTestType(test?.testType)
+    const isDtm = normalizedTestType === 'DTM_BLOCK'
 
     // ─────────────────── DTM MODE ───────────────────
     if (isDtm) return <DtmTestView
@@ -349,22 +360,30 @@ export default function TestPage() {
 
                 {submitted && result && (
                     <div className="rounded-xl p-5 text-center" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                        {(() => {
+                            const resultMeta = getResultMeta(result, normalizedTestType)
+                            return (
+                                <>
                         <div className="flex items-center justify-center gap-4 mb-2">
                             <div className="text-4xl font-extrabold" style={{ color: result.score >= 70 ? 'var(--success)' : result.score >= 50 ? 'var(--warning)' : 'var(--danger)' }}>{result.score}%</div>
                             {result.grade && <div className="text-3xl font-extrabold" style={{ color: result.grade.startsWith('A') ? 'var(--success)' : result.grade.startsWith('B') ? 'var(--info)' : result.grade.startsWith('C') ? 'var(--warning)' : 'var(--danger)' }}>{result.grade}</div>}
                         </div>
-                        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{result.correct} / {result.total} ball</p>
+                        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{resultMeta.label}: {resultMeta.value}</p>
+                        <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{result.correct} / {result.total} to'g'ri javob</p>
                         <div className="mt-3 flex items-center justify-center gap-2 flex-wrap">
-                            {result.dtmBall !== undefined && <div className="px-3 py-1.5 rounded-lg text-[12px] font-semibold" style={{ background: 'color-mix(in srgb, var(--brand) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', color: 'var(--brand)' }}>DTM: {result.dtmBall} / {result.dtmMax}</div>}
+                            {normalizedTestType === 'MILLIY_SERTIFIKAT' && result.msBall !== undefined && <div className="px-3 py-1.5 rounded-lg text-[12px] font-semibold" style={{ background: 'color-mix(in srgb, #8b5cf6 10%, transparent)', border: '1px solid color-mix(in srgb, #8b5cf6 25%, transparent)', color: '#8b5cf6' }}>MS: {result.msBall} / {result.msMax}</div>}
                         </div>
+                                </>
+                            )
+                        })()}
                     </div>
                 )}
 
                 {submitted && analysisReady && (
                     <div className="rounded-xl p-4" style={{ border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', background: 'var(--bg-card)' }}>
                         <div className="flex items-center gap-3 mb-3">
-                            <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin flex-shrink-0" style={{ borderColor: 'color-mix(in srgb, var(--brand) 30%, transparent)', borderTopColor: 'var(--brand)' }} />
-                            <p className="text-[13px] font-semibold">AI tahlil uchun chatga o'tilmoqda...</p>
+                            <Sparkles className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--brand)' }} />
+                            <p className="text-[13px] font-semibold">AI tahlil tayyor. Xohlasangiz chatda davom eting.</p>
                         </div>
                         <button onClick={() => { const id = localStorage.getItem('dtmmax_analysis_chat_id'); nav(id ? `/suhbat/${id}` : '/suhbat?analyzeTest=true') }} className="w-full h-10 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2" style={{ background: 'var(--brand)' }}><MessageSquare className="h-4 w-4" /> Hozir o'tish</button>
                     </div>
@@ -720,11 +739,13 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
         }
 
         if (submitted) {
+            const resultMeta = getResultMeta(result, 'DTM_BLOCK')
             return (
                 <div className={footerPadding} style={{ borderTop: '1px solid var(--border)' }}>
                     <div className="text-center">
                         <p className="text-xl font-extrabold" style={{ color: result?.score >= 70 ? 'var(--success)' : result?.score >= 50 ? 'var(--warning)' : 'var(--danger)' }}>{result?.score ?? 0}%</p>
-                        <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{result?.correct}/{result?.total} ball</p>
+                        <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{resultMeta.value}</p>
+                        <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{result?.correct}/{result?.total} to'g'ri javob</p>
                         {analysisReady && (
                             <button onClick={() => { const id = localStorage.getItem('dtmmax_analysis_chat_id'); nav(id ? `/suhbat/${id}` : '/suhbat?analyzeTest=true') }} className={`mt-2 w-full ${buttonHeight} rounded-lg text-[12px] font-semibold text-white flex items-center justify-center gap-1.5`} style={{ background: 'var(--brand)' }}>
                                 <Sparkles className="h-3 w-3" /> AI tahlil

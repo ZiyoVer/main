@@ -179,6 +179,7 @@ router.post('/generate', mockExamLimiter, async (req: AuthRequest, res) => {
             data: {
                 title: `${examType} Mock: ${subject} — ${new Date().toLocaleDateString('uz-UZ')}`,
                 subject,
+                testType: examType === 'DTM' ? 'DTM_BLOCK' : 'MILLIY_SERTIFIKAT',
                 isPublic: false,
                 creatorId: req.user.id,
                 timeLimit: config.timeMinutes,
@@ -189,6 +190,8 @@ router.post('/generate', mockExamLimiter, async (req: AuthRequest, res) => {
                             text: q.question,
                             options: JSON.stringify(q.options),
                             correctIdx: correctIdx >= 0 ? correctIdx : 0,
+                            blockType: examType === 'DTM' ? 'SPECIALTY_1' : 'GENERIC',
+                            coefficient: examType === 'DTM' ? 3.1 : null,
                             difficulty: 0.0,
                             orderIdx: idx
                         }
@@ -251,6 +254,9 @@ router.get('/history', async (req: AuthRequest, res) => {
             title: a.test.title,
             subject: a.test.subject,
             score: Math.round(a.score),
+            rawScore: typeof a.rawScore === 'number' ? a.rawScore : null,
+            scoreMax: typeof a.scoreMax === 'number' ? a.scoreMax : null,
+            grade: a.grade || null,
             raschAbility: a.raschAbility,
             totalQuestions: a.test._count.questions,
             date: a.createdAt
