@@ -7,6 +7,21 @@ import { SUBJECTS } from '@/constants'
 import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
 
+interface TimeSpentUser {
+    id: string
+    name: string
+    email: string
+    role: 'STUDENT' | 'TEACHER' | 'ADMIN'
+    createdAt: string
+    totalMinutes: number
+    todayMinutes: number
+    weekMinutes: number
+    totalHours: number
+    lastSeen: string | null
+    isOnline: boolean
+    onlineLastSeen: number | null
+}
+
 function formatDuration(minutes: number) {
     if (!minutes || minutes <= 0) return '0 daq'
     const hours = Math.floor(minutes / 60)
@@ -20,7 +35,7 @@ export default function AdminPanel() {
     const nav = useNavigate()
     const { logout } = useAuthStore()
     const pageRef = useRef<HTMLDivElement | null>(null)
-    const [tab, setTab] = useState<'stats' | 'users' | 'teachers' | 'docs' | 'tests' | 'ai' | 'knowledge' | 'activity'>('stats')
+    const [tab, setTab] = useState<'stats' | 'presence' | 'users' | 'teachers' | 'docs' | 'tests' | 'ai' | 'knowledge' | 'activity'>('stats')
     const [stats, setStats] = useState<any>(null)
     const [users, setUsers] = useState<any[]>([])
     const [docs, setDocs] = useState<any[]>([])
@@ -64,10 +79,12 @@ export default function AdminPanel() {
     // Online users
     const [onlineUsers, setOnlineUsers] = useState<any[]>([])
     const onlineTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-    const [timeSpentUsers, setTimeSpentUsers] = useState<any[]>([])
+    const [timeSpentUsers, setTimeSpentUsers] = useState<TimeSpentUser[]>([])
     const [trackedUsers, setTrackedUsers] = useState(0)
     const [presenceIntervalMinutes, setPresenceIntervalMinutes] = useState(5)
     const [timeSpentLoading, setTimeSpentLoading] = useState(false)
+    const [timeSpentSearch, setTimeSpentSearch] = useState('')
+    const [timeSpentSort, setTimeSpentSort] = useState<'today' | 'week' | 'total'>('today')
 
     // Activity log
     const [activityLogs, setActivityLogs] = useState<any[]>([])
@@ -122,6 +139,7 @@ export default function AdminPanel() {
     useEffect(() => { if (tab === 'tests') loadTests() }, [tab, testsPage, debouncedTestsSearch, testsVisibility, testsSubject, testsSortBy])
     useEffect(() => { if (tab === 'knowledge') loadKnowledge() }, [tab])
     useEffect(() => { if (tab === 'teachers') loadTeachers() }, [tab])
+    useEffect(() => { if (tab === 'presence') loadTimeSpent() }, [tab])
     useEffect(() => {
         if (tab === 'activity') {
             loadActivity()
@@ -156,9 +174,7 @@ export default function AdminPanel() {
         else setStats({})
 
         if (timeSpentRes.status === 'fulfilled') {
-            setTimeSpentUsers(timeSpentRes.value.users || [])
-            setTrackedUsers(timeSpentRes.value.trackedUsers || 0)
-            setPresenceIntervalMinutes(timeSpentRes.value.intervalMinutes || 5)
+            applyTimeSpentPayload(timeSpentRes.value)
         } else {
             setTimeSpentUsers([])
             setTrackedUsers(0)
@@ -173,6 +189,29 @@ export default function AdminPanel() {
         if (testStatsRes.status === 'fulfilled') setTestStats(testStatsRes.value)
         else setTestStats(null)
         setLoading(false)
+    }
+
+    function applyTimeSpentPayload(payload: {
+        users?: TimeSpentUser[]
+        trackedUsers?: number
+        intervalMinutes?: number
+    }) {
+        setTimeSpentUsers(payload.users || [])
+        setTrackedUsers(payload.trackedUsers || 0)
+        setPresenceIntervalMinutes(payload.intervalMinutes || 5)
+    }
+
+    async function loadTimeSpent() {
+        setTimeSpentLoading(true)
+        try {
+            const data = await fetchApi('/analytics/time-spent')
+            applyTimeSpentPayload(data)
+        } catch {
+            setTimeSpentUsers([])
+            setTrackedUsers(0)
+        } finally {
+            setTimeSpentLoading(false)
+        }
     }
 
     async function loadPeriodTrend(days: number) {
@@ -405,6 +444,7 @@ export default function AdminPanel() {
 
     const tabs = [
         { k: 'stats' as const, l: 'Statistika', icon: BarChart3 },
+        { k: 'presence' as const, l: 'Online vaqt', icon: Clock3 },
         { k: 'activity' as const, l: 'Faollik', icon: Activity },
         { k: 'users' as const, l: 'Foydalanuvchilar', icon: Users },
         { k: 'teachers' as const, l: 'O\'qituvchi', icon: UserCheck },
@@ -418,6 +458,25 @@ export default function AdminPanel() {
     const cardStyle = { background: 'var(--bg-card)', border: '1px solid var(--border)' }
     const mutedText = { color: 'var(--text-muted)' }
     const secondaryText = { color: 'var(--text-secondary)' }
+    const normalizedTimeSpentSearch = timeSpentSearch.trim().toLowerCase()
+    const filteredTimeSpentUsers = [...timeSpentUsers]
+        .filter(user => {
+            if (!normalizedTimeSpentSearch) return true
+            return (
+                user.name?.toLowerCase().includes(normalizedTimeSpentSearch) ||
+                user.email?.toLowerCase().includes(normalizedTimeSpentSearch)
+            )
+        })
+        .sort((left, right) => {
+            if (right.isOnline !== left.isOnline) return Number(right.isOnline) - Number(left.isOnline)
+            if (timeSpentSort === 'week') return (right.weekMinutes || 0) - (left.weekMinutes || 0)
+            if (timeSpentSort === 'total') return (right.totalMinutes || 0) - (left.totalMinutes || 0)
+            return (right.todayMinutes || 0) - (left.todayMinutes || 0)
+        })
+    const timeSpentPreviewUsers = filteredTimeSpentUsers.slice(0, 6)
+    const onlineNowCount = timeSpentUsers.filter(user => user.isOnline).length
+    const totalTodayMinutes = timeSpentUsers.reduce((sum, user) => sum + (user.todayMinutes || 0), 0)
+    const totalWeekMinutes = timeSpentUsers.reduce((sum, user) => sum + (user.weekMinutes || 0), 0)
 
     return (
         <div ref={pageRef} className="h-screen overflow-y-auto w-full" style={{ background: 'var(--bg-page)' }}>
@@ -700,58 +759,82 @@ export default function AdminPanel() {
                                         <p className="text-[11px]" style={mutedText}>{trackedUsers} ta user · {presenceIntervalMinutes} daqiqalik aktivlik pulsi asosida taxminiy hisob</p>
                                     </div>
                                 </div>
-                                <button onClick={loadStats} className="btn btn-sm btn-outline flex items-center gap-1.5">
-                                    <RefreshCw className={`h-3 w-3 ${timeSpentLoading ? 'animate-spin' : ''}`} /> Yangilash
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={loadTimeSpent} className="btn btn-sm btn-outline flex items-center gap-1.5">
+                                        <RefreshCw className={`h-3 w-3 ${timeSpentLoading ? 'animate-spin' : ''}`} /> Yangilash
+                                    </button>
+                                    <button onClick={() => setTab('presence')} className="btn btn-sm btn-primary flex items-center gap-1.5">
+                                        <ExternalLink className="h-3 w-3" /> To‘liq jadval
+                                    </button>
+                                </div>
                             </div>
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
-                                        <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Foydalanuvchi</th>
-                                        <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Bugun</th>
-                                        <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>7 kun</th>
-                                        <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Jami</th>
-                                        <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>So‘nggi faollik</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {timeSpentLoading && timeSpentUsers.length === 0 ? (
-                                        <tr><td colSpan={5} className="text-center py-10 text-[12px]" style={mutedText}>Yuklanmoqda...</td></tr>
-                                    ) : timeSpentUsers.length === 0 ? (
-                                        <tr><td colSpan={5} className="text-center py-10 text-[12px]" style={mutedText}>Hali vaqt statistikasi to‘planmagan</td></tr>
-                                    ) : timeSpentUsers.slice(0, 12).map((user: any) => (
-                                        <tr key={user.id} style={{ borderBottom: '1px solid var(--border)' }} className="hover:bg-[var(--bg-surface)] transition-colors">
-                                            <td className="py-2.5 px-4">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0" style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>
-                                                        {user.name?.[0]?.toUpperCase() || '?'}
-                                                    </div>
-                                                    <div className="min-w-0">
-                                                        <div className="flex items-center gap-1.5">
-                                                            <p className="text-[12px] font-medium truncate">{user.name}</p>
-                                                            {user.isOnline && <span className="h-2 w-2 rounded-full" style={{ background: '#10b981' }} />}
-                                                        </div>
-                                                        <p className="text-[10px] truncate" style={mutedText}>{user.email}</p>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="py-2.5 px-4 text-[12px] font-medium tabular-nums">{formatDuration(user.todayMinutes || 0)}</td>
-                                            <td className="py-2.5 px-4 text-[12px] font-medium tabular-nums">{formatDuration(user.weekMinutes || 0)}</td>
-                                            <td className="py-2.5 px-4">
-                                                <div>
-                                                    <p className="text-[12px] font-semibold tabular-nums">{formatDuration(user.totalMinutes || 0)}</p>
-                                                    <p className="text-[10px]" style={mutedText}>{user.totalHours || 0} soat</p>
-                                                </div>
-                                            </td>
-                                            <td className="py-2.5 px-4 text-[11px] tabular-nums" style={mutedText}>
-                                                {user.lastSeen
-                                                    ? new Date(user.lastSeen).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-                                                    : '—'}
-                                            </td>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+                                {[
+                                    { label: 'Kuzatilayotganlar', value: trackedUsers, tone: 'var(--brand)' },
+                                    { label: 'Hozir onlayn', value: onlineNowCount, tone: 'var(--success)' },
+                                    { label: 'Bugungi vaqt', value: formatDuration(totalTodayMinutes), tone: '#f59e0b' },
+                                    { label: '7 kunlik vaqt', value: formatDuration(totalWeekMinutes), tone: '#6366f1' },
+                                ].map(item => (
+                                    <div key={item.label} className="rounded-xl px-3.5 py-3" style={{ background: 'var(--bg-surface)' }}>
+                                        <p className="text-[10px] uppercase tracking-wide mb-1" style={mutedText}>{item.label}</p>
+                                        <p className="text-[14px] font-semibold" style={{ color: item.tone }}>{item.value}</p>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm min-w-[760px]">
+                                    <thead>
+                                        <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+                                            <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Foydalanuvchi</th>
+                                            <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Bugun</th>
+                                            <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>7 kun</th>
+                                            <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Jami</th>
+                                            <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Holat</th>
+                                            <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>So‘nggi faollik</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                        {timeSpentLoading && timeSpentUsers.length === 0 ? (
+                                            <tr><td colSpan={6} className="text-center py-10 text-[12px]" style={mutedText}>Yuklanmoqda...</td></tr>
+                                        ) : timeSpentPreviewUsers.length === 0 ? (
+                                            <tr><td colSpan={6} className="text-center py-10 text-[12px]" style={mutedText}>Hali vaqt statistikasi to‘planmagan</td></tr>
+                                        ) : timeSpentPreviewUsers.map(user => (
+                                            <tr key={user.id} style={{ borderBottom: '1px solid var(--border)' }} className="hover:bg-[var(--bg-surface)] transition-colors">
+                                                <td className="py-2.5 px-4">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0" style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>
+                                                            {user.name?.[0]?.toUpperCase() || '?'}
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <p className="text-[12px] font-medium truncate">{user.name}</p>
+                                                            <p className="text-[10px] truncate" style={mutedText}>{user.email}</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="py-2.5 px-4 text-[12px] font-medium tabular-nums">{formatDuration(user.todayMinutes || 0)}</td>
+                                                <td className="py-2.5 px-4 text-[12px] font-medium tabular-nums">{formatDuration(user.weekMinutes || 0)}</td>
+                                                <td className="py-2.5 px-4">
+                                                    <div>
+                                                        <p className="text-[12px] font-semibold tabular-nums">{formatDuration(user.totalMinutes || 0)}</p>
+                                                        <p className="text-[10px]" style={mutedText}>{user.totalHours || 0} soat</p>
+                                                    </div>
+                                                </td>
+                                                <td className="py-2.5 px-4">
+                                                    <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-semibold" style={user.isOnline ? { background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)' } : { background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
+                                                        <span className="h-1.5 w-1.5 rounded-full" style={{ background: user.isOnline ? 'var(--success)' : 'var(--text-muted)' }} />
+                                                        {user.isOnline ? 'Onlayn' : 'Offlayn'}
+                                                    </span>
+                                                </td>
+                                                <td className="py-2.5 px-4 text-[11px] tabular-nums" style={mutedText}>
+                                                    {user.lastSeen
+                                                        ? new Date(user.lastSeen).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                                                        : '—'}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
 
                     </div>
@@ -1234,6 +1317,135 @@ export default function AdminPanel() {
                                 </button>
                             </div>
                         ))}
+                    </div>
+                )}
+
+                {/* === ONLINE VAQT === */}
+                {tab === 'presence' && (
+                    <div className="space-y-5">
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                            <div>
+                                <h2 className="text-base font-bold">Platformada o‘tkazilgan vaqt</h2>
+                                <p className="text-[12px] mt-1" style={mutedText}>
+                                    {trackedUsers} ta user · {presenceIntervalMinutes} daqiqalik aktivlik pulsi asosida taxminiy hisob
+                                </p>
+                            </div>
+                            <button onClick={loadTimeSpent} className="btn btn-sm btn-outline flex items-center gap-1.5">
+                                <RefreshCw className={`h-3 w-3 ${timeSpentLoading ? 'animate-spin' : ''}`} /> Yangilash
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 xl:grid-cols-4 gap-2.5">
+                            {[
+                                { label: 'Kuzatilayotgan foydalanuvchilar', value: trackedUsers, tone: 'var(--brand)' },
+                                { label: 'Hozir onlayn', value: onlineNowCount, tone: 'var(--success)' },
+                                { label: 'Bugungi umumiy vaqt', value: formatDuration(totalTodayMinutes), tone: '#f59e0b' },
+                                { label: '7 kunlik umumiy vaqt', value: formatDuration(totalWeekMinutes), tone: '#6366f1' },
+                            ].map(item => (
+                                <div key={item.label} className="rounded-xl p-4" style={cardStyle}>
+                                    <p className="text-[10px] uppercase tracking-wide mb-1" style={mutedText}>{item.label}</p>
+                                    <p className="text-xl font-bold" style={{ color: item.tone }}>{item.value}</p>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap" style={cardStyle}>
+                            <div className="flex items-center gap-2 flex-1 min-w-[260px]">
+                                <div className="relative flex-1">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
+                                    <input
+                                        type="search"
+                                        placeholder="Ism yoki email bo‘yicha qidirish..."
+                                        value={timeSpentSearch}
+                                        onChange={event => setTimeSpentSearch(event.target.value)}
+                                        className="input pl-9 w-full"
+                                        style={{ height: '2.25rem', fontSize: '13px' }}
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Filter className="h-3.5 w-3.5" style={{ color: 'var(--text-muted)' }} />
+                                <select
+                                    value={timeSpentSort}
+                                    onChange={event => setTimeSpentSort(event.target.value as 'today' | 'week' | 'total')}
+                                    className="input"
+                                    style={{ height: '2.25rem', fontSize: '13px', cursor: 'pointer', minWidth: '170px' }}
+                                >
+                                    <option value="today">Bugungi vaqt bo‘yicha</option>
+                                    <option value="week">7 kun bo‘yicha</option>
+                                    <option value="total">Jami vaqt bo‘yicha</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="rounded-xl overflow-hidden" style={cardStyle}>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm min-w-[980px]">
+                                    <thead>
+                                        <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+                                            <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Foydalanuvchi</th>
+                                            <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Rol</th>
+                                            <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Bugun</th>
+                                            <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>7 kun</th>
+                                            <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Jami</th>
+                                            <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Holat</th>
+                                            <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>So‘nggi faollik</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {timeSpentLoading && filteredTimeSpentUsers.length === 0 ? (
+                                            <tr><td colSpan={7} className="text-center py-10 text-[12px]" style={mutedText}>Yuklanmoqda...</td></tr>
+                                        ) : filteredTimeSpentUsers.length === 0 ? (
+                                            <tr><td colSpan={7} className="text-center py-10 text-[12px]" style={mutedText}>Mos foydalanuvchi topilmadi</td></tr>
+                                        ) : filteredTimeSpentUsers.map(user => (
+                                            <tr key={user.id} style={{ borderBottom: '1px solid var(--border)' }} className="hover:bg-[var(--bg-surface)] transition-colors">
+                                                <td className="py-3 px-4">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className="h-8 w-8 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0" style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>
+                                                            {user.name?.[0]?.toUpperCase() || '?'}
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <p className="text-[12px] font-medium truncate">{user.name}</p>
+                                                            <p className="text-[10px] truncate" style={mutedText}>{user.email}</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="py-3 px-4">
+                                                    <span className="px-2 py-1 rounded-full text-[10px] font-semibold" style={
+                                                        user.role === 'ADMIN'
+                                                            ? { background: 'color-mix(in srgb, #6366f1 12%, transparent)', color: '#6366f1' }
+                                                            : user.role === 'TEACHER'
+                                                                ? { background: 'color-mix(in srgb, #d97706 12%, transparent)', color: '#d97706' }
+                                                                : { background: 'var(--bg-surface)', color: 'var(--text-muted)' }
+                                                    }>
+                                                        {user.role}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-4 text-[12px] font-medium tabular-nums">{formatDuration(user.todayMinutes || 0)}</td>
+                                                <td className="py-3 px-4 text-[12px] font-medium tabular-nums">{formatDuration(user.weekMinutes || 0)}</td>
+                                                <td className="py-3 px-4">
+                                                    <div>
+                                                        <p className="text-[12px] font-semibold tabular-nums">{formatDuration(user.totalMinutes || 0)}</p>
+                                                        <p className="text-[10px]" style={mutedText}>{user.totalHours || 0} soat</p>
+                                                    </div>
+                                                </td>
+                                                <td className="py-3 px-4">
+                                                    <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-semibold" style={user.isOnline ? { background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)' } : { background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
+                                                        <span className="h-1.5 w-1.5 rounded-full" style={{ background: user.isOnline ? 'var(--success)' : 'var(--text-muted)' }} />
+                                                        {user.isOnline ? 'Onlayn' : 'Offlayn'}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-4 text-[11px] tabular-nums" style={mutedText}>
+                                                    {user.lastSeen
+                                                        ? new Date(user.lastSeen).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                                                        : '—'}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 )}
 
