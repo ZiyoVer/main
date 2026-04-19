@@ -555,37 +555,6 @@ router.get('/my-tests', authenticate, requireRole('TEACHER', 'ADMIN'), async (re
     }
 })
 
-// O'quvchining test natijalari
-router.get('/my-results', authenticate, async (req: AuthRequest, res) => {
-    try {
-        const attempts = await prisma.testAttempt.findMany({
-            where: { userId: req.user.id },
-            include: { test: { select: { title: true, subject: true, subject2: true, testType: true } } },
-            orderBy: { createdAt: 'desc' }
-        })
-        res.json(attempts)
-    } catch (e) {
-        res.status(500).json({ error: 'Server xatoligi' })
-    }
-})
-
-// Public testlar ro'yxati (barcha o'quvchilar uchun)
-router.get('/public', authenticate, async (req: AuthRequest, res) => {
-    try {
-        const tests = await prisma.test.findMany({
-            where: { isPublic: true },
-            include: {
-                _count: { select: { questions: true, attempts: true } },
-                creator: { select: { name: true } }
-            },
-            orderBy: { createdAt: 'desc' }
-        })
-        res.json(tests)
-    } catch (e) {
-        res.status(500).json({ error: 'Server xatoligi' })
-    }
-})
-
 router.get('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, res) => {
     try {
         const where = req.user.role === 'ADMIN'
@@ -717,6 +686,37 @@ router.get('/all', authenticate, requireRole('ADMIN'), async (req: AuthRequest, 
         })
     } catch (e) {
         console.error(e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+// O'quvchining test natijalari
+router.get('/my-results', authenticate, async (req: AuthRequest, res) => {
+    try {
+        const attempts = await prisma.testAttempt.findMany({
+            where: { userId: req.user.id },
+            include: { test: { select: { title: true, subject: true, subject2: true, testType: true } } },
+            orderBy: { createdAt: 'desc' }
+        })
+        res.json(attempts)
+    } catch (e) {
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+// Public testlar ro'yxati (barcha o'quvchilar uchun)
+router.get('/public', authenticate, async (req: AuthRequest, res) => {
+    try {
+        const tests = await prisma.test.findMany({
+            where: { isPublic: true },
+            include: {
+                _count: { select: { questions: true, attempts: true } },
+                creator: { select: { name: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        })
+        res.json(tests)
+    } catch (e) {
         res.status(500).json({ error: 'Server xatoligi' })
     }
 })
