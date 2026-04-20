@@ -555,64 +555,6 @@ router.get('/my-tests', authenticate, requireRole('TEACHER', 'ADMIN'), async (re
     }
 })
 
-router.get('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, res) => {
-    try {
-        const where = req.user.role === 'ADMIN'
-            ? { id: req.params.testId as string }
-            : { id: req.params.testId as string, creatorId: req.user.id }
-
-        const test = await prisma.test.findFirst({
-            where,
-            include: {
-                questions: { orderBy: { orderIdx: 'asc' } },
-                _count: { select: { attempts: true } }
-            }
-        })
-
-        if (!test) {
-            return res.status(404).json({ error: 'Test topilmadi yoki ruxsat yo\'q' })
-        }
-
-        const normalizedTestType = normalizeTestType(test.testType)
-
-        res.json({
-            id: test.id,
-            title: test.title,
-            description: test.description,
-            subject: test.subject,
-            subject2: test.subject2,
-            isPublic: test.isPublic,
-            timeLimit: test.timeLimit,
-            testType: normalizedTestType,
-            attemptsCount: test._count.attempts,
-            questions: test.questions.map((question) => {
-                const parsedOptions = parseStoredQuestionOptions(question.questionType, question.options)
-                return {
-                    id: question.id,
-                    text: question.text,
-                    imageUrl: question.imageUrl,
-                    questionType: question.questionType,
-                    correctIdx: question.correctIdx,
-                    correctText: question.correctText,
-                    options: Array.isArray(parsedOptions) ? parsedOptions : [],
-                    matchingAnswers: !Array.isArray(parsedOptions) && 'answers' in parsedOptions ? parsedOptions.answers : ['', '', '', '', '', ''],
-                    matchingSubQuestions: !Array.isArray(parsedOptions) && 'answers' in parsedOptions ? parsedOptions.subQuestions : [{ text: '', correctIdx: 0 }],
-                    multipartSubQuestions: !Array.isArray(parsedOptions) && 'subQuestions' in parsedOptions && !('answers' in parsedOptions) ? parsedOptions.subQuestions : [],
-                    blockType: normalizeDtmBlockType(question.blockType),
-                    coefficient: typeof question.coefficient === 'number'
-                        ? roundScore(question.coefficient)
-                        : (normalizedTestType === 'DTM_BLOCK'
-                            ? getDefaultDtmCoefficient(normalizeDtmBlockType(question.blockType), test.subject)
-                            : null)
-                }
-            })
-        })
-    } catch (e) {
-        console.error(e)
-        res.status(500).json({ error: 'Server xatoligi' })
-    }
-})
-
 // Admin: barcha testlar (qidiruv, filter, avg score)
 router.get('/all', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
     try {
@@ -717,6 +659,64 @@ router.get('/public', authenticate, async (req: AuthRequest, res) => {
         })
         res.json(tests)
     } catch (e) {
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+router.get('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, res) => {
+    try {
+        const where = req.user.role === 'ADMIN'
+            ? { id: req.params.testId as string }
+            : { id: req.params.testId as string, creatorId: req.user.id }
+
+        const test = await prisma.test.findFirst({
+            where,
+            include: {
+                questions: { orderBy: { orderIdx: 'asc' } },
+                _count: { select: { attempts: true } }
+            }
+        })
+
+        if (!test) {
+            return res.status(404).json({ error: 'Test topilmadi yoki ruxsat yo\'q' })
+        }
+
+        const normalizedTestType = normalizeTestType(test.testType)
+
+        res.json({
+            id: test.id,
+            title: test.title,
+            description: test.description,
+            subject: test.subject,
+            subject2: test.subject2,
+            isPublic: test.isPublic,
+            timeLimit: test.timeLimit,
+            testType: normalizedTestType,
+            attemptsCount: test._count.attempts,
+            questions: test.questions.map((question) => {
+                const parsedOptions = parseStoredQuestionOptions(question.questionType, question.options)
+                return {
+                    id: question.id,
+                    text: question.text,
+                    imageUrl: question.imageUrl,
+                    questionType: question.questionType,
+                    correctIdx: question.correctIdx,
+                    correctText: question.correctText,
+                    options: Array.isArray(parsedOptions) ? parsedOptions : [],
+                    matchingAnswers: !Array.isArray(parsedOptions) && 'answers' in parsedOptions ? parsedOptions.answers : ['', '', '', '', '', ''],
+                    matchingSubQuestions: !Array.isArray(parsedOptions) && 'answers' in parsedOptions ? parsedOptions.subQuestions : [{ text: '', correctIdx: 0 }],
+                    multipartSubQuestions: !Array.isArray(parsedOptions) && 'subQuestions' in parsedOptions && !('answers' in parsedOptions) ? parsedOptions.subQuestions : [],
+                    blockType: normalizeDtmBlockType(question.blockType),
+                    coefficient: typeof question.coefficient === 'number'
+                        ? roundScore(question.coefficient)
+                        : (normalizedTestType === 'DTM_BLOCK'
+                            ? getDefaultDtmCoefficient(normalizeDtmBlockType(question.blockType), test.subject)
+                            : null)
+                }
+            })
+        })
+    } catch (e) {
+        console.error(e)
         res.status(500).json({ error: 'Server xatoligi' })
     }
 })

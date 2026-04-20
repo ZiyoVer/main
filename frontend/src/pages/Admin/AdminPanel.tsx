@@ -83,6 +83,7 @@ export default function AdminPanel() {
     const [trackedUsers, setTrackedUsers] = useState(0)
     const [presenceIntervalMinutes, setPresenceIntervalMinutes] = useState(5)
     const [timeSpentLoading, setTimeSpentLoading] = useState(false)
+    const [timeSpentError, setTimeSpentError] = useState('')
     const [timeSpentSearch, setTimeSpentSearch] = useState('')
     const [timeSpentSort, setTimeSpentSort] = useState<'today' | 'week' | 'total'>('today')
 
@@ -175,9 +176,9 @@ export default function AdminPanel() {
 
         if (timeSpentRes.status === 'fulfilled') {
             applyTimeSpentPayload(timeSpentRes.value)
+            setTimeSpentError('')
         } else {
-            setTimeSpentUsers([])
-            setTrackedUsers(0)
+            setTimeSpentError('Online vaqt maʼlumotini yuklab bo‘lmadi')
         }
         setTimeSpentLoading(false)
 
@@ -206,9 +207,9 @@ export default function AdminPanel() {
         try {
             const data = await fetchApi('/analytics/time-spent')
             applyTimeSpentPayload(data)
+            setTimeSpentError('')
         } catch {
-            setTimeSpentUsers([])
-            setTrackedUsers(0)
+            setTimeSpentError('Online vaqt maʼlumotini yangilab bo‘lmadi')
         } finally {
             setTimeSpentLoading(false)
         }
@@ -459,7 +460,23 @@ export default function AdminPanel() {
     const mutedText = { color: 'var(--text-muted)' }
     const secondaryText = { color: 'var(--text-secondary)' }
     const normalizedTimeSpentSearch = timeSpentSearch.trim().toLowerCase()
-    const filteredTimeSpentUsers = [...timeSpentUsers]
+    const sortedTimeSpentUsers = [...timeSpentUsers]
+        .sort((left, right) => {
+            const leftValue = timeSpentSort === 'week'
+                ? (left.weekMinutes || 0)
+                : timeSpentSort === 'total'
+                    ? (left.totalMinutes || 0)
+                    : (left.todayMinutes || 0)
+            const rightValue = timeSpentSort === 'week'
+                ? (right.weekMinutes || 0)
+                : timeSpentSort === 'total'
+                    ? (right.totalMinutes || 0)
+                    : (right.todayMinutes || 0)
+            if (rightValue !== leftValue) return rightValue - leftValue
+            if (right.isOnline !== left.isOnline) return Number(right.isOnline) - Number(left.isOnline)
+            return left.name.localeCompare(right.name, 'uz')
+        })
+    const filteredTimeSpentUsers = sortedTimeSpentUsers
         .filter(user => {
             if (!normalizedTimeSpentSearch) return true
             return (
@@ -467,13 +484,12 @@ export default function AdminPanel() {
                 user.email?.toLowerCase().includes(normalizedTimeSpentSearch)
             )
         })
+    const timeSpentPreviewUsers = [...timeSpentUsers]
         .sort((left, right) => {
             if (right.isOnline !== left.isOnline) return Number(right.isOnline) - Number(left.isOnline)
-            if (timeSpentSort === 'week') return (right.weekMinutes || 0) - (left.weekMinutes || 0)
-            if (timeSpentSort === 'total') return (right.totalMinutes || 0) - (left.totalMinutes || 0)
             return (right.todayMinutes || 0) - (left.todayMinutes || 0)
         })
-    const timeSpentPreviewUsers = filteredTimeSpentUsers.slice(0, 6)
+        .slice(0, 6)
     const onlineNowCount = timeSpentUsers.filter(user => user.isOnline).length
     const totalTodayMinutes = timeSpentUsers.reduce((sum, user) => sum + (user.todayMinutes || 0), 0)
     const totalWeekMinutes = timeSpentUsers.reduce((sum, user) => sum + (user.weekMinutes || 0), 0)
@@ -768,6 +784,11 @@ export default function AdminPanel() {
                                     </button>
                                 </div>
                             </div>
+                            {timeSpentError && (
+                                <div className="px-4 py-2.5 text-[12px]" style={{ color: 'var(--danger)', background: 'var(--danger-light)', borderBottom: '1px solid var(--border)' }}>
+                                    {timeSpentError}
+                                </div>
+                            )}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
                                 {[
                                     { label: 'Kuzatilayotganlar', value: trackedUsers, tone: 'var(--brand)' },
@@ -1377,6 +1398,12 @@ export default function AdminPanel() {
                                 </select>
                             </div>
                         </div>
+
+                        {timeSpentError && (
+                            <div className="rounded-xl px-4 py-3 text-[12px]" style={{ background: 'var(--danger-light)', color: 'var(--danger)', border: '1px solid color-mix(in srgb, var(--danger) 25%, transparent)' }}>
+                                {timeSpentError}
+                            </div>
+                        )}
 
                         <div className="rounded-xl overflow-hidden" style={cardStyle}>
                             <div className="overflow-x-auto">
