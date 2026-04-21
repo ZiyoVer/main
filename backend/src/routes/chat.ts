@@ -988,7 +988,7 @@ function getFirstName(fullName?: string | null): string {
 }
 
 function getAutoGreetingFallback(name?: string | null): string {
-    return `Salom, ${getFirstName(name)}! Bugun nimani o'rganmoqchisiz?`
+    return `Salom, ${getFirstName(name)}. Bugun qaysi fan yoki mavzu sizni ko‘proq qiynayapti? Yozing — men siz bilan tushuntirish, mashq va test orqali ishlashga tayyorman.`
 }
 
 async function createAssistantOnlyGreeting(chat: { id: string; subject: string | null; subject2: string | null }, user: { id: string; name?: string | null }) {
@@ -1019,13 +1019,16 @@ async function createAssistantOnlyGreeting(chat: { id: string; subject: string |
 - O'quvchiga SEN birinchi bo'lib yozasan.
 - Faqat 1-2 qisqa jumla yoz.
 - ${firstName} ismini ishlatishing mumkin.
+- Xabar psixologik trigger bo'lsin: o'quvchini qaysi fan/mavzu qiynayotganini yozishga unda.
+- "Bugun qaysi fan yoki mavzu sizni ko'proq qiynayapti?" mazmunidagi savol bilan tugat.
+- "Men siz bilan tushuntirish, mashq va test orqali ishlashga tayyorman" mazmunini tabiiy qo'sh.
 - Structured blocklar (\`\`\`test, \`\`\`todo, \`\`\`flashcard, \`\`\`formula, \`\`\`essay, \`\`\`vocab) chiqarmagin.
-- "Men yordam bera olaman" kabi uzun kirish yozma.
+- "Men yordam bera olaman" kabi umumiy va uzun kirish yozma.
 - Tabiiy, sodda va chatga mos yoz.`
 
     const completionMessages = [
         { role: 'system' as const, content: systemPrompt },
-        { role: 'user' as const, content: `Salom. Men ${firstName}man.` }
+        { role: 'user' as const, content: `${firstName} yangi suhbatni ochdi va hali savol yozmadi. Unga birinchi assistant xabarini yoz.` }
     ]
 
     let reply = ''

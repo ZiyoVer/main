@@ -689,6 +689,7 @@ export default function ChatLayout() {
     const location = useLocation()
     const { user, logout, token } = useAuthStore()
     const [chats, setChats] = useState<Chat[]>([])
+    const [chatsLoaded, setChatsLoaded] = useState(false)
     const [messages, setMessages] = useState<Msg[]>([])
     const [loading, setLoading] = useState(false)
     const [creating, setCreating] = useState(false)
@@ -696,6 +697,7 @@ export default function ChatLayout() {
     const [sideOpen, setSideOpen] = useState(true)
     const [currentChat, setCurrentChat] = useState<Chat | null>(null)
     const [profile, setProfile] = useState<Profile | null>(null)
+    const [profileLoaded, setProfileLoaded] = useState(false)
     const [showOnboarding, setShowOnboarding] = useState(false)
     const [overlayPanel, setOverlayPanel] = useState<'tests' | 'flashcards' | 'progress' | null>(null)
     const [todoItems, setTodoItems] = useState<TodoItem[]>([])
@@ -750,6 +752,7 @@ export default function ChatLayout() {
     const todoAutoCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const visionIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const pendingHydrationChatIdRef = useRef<string | null>(null)
+    const autoLandingChatRef = useRef(false)
     const isMountedRef = useRef(true)
     const scrollRef = useRef<HTMLDivElement>(null)
     const userScrolledRef = useRef(false)
@@ -856,6 +859,41 @@ export default function ChatLayout() {
         }
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
     useEffect(() => { if (chatId) loadMessages(chatId) }, [chatId])
+    useEffect(() => {
+        if (chatId || !chatsLoaded || !profileLoaded || showOnboarding || autoLandingChatRef.current) return
+        autoLandingChatRef.current = true
+
+        const openInitialChat = async () => {
+            if (chats.length > 0) {
+                nav(`/suhbat/${chats[0].id}`, { replace: true })
+                return
+            }
+
+            setCreating(true)
+            try {
+                const data = await fetchApi('/chat/new', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        title: 'Yangi suhbat',
+                        subject: normalizeSubjectValue(profileRef.current?.subject || profile?.subject) || undefined,
+                        subject2: normalizeSubjectValue(profileRef.current?.subject2 || profile?.subject2) || undefined,
+                        forceNew: true
+                    })
+                })
+                await loadChats()
+                setMessages([])
+                setCurrentChat(data)
+                nav(`/suhbat/${data.id}`, { replace: true })
+            } catch (err) {
+                console.error('openInitialChat:', err)
+                autoLandingChatRef.current = false
+            } finally {
+                setCreating(false)
+            }
+        }
+
+        openInitialChat()
+    }, [chatId, chatsLoaded, profileLoaded, showOnboarding, chats, profile, nav])
 
     // Guest test natijasini AI bilan tahlil qilish — login yoki ro'yxatdan o'tgandan keyin
     useEffect(() => {
@@ -1166,6 +1204,8 @@ Iltimos, har bir savolni tahlil qilib ber:
             console.error('loadProfile:', err)
             // Faqat 404 (profil yo'q) da onboarding ko'rsatish — network xatosida emas
             if (err?.status === 404 || err?.message?.includes('404')) setShowOnboarding(true)
+        } finally {
+            setProfileLoaded(true)
         }
     }
 
@@ -1288,6 +1328,7 @@ Iltimos, har bir savolni tahlil qilib ber:
             const chatsList = ensureArray<Chat>(c)
             setChats(chatsList)
         } catch (err) { console.error('loadChats:', err) }
+        finally { setChatsLoaded(true) }
     }
 
     async function requestAutoGreeting(id: string): Promise<Msg | null> {
@@ -1529,12 +1570,6 @@ Iltimos, har bir savolni tahlil qilib ber:
         } catch (err) { console.error('deleteChat:', err); toast.error("Suhbatni o'chirishda xatolik") }
     }
 
-    const starterSubject = normalizeSubjectValue(profile?.subject) || 'tayyorlanayotgan fanim'
-    const primaryStarterAction = useMemo(() => ({
-        title: "Bilim darajangizni tekshiring — 5 daqiqa",
-        description: `${starterSubject} bo'yicha 5 daqiqalik qisqa diagnostika oling va qaysi mavzudan boshlash kerakligini biling.`,
-        prompt: `${starterSubject} bo'yicha hozirgi darajamni aniqlash uchun 5 daqiqalik qisqa diagnostika qiling. 3-5 ta savol bering, oxirida kuchli va zaif tomonlarimni aytib, qaysi mavzudan boshlashim kerakligini yozing.`,
-    }), [starterSubject])
     const reviewedFlashcards = Math.max(totalFlashcards - dueCount, 0)
     const weakTopicSummary = (progressData?.weakTopics ?? []).slice(0, 2).map(item => item.topic).join(', ')
     function markTestCompleted(testId: string) {
@@ -1647,11 +1682,6 @@ Iltimos, har bir savolni tahlil qilib ber:
             }
         }
     }, [todoItems])
-
-    const handleStarterAction = useCallback((prompt: string) => {
-        if (loading) return
-        void handleSend(prompt, [])
-    }, [handleSend, loading])
 
     // Essay submit — AI ga baholash uchun yuborish
     async function submitEssay() {
@@ -2407,40 +2437,12 @@ Iltimos, har bir savolni tahlil qilib ber:
                     <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
                         {(!chatId || (messages.length === 0 && !loading && !streaming)) ? (
                             <div className="h-full flex items-center justify-center" style={{ background: 'var(--bg-page)' }}>
-                                <div className="max-w-xl w-full px-4 sm:px-6 anim-up">
-                                    <div className="text-center mb-6">
-                                        <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center mx-auto mb-3 sm:mb-4" style={{ background: 'var(--brand)' }}><BrainCircuit className="h-5 w-5 sm:h-6 sm:w-6 text-white" /></div>
-                                        <h2 className="text-xl sm:text-2xl font-bold mb-2">Salom, {user?.name?.split(' ')[0]}! 👋</h2>
-                                        <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Yangi boshlash uchun bitta aniq qadam yetarli.</p>
+                                <div className="text-center px-4 anim-up">
+                                    <div className="h-11 w-11 rounded-xl flex items-center justify-center mx-auto mb-3" style={{ background: 'var(--brand)' }}>
+                                        <BrainCircuit className="h-5 w-5 text-white" />
                                     </div>
-                                    <div className="empty-state-shell rounded-3xl p-5 sm:p-6 mb-5">
-                                        <div className="grid gap-3 sm:grid-cols-3">
-                                            {[
-                                                { step: '1', title: 'Fan tanlang', text: 'Asosiy faningiz bo\'yicha boshlang.' },
-                                                { step: '2', title: 'Test yeching', text: 'Qisqa diagnostika orqali holatingizni biling.' },
-                                                { step: '3', title: 'AI dan so\'rang', text: 'Zaif joylar va keyingi qadamni oling.' },
-                                            ].map(item => (
-                                                <div key={item.step} className="empty-state-step rounded-2xl p-4 text-left">
-                                                    <div className="empty-state-step-number h-7 w-7 rounded-full flex items-center justify-center text-[12px] font-semibold mb-3">{item.step}</div>
-                                                    <p className="text-sm font-semibold mb-1">{item.title}</p>
-                                                    <p className="text-xs leading-5" style={{ color: 'var(--text-muted)' }}>{item.text}</p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <div className="flex justify-center">
-                                        <button
-                                            onClick={() => handleStarterAction(primaryStarterAction.prompt)}
-                                            title={primaryStarterAction.description}
-                                            className="empty-state-cta inline-flex items-center gap-2 rounded-full px-5 py-3 text-[13px] sm:text-[14px] font-semibold transition"
-                                            style={{ background: 'var(--brand)', color: '#fff' }}
-                                            onMouseEnter={e => e.currentTarget.style.opacity = '0.9'}
-                                            onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-                                        >
-                                            <BarChart2 className="h-4 w-4" />
-                                            <span>{primaryStarterAction.title}</span>
-                                        </button>
-                                    </div>
+                                    <p className="text-sm font-semibold">AI birinchi xabarni tayyorlayapti...</p>
+                                    <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Suhbat ochilgach savolingizni yozishingiz mumkin.</p>
                                 </div>
                             </div>
                         ) : (
