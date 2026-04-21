@@ -1322,13 +1322,15 @@ Iltimos, har bir savolni tahlil qilib ber:
         setSavingProfile(false)
     }
 
-    async function loadChats() {
+    async function loadChats(): Promise<Chat[]> {
         try {
             const c = await fetchApi('/chat/list')
             const chatsList = ensureArray<Chat>(c)
             setChats(chatsList)
+            return chatsList
         } catch (err) { console.error('loadChats:', err) }
         finally { setChatsLoaded(true) }
+        return []
     }
 
     async function requestAutoGreeting(id: string): Promise<Msg | null> {
@@ -1565,8 +1567,14 @@ Iltimos, har bir savolni tahlil qilib ber:
         e.stopPropagation()
         try {
             await fetchApi(`/chat/${id}`, { method: 'DELETE' })
-            if (chatId === id) { nav('/suhbat'); setMessages([]); setCurrentChat(null) }
-            loadChats()
+            const nextChats = await loadChats()
+            if (chatId === id) {
+                setMessages([])
+                setCurrentChat(null)
+                autoLandingChatRef.current = false
+                const nextChat = nextChats.find(chat => chat.id !== id)
+                nav(nextChat ? `/suhbat/${nextChat.id}` : '/suhbat', { replace: true })
+            }
         } catch (err) { console.error('deleteChat:', err); toast.error("Suhbatni o'chirishda xatolik") }
     }
 
@@ -2202,7 +2210,17 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Yangi xabarlar va eslatmalar shu yerda ko'rinadi</p>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <button onClick={() => { void markNotificationsRead() }} className="btn btn-outline h-8 text-xs px-3">Hammasini o'qildi qilish</button>
+                                        <button
+                                            onClick={() => { void markNotificationsRead() }}
+                                            className="h-8 w-8 flex items-center justify-center rounded-lg transition"
+                                            style={{ color: 'var(--text-muted)', border: '1px solid var(--border)', background: 'var(--bg-card)' }}
+                                            title="Hammasini o'qildi qilish"
+                                            aria-label="Hammasini o'qildi qilish"
+                                            onMouseEnter={e => { e.currentTarget.style.color = 'var(--success)'; e.currentTarget.style.background = 'var(--bg-muted)' }}
+                                            onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'var(--bg-card)' }}
+                                        >
+                                            <CheckCircle className="h-4 w-4" />
+                                        </button>
                                         <button onClick={() => setShowNotifications(false)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><X className="h-4 w-4" /></button>
                                     </div>
                                 </div>
