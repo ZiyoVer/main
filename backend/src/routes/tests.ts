@@ -207,6 +207,15 @@ interface IncomingCreateQuestion {
     coefficient?: number | string | null
 }
 
+const DTM_OFFICIAL_TOTAL_QUESTIONS = 90
+const DTM_OFFICIAL_BLOCKS: Array<{ blockType: DtmBlockType; label: string; count: number }> = [
+    { blockType: 'MANDATORY_LANGUAGE', label: 'Ona tili', count: 10 },
+    { blockType: 'MANDATORY_MATH', label: 'Majburiy matematika', count: 10 },
+    { blockType: 'MANDATORY_HISTORY', label: 'O‘zbekiston tarixi', count: 10 },
+    { blockType: 'SPECIALTY_1', label: '1-ixtisoslik', count: 30 },
+    { blockType: 'SPECIALTY_2', label: '2-ixtisoslik', count: 30 },
+]
+
 function parseQuestionCoefficient(value: unknown): number | null {
     if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
         return roundScore(value)
@@ -215,6 +224,58 @@ function parseQuestionCoefficient(value: unknown): number | null {
         const parsed = Number(value)
         if (Number.isFinite(parsed) && parsed > 0) return roundScore(parsed)
     }
+    return null
+}
+
+function createDtmBlockCounts(): Record<DtmBlockType, number> {
+    return {
+        GENERIC: 0,
+        MANDATORY_LANGUAGE: 0,
+        MANDATORY_MATH: 0,
+        MANDATORY_HISTORY: 0,
+        SPECIALTY_1: 0,
+        SPECIALTY_2: 0,
+    }
+}
+
+function validateDtmBlockStructure(questions: IncomingCreateQuestion[], subject2: string | null): string | null {
+    if (questions.length > DTM_OFFICIAL_TOTAL_QUESTIONS) {
+        return `DTM blok testida eng ko'pi bilan ${DTM_OFFICIAL_TOTAL_QUESTIONS} ta savol bo'lishi kerak`
+    }
+
+    const counts = createDtmBlockCounts()
+    questions.forEach((question) => {
+        const blockType = normalizeDtmBlockType(typeof question.blockType === 'string' ? question.blockType : undefined)
+        counts[blockType] += 1
+    })
+
+    if (counts.GENERIC > 0) {
+        return `DTM blok testida ${counts.GENERIC} ta savolda blok turi tanlanmagan`
+    }
+
+    const specialty2Questions = counts.SPECIALTY_2
+    if (specialty2Questions > 0 && !subject2) {
+        return 'DTM blok testida 2-ixtisoslik savollari bor, lekin 2-fan tanlanmagan'
+    }
+
+    const overLimitBlock = DTM_OFFICIAL_BLOCKS.find((block) => counts[block.blockType] > block.count)
+    if (overLimitBlock) {
+        return `${overLimitBlock.label} bloki ${overLimitBlock.count} savoldan oshmasligi kerak`
+    }
+
+    if (questions.length !== DTM_OFFICIAL_TOTAL_QUESTIONS) {
+        return null
+    }
+
+    if (!subject2) {
+        return 'Rasmiy 90 savollik DTM blok test uchun 2-ixtisoslik fani tanlanishi kerak'
+    }
+
+    const mismatch = DTM_OFFICIAL_BLOCKS.find((block) => counts[block.blockType] !== block.count)
+    if (mismatch) {
+        return `Rasmiy DTM blok taqsimoti xato: ${mismatch.label} ${mismatch.count} ta bo'lishi kerak, hozir ${counts[mismatch.blockType]} ta`
+    }
+
     return null
 }
 
@@ -1030,8 +1091,15 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
         const normalizedSubject = normalizeSubject(subject)
         const normalizedSubject2 = normalizeSubject(subject2)
         const normalizedTestType = normalizeTestType(typeof testType === 'string' ? testType : undefined)
-        if (!title || !questions?.length) {
+        if (!title || !Array.isArray(questions) || questions.length === 0) {
             return res.status(400).json({ error: 'Test nomi va savollar kerak' })
+        }
+
+        if (normalizedTestType === 'DTM_BLOCK') {
+            const structureError = validateDtmBlockStructure(questions as IncomingCreateQuestion[], normalizedSubject2)
+            if (structureError) {
+                return res.status(400).json({ error: structureError })
+            }
         }
 
         // Har bir savol validatsiyasi
@@ -1128,7 +1196,7 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
                             : null
 
                         return ({
-                        text: q.text,
+                        text: q.text || '',
                         imageUrl: q.imageUrl || null,
                         // matching: options allaqachon JSON string (frontend JSON.stringify qilgan)
                         // mcq: options array → JSON.stringify kerak
@@ -1206,6 +1274,13 @@ router.patch('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), testMuta
         const normalizedTestType = normalizeTestType(typeof testType === 'string' ? testType : undefined)
         if (!title || !Array.isArray(questions) || questions.length === 0) {
             return res.status(400).json({ error: 'Test nomi va savollar kerak' })
+        }
+
+        if (normalizedTestType === 'DTM_BLOCK') {
+            const structureError = validateDtmBlockStructure(questions as IncomingCreateQuestion[], normalizedSubject2)
+            if (structureError) {
+                return res.status(400).json({ error: structureError })
+            }
         }
 
         for (let i = 0; i < questions.length; i++) {

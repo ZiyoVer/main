@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import { BrainCircuit, Plus, Trash2, LogOut, Copy, Check, Globe, Lock, ClipboardList, Upload, Sparkles, FileText, Image, BarChart2, X, Users, Bell } from 'lucide-react'
@@ -194,22 +194,60 @@ interface AttemptDetailResponse {
     questions: AttemptDetailQuestion[]
 }
 
+const DTM_OFFICIAL_QUESTION_TOTAL = 90
+const DTM_OFFICIAL_SCORE_TOTAL = 189
+
 const TEST_TYPES: Array<{ value: TestTypeValue; title: string; description: string; accent: string; icon: string }> = [
     { value: 'REGULAR', title: 'Oddiy test', description: 'Mavzuli, kichik va moslashuvchan test', accent: '#0f766e', icon: '🧩' },
     { value: 'DTM_BLOCK', title: 'DTM blok test', description: '189 ball · koeffitsientli bloklar', accent: '#d97706', icon: '🎯' },
-    { value: 'MILLIY_SERTIFIKAT', title: 'Milliy Sertifikat', description: 'Rash modeli · 75 ball', accent: '#8b5cf6', icon: '📋' },
+    { value: 'MILLIY_SERTIFIKAT', title: 'Milliy Sertifikat', description: 'Rasch modeli · 75 ball', accent: '#8b5cf6', icon: '📋' },
 ]
 
-const DTM_BLOCK_OPTIONS: Array<{ value: DtmBlockTypeValue; label: string; coefficient: number }> = [
-    { value: 'MANDATORY_LANGUAGE', label: 'Ona tili', coefficient: 1.1 },
-    { value: 'MANDATORY_MATH', label: 'Majburiy matematika', coefficient: 1.1 },
-    { value: 'MANDATORY_HISTORY', label: 'O‘zbekiston tarixi', coefficient: 1.1 },
-    { value: 'SPECIALTY_1', label: '1-ixtisoslik', coefficient: 3.1 },
-    { value: 'SPECIALTY_2', label: '2-ixtisoslik', coefficient: 2.1 },
+const DTM_BLOCK_OPTIONS: Array<{ value: DtmBlockTypeValue; label: string; coefficient: number; target: number }> = [
+    { value: 'MANDATORY_LANGUAGE', label: 'Ona tili', coefficient: 1.1, target: 10 },
+    { value: 'MANDATORY_MATH', label: 'Majburiy matematika', coefficient: 1.1, target: 10 },
+    { value: 'MANDATORY_HISTORY', label: 'O‘zbekiston tarixi', coefficient: 1.1, target: 10 },
+    { value: 'SPECIALTY_1', label: '1-ixtisoslik', coefficient: 3.1, target: 30 },
+    { value: 'SPECIALTY_2', label: '2-ixtisoslik', coefficient: 2.1, target: 30 },
 ]
 
 function getDefaultCoefficient(blockType: DtmBlockTypeValue): number {
     return DTM_BLOCK_OPTIONS.find(option => option.value === blockType)?.coefficient ?? 3.1
+}
+
+function formatDtmNumber(value: number): string {
+    const rounded = Math.round(value * 10) / 10
+    return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
+}
+
+function getDtmControlStats(questions: Question[]) {
+    const rows = DTM_BLOCK_OPTIONS.map(option => {
+        const count = questions.filter(question => question.blockType === option.value).length
+        return {
+            ...option,
+            count,
+            percent: Math.min(100, Math.round((count / option.target) * 100))
+        }
+    })
+    const scoreMax = questions.reduce((sum, question) => {
+        const blockType = question.blockType || 'SPECIALTY_1'
+        const coefficient = typeof question.coefficient === 'number' && Number.isFinite(question.coefficient) && question.coefficient > 0
+            ? question.coefficient
+            : getDefaultCoefficient(blockType)
+        return sum + coefficient
+    }, 0)
+    const overLimit = rows.filter(row => row.count > row.target)
+    const officialReady = questions.length === DTM_OFFICIAL_QUESTION_TOTAL && overLimit.length === 0 && rows.every(row => row.count === row.target)
+
+    return {
+        rows,
+        total: questions.length,
+        scoreMax,
+        overLimit,
+        officialReady,
+        officialMismatch: questions.length === DTM_OFFICIAL_QUESTION_TOTAL && !officialReady,
+        hasSpecialty2: rows.some(row => row.value === 'SPECIALTY_2' && row.count > 0)
+    }
 }
 
 function getTestTypeLabel(testType: string | null | undefined): string {
@@ -276,6 +314,7 @@ export default function TeacherPanel() {
     const [aiError, setAiError] = useState('')
     const [aiDone, setAiDone] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const dtmControlStats = useMemo(() => getDtmControlStats(questions), [questions])
 
     useEffect(() => { loadTests() }, [])
     useEffect(() => {
@@ -710,6 +749,27 @@ export default function TeacherPanel() {
                 if (!finalQuestions[i].options[j]?.trim()) { setMsg(`Savol ${i + 1}, variant ${String.fromCharCode(65 + j)} bo'sh`); return }
             }
         }
+
+        if (testType === 'DTM_BLOCK') {
+            const finalDtmStats = getDtmControlStats(finalQuestions as Question[])
+            if (finalDtmStats.total > DTM_OFFICIAL_QUESTION_TOTAL) {
+                setMsg(`DTM blok testida eng ko'pi bilan ${DTM_OFFICIAL_QUESTION_TOTAL} ta savol bo'lishi kerak`)
+                return
+            }
+            const overLimitBlock = finalDtmStats.overLimit[0]
+            if (overLimitBlock) {
+                setMsg(`${overLimitBlock.label} bloki ${overLimitBlock.target} savoldan oshmasligi kerak`)
+                return
+            }
+            if (finalDtmStats.hasSpecialty2 && !subject2) {
+                setMsg('2-ixtisoslik savollari bor — 2-fanni tanlang')
+                return
+            }
+            if (finalDtmStats.officialMismatch) {
+                setMsg('Rasmiy 90 savollik DTM testda taqsimot 10+10+10+30+30 bo‘lishi kerak')
+                return
+            }
+        }
         setLoading(true); setMsg('')
         try {
             await fetchApi(editingTestId ? `/tests/${editingTestId}` : '/tests/create', {
@@ -1135,6 +1195,54 @@ export default function TeacherPanel() {
                                                 Rasmiy 90 savollik shablon
                                             </button>
                                             <span className="text-[11px] self-center" style={mutedText}>10 + 10 + 10 + 30 + 30 blok</span>
+                                        </div>
+                                        <div className="rounded-xl p-3 space-y-3" style={{ background: 'color-mix(in srgb, #d97706 6%, transparent)', border: '1px solid color-mix(in srgb, #d97706 18%, transparent)' }}>
+                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                                <div>
+                                                    <p className="text-[12px] font-semibold" style={secondaryText}>DTM nazorat</p>
+                                                    <p className="text-[11px]" style={mutedText}>
+                                                        {dtmControlStats.total}/{DTM_OFFICIAL_QUESTION_TOTAL} savol · {formatDtmNumber(dtmControlStats.scoreMax)}/{DTM_OFFICIAL_SCORE_TOTAL} ball
+                                                    </p>
+                                                </div>
+                                                <span
+                                                    className="text-[10px] font-semibold px-2 py-1 rounded-full"
+                                                    style={dtmControlStats.officialReady
+                                                        ? { color: 'var(--success)', background: 'color-mix(in srgb, var(--success) 12%, transparent)' }
+                                                        : { color: '#d97706', background: 'color-mix(in srgb, #d97706 12%, transparent)' }}
+                                                >
+                                                    {dtmControlStats.officialReady ? 'Rasmiy format tayyor' : 'Nazorat kerak'}
+                                                </span>
+                                            </div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
+                                                {dtmControlStats.rows.map(row => {
+                                                    const isOver = row.count > row.target
+                                                    const isComplete = row.count === row.target
+                                                    return (
+                                                        <div key={row.value} className="rounded-lg px-2.5 py-2" style={{ background: 'var(--bg-card)', border: `1px solid ${isOver ? 'var(--danger)' : isComplete ? 'color-mix(in srgb, var(--success) 28%, transparent)' : 'var(--border)'}` }}>
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <span className="text-[10px] font-medium truncate" style={secondaryText}>{row.label}</span>
+                                                                <span className="text-[10px] font-bold" style={{ color: isOver ? 'var(--danger)' : isComplete ? 'var(--success)' : 'var(--text-muted)' }}>{row.count}/{row.target}</span>
+                                                            </div>
+                                                            <div className="mt-1.5 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-surface)' }}>
+                                                                <div className="h-full rounded-full" style={{ width: `${row.percent}%`, background: isOver ? 'var(--danger)' : isComplete ? 'var(--success)' : '#d97706' }} />
+                                                            </div>
+                                                            <p className="text-[10px] mt-1" style={mutedText}>×{row.coefficient}</p>
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+                                            {dtmControlStats.total < DTM_OFFICIAL_QUESTION_TOTAL && (
+                                                <p className="text-[11px]" style={mutedText}>Bu qisqa DTM mashq testi sifatida saqlanadi. Rasmiy blok uchun 90 savol to'liq bo'lishi kerak.</p>
+                                            )}
+                                            {dtmControlStats.hasSpecialty2 && !subject2 && (
+                                                <p className="text-[11px]" style={{ color: 'var(--danger)' }}>2-ixtisoslik savollari bor — 2-fanni tanlang.</p>
+                                            )}
+                                            {dtmControlStats.overLimit.length > 0 && (
+                                                <p className="text-[11px]" style={{ color: 'var(--danger)' }}>{dtmControlStats.overLimit[0].label} bloki {dtmControlStats.overLimit[0].target} savoldan oshgan.</p>
+                                            )}
+                                            {dtmControlStats.officialMismatch && dtmControlStats.overLimit.length === 0 && (
+                                                <p className="text-[11px]" style={{ color: '#d97706' }}>90 savollik test rasmiy hisoblanishi uchun taqsimot 10+10+10+30+30 bo'lishi kerak.</p>
+                                            )}
                                         </div>
                                     </div>
                                 )}
