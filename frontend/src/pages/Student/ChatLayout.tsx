@@ -1378,6 +1378,12 @@ Iltimos, har bir savolni tahlil qilib ber:
         } catch (err: any) {
             if (err?.name === 'AbortError') return
             console.error('loadMessages:', err)
+            if (err?.status === 403 || err?.status === 404) {
+                setCurrentChat(null)
+                setMessages([])
+                autoLandingChatRef.current = false
+                nav('/suhbat', { replace: true })
+            }
         }
     }
 

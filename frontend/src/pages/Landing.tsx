@@ -235,11 +235,17 @@ export default function Landing() {
 
     useEffect(() => {
         if (token && user) {
+            try {
+                if (sessionStorage.getItem('dtmmax_skip_autoredirect') === '1') {
+                    sessionStorage.removeItem('dtmmax_skip_autoredirect')
+                    return
+                }
+            } catch { /* ignore */ }
             if (user.role === 'ADMIN') nav('/boshqaruv', { replace: true })
             else if (user.role === 'TEACHER') nav('/oqituvchi', { replace: true })
             else nav('/suhbat', { replace: true })
         }
-    }, [token, user])
+    }, [nav, token, user])
 
     return (
         <div className="h-[100dvh] overflow-y-auto flex flex-col w-full" style={{ background: 'var(--bg-page)', color: 'var(--text-primary)' }}>

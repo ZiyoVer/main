@@ -186,7 +186,7 @@ router.post('/register', authLimiter, async (req, res) => {
                 examType: normalizedExamType ?? null,
                 examDate: normalizedExamDate ?? null,
                 targetScore: normalizedTargetScore ?? null,
-                onboardingDone: false,
+                onboardingDone: true,
             }
         })
 

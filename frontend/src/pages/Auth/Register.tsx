@@ -5,6 +5,13 @@ import { fetchApi } from '@/lib/api'
 import { SUBJECTS } from '@/constants'
 import { useAuthStore } from '@/store/authStore'
 
+function getSafeRegisterRedirect(from: unknown): string | null {
+    if (typeof from !== 'string') return null
+    if (from === '/suhbat' || from === '/chat') return '/suhbat'
+    if (from.startsWith('/test/')) return from
+    return null
+}
+
 export default function Register() {
     const nav = useNavigate()
     const location = useLocation()
@@ -13,10 +20,11 @@ export default function Register() {
 
     useEffect(() => {
         if (token && user) {
-            if (from && from !== '/kirish' && from !== '/royxat') nav(from, { replace: true })
+            const safeRedirect = getSafeRegisterRedirect(from)
+            if (safeRedirect) nav(safeRedirect, { replace: true })
             else nav('/suhbat', { replace: true })
         }
-    }, [token, user])
+    }, [from, nav, token, user])
 
     const [step, setStep] = useState(1)
     const [form, setForm] = useState({ name: '', email: '', password: '' })
@@ -73,8 +81,9 @@ export default function Register() {
             // Register javobidan to'g'ridan-to'g'ri token — alohida login shart emas
             login(data.token, data.user)
             // Test linki orqali kelgan bo'lsa — o'sha testga qaytamiz
-            if (from && from !== '/kirish' && from !== '/royxat') {
-                nav(from, { replace: true })
+            const safeRedirect = getSafeRegisterRedirect(from)
+            if (safeRedirect) {
+                nav(safeRedirect, { replace: true })
             } else if (hasGuestTestResult()) {
                 nav('/suhbat?analyzeTest=1', { replace: true })
             } else {
@@ -130,7 +139,7 @@ export default function Register() {
                                         type="text"
                                         required
                                         value={form.name}
-                                        onChange={e => setForm({ ...form, name: e.target.value })}
+                                        onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
                                         placeholder="Ismingiz"
                                         className="input"
                                     />
@@ -141,7 +150,7 @@ export default function Register() {
                                         type="email"
                                         required
                                         value={form.email}
-                                        onChange={e => setForm({ ...form, email: e.target.value })}
+                                        onChange={e => setForm(prev => ({ ...prev, email: e.target.value }))}
                                         placeholder="email@misol.uz"
                                         className="input"
                                     />
@@ -153,14 +162,14 @@ export default function Register() {
                                             type={showPw ? 'text' : 'password'}
                                             required
                                             value={form.password}
-                                            onChange={e => setForm({ ...form, password: e.target.value })}
+                                            onChange={e => setForm(prev => ({ ...prev, password: e.target.value }))}
                                             placeholder="Kamida 8 belgi (harf + raqam)"
                                             className="input"
                                             style={{ paddingRight: '2.75rem' }}
                                         />
                                         <button
                                             type="button"
-                                            onClick={() => setShowPw(!showPw)}
+                                            onClick={() => setShowPw(prev => !prev)}
                                             style={{
                                                 position: 'absolute', right: '0.75rem', top: '50%',
                                                 transform: 'translateY(-50%)', color: 'var(--text-muted)',

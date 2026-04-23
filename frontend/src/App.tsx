@@ -84,7 +84,7 @@ function ProtectedRoute({ children, roles }: { children: React.ReactNode, roles?
 function AppContent() {
     const location = useLocation()
     return (
-        <ErrorBoundary resetKey={location.pathname}>
+        <ErrorBoundary resetKey={`${location.pathname}${location.search}`}>
             <Toaster
                 position="top-center"
                 toastOptions={{

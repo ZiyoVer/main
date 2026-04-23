@@ -7,6 +7,21 @@ interface State { hasError: boolean; error?: Error }
 export default class ErrorBoundary extends Component<Props, State> {
     state: State = { hasError: false }
 
+    private openHomeWithoutRedirect = () => {
+        try {
+            sessionStorage.setItem('dtmmax_skip_autoredirect', '1')
+        } catch { /* ignore */ }
+        window.location.href = '/'
+    }
+
+    private logoutAndOpenLogin = () => {
+        try {
+            localStorage.removeItem('token')
+            localStorage.removeItem('user')
+        } catch { /* ignore */ }
+        window.location.href = '/kirish'
+    }
+
     static getDerivedStateFromError(error: Error): State {
         return { hasError: true, error }
     }
@@ -43,10 +58,16 @@ export default class ErrorBoundary extends Component<Props, State> {
                                 Qayta urinish
                             </button>
                             <button
-                                onClick={() => { window.location.href = '/' }}
+                                onClick={this.openHomeWithoutRedirect}
                                 style={{ background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: '10px', padding: '12px 28px', fontWeight: 600, fontSize: '14px', cursor: 'pointer' }}
                             >
                                 Bosh sahifa
+                            </button>
+                            <button
+                                onClick={this.logoutAndOpenLogin}
+                                style={{ background: 'transparent', color: 'var(--danger)', border: '1px solid var(--border)', borderRadius: '10px', padding: '12px 28px', fontWeight: 600, fontSize: '14px', cursor: 'pointer' }}
+                            >
+                                Chiqish
                             </button>
                         </div>
                     </div>
