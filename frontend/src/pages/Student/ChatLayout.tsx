@@ -1724,7 +1724,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                 nav(`/test/${t.shareLink}`)
                 return
             }
-            // correctIdx submit qaytarmaguncha ko'rsatilmaydi — default 'a' (submit keyin yangilanadi)
+            // correctIdx submitdan keyin backenddan keladi; submitgacha panelda javob kaliti bo'lmaydi.
             const converted = rawQuestions.map((q: any) => {
                 let opts: string[] = []
                 if (q.questionType === 'matching') {
@@ -1745,7 +1745,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                     imageUrl: q.imageUrl || null,
                     questionType: q.questionType || 'mcq',
                     a: opts[0] || '', b: opts[1] || '', c: opts[2] || '', d: opts[3] || '',
-                    correct: 'a' // placeholder — submit dan keyin correctAnswers bilan yangilanadi
+                    correct: ''
                 }
             })
             setActiveTestId(t.id)
@@ -1758,7 +1758,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                         const correctMap: Record<string, number> = JSON.parse(savedCorrect)
                         const withCorrect = converted.map((q: any) => {
                             const ci = correctMap[q.id]
-                            return ci !== undefined ? { ...q, correct: (['a', 'b', 'c', 'd'] as const)[ci] ?? 'a' } : q
+                            return ci !== undefined ? { ...q, correct: (['a', 'b', 'c', 'd'] as const)[ci] ?? '' } : q
                         })
                         setTestPanel(JSON.stringify(withCorrect))
                     } else {
@@ -1777,9 +1777,12 @@ Iltimos, har bir savolni tahlil qilib ber:
                 setTestTimeLeft(null)
             } else {
                 openTestPanel(JSON.stringify(converted))
-                // Vaqt chegarasi bo'lsa timerni boshlash
+                // Vaqt chegarasi bo'lsa server qaytargan sessiya vaqtiga tayanamiz.
                 if (data.timeLimit) {
-                    setTestTimeLeft(data.timeLimit * 60)
+                    const remainingSeconds = typeof data.timeRemainingSeconds === 'number'
+                        ? data.timeRemainingSeconds
+                        : data.timeLimit * 60
+                    setTestTimeLeft(Math.max(0, remainingSeconds))
                 }
             }
         } catch (err) { console.error('openPublicTest:', err) }
@@ -1796,12 +1799,57 @@ Iltimos, har bir savolni tahlil qilib ber:
         isSubmittingRef.current = true
         let questions: any[] = []
         try { questions = JSON.parse(testPanel) } catch { isSubmittingRef.current = false; return }
+        let backendSubmitHandled = false
+        let backendSubmitResult: any = null
+        if (activeTestId && activeTestQuestions.length > 0) {
+            try {
+                const backendAnswers = activeTestQuestions.map((q: any, i: number) => ({
+                    questionId: q.id,
+                    selectedIdx: ['a', 'b', 'c', 'd'].indexOf(String(testAnswers[i] || ''))
+                }))
+                backendSubmitResult = await fetchApi(`/tests/${activeTestId}/submit`, {
+                    method: 'POST',
+                    body: JSON.stringify({ answers: backendAnswers })
+                })
+                backendSubmitHandled = true
+
+                if (backendSubmitResult?.newAbility !== undefined) {
+                    const prevAbility = profile?.abilityLevel ?? 0
+                    setRaschFeedback({ prev: prevAbility, next: backendSubmitResult.newAbility })
+                    loadProfile()
+                    loadMyResults()
+                }
+                if (backendSubmitResult?.correctAnswers) {
+                    const correctMap: Record<string, number> = {}
+                    backendSubmitResult.correctAnswers.forEach((c: any) => { correctMap[c.id] = c.correctIdx })
+                    try { localStorage.setItem('dtmmax_correct_' + activeTestId, JSON.stringify(correctMap)) } catch { }
+                    try { localStorage.setItem('dtmmax_pub_ans_' + activeTestId, JSON.stringify(testAnswers)) } catch { }
+                    questions = questions.map((q: any) => {
+                        const ci = correctMap[q.id]
+                        return ci !== undefined ? { ...q, correct: (['a', 'b', 'c', 'd'] as const)[ci] ?? '' } : q
+                    })
+                    setTestPanel(JSON.stringify(questions))
+                }
+                markTestCompleted(activeTestId)
+            } catch (err: any) {
+                toast.error(err?.message || 'Test natijasini saqlashda xatolik yuz berdi')
+                isSubmittingRef.current = false
+                return
+            }
+        }
         setTestSubmitted(true)
+        setTestTimeLeft(null)
         const results = questions.map((q: any, i: number) => {
             const correct = testAnswers[i] === q.correct
-            return `${i + 1}. ${q.q} — Javob: ${(testAnswers[i] || '?').toUpperCase()}) ${correct ? '✅ to\'g\'ri' : '❌ xato (to\'g\'ri: ' + q.correct.toUpperCase() + ')'}`
+            const correctLetter = typeof q.correct === 'string' && q.correct ? q.correct : '?'
+            return `${i + 1}. ${q.q} — Javob: ${(testAnswers[i] || '?').toUpperCase()}) ${correct ? '✅ to\'g\'ri' : '❌ xato (to\'g\'ri: ' + correctLetter.toUpperCase() + ')'}`
         }).join('\n')
-        const score = questions.filter((q: any, i: number) => testAnswers[i] === q.correct).length
+        const score = typeof backendSubmitResult?.correct === 'number'
+            ? backendSubmitResult.correct
+            : questions.filter((q: any, i: number) => testAnswers[i] === q.correct).length
+        const totalQuestionsForScore = typeof backendSubmitResult?.total === 'number'
+            ? backendSubmitResult.total
+            : questions.length
 
         // Mavzu statistikasini yangilash + XP qo'shish
         const testSubject = currentChat?.subject || currentChat?.subject2 || profile?.subject || profile?.subject2 || 'Umumiy'
@@ -1811,13 +1859,13 @@ Iltimos, har bir savolni tahlil qilib ber:
                 subject: testSubject,
                 topic: currentChat?.title?.split(' ').slice(0, 4).join(' ') || 'Umumiy',
                 correct: score,
-                total: questions.length
+                total: totalQuestionsForScore
             })
         }).then(() => loadProgress()).catch(() => { })
         logActivity(20) // Test uchun +20 XP
         const hasImages = questions.some((q: any) => q.imageUrl)
-        const summary = `--- YANGI TEST NATIJASI (bu mustaqil test) ---\nJami savol: ${questions.length}\nTo'g'ri javoblar: ${score}/${questions.length}\n\n${results}\n\nFaqat shu ${questions.length} ta savol bo'yicha tahlil qil va qaysi mavzularni qayta o'rganishim kerakligini ayt. Oldingi testlar bilan aralashma.`
-        const displayMsg = `📊 Test natijasi: ${score}/${questions.length} — ${hasImages ? 'Vision AI tahlil qilmoqda...' : 'AI tahlil qilmoqda...'}`
+        const summary = `--- YANGI TEST NATIJASI (bu mustaqil test) ---\nJami savol: ${totalQuestionsForScore}\nTo'g'ri javoblar: ${score}/${totalQuestionsForScore}\n\n${results}\n\nFaqat shu ${totalQuestionsForScore} ta savol bo'yicha tahlil qil va qaysi mavzularni qayta o'rganishim kerakligini ayt. Oldingi testlar bilan aralashma.`
+        const displayMsg = `📊 Test natijasi: ${score}/${totalQuestionsForScore} — ${hasImages ? 'Vision AI tahlil qilmoqda...' : 'AI tahlil qilmoqda...'}`
 
         // Vision AI orqali rasmli savollarni tahlil qilish — DeepSeek tahlilini o'tkazib yuboramiz
         function runVisionAnalysis(addUserMsg: () => void) {
@@ -1944,37 +1992,10 @@ Iltimos, har bir savolni tahlil qilib ber:
             }, 500)
         }
         try {
-            // Public test bo'lsa backendga ham yuborish (Rasch tracking)
             if (activeTestId && activeTestQuestions.length > 0) {
-                const backendAnswers = activeTestQuestions.map((q: any, i: number) => ({
-                    questionId: q.id,
-                    selectedIdx: ['a', 'b', 'c', 'd'].indexOf(testAnswers[i] || '')
-                })).filter((a: any) => a.selectedIdx !== -1)
-                const res = await fetchApi(`/tests/${activeTestId}/submit`, { method: 'POST', body: JSON.stringify({ answers: backendAnswers }) })
-                if (res?.newAbility !== undefined) {
-                    const prevAbility = profile?.abilityLevel ?? 0
-                    setRaschFeedback({ prev: prevAbility, next: res.newAbility })
-                    loadProfile()
-                    loadMyResults()
+                if (!backendSubmitHandled) {
+                    throw new Error('Public test natijasi backendda tasdiqlanmadi')
                 }
-                if (res?.correctAnswers && activeTestId) {
-                    const correctMap: Record<string, number> = {}
-                    res.correctAnswers.forEach((c: any) => { correctMap[c.id] = c.correctIdx })
-                    try { localStorage.setItem('dtmmax_correct_' + activeTestId, JSON.stringify(correctMap)) } catch { }
-                    try { localStorage.setItem('dtmmax_pub_ans_' + activeTestId, JSON.stringify(testAnswers)) } catch { }
-                    setTestPanel(prev => {
-                        if (!prev) return prev
-                        try {
-                            const qs = JSON.parse(prev)
-                            const updated = qs.map((q: any) => {
-                                const ci = correctMap[q.id]
-                                return ci !== undefined ? { ...q, correct: (['a', 'b', 'c', 'd'] as const)[ci] ?? 'a' } : q
-                            })
-                            return JSON.stringify(updated)
-                        } catch { return prev }
-                    })
-                }
-                markTestCompleted(activeTestId)
             } else if (testPanel) {
                 const aiKey = testPanel.substring(0, 500)
                 try { localStorage.setItem('dtmmax_ans_' + aiKey, JSON.stringify(testAnswers)) } catch { }

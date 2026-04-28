@@ -31,6 +31,7 @@ model User {
   // Relations
   chats        Chat[]
   testAttempts TestAttempt[]
+  testSessions TestSession[]
   visitLogs    VisitLog[]
   profile      StudentProfile?
   testsCreated Test[]         @relation("TestCreator")
@@ -138,6 +139,7 @@ model Test {
   updatedAt   DateTime       @updatedAt
   questions   TestQuestion[]
   attempts    TestAttempt[]
+  sessions    TestSession[]
 
   @@index([isPublic])
   @@index([creatorId])
@@ -178,6 +180,24 @@ model TestAttempt {
   @@index([testId])
   @@index([userId])
   @@index([testId, userId])
+}
+
+model TestSession {
+  id          String    @id @default(uuid())
+  testId      String
+  test        Test      @relation(fields: [testId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shareLink   String?
+  startedAt   DateTime
+  expiresAt   DateTime
+  submittedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([testId, userId])
+  @@index([userId, expiresAt])
+  @@index([testId, expiresAt])
 }
 
 // ============ RAG DOCUMENTS ============

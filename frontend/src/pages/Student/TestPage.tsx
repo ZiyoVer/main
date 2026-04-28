@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { BrainCircuit, CheckCircle, XCircle, ArrowLeft, Sparkles, LogIn, Lock, MessageSquare, ChevronLeft, ChevronRight } from 'lucide-react'
+import { BrainCircuit, CheckCircle, XCircle, ArrowLeft, Sparkles, LogIn, Lock, MessageSquare, ChevronLeft, ChevronRight, Clock } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
@@ -57,6 +57,13 @@ function formatAcceptedAnswerText(text: string | null | undefined) {
         .map(part => part.trim())
         .filter(Boolean)
         .join(' / ')
+}
+
+function formatTimer(seconds: number): string {
+    const safeSeconds = Math.max(0, Math.floor(seconds))
+    const minutes = Math.floor(safeSeconds / 60)
+    const rest = safeSeconds % 60
+    return `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`
 }
 
 type ParsedQuestionOptions = string[] | {
@@ -141,17 +148,31 @@ export default function TestPage() {
     const [correctMap, setCorrectMap] = useState<CorrectAnswerMap>({})
     const [analysisReady, setAnalysisReady] = useState(false)
     const [focusedQ, setFocusedQ] = useState(0) // for DTM mode: highlight active question
+    const [timeLeft, setTimeLeft] = useState<number | null>(null)
 
     const questionsRef = useRef<HTMLDivElement>(null)
+    const submitRef = useRef<(skipConfirm?: boolean) => void>(() => { })
+    const autoSubmitRef = useRef(false)
     const isGuest = !token || !user
+    const timerActive = !submitted && !isGuest && timeLeft !== null
 
     useEffect(() => {
         if (!shareLink) return
+        setLoading(true)
+        setErr('')
         fetchApi(`/tests/by-link/${shareLink}`)
-            .then(t => { setTest(t); setFocusedQ(0) })
+            .then(t => {
+                setTest(t)
+                setFocusedQ(0)
+                autoSubmitRef.current = false
+                const remainingSeconds = typeof t.timeRemainingSeconds === 'number'
+                    ? t.timeRemainingSeconds
+                    : (typeof t.timeLimit === 'number' && t.timeLimit > 0 ? t.timeLimit * 60 : null)
+                setTimeLeft(remainingSeconds === null ? null : Math.max(0, remainingSeconds))
+            })
             .catch(e => setErr(e.message || 'Test topilmadi'))
             .finally(() => setLoading(false))
-    }, [shareLink])
+    }, [shareLink, token])
 
     useEffect(() => {
         if (isGuest) return
@@ -161,14 +182,30 @@ export default function TestPage() {
         return () => clearInterval(pingInterval)
     }, [isGuest])
 
-    async function submit() {
+    useEffect(() => {
+        if (!timerActive) return
+        const timer = window.setInterval(() => {
+            setTimeLeft(prev => prev === null ? null : Math.max(0, prev - 1))
+        }, 1000)
+        return () => window.clearInterval(timer)
+    }, [timerActive])
+
+    useEffect(() => {
+        if (!test || submitted || submitting || isGuest || timeLeft !== 0) return
+        if (autoSubmitRef.current) return
+        autoSubmitRef.current = true
+        toast.error('Test vaqti tugadi. Javoblar avtomatik yuborilmoqda.')
+        submitRef.current(true)
+    }, [isGuest, submitted, submitting, test, timeLeft])
+
+    async function submit(options?: { skipConfirm?: boolean }) {
         if (!test) return
         if (isGuest) {
             toast.error('Testni ishlash uchun avval kiring')
             nav('/kirish', { state: { from: `/test/${shareLink}` } })
             return
         }
-        if (answeredCount < total) {
+        if (!options?.skipConfirm && answeredCount < total) {
             const confirmed = window.confirm(`${total - answeredCount} ta savol javobsiz qolgan. Shunga qaramay testni topshirmoqchimisiz?`)
             if (!confirmed) return
         }
@@ -240,9 +277,14 @@ export default function TestPage() {
             localStorage.removeItem('dtmmax_analysis_chat_id')
             localStorage.setItem('dtmmax_guest_test_result', JSON.stringify({ title: test.title, subject: test.subject, score: res.correct, total: res.total, questions: questionsForAnalysis }))
             setAnalysisReady(true)
-        } catch (e: any) { toast.error(e.message || 'Test yuborishda xatolik yuz berdi') }
+        } catch (e: any) {
+            if (String(e.message || '').includes('vaqti')) setTimeLeft(0)
+            toast.error(e.message || 'Test yuborishda xatolik yuz berdi')
+        }
         finally { setSubmitting(false) }
     }
+
+    submitRef.current = (skipConfirm = false) => { void submit(skipConfirm ? { skipConfirm: true } : undefined) }
 
     function scrollToQuestion(idx: number) {
         const el = questionsRef.current?.querySelector(`[data-qi="${idx}"]`) as HTMLElement | null
@@ -310,7 +352,7 @@ export default function TestPage() {
         isGuest={isGuest} analysisReady={analysisReady}
         focusedQ={focusedQ} setFocusedQ={setFocusedQ}
         questionsRef={questionsRef} scrollToQuestion={scrollToQuestion}
-        nav={nav} token={token}
+        nav={nav} token={token} timeLeft={timeLeft}
     />
 
     // ─────────────────── STANDARD MODE ───────────────────
@@ -326,6 +368,11 @@ export default function TestPage() {
                         <span className="text-sm font-bold truncate max-w-[200px]">{test?.title}</span>
                     </div>
                     <div className="flex items-center gap-3">
+                        {!isGuest && !submitted && timeLeft !== null && (
+                            <span className="inline-flex items-center gap-1 text-[12px] font-semibold tabular-nums" style={{ color: timeLeft < 60 ? 'var(--danger)' : 'var(--text-secondary)' }}>
+                                <Clock className="h-3.5 w-3.5" /> {formatTimer(timeLeft)}
+                            </span>
+                        )}
                         {!isGuest && !submitted && <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>{answeredCount}/{total}</span>}
                         {isGuest && <button onClick={() => nav('/kirish', { state: { from: `/test/${shareLink}` } })} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-white" style={{ background: 'var(--brand)' }}><LogIn className="h-3.5 w-3.5" /> Kirish</button>}
                     </div>
@@ -530,7 +577,7 @@ export default function TestPage() {
                 {!submitted && (
                     isGuest
                         ? <button onClick={() => nav('/kirish', { state: { from: `/test/${shareLink}` } })} className="w-full h-11 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2" style={{ background: 'var(--brand)' }}><LogIn className="h-4 w-4" /> Yechishni boshlash uchun kiring</button>
-                        : <button onClick={submit} disabled={submitting || answeredCount === 0} className="w-full h-11 rounded-xl text-sm font-semibold text-white transition disabled:opacity-40" style={{ background: 'var(--text-primary)' }}>{submitting ? 'Tekshirilmoqda...' : `Testni yuborish (${answeredCount}/${total})`}</button>
+                        : <button onClick={() => submit()} disabled={submitting || answeredCount === 0} className="w-full h-11 rounded-xl text-sm font-semibold text-white transition disabled:opacity-40" style={{ background: 'var(--text-primary)' }}>{submitting ? 'Tekshirilmoqda...' : `Testni yuborish (${answeredCount}/${total})`}</button>
                 )}
                 {submitted && <button onClick={() => nav('/suhbat')} className="w-full h-11 rounded-xl text-sm font-semibold transition" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>Chatga qaytish</button>}
             </div>
@@ -541,7 +588,7 @@ export default function TestPage() {
 // ─────────────────────────────────────────────────────────────
 // DTM TEST VIEW — split screen: questions left, blanka right
 // ─────────────────────────────────────────────────────────────
-function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap, submitting, submit, answeredCount, total, isGuest, analysisReady, focusedQ, setFocusedQ, questionsRef, scrollToQuestion, nav, token }: any) {
+function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap, submitting, submit, answeredCount, total, isGuest, analysisReady, focusedQ, setFocusedQ, questionsRef, scrollToQuestion, nav, token, timeLeft }: any) {
     const shareLink = test?.shareLink
     const questions: any[] = test?.questions || []
     const [isCompactLayout, setIsCompactLayout] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 1024 : false)
@@ -758,7 +805,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
 
         return (
             <div className={footerPadding} style={{ borderTop: '1px solid var(--border)' }}>
-                <button onClick={submit} disabled={submitting || answeredCount === 0}
+                <button onClick={() => submit()} disabled={submitting || answeredCount === 0}
                     className={`w-full ${buttonHeight} rounded-xl text-[12px] font-semibold text-white transition disabled:opacity-40`}
                     style={{ background: answeredCount === total ? 'var(--success)' : 'var(--text-primary)' }}>
                     {submitting ? '...' : answeredCount === total ? 'Topshirish ✓' : `Topshirish (${answeredCount}/${total})`}
@@ -778,6 +825,11 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                     <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold hidden sm:inline-flex" style={{ background: '#f59e0b22', color: '#f59e0b' }}>DTM</span>
                 </div>
                 <div className="flex items-center gap-3">
+                    {!submitted && !isGuest && typeof timeLeft === 'number' && (
+                        <span className="inline-flex items-center gap-1 text-[12px] font-semibold tabular-nums" style={{ color: timeLeft < 60 ? 'var(--danger)' : 'var(--text-secondary)' }}>
+                            <Clock className="h-3.5 w-3.5" /> {formatTimer(timeLeft)}
+                        </span>
+                    )}
                     {!submitted && !isGuest && (
                         <span className="text-[12px] font-medium tabular-nums" style={{ color: answeredCount === total ? 'var(--success)' : 'var(--text-muted)' }}>
                             {answeredCount}/{total}
@@ -789,7 +841,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                         </button>
                     )}
                     {!submitted && !isGuest && !isCompactLayout && (
-                        <button onClick={submit} disabled={submitting || answeredCount === 0} className="px-4 h-8 rounded-lg text-[13px] font-semibold text-white transition disabled:opacity-40" style={{ background: answeredCount === total ? 'var(--success)' : 'var(--text-primary)' }}>
+                        <button onClick={() => submit()} disabled={submitting || answeredCount === 0} className="px-4 h-8 rounded-lg text-[13px] font-semibold text-white transition disabled:opacity-40" style={{ background: answeredCount === total ? 'var(--success)' : 'var(--text-primary)' }}>
                             {submitting ? 'Tekshirilmoqda...' : 'Topshirish'}
                         </button>
                     )}
@@ -977,7 +1029,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                     {analysisReady ? 'AI tahlil' : 'Chatga qaytish'}
                                 </button>
                             ) : (
-                                <button onClick={submit} disabled={submitting || answeredCount === 0} className="h-11 px-4 rounded-xl text-[13px] font-semibold text-white transition disabled:opacity-40" style={{ background: answeredCount === total ? 'var(--success)' : 'var(--text-primary)' }}>
+                                <button onClick={() => submit()} disabled={submitting || answeredCount === 0} className="h-11 px-4 rounded-xl text-[13px] font-semibold text-white transition disabled:opacity-40" style={{ background: answeredCount === total ? 'var(--success)' : 'var(--text-primary)' }}>
                                     {submitting ? '...' : 'Topshirish'}
                                 </button>
                             )}

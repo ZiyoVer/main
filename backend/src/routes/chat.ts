@@ -5,6 +5,7 @@ import mammoth from 'mammoth'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest } from '../middleware/auth'
 import OpenAI from 'openai'
+import { Prisma } from '@prisma/client'
 import { aiSettingsCache, aiSettingsCacheTime, AI_SETTINGS_TTL, setAISettingsCache, AISettingsData } from '../utils/aiSettingsCache'
 import { cosineSimilarity, createEmbedding, createEmbeddings, parseEmbedding, serializeEmbedding } from '../utils/embeddings'
 import { getSubjectVariants, normalizeSubject } from '../utils/subjects'
@@ -1447,8 +1448,21 @@ function findAutoDoneTodoTask(content: string, reply: string, todoContext: TodoC
 
     return bestMatch && bestMatch.score >= 6 ? bestMatch.task : null
 }
-const RAG_DOCUMENT_CHUNK_LIMIT = 80
-const RAG_KNOWLEDGE_LIMIT = 30
+const RAG_DOCUMENT_KEYWORD_LIMIT = 220
+const RAG_DOCUMENT_RECENT_LIMIT = 180
+const RAG_KNOWLEDGE_KEYWORD_LIMIT = 80
+const RAG_KNOWLEDGE_RECENT_LIMIT = 60
+
+function mergeById<T extends { id: string }>(items: T[]): T[] {
+    const seen = new Set<string>()
+    const merged: T[] = []
+    for (const item of items) {
+        if (seen.has(item.id)) continue
+        seen.add(item.id)
+        merged.push(item)
+    }
+    return merged
+}
 
 // RAG: content-based relevant chunks search (yaxshilangan versiya)
 async function searchRAGContext(query: string, subject?: string, extraSubjects: Array<string | null | undefined> = []): Promise<string> {
@@ -1463,19 +1477,56 @@ async function searchRAGContext(query: string, subject?: string, extraSubjects: 
         ))
         const subjectFilter = subjectVariants.length > 0 ? subjectVariants : undefined
 
-        // Parallel qidirish: document chunks va knowledge items
-        const [allChunks, knowledgeItems] = await Promise.all([
+        const keywordTerms = keywords.slice(0, 10)
+        const chunkSubjectWhere: Prisma.DocumentChunkWhereInput = subjectFilter
+            ? { document: { subject: { in: subjectFilter } } }
+            : {}
+        const knowledgeSubjectWhere: Prisma.KnowledgeItemWhereInput = subjectFilter
+            ? { subject: { in: subjectFilter } }
+            : {}
+        const chunkKeywordWhere: Prisma.DocumentChunkWhereInput = keywordTerms.length
+            ? { OR: keywordTerms.map(keyword => ({ content: { contains: keyword, mode: 'insensitive' } })) }
+            : {}
+        const knowledgeKeywordWhere: Prisma.KnowledgeItemWhereInput = keywordTerms.length
+            ? {
+                OR: keywordTerms.flatMap(keyword => [
+                    { title: { contains: keyword, mode: 'insensitive' } },
+                    { content: { contains: keyword, mode: 'insensitive' } }
+                ])
+            }
+            : {}
+
+        // Keyword-match va recent fallbackni alohida olib, keyin scoring qilamiz.
+        const [keywordChunks, fallbackChunks, keywordKnowledgeItems, fallbackKnowledgeItems] = await Promise.all([
+            keywordTerms.length
+                ? prisma.documentChunk.findMany({
+                    where: { ...chunkSubjectWhere, ...chunkKeywordWhere },
+                    include: { document: { select: { fileName: true, subject: true } } },
+                    take: RAG_DOCUMENT_KEYWORD_LIMIT,
+                    orderBy: { createdAt: 'desc' }
+                })
+                : Promise.resolve([]),
             prisma.documentChunk.findMany({
-                where: { document: subjectFilter ? { subject: { in: subjectFilter } } : undefined },
+                where: chunkSubjectWhere,
                 include: { document: { select: { fileName: true, subject: true } } },
-                take: RAG_DOCUMENT_CHUNK_LIMIT
+                take: RAG_DOCUMENT_RECENT_LIMIT,
+                orderBy: { createdAt: 'desc' }
             }),
+            keywordTerms.length
+                ? prisma.knowledgeItem.findMany({
+                    where: { ...knowledgeSubjectWhere, ...knowledgeKeywordWhere },
+                    take: RAG_KNOWLEDGE_KEYWORD_LIMIT,
+                    orderBy: { createdAt: 'desc' }
+                })
+                : Promise.resolve([]),
             prisma.knowledgeItem.findMany({
-                where: subjectFilter ? { subject: { in: subjectFilter } } : {},
-                take: RAG_KNOWLEDGE_LIMIT,
+                where: knowledgeSubjectWhere,
+                take: RAG_KNOWLEDGE_RECENT_LIMIT,
                 orderBy: { createdAt: 'desc' }
             })
         ])
+        const allChunks = mergeById([...keywordChunks, ...fallbackChunks])
+        const knowledgeItems = mergeById([...keywordKnowledgeItems, ...fallbackKnowledgeItems])
 
         if (keywords.length === 0 && allChunks.length === 0 && knowledgeItems.length === 0) return ''
 

@@ -375,11 +375,13 @@ export default function TeacherPanel() {
         if (!notifForm.title.trim() || !notifForm.message.trim()) {
             return toast.error("Sarlavha va xabar kerak")
         }
+        const confirmed = window.confirm("Bildirishnoma barcha o'quvchilarga yuboriladi. Davom etasizmi?")
+        if (!confirmed) return
         setSendingNotif(true)
         try {
             const data = await fetchApi('/notifications/send', {
                 method: 'POST',
-                body: JSON.stringify({ title: notifForm.title, message: notifForm.message })
+                body: JSON.stringify({ title: notifForm.title, message: notifForm.message, broadcastAll: true })
             })
             toast.success(`${data.sent} ta o'quvchiga yuborildi!`)
             setNotifForm({ title: '', message: '' })

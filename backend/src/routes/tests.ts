@@ -21,6 +21,45 @@ import {
     scoreRegularAttempt,
 } from '../utils/testScoring'
 
+const TEST_SUBMIT_GRACE_MS = 5000
+
+function getTimeLimitMs(timeLimit: number | null | undefined): number | null {
+    if (typeof timeLimit !== 'number' || !Number.isFinite(timeLimit) || timeLimit <= 0) return null
+    return Math.round(timeLimit * 60 * 1000)
+}
+
+function getTimeRemainingSeconds(expiresAt: Date, now = new Date()): number {
+    return Math.max(0, Math.ceil((expiresAt.getTime() - now.getTime()) / 1000))
+}
+
+async function ensureTestSession(testId: string, userId: string, timeLimit: number, shareLink?: string | null) {
+    const now = new Date()
+    const expiresAt = new Date(now.getTime() + timeLimit * 60 * 1000)
+    const where = { testId_userId: { testId, userId } }
+    const existing = await prisma.testSession.findUnique({ where })
+
+    if (!existing || existing.submittedAt || existing.expiresAt.getTime() <= now.getTime()) {
+        return prisma.testSession.upsert({
+            where,
+            create: {
+                testId,
+                userId,
+                shareLink: shareLink ?? null,
+                startedAt: now,
+                expiresAt
+            },
+            update: {
+                shareLink: shareLink ?? null,
+                startedAt: now,
+                expiresAt,
+                submittedAt: null
+            }
+        })
+    }
+
+    return existing
+}
+
 function normalizeOpenAnswer(text: string | null | undefined): string {
     return (text || '')
         .trim()
@@ -826,7 +865,24 @@ router.get('/by-link/:shareLink', optionalAuthenticate, testReadLimiter, async (
             }
             return { ...q, imageUrl: resolvedImageUrl }
         }))
-        res.json({ ...test, questions: sanitizedQuestions })
+        let timeWindow: {
+            serverStartedAt?: string
+            serverExpiresAt?: string
+            serverNow?: string
+            timeRemainingSeconds?: number
+        } = {}
+        if (req.user && getTimeLimitMs(test.timeLimit)) {
+            const session = await ensureTestSession(test.id, req.user.id, test.timeLimit as number, shareLink)
+            const now = new Date()
+            timeWindow = {
+                serverStartedAt: session.startedAt.toISOString(),
+                serverExpiresAt: session.expiresAt.toISOString(),
+                serverNow: now.toISOString(),
+                timeRemainingSeconds: getTimeRemainingSeconds(session.expiresAt, now)
+            }
+        }
+
+        res.json({ ...test, questions: sanitizedQuestions, ...timeWindow })
     } catch (e) {
         res.status(500).json({ error: 'Server xatoligi' })
     }
@@ -1657,6 +1713,28 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
             return res.status(403).json({ error: 'Bu test uchun ruxsat yo\'q' })
         }
 
+        const timeLimitMs = getTimeLimitMs(test.timeLimit)
+        let activeSessionId: string | null = null
+        if (timeLimitMs) {
+            const session = await prisma.testSession.findUnique({
+                where: { testId_userId: { testId: test.id, userId: req.user.id } }
+            })
+            if (!session || session.submittedAt) {
+                return res.status(403).json({
+                    error: 'Test sessiyasi topilmadi. Testni qayta ochib boshlang.'
+                })
+            }
+
+            const now = new Date()
+            if (session.expiresAt.getTime() + TEST_SUBMIT_GRACE_MS < now.getTime()) {
+                return res.status(403).json({
+                    error: 'Test vaqti tugagan. Javoblar qabul qilinmadi.',
+                    timeRemainingSeconds: 0
+                })
+            }
+            activeSessionId = session.id
+        }
+
         // Javoblarni tekshirish
         const answerMap = new Map<string, Record<string, unknown>>(
             answers
@@ -1857,6 +1935,13 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
                     avgScore: nextAvgScore
                 }
             })
+
+            if (activeSessionId) {
+                await tx.testSession.update({
+                    where: { id: activeSessionId },
+                    data: { submittedAt: new Date() }
+                })
+            }
 
             return { attempt: att, newAbility: computedScore.ability, computedScore }
         })
