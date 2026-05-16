@@ -449,6 +449,40 @@ const MdMessage = memo(({ content, isStreaming }: {
 
 type AttachedFile = { id: string; name: string; text: string; type: string; previewUrl?: string }
 
+const TODO_STORAGE_PREFIX = 'dtmmax_todo_items_v1'
+
+function normalizeTodoSignaturePart(value: unknown): string {
+    return String(value ?? '').toLowerCase().trim().replace(/\s+/g, ' ')
+}
+
+function getTodoSignature(item: Pick<TodoItem, 'task'> & Partial<Pick<TodoItem, 'time' | 'subject' | 'duration'>>): string {
+    return [
+        normalizeTodoSignaturePart(item.task),
+        normalizeTodoSignaturePart(item.time),
+        normalizeTodoSignaturePart(item.subject),
+        normalizeTodoSignaturePart(item.duration)
+    ].join('|')
+}
+
+function loadStoredTodos(storageKey: string): TodoItem[] {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(storageKey) || '[]')
+        if (!Array.isArray(parsed)) return []
+        return parsed
+            .filter((item: unknown): item is TodoItem => Boolean(item) && typeof item === 'object' && typeof (item as TodoItem).task === 'string')
+            .map((item, index) => ({
+                id: typeof item.id === 'string' && item.id ? item.id : `todo-stored-${index}-${Date.now()}`,
+                task: item.task,
+                time: typeof item.time === 'string' ? item.time : undefined,
+                subject: typeof item.subject === 'string' ? item.subject : undefined,
+                duration: typeof item.duration === 'number' ? item.duration : undefined,
+                done: Boolean(item.done)
+            }))
+    } catch {
+        return []
+    }
+}
+
 interface ChatInputAreaProps {
     chatId: string | undefined
     loading: boolean
@@ -688,6 +722,7 @@ export default function ChatLayout() {
     const nav = useNavigate()
     const location = useLocation()
     const { user, logout, token } = useAuthStore()
+    const todoStorageKey = `${TODO_STORAGE_PREFIX}_${user?.id || 'guest'}`
     const [chats, setChats] = useState<Chat[]>([])
     const [chatsLoaded, setChatsLoaded] = useState(false)
     const [messages, setMessages] = useState<Msg[]>([])
@@ -700,8 +735,8 @@ export default function ChatLayout() {
     const [profileLoaded, setProfileLoaded] = useState(false)
     const [showOnboarding, setShowOnboarding] = useState(false)
     const [overlayPanel, setOverlayPanel] = useState<'tests' | 'flashcards' | 'progress' | null>(null)
-    const [todoItems, setTodoItems] = useState<TodoItem[]>([])
-    const [todoOpen, setTodoOpen] = useState(false)
+    const [todoItems, setTodoItems] = useState<TodoItem[]>(() => loadStoredTodos(todoStorageKey))
+    const [todoOpen, setTodoOpen] = useState(() => loadStoredTodos(todoStorageKey).length > 0)
     const [showSettings, setShowSettings] = useState(false)
     const [showNotifications, setShowNotifications] = useState(false)
     const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -778,6 +813,15 @@ export default function ChatLayout() {
     useEffect(() => {
         todoItemsRef.current = todoItems
     }, [todoItems])
+
+    useEffect(() => {
+        try {
+            if (todoItems.length > 0) localStorage.setItem(todoStorageKey, JSON.stringify(todoItems))
+            else localStorage.removeItem(todoStorageKey)
+        } catch (err) {
+            console.warn('Todo rejani saqlab bo\'lmadi:', err)
+        }
+    }, [todoItems, todoStorageKey])
 
     useEffect(() => {
         return () => {
@@ -1452,7 +1496,7 @@ Iltimos, har bir savolni tahlil qilib ber:
         let fullText = '' // local ref — stale closure muammosini oldini olish uchun
         let completed = false
         const requestThinkingMode = thinkingModeRef.current
-        const requestTodoContext = todoItemsRef.current.filter(t => !t.done)
+        const requestTodoContext = todoItemsRef.current
         try {
             const token = localStorage.getItem('token')
             const res = await fetch(`/api/chat/${targetChatId}/stream`, {
@@ -1684,12 +1728,23 @@ Iltimos, har bir savolni tahlil qilib ber:
             clearTimeout(todoAutoCloseRef.current)
             todoAutoCloseRef.current = null
         }
-        setTodoItems(items.map((item, i) => ({ ...item, id: `todo-${i}-${Date.now()}`, done: false })))
+        setTodoItems(prev => {
+            const existingItems = [...prev, ...loadStoredTodos(todoStorageKey)]
+            const existingBySignature = new Map(existingItems.map(item => [getTodoSignature(item), item]))
+            return items.map((item, i) => {
+                const existing = existingBySignature.get(getTodoSignature(item))
+                return {
+                    ...item,
+                    id: existing?.id || `todo-${i}-${Date.now()}`,
+                    done: Boolean(existing?.done)
+                }
+            })
+        })
         setTestPanel(null)      // test yopiladi
         setFlashPanel(null)     // flashcard yopiladi
         setEssayPanel(null)     // essay yopiladi
         setTodoOpen(true)
-    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [todoStorageKey]) // eslint-disable-line react-hooks/exhaustive-deps
     const markTodoDone = useCallback((id: string) => {
         setTodoItems(prev => prev.map(t => t.id === id ? { ...t, done: true } : t))
     }, [])
@@ -1718,7 +1773,6 @@ Iltimos, har bir savolni tahlil qilib ber:
 
         todoAutoCloseRef.current = setTimeout(() => {
             setTodoOpen(false)
-            setTodoItems([])
             todoAutoCloseRef.current = null
         }, 1500)
 

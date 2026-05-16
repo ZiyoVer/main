@@ -1395,6 +1395,7 @@ type TodoContextItem = {
     subject?: string
     time?: string
     duration?: number
+    done?: boolean
 }
 
 function normalizeTodoText(text: string): string {
@@ -1830,7 +1831,8 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
                     task: item.task.trim(),
                     subject: typeof item.subject === 'string' ? item.subject.trim() : undefined,
                     time: typeof item.time === 'string' ? item.time.trim() : undefined,
-                    duration: typeof item.duration === 'number' ? item.duration : undefined
+                    duration: typeof item.duration === 'number' ? item.duration : undefined,
+                    done: item.done === true
                 }))
             : []
 
@@ -1877,11 +1879,17 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
             : ''
 
         // Kunlik reja konteksti — foydalanuvchi yuborgan todo ro'yxati
+        const pendingTodoContext = parsedTodoContext.filter(item => !item.done)
+        const completedTodoContext = parsedTodoContext.filter(item => item.done)
+        const formatTodoLine = (item: TodoContextItem, index: number) =>
+            `${index + 1}. ${item.task}${item.time ? ' (' + item.time + ')' : ''}`
+        const completedTodoLines = completedTodoContext.map(formatTodoLine).join('\n')
+        const pendingTodoLines = pendingTodoContext.map(formatTodoLine).join('\n')
         const todoSection = parsedTodoContext.length > 0
-            ? `\n\n--- FOYDALANUVCHINING BUGUNGI KUNLIK REJASI ---\nQuyidagi vazifalar hali bajarilmagan.\n\nAGAR joriy user xabari shu vazifalardan birini bajarishga qaratilgan bo'lsa va sen shu vazifani amalda tushuntirib/yakunlab bergan bo'lsang, javob OXIRIDA FAQAT bitta shu blokni qo'sh:\n\`\`\`todo-done\n{"task":"ANIQ_VAZIFA_NOMI"}\n\`\`\`\n\nQoidalar:\n- task nomini ro'yxatdagi ANIQ yozilganidek qo'y\n- Bitta javobda ko'pi bilan bitta todo-done blok bo'lsin\n- Agar user aynan shu vazifani bajarganini aytsa ("bajarildi", "tugatdim") — ham todo-done qo'sh\n- Agar faqat umumiy suhbat bo'lsa yoki vazifa hali tugamagan bo'lsa — todo-done qo'shma\n\nBajarilmagan vazifalar:\n${parsedTodoContext.map((t, i) => `${i + 1}. ${t.task}${t.time ? ' (' + t.time + ')' : ''}`).join('\n')}\n--- REJA TUGADI ---`
+            ? `\n\n--- FOYDALANUVCHINING BUGUNGI KUNLIK REJASI ---\nAI shu reja bilan sinxron ishlasin: bajarilgan bandlarni qayta takrorlama, bajarilmagan bandlar bo'yicha keyingi qadamni tanla.\n\nAGAR joriy user xabari bajarilmagan vazifalardan birini bajarishga qaratilgan bo'lsa va sen shu vazifani amalda tushuntirib/yakunlab bergan bo'lsang, javob OXIRIDA FAQAT bitta shu blokni qo'sh:\n\`\`\`todo-done\n{"task":"ANIQ_VAZIFA_NOMI"}\n\`\`\`\n\nQoidalar:\n- task nomini ro'yxatdagi ANIQ yozilganidek qo'y\n- Bitta javobda ko'pi bilan bitta todo-done blok bo'lsin\n- Agar user aynan shu vazifani bajarganini aytsa ("bajarildi", "tugatdim") — ham todo-done qo'sh\n- Agar faqat umumiy suhbat bo'lsa yoki vazifa hali tugamagan bo'lsa — todo-done qo'shma\n\nBajarilgan vazifalar:\n${completedTodoLines || "Yo'q"}\n\nBajarilmagan vazifalar:\n${pendingTodoLines || 'Hammasi bajarilgan'}\n--- REJA TUGADI ---`
             : ''
         const toolIntentSection = buildToolIntentGuidance(content)
-        const retentionSection = buildRetentionGuidance(content, parsedTodoContext.length > 0, isFirstMessage)
+        const retentionSection = buildRetentionGuidance(content, pendingTodoContext.length > 0, isFirstMessage)
 
         const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, chat.subject2 || undefined, aiSettings.extraRules, aiSettings.promptOverrides, isFirstMessage) + ragSection + todoSection + toolIntentSection + retentionSection
 
@@ -2000,8 +2008,8 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
             return res.end()
         }
 
-        if (parsedTodoContext.length > 0 && !/```todo-done\b/i.test(fullReply)) {
-            const autoDoneTask = findAutoDoneTodoTask(content, fullReply, parsedTodoContext)
+        if (pendingTodoContext.length > 0 && !/```todo-done\b/i.test(fullReply)) {
+            const autoDoneTask = findAutoDoneTodoTask(content, fullReply, pendingTodoContext)
             if (autoDoneTask) {
                 const appendedBlock = `\n\n\`\`\`todo-done\n${JSON.stringify({ task: autoDoneTask })}\n\`\`\``
                 fullReply += appendedBlock
