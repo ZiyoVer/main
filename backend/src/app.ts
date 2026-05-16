@@ -146,8 +146,26 @@ app.use('/api', (_req, res) => {
 // Static frontend — NODE_ENV ga bog'liq emas, dist mavjud bo'lsa serve qiladi
 const frontendDist = path.join(__dirname, '../../frontend/dist')
 if (fs.existsSync(frontendDist)) {
-    app.use(express.static(frontendDist))
+    const frontendAssets = path.join(frontendDist, 'assets')
+    app.use('/assets', express.static(frontendAssets, {
+        immutable: true,
+        maxAge: '1y',
+    }))
+    app.use('/assets', (_req, res) => {
+        res.status(404).type('text/plain').send('Asset topilmadi')
+    })
+    app.use(express.static(frontendDist, {
+        index: false,
+        setHeaders: (res, filePath) => {
+            if (path.basename(filePath) === 'index.html') {
+                res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+            } else {
+                res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate')
+            }
+        }
+    }))
     app.get(/.*/, (_req, res) => {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
         res.sendFile(path.join(frontendDist, 'index.html'))
     })
 }

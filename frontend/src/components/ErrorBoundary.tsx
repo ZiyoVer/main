@@ -7,11 +7,17 @@ interface State { hasError: boolean; error?: Error }
 export default class ErrorBoundary extends Component<Props, State> {
     state: State = { hasError: false }
 
+    private reloadWithCacheBust = () => {
+        const url = new URL(window.location.href)
+        url.searchParams.set('recover', String(Date.now()))
+        window.location.replace(url.toString())
+    }
+
     private openHomeWithoutRedirect = () => {
         try {
             sessionStorage.setItem('dtmmax_skip_autoredirect', '1')
         } catch { /* ignore */ }
-        window.location.href = '/'
+        window.location.replace(`/?recover=${Date.now()}`)
     }
 
     private logoutAndOpenLogin = () => {
@@ -52,10 +58,10 @@ export default class ErrorBoundary extends Component<Props, State> {
                         </p>
                         <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
                             <button
-                                onClick={() => this.setState({ hasError: false, error: undefined })}
+                                onClick={this.reloadWithCacheBust}
                                 style={{ background: 'var(--brand)', color: 'white', border: 'none', borderRadius: '10px', padding: '12px 28px', fontWeight: 600, fontSize: '14px', cursor: 'pointer' }}
                             >
-                                Qayta urinish
+                                Sahifani yangilash
                             </button>
                             <button
                                 onClick={this.openHomeWithoutRedirect}
