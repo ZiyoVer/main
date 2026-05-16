@@ -2026,6 +2026,18 @@ Iltimos, har bir savolni tahlil qilib ber:
         }
     }
 
+    // useMemo: context value ni stabillashtirish — har render da yangi {} yaratilmaydi.
+    // Bu MdMessage/TodoBlockMount ni keraksiz qayta mount qilishdan saqlab, X tugmasini tuzatadi
+    // va streaming vaqtida sayt qotishini ham hal qiladi.
+    const chatContextValue = useMemo(() => ({
+        onOpenTest: handleOpenTest,
+        onProfileUpdate: handleProfileUpdate,
+        onOpenFlash: handleOpenFlash,
+        onOpenEssay: handleOpenEssay,
+        onSetTodo: handleSetTodo,
+        onMarkTodoDoneByTask: markTodoDoneByTask,
+    }), [handleOpenTest, handleProfileUpdate, handleOpenFlash, handleOpenEssay, handleSetTodo, markTodoDoneByTask])
+
     // Onboarding
     if (showOnboarding) {
         return (
@@ -2064,18 +2076,6 @@ Iltimos, har bir savolni tahlil qilib ber:
             </div>
         )
     }
-
-    // useMemo: context value ni stabillashtirish — har render da yangi {} yaratilmaydi.
-    // Bu MdMessage/TodoBlockMount ni keraksiz qayta mount qilishdan saqlab, X tugmasini tuzatadi
-    // va streaming vaqtida sayt qotishini ham hal qiladi.
-    const chatContextValue = useMemo(() => ({
-        onOpenTest: handleOpenTest,
-        onProfileUpdate: handleProfileUpdate,
-        onOpenFlash: handleOpenFlash,
-        onOpenEssay: handleOpenEssay,
-        onSetTodo: handleSetTodo,
-        onMarkTodoDoneByTask: markTodoDoneByTask,
-    }), [handleOpenTest, handleProfileUpdate, handleOpenFlash, handleOpenEssay, handleSetTodo, markTodoDoneByTask])
 
     return (
         <ChatContext.Provider value={chatContextValue}>
