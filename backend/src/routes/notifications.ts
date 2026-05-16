@@ -45,6 +45,36 @@ router.patch('/read-all', async (req: AuthRequest, res) => {
   }
 })
 
+// PATCH /api/notifications/test/:testId/read — test ochilganda/yechilganda shu test bildirishnomasini o'qilgan qilish
+router.patch('/test/:testId/read', async (req: AuthRequest, res) => {
+  try {
+    const testId = String(req.params.testId)
+    const test = await prisma.test.findUnique({
+      where: { id: testId },
+      select: { id: true, title: true }
+    })
+    if (!test) return res.status(404).json({ error: 'Test topilmadi' })
+
+    const result = await prisma.notification.updateMany({
+      where: {
+        userId: req.user.id,
+        isRead: false,
+        OR: [
+          { targetType: 'test', targetId: test.id },
+          { title: `📚 Yangi test: ${test.title}` },
+          { message: { contains: `"${test.title}"` } }
+        ]
+      },
+      data: { isRead: true }
+    })
+
+    res.json({ ok: true, updated: result.count })
+  } catch (e) {
+    console.error('notifications test read error:', e)
+    res.status(500).json({ error: 'Server xatoligi' })
+  }
+})
+
 // PATCH /api/notifications/:id/read — o'qilgan deb belgilash
 router.patch('/:id/read', async (req: AuthRequest, res) => {
   try {

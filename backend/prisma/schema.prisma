@@ -309,11 +309,14 @@ model Notification {
   sender     User     @relation("NotificationSender", fields: [senderId], references: [id], onDelete: Cascade)
   title      String
   message    String
+  targetType String?
+  targetId   String?
   isRead     Boolean  @default(false)
   createdAt  DateTime @default(now())
 
   @@index([userId])
   @@index([userId, isRead])
+  @@index([userId, targetType, targetId])
 }
 
 // ============ KNOWLEDGE BASE ============

@@ -1288,7 +1288,9 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
                             userId: s.id,
                             senderId: req.user.id,
                             title: `📚 Yangi test: ${title}`,
-                            message: `"${title}" nomli yangi ${normalizedSubject || ''} testi qo'shildi. Hoziroq yechib ko'ring!`
+                            message: `"${title}" nomli yangi ${normalizedSubject || ''} testi qo'shildi. Hoziroq yechib ko'ring!`,
+                            targetType: 'test',
+                            targetId: test.id
                         }))
                     })
                 }
@@ -2305,7 +2307,9 @@ router.patch('/:testId/visibility', authenticate, requireRole('TEACHER', 'ADMIN'
                             userId: s.id,
                             senderId: req.user.id,
                             title: `📚 Yangi test: ${test.title}`,
-                            message: `"${test.title}" nomli yangi public test qo'shildi. Hoziroq yechib ko'ring!`
+                            message: `"${test.title}" nomli yangi public test qo'shildi. Hoziroq yechib ko'ring!`,
+                            targetType: 'test',
+                            targetId: test.id
                         }))
                     })
                 }

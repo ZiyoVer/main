@@ -1233,6 +1233,37 @@ Iltimos, har bir savolni tahlil qilib ber:
         setNewTestIds(new Set())
     }
 
+    function markSingleTestSeen(testId: string) {
+        try {
+            const seenIds: string[] = JSON.parse(localStorage.getItem('dtmmax_seen_tests') || '[]')
+            const nextSeenIds = Array.from(new Set([...seenIds, testId]))
+            localStorage.setItem('dtmmax_seen_tests', JSON.stringify(nextSeenIds))
+        } catch { }
+        setNewTestIds(prev => {
+            if (!prev.has(testId)) return prev
+            const next = new Set(prev)
+            next.delete(testId)
+            return next
+        })
+    }
+
+    async function markTestNotificationRead(testId: string, title?: string) {
+        markSingleTestSeen(testId)
+        try {
+            const data = await fetchApi(`/notifications/test/${testId}/read`, { method: 'PATCH', silent: true })
+            const updated = typeof data?.updated === 'number' ? data.updated : 0
+            if (updated > 0) setNotifCount(current => Math.max(0, current - updated))
+            setNotifications(prev => prev.filter(notification => {
+                const isTargetNotification = notification.targetType === 'test' && notification.targetId === testId
+                const isLegacyTitle = title ? notification.title === `📚 Yangi test: ${title}` : false
+                const isLegacyMessage = title ? String(notification.message || '').includes(`"${title}"`) : false
+                return !(isTargetNotification || isLegacyTitle || isLegacyMessage)
+            }))
+        } catch (err) {
+            console.error('markTestNotificationRead:', err)
+        }
+    }
+
     async function loadMyResults() {
         try {
             const data = await fetchApi('/tests/my-results')
@@ -1269,6 +1300,7 @@ Iltimos, har bir savolni tahlil qilib ber:
         try {
             await fetchApi('/notifications/read-all', { method: 'PATCH' })
             setNotifCount(0)
+            setNotifications([])
         } catch (err) {
             console.error('markNotificationsRead:', err)
             toast.error("Bildirishnomalarni yangilab bo'lmadi")
@@ -1588,6 +1620,7 @@ Iltimos, har bir savolni tahlil qilib ber:
     const weakTopicSummary = (progressData?.weakTopics ?? []).slice(0, 2).map(item => item.topic).join(', ')
     function markTestCompleted(testId: string) {
         completedTestIdsRef.current.add(testId)
+        markSingleTestSeen(testId)
         try { localStorage.setItem('dtmmax_done_tests', JSON.stringify([...completedTestIdsRef.current])) } catch (err) { console.warn('localStorage limit to\'lgan:', err); toast.error("Xotira to'lgan, eski ma'lumotlar o'chirilishi mumkin") }
     }
 
@@ -1715,6 +1748,7 @@ Iltimos, har bir savolni tahlil qilib ber:
     // Public test ochish (sidebar dan)
     async function openPublicTest(t: any) {
         setLoadingPublicTest(true)
+        void markTestNotificationRead(t.id, t.title)
         try {
             const data = await fetchApi(`/tests/by-link/${t.shareLink}`)
             const rawQuestions = data.questions || []
@@ -1831,6 +1865,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                     setTestPanel(JSON.stringify(questions))
                 }
                 markTestCompleted(activeTestId)
+                const completedTestTitle = publicTests.find(test => test.id === activeTestId)?.title
+                void markTestNotificationRead(activeTestId, completedTestTitle)
             } catch (err: any) {
                 toast.error(err?.message || 'Test natijasini saqlashda xatolik yuz berdi')
                 isSubmittingRef.current = false
