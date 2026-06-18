@@ -26,7 +26,7 @@ export default function ForgotPassword() {
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-5" style={{ background: 'var(--bg-page)' }}>
+        <div className="kelviq min-h-screen flex items-center justify-center p-5" style={{ background: 'var(--bg-page)' }}>
             <div className="w-full max-w-sm anim-up">
                 <div className="flex items-center gap-2 justify-center mb-8">
                     <div className="h-9 w-9 rounded-xl flex items-center justify-center" style={{ background: 'var(--brand)' }}>

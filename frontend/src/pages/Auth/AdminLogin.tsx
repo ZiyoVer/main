@@ -35,7 +35,7 @@ export default function AdminLogin() {
 
     return (
         <div
-            className="min-h-screen flex items-center justify-center p-5"
+            className="kelviq min-h-screen flex items-center justify-center p-5"
             style={{ background: 'var(--bg-page)' }}
         >
             <div className="w-full max-w-sm anim-up">

@@ -199,8 +199,8 @@ const DTM_OFFICIAL_SCORE_TOTAL = 189
 
 const TEST_TYPES: Array<{ value: TestTypeValue; title: string; description: string; accent: string; icon: string }> = [
     { value: 'REGULAR', title: 'Oddiy test', description: 'Mavzuli, kichik va moslashuvchan test', accent: '#0f766e', icon: '🧩' },
-    { value: 'DTM_BLOCK', title: 'DTM blok test', description: '189 ball · koeffitsientli bloklar', accent: '#d97706', icon: '🎯' },
-    { value: 'MILLIY_SERTIFIKAT', title: 'Milliy Sertifikat', description: 'Rasch modeli · 75 ball', accent: '#8b5cf6', icon: '📋' },
+    { value: 'DTM_BLOCK', title: 'DTM blok test', description: '189 ball · koeffitsientli bloklar', accent: 'var(--brand)', icon: '🎯' },
+    { value: 'MILLIY_SERTIFIKAT', title: 'Milliy Sertifikat', description: 'Rasch modeli · 75 ball', accent: 'var(--info)', icon: '📋' },
 ]
 
 const DTM_BLOCK_OPTIONS: Array<{ value: DtmBlockTypeValue; label: string; coefficient: number; target: number }> = [
@@ -850,8 +850,8 @@ export default function TeacherPanel() {
             if (score >= 90) return '#15803d'
             if (score >= 80) return '#16a34a'
             if (score >= 70) return '#65a30d'
-            if (score >= 60) return '#d97706'
-            if (score >= 50) return '#ea580c'
+            if (score >= 60) return '#F15A24'
+            if (score >= 50) return '#DA4A12'
             if (score >= 40) return '#dc2626'
             return '#9f1239'
         }
@@ -859,7 +859,7 @@ export default function TeacherPanel() {
             if (score >= 90) return '#f0fdf4'
             if (score >= 80) return '#f0fdf4'
             if (score >= 70) return '#fefce8'
-            if (score >= 60) return '#fffbeb'
+            if (score >= 60) return '#FFF1EA'
             if (score >= 50) return '#fff7ed'
             return '#fef2f2'
         }
@@ -889,7 +889,7 @@ export default function TeacherPanel() {
             <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280">${i + 1}</td>
             <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${renderPrintableMath(String(q.text || '—'))}</td>
             <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center">${q.totalAnswered}</td>
-            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:600;color:${q.errorRate > 50 ? '#dc2626' : q.errorRate > 30 ? '#d97706' : '#16a34a'}">${q.errorRate}%</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:600;color:${q.errorRate > 50 ? '#dc2626' : q.errorRate > 30 ? '#F15A24' : '#16a34a'}">${q.errorRate}%</td>
         </tr>`).join('')
 
         const html = `<!DOCTYPE html>
@@ -967,7 +967,7 @@ export default function TeacherPanel() {
 
     return (
         <>
-            <div className="h-screen overflow-y-auto w-full" style={{ background: 'var(--bg-page)' }}>
+            <div className="kelviq h-screen overflow-y-auto w-full" style={{ background: 'var(--bg-page)' }}>
                 {/* Header */}
                 <header className="sticky top-0 z-40" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', backdropFilter: 'blur(12px)' }}>
                     <div className="max-w-5xl mx-auto flex items-center justify-between py-2.5 px-5">
@@ -1053,7 +1053,7 @@ export default function TeacherPanel() {
                                             {t.timeLimit ? ` · ⏱ ${t.timeLimit} min` : ''}
                                             {` · ${new Date(t.createdAt).toLocaleDateString('uz-UZ')}`}
                                             {' · '}
-                                            <span style={{ color: t.testType === 'DTM_BLOCK' ? '#f59e0b' : t.testType === 'MILLIY_SERTIFIKAT' ? '#8b5cf6' : '#0f766e' }}>
+                                            <span style={{ color: t.testType === 'DTM_BLOCK' ? 'var(--brand)' : t.testType === 'MILLIY_SERTIFIKAT' ? 'var(--info)' : '#0f766e' }}>
                                                 {getTestTypeLabel(t.testType)}
                                             </span>
                                             {t._count?.attempts ? ` · O'rtacha ${t.avgScore}%` : ''}
@@ -1185,7 +1185,7 @@ export default function TeacherPanel() {
                                 </div>
                                 {testType === 'DTM_BLOCK' && (
                                     <div className="space-y-2">
-                                        <div className="rounded-lg px-3 py-2 text-[11px]" style={{ background: 'color-mix(in srgb, #f59e0b 10%, transparent)', border: '1px solid color-mix(in srgb, #f59e0b 20%, transparent)', color: 'var(--text-secondary)' }}>
+                                        <div className="rounded-lg px-3 py-2 text-[11px]" style={{ background: 'color-mix(in srgb, var(--brand) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 20%, transparent)', color: 'var(--text-secondary)' }}>
                                             Har savolda blok turini tanlaysiz. Koeffitsient avtomatik keladi, xohlasangiz qo'lda ham o'zgartirasiz.
                                         </div>
                                         <div className="flex flex-wrap gap-2">
@@ -1198,7 +1198,7 @@ export default function TeacherPanel() {
                                             </button>
                                             <span className="text-[11px] self-center" style={mutedText}>10 + 10 + 10 + 30 + 30 blok</span>
                                         </div>
-                                        <div className="rounded-xl p-3 space-y-3" style={{ background: 'color-mix(in srgb, #d97706 6%, transparent)', border: '1px solid color-mix(in srgb, #d97706 18%, transparent)' }}>
+                                        <div className="rounded-xl p-3 space-y-3" style={{ background: 'color-mix(in srgb, var(--brand) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 18%, transparent)' }}>
                                             <div className="flex flex-wrap items-center justify-between gap-2">
                                                 <div>
                                                     <p className="text-[12px] font-semibold" style={secondaryText}>DTM nazorat</p>
@@ -1210,7 +1210,7 @@ export default function TeacherPanel() {
                                                     className="text-[10px] font-semibold px-2 py-1 rounded-full"
                                                     style={dtmControlStats.officialReady
                                                         ? { color: 'var(--success)', background: 'color-mix(in srgb, var(--success) 12%, transparent)' }
-                                                        : { color: '#d97706', background: 'color-mix(in srgb, #d97706 12%, transparent)' }}
+                                                        : { color: 'var(--brand)', background: 'color-mix(in srgb, var(--brand) 12%, transparent)' }}
                                                 >
                                                     {dtmControlStats.officialReady ? 'Rasmiy format tayyor' : 'Nazorat kerak'}
                                                 </span>
@@ -1226,7 +1226,7 @@ export default function TeacherPanel() {
                                                                 <span className="text-[10px] font-bold" style={{ color: isOver ? 'var(--danger)' : isComplete ? 'var(--success)' : 'var(--text-muted)' }}>{row.count}/{row.target}</span>
                                                             </div>
                                                             <div className="mt-1.5 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-surface)' }}>
-                                                                <div className="h-full rounded-full" style={{ width: `${row.percent}%`, background: isOver ? 'var(--danger)' : isComplete ? 'var(--success)' : '#d97706' }} />
+                                                                <div className="h-full rounded-full" style={{ width: `${row.percent}%`, background: isOver ? 'var(--danger)' : isComplete ? 'var(--success)' : 'var(--brand)' }} />
                                                             </div>
                                                             <p className="text-[10px] mt-1" style={mutedText}>×{row.coefficient}</p>
                                                         </div>
@@ -1243,7 +1243,7 @@ export default function TeacherPanel() {
                                                 <p className="text-[11px]" style={{ color: 'var(--danger)' }}>{dtmControlStats.overLimit[0].label} bloki {dtmControlStats.overLimit[0].target} savoldan oshgan.</p>
                                             )}
                                             {dtmControlStats.officialMismatch && dtmControlStats.overLimit.length === 0 && (
-                                                <p className="text-[11px]" style={{ color: '#d97706' }}>90 savollik test rasmiy hisoblanishi uchun taqsimot 10+10+10+30+30 bo'lishi kerak.</p>
+                                                <p className="text-[11px]" style={{ color: 'var(--brand)' }}>90 savollik test rasmiy hisoblanishi uchun taqsimot 10+10+10+30+30 bo'lishi kerak.</p>
                                             )}
                                         </div>
                                     </div>
@@ -1271,14 +1271,14 @@ export default function TeacherPanel() {
                             </div>
 
                             {/* AI bilan yaratish — doim ko'rinadi */}
-                            <div className="rounded-xl p-4 space-y-2.5" style={{ ...cardStyle, borderColor: aiDone ? 'color-mix(in srgb, #8b5cf6 30%, transparent)' : 'var(--border)' }}>
+                            <div className="rounded-xl p-4 space-y-2.5" style={{ ...cardStyle, borderColor: aiDone ? 'color-mix(in srgb, var(--info) 30%, transparent)' : 'var(--border)' }}>
                                 <div className="flex items-center gap-2 mb-1">
-                                    <div className="h-6 w-6 bg-gradient-to-br from-violet-500 to-blue-500 rounded-md flex items-center justify-center flex-shrink-0">
+                                    <div className="h-6 w-6 rounded-md flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, var(--info), var(--brand))' }}>
                                         <Sparkles className="h-3 w-3 text-white" />
                                     </div>
                                     <div>
                                         <p className="text-[13px] font-semibold">AI bilan yaratish</p>
-                                        <p className="text-[11px]" style={aiDone ? { color: '#8b5cf6' } : mutedText}>
+                                        <p className="text-[11px]" style={aiDone ? { color: 'var(--info)' } : mutedText}>
                                             {aiDone ? `✨ ${questions.length} ta savol yaratildi` : 'PDF yoki screenshot yuklang — AI savollarni tayyorlaydi'}
                                         </p>
                                     </div>
@@ -1310,7 +1310,8 @@ export default function TeacherPanel() {
                                 </div>
                                 {aiError && <div className="text-[13px] px-3 py-2 rounded-lg" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>{aiError}</div>}
                                 <button type="button" onClick={generateFromFile} disabled={!aiFile || aiGenerating}
-                                    className="w-full h-9 rounded-lg text-[13px] font-semibold flex items-center justify-center gap-2 transition bg-gradient-to-r from-violet-600 to-blue-600 text-white hover:from-violet-700 hover:to-blue-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                                    style={{ background: 'linear-gradient(90deg, var(--info), var(--brand))' }}
+                                    className="w-full h-9 rounded-lg text-[13px] font-semibold flex items-center justify-center gap-2 transition text-white hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed">
                                     {aiGenerating
                                         ? <><div className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> AI tayyorlamoqda...</>
                                         : <><Sparkles className="h-3.5 w-3.5" /> AI bilan savollar yaratish</>}
@@ -1320,11 +1321,11 @@ export default function TeacherPanel() {
                             {/* Savollar */}
                             <div className="flex items-center justify-between">
                                 <p className="text-[12px] font-semibold" style={secondaryText}>{questions.length} ta savol</p>
-                                {aiDone && <span className="text-[11px] px-2 py-0.5 rounded" style={{ color: '#8b5cf6', background: 'color-mix(in srgb, #8b5cf6 10%, transparent)' }}>✨ AI yaratgan</span>}
+                                {aiDone && <span className="text-[11px] px-2 py-0.5 rounded" style={{ color: 'var(--info)', background: 'color-mix(in srgb, var(--info) 10%, transparent)' }}>✨ AI yaratgan</span>}
                             </div>
 
                             {questions.map((q, qi) => (
-                                <div key={qi} className="rounded-xl p-3.5 space-y-2 transition" style={{ ...cardStyle, borderColor: aiDone ? 'color-mix(in srgb, #8b5cf6 20%, transparent)' : 'var(--border)' }}
+                                <div key={qi} className="rounded-xl p-3.5 space-y-2 transition" style={{ ...cardStyle, borderColor: aiDone ? 'color-mix(in srgb, var(--info) 20%, transparent)' : 'var(--border)' }}
                                     onPaste={(e) => {
                                         const items = e.clipboardData?.items
                                         if (!items) return
@@ -1360,7 +1361,7 @@ export default function TeacherPanel() {
                                                         </button>
                                                         <button type="button" onClick={() => updateQ(qi, 'questionType', 'matching')}
                                                             className="px-2 py-0.5 transition"
-                                                            style={q.questionType === 'matching' ? { background: '#8b5cf6', color: '#fff' } : { background: 'transparent', color: 'var(--text-muted)' }}>
+                                                            style={q.questionType === 'matching' ? { background: 'var(--info)', color: '#fff' } : { background: 'transparent', color: 'var(--text-muted)' }}>
                                                             Moslashtirish
                                                         </button>
                                                     </>
@@ -1512,7 +1513,7 @@ export default function TeacherPanel() {
                                                 <div className="space-y-1.5">
                                                     {(q.matchingAnswers || ['', '', '', '', '', '']).map((ans, ai) => (
                                                         <div key={ai} className="flex items-center gap-2">
-                                                            <span className="text-[11px] font-bold w-5 text-right flex-shrink-0" style={{ color: '#8b5cf6' }}>{String.fromCharCode(65 + ai)})</span>
+                                                            <span className="text-[11px] font-bold w-5 text-right flex-shrink-0" style={{ color: 'var(--info)' }}>{String.fromCharCode(65 + ai)})</span>
                                                             <div className="flex-1 min-w-0">
                                                                 <input
                                                                     value={ans}
@@ -1552,7 +1553,7 @@ export default function TeacherPanel() {
                                                                             onClick={() => updateQ(qi, `matchingSubQ_${si}_correctIdx`, ai)}
                                                                             className="w-6 h-6 rounded text-[10px] font-bold transition flex items-center justify-center"
                                                                             style={sq.correctIdx === ai
-                                                                                ? { background: '#8b5cf6', color: 'white' }
+                                                                                ? { background: 'var(--info)', color: 'white' }
                                                                                 : { background: 'var(--bg-muted)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
                                                                             {String.fromCharCode(65 + ai)}
                                                                         </button>
@@ -1576,7 +1577,7 @@ export default function TeacherPanel() {
                                                     onClick={() => updateQ(qi, 'addMatchingSubQ', null)}
                                                     className="mt-2 w-full h-7 rounded-lg border-dashed border-2 text-[11px] transition flex items-center justify-center gap-1"
                                                     style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
-                                                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#8b5cf6'; e.currentTarget.style.color = '#8b5cf6' }}
+                                                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--info)'; e.currentTarget.style.color = 'var(--info)' }}
                                                     onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)' }}>
                                                     <Plus className="h-3 w-3" /> Kichik savol qo'shish
                                                 </button>
@@ -1603,7 +1604,7 @@ export default function TeacherPanel() {
                                             Yashil doira = to&apos;g&apos;ri javob · $formula$ yoki sof LaTeX (masalan: <code>{'\\frac{a}{b}'}</code>) yozsa preview chiqadi
                                         </p>
                                     )}
-                                    {q.questionType === 'matching' && <p className="text-[10px]" style={{ color: '#8b5cf660' }}>Binafsha = to'g'ri javob · Savol matni = umumiy kontekst (ixtiyoriy)</p>}
+                                    {q.questionType === 'matching' && <p className="text-[10px]" style={{ color: 'color-mix(in srgb, var(--info) 38%, transparent)' }}>Ko'k = to'g'ri javob · Savol matni = umumiy kontekst (ixtiyoriy)</p>}
                                 </div>
                             ))}
 
@@ -1719,8 +1720,8 @@ export default function TeacherPanel() {
                                         <p className="text-xl font-bold" style={{ color: 'var(--success)' }}>{analytics?.avgScore}%</p>
                                         <p className="text-[11px] mt-0.5" style={secondaryText}>O'rtacha ball</p>
                                     </div>
-                                    <div className="rounded-xl p-3 text-center" style={{ background: 'color-mix(in srgb, #f59e0b 10%, transparent)' }}>
-                                        <p className="text-xl font-bold" style={{ color: '#f59e0b' }}>
+                                    <div className="rounded-xl p-3 text-center" style={{ background: 'color-mix(in srgb, var(--brand) 10%, transparent)' }}>
+                                        <p className="text-xl font-bold" style={{ color: 'var(--brand)' }}>
                                             {analytics?.questionStats ? Math.round(analytics.questionStats.reduce((s: number, q: any) => s + q.errorRate, 0) / (analytics.questionStats.length || 1)) : 0}%
                                         </p>
                                         <p className="text-[11px] mt-0.5" style={secondaryText}>O'rtacha xato</p>
@@ -1743,7 +1744,7 @@ export default function TeacherPanel() {
                                                 </thead>
                                                 <tbody>
                                                     {analytics.students.map((s: AnalyticsStudentRow, i: number) => {
-                                                        const col = s.score >= 70 ? 'var(--success)' : s.score >= 50 ? '#f59e0b' : 'var(--danger)'
+                                                        const col = s.score >= 70 ? 'var(--success)' : s.score >= 50 ? 'var(--brand)' : 'var(--danger)'
                                                         const scoreLabel = typeof s.rawScore === 'number' && typeof s.scoreMax === 'number'
                                                             ? `${s.rawScore} / ${s.scoreMax}`
                                                             : `${s.dtmBall ?? s.score}`
@@ -1782,7 +1783,7 @@ export default function TeacherPanel() {
                                                             {i + 1}. <MathInlineText text={q.text} />
                                                         </p>
                                                         <span className="text-[11px] font-bold px-2 py-0.5 rounded-md flex-shrink-0"
-                                                            style={q.errorRate >= 60 ? { background: 'color-mix(in srgb, var(--danger) 15%, transparent)', color: 'var(--danger)' } : q.errorRate >= 30 ? { background: 'color-mix(in srgb, #f59e0b 15%, transparent)', color: '#f59e0b' } : { background: 'color-mix(in srgb, var(--success) 15%, transparent)', color: 'var(--success)' }}>
+                                                            style={q.errorRate >= 60 ? { background: 'color-mix(in srgb, var(--danger) 15%, transparent)', color: 'var(--danger)' } : q.errorRate >= 30 ? { background: 'color-mix(in srgb, var(--brand) 15%, transparent)', color: 'var(--brand)' } : { background: 'color-mix(in srgb, var(--success) 15%, transparent)', color: 'var(--success)' }}>
                                                             {q.errorRate}% xato
                                                         </span>
                                                     </div>

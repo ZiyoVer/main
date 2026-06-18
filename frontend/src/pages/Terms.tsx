@@ -3,7 +3,7 @@ import { BrainCircuit, ArrowLeft } from 'lucide-react'
 
 export default function Terms() {
     return (
-        <div className="min-h-screen" style={{ background: 'var(--bg-page)', color: 'var(--text-primary)' }}>
+        <div className="kelviq min-h-screen" style={{ background: 'var(--bg-page)', color: 'var(--text-primary)' }}>
             {/* Header */}
             <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-card)' }}>
                 <div className="max-w-3xl mx-auto px-5 py-4 flex items-center gap-3">

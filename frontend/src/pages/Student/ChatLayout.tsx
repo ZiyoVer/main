@@ -345,7 +345,7 @@ const MdMessage = memo(({ content, isStreaming }: {
                         }).filter(item => item.word.trim().length > 0)
                         : []
                     if (items.length === 0) return null
-                    const accentColors = ['#F15A24', '#0891b2', '#059669', '#d97706', '#2563EB', '#7c3aed', '#be185d', '#15803d']
+                    const accentColors = ['#F15A24', '#0891b2', '#059669', '#FF8A4C', '#2563EB', '#0369a1', '#DA4A12', '#15803d']
                     const typeLabels: Record<string, string> = { noun: 'ot', verb: 'fe\'l', adj: 'sifat', adv: 'ravish', prep: 'ko\'m', phrase: 'ibora', phrasal: 'ph.v' }
                     return (
                         <div className="my-3 rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', minWidth: 0 }}>

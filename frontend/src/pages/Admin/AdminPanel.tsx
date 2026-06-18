@@ -495,7 +495,7 @@ export default function AdminPanel() {
     const totalWeekMinutes = timeSpentUsers.reduce((sum, user) => sum + (user.weekMinutes || 0), 0)
 
     return (
-        <div ref={pageRef} className="h-screen overflow-y-auto w-full" style={{ background: 'var(--bg-page)' }}>
+        <div ref={pageRef} className="kelviq h-screen overflow-y-auto w-full" style={{ background: 'var(--bg-page)' }}>
             {/* Header */}
             <header className="sticky top-0 z-40" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', backdropFilter: 'blur(12px)' }}>
                 <div className="max-w-6xl mx-auto flex items-center justify-between py-3 px-5">
@@ -555,7 +555,7 @@ export default function AdminPanel() {
                                     {onlineUsers.map((u: any, i: number) => {
                                         const ago = Math.round((Date.now() - u.lastSeen) / 1000)
                                         const agoStr = ago < 60 ? `${ago}s oldin` : `${Math.round(ago/60)}min oldin`
-                                        const roleColor = u.role === 'ADMIN' ? '#6366f1' : u.role === 'TEACHER' ? '#d97706' : '#059669'
+                                        const roleColor = u.role === 'ADMIN' ? 'var(--info)' : u.role === 'TEACHER' ? 'var(--brand)' : '#059669'
                                         return (
                                             <div key={i} className="flex items-center gap-3 px-4 py-2">
                                                 <div className="h-7 w-7 rounded-full flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0" style={{ background: roleColor }}>{u.name?.[0]?.toUpperCase() || '?'}</div>
@@ -582,7 +582,7 @@ export default function AdminPanel() {
                                 {[
                                     { n: stats.totalUsers, l: 'Jami', icon: Users, color: 'var(--text-secondary)' },
                                     { n: stats.students, l: 'O\'quvchilar', icon: GraduationCap, color: 'var(--brand)' },
-                                    { n: stats.teachers, l: 'O\'qituvchilar', icon: UserCheck, color: '#d97706' },
+                                    { n: stats.teachers, l: 'O\'qituvchilar', icon: UserCheck, color: 'var(--brand)' },
                                     { n: stats.emailVerifiedCount, l: 'Email tasdiqlangan', icon: CheckCircle2, color: 'var(--success)' },
                                 ].map((s, i) => (
                                     <div key={i} className="rounded-xl p-4 flex items-center gap-3" style={cardStyle}>
@@ -603,9 +603,9 @@ export default function AdminPanel() {
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                                 {[
                                     { n: stats.onlineNow ?? onlineUsers.length, l: 'Hozir onlayn', icon: Wifi, color: '#059669' },
-                                    { n: stats.newUsers24h, l: 'Yangi userlar (24h)', icon: UserPlus, color: '#6366f1' },
+                                    { n: stats.newUsers24h, l: 'Yangi userlar (24h)', icon: UserPlus, color: 'var(--info)' },
                                     { n: stats.activeUsers7d, l: 'Faol userlar (7 kun)', icon: Activity, color: '#06b6d4' },
-                                    { n: stats.messages7d, l: 'Xabarlar (7 kun)', icon: MessageSquare, color: '#f59e0b' },
+                                    { n: stats.messages7d, l: 'Xabarlar (7 kun)', icon: MessageSquare, color: 'var(--brand)' },
                                 ].map((s, i) => (
                                     <div key={i} className="rounded-xl p-4 flex items-center gap-3" style={cardStyle}>
                                         <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ color: s.color, background: `color-mix(in srgb, ${s.color} 12%, transparent)` }}>
@@ -667,11 +667,11 @@ export default function AdminPanel() {
                                 <p className="text-[11px] font-semibold uppercase tracking-wider mb-2.5" style={mutedText}>Test statistikasi</p>
                                 <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5 mb-3">
                                     {[
-                                        { n: testStats.totalTests, l: 'Jami testlar', icon: ClipboardList, color: '#6366f1' },
+                                        { n: testStats.totalTests, l: 'Jami testlar', icon: ClipboardList, color: 'var(--info)' },
                                         { n: testStats.publicTests, l: 'Ochiq (public)', icon: Globe, color: 'var(--success)' },
                                         { n: testStats.privateTests, l: 'Yopiq (private)', icon: Lock, color: 'var(--text-muted)' },
                                         { n: testStats.totalAttempts, l: 'Jami urinishlar', icon: BarChart3, color: 'var(--brand)' },
-                                        { n: `${testStats.avgScore ?? 0}%`, l: 'O\'rtacha ball', icon: Award, color: '#f59e0b' },
+                                        { n: `${testStats.avgScore ?? 0}%`, l: 'O\'rtacha ball', icon: Award, color: 'var(--brand)' },
                                     ].map((s, i) => (
                                         <div key={i} className="rounded-xl p-3.5 flex items-center gap-2.5" style={cardStyle}>
                                             <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ color: s.color, background: `color-mix(in srgb, ${s.color} 12%, transparent)` }}>
@@ -725,7 +725,7 @@ export default function AdminPanel() {
                                                     <p className="text-[10px] truncate" style={mutedText}>{a.test?.title}</p>
                                                 </div>
                                                 <div className="flex items-center gap-2 flex-shrink-0">
-                                                    <span className="text-[12px] font-bold tabular-nums" style={{ color: a.score >= 70 ? 'var(--success)' : a.score >= 50 ? '#f59e0b' : 'var(--danger)' }}>
+                                                    <span className="text-[12px] font-bold tabular-nums" style={{ color: a.score >= 70 ? 'var(--success)' : a.score >= 50 ? 'var(--brand)' : 'var(--danger)' }}>
                                                         {Math.round(a.score)}%
                                                     </span>
                                                     <span className="text-[10px]" style={mutedText}>
@@ -793,8 +793,8 @@ export default function AdminPanel() {
                                 {[
                                     { label: 'Kuzatilayotganlar', value: trackedUsers, tone: 'var(--brand)' },
                                     { label: 'Hozir onlayn', value: onlineNowCount, tone: 'var(--success)' },
-                                    { label: 'Bugungi vaqt', value: formatDuration(totalTodayMinutes), tone: '#f59e0b' },
-                                    { label: '7 kunlik vaqt', value: formatDuration(totalWeekMinutes), tone: '#6366f1' },
+                                    { label: 'Bugungi vaqt', value: formatDuration(totalTodayMinutes), tone: 'var(--brand)' },
+                                    { label: '7 kunlik vaqt', value: formatDuration(totalWeekMinutes), tone: 'var(--info)' },
                                 ].map(item => (
                                     <div key={item.label} className="rounded-xl px-3.5 py-3" style={{ background: 'var(--bg-surface)' }}>
                                         <p className="text-[10px] uppercase tracking-wide mb-1" style={mutedText}>{item.label}</p>
@@ -958,7 +958,7 @@ export default function AdminPanel() {
                         {/* ── Summary bar ── */}
                         <div className="flex items-center gap-3 flex-wrap">
                             <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl" style={cardStyle}>
-                                <UserCheck className="h-4 w-4" style={{ color: '#d97706' }} />
+                                <UserCheck className="h-4 w-4" style={{ color: 'var(--brand)' }} />
                                 <span className="text-sm font-semibold">{teachers.length} ta o'qituvchi</span>
                             </div>
                             <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl" style={cardStyle}>
@@ -971,8 +971,8 @@ export default function AdminPanel() {
                             {/* ── LEFT: Create form ── */}
                             <div className="rounded-2xl p-5 space-y-4" style={cardStyle}>
                                 <div className="flex items-center gap-3">
-                                    <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, #d97706 14%, transparent)' }}>
-                                        <UserPlus className="h-5 w-5" style={{ color: '#d97706' }} />
+                                    <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--brand) 14%, transparent)' }}>
+                                        <UserPlus className="h-5 w-5" style={{ color: 'var(--brand)' }} />
                                     </div>
                                     <div>
                                         <h3 className="font-semibold text-sm">Yangi O'qituvchi qo'shish</h3>
@@ -1090,7 +1090,7 @@ export default function AdminPanel() {
                                                                 <span className="text-[11px]" style={mutedText}>test</span>
                                                             </div>
                                                             <div className="flex-1 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg" style={{ background: 'var(--bg-surface)' }}>
-                                                                <GraduationCap className="h-3 w-3 flex-shrink-0" style={{ color: '#d97706' }} />
+                                                                <GraduationCap className="h-3 w-3 flex-shrink-0" style={{ color: 'var(--brand)' }} />
                                                                 <span className="text-[11px]" style={mutedText}>{joined}</span>
                                                             </div>
                                                         </div>
@@ -1111,7 +1111,7 @@ export default function AdminPanel() {
                         {testsSummary && (
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                                 {[
-                                    { n: testsTotal, l: 'Jami (filtr)', icon: ClipboardList, color: '#6366f1' },
+                                    { n: testsTotal, l: 'Jami (filtr)', icon: ClipboardList, color: 'var(--info)' },
                                     { n: testsSummary.totalPublic, l: 'Ochiq testlar', icon: Globe, color: 'var(--success)' },
                                     { n: testsSummary.totalPrivate, l: 'Yopiq testlar', icon: Lock, color: 'var(--text-muted)' },
                                     { n: testsSummary.totalAttempts, l: 'Jami urinishlar', icon: BarChart3, color: 'var(--brand)' },
@@ -1196,15 +1196,15 @@ export default function AdminPanel() {
                                             <td className="py-2.5 px-3">
                                                 <div className="flex items-center gap-1.5">
                                                     <div className="h-5 w-5 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0" style={{
-                                                        background: t.creator?.role === 'ADMIN' ? 'color-mix(in srgb, #6366f1 20%, transparent)' : 'var(--bg-muted)',
-                                                        color: t.creator?.role === 'ADMIN' ? '#6366f1' : 'var(--text-secondary)'
+                                                        background: t.creator?.role === 'ADMIN' ? 'color-mix(in srgb, var(--info) 20%, transparent)' : 'var(--bg-muted)',
+                                                        color: t.creator?.role === 'ADMIN' ? 'var(--info)' : 'var(--text-secondary)'
                                                     }}>
                                                         {t.creator?.name?.[0]?.toUpperCase() || '?'}
                                                     </div>
                                                     <div className="min-w-0">
                                                         <p className="text-[12px] truncate max-w-[100px]">{t.creator?.name || '—'}</p>
                                                         {t.creator?.role && t.creator.role !== 'STUDENT' && (
-                                                            <p className="text-[10px]" style={{ color: t.creator.role === 'ADMIN' ? '#6366f1' : '#d97706' }}>{t.creator.role}</p>
+                                                            <p className="text-[10px]" style={{ color: t.creator.role === 'ADMIN' ? 'var(--info)' : 'var(--brand)' }}>{t.creator.role}</p>
                                                         )}
                                                     </div>
                                                 </div>
@@ -1230,7 +1230,7 @@ export default function AdminPanel() {
                                             <td className="py-2.5 px-3 text-right">
                                                 {t.avgScore != null ? (
                                                     <span className="text-[12px] font-semibold tabular-nums"
-                                                        style={{ color: t.avgScore >= 70 ? 'var(--success)' : t.avgScore >= 50 ? '#f59e0b' : 'var(--danger)' }}>
+                                                        style={{ color: t.avgScore >= 70 ? 'var(--success)' : t.avgScore >= 50 ? 'var(--brand)' : 'var(--danger)' }}>
                                                         {t.avgScore}%
                                                     </span>
                                                 ) : <span className="text-[11px]" style={mutedText}>—</span>}
@@ -1360,8 +1360,8 @@ export default function AdminPanel() {
                             {[
                                 { label: 'Kuzatilayotgan foydalanuvchilar', value: trackedUsers, tone: 'var(--brand)' },
                                 { label: 'Hozir onlayn', value: onlineNowCount, tone: 'var(--success)' },
-                                { label: 'Bugungi umumiy vaqt', value: formatDuration(totalTodayMinutes), tone: '#f59e0b' },
-                                { label: '7 kunlik umumiy vaqt', value: formatDuration(totalWeekMinutes), tone: '#6366f1' },
+                                { label: 'Bugungi umumiy vaqt', value: formatDuration(totalTodayMinutes), tone: 'var(--brand)' },
+                                { label: '7 kunlik umumiy vaqt', value: formatDuration(totalWeekMinutes), tone: 'var(--info)' },
                             ].map(item => (
                                 <div key={item.label} className="rounded-xl p-4" style={cardStyle}>
                                     <p className="text-[10px] uppercase tracking-wide mb-1" style={mutedText}>{item.label}</p>
@@ -1440,9 +1440,9 @@ export default function AdminPanel() {
                                                 <td className="py-3 px-4">
                                                     <span className="px-2 py-1 rounded-full text-[10px] font-semibold" style={
                                                         user.role === 'ADMIN'
-                                                            ? { background: 'color-mix(in srgb, #6366f1 12%, transparent)', color: '#6366f1' }
+                                                            ? { background: 'color-mix(in srgb, var(--info) 12%, transparent)', color: 'var(--info)' }
                                                             : user.role === 'TEACHER'
-                                                                ? { background: 'color-mix(in srgb, #d97706 12%, transparent)', color: '#d97706' }
+                                                                ? { background: 'color-mix(in srgb, var(--brand) 12%, transparent)', color: 'var(--brand)' }
                                                                 : { background: 'var(--bg-surface)', color: 'var(--text-muted)' }
                                                     }>
                                                         {user.role}

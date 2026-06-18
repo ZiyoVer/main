@@ -4,7 +4,7 @@ export default function NotFound() {
     const navigate = useNavigate()
     return (
         <div
-            className="min-h-screen flex flex-col items-center justify-center text-center px-4"
+            className="kelviq min-h-screen flex flex-col items-center justify-center text-center px-4"
             style={{ background: 'var(--bg-page)', color: 'var(--text-primary)' }}
         >
             <div className="text-8xl font-bold mb-4" style={{ color: 'var(--border)' }}>404</div>
