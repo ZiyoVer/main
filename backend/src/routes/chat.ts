@@ -3,7 +3,7 @@ import multer from 'multer'
 import pdfParse from 'pdf-parse'
 import mammoth from 'mammoth'
 import prisma from '../utils/db'
-import { authenticate, AuthRequest } from '../middleware/auth'
+import { authenticate, AuthRequest, requireVerified } from '../middleware/auth'
 import OpenAI from 'openai'
 import { Prisma } from '@prisma/client'
 import { aiSettingsCache, aiSettingsCacheTime, AI_SETTINGS_TTL, setAISettingsCache, AISettingsData } from '../utils/aiSettingsCache'
@@ -1075,7 +1075,7 @@ async function createAssistantOnlyGreeting(chat: { id: string; subject: string |
 }
 
 // Yangi chat ochish (yoki mavjud fan chatini qaytarish)
-router.post('/new', authenticate, async (req: AuthRequest, res) => {
+router.post('/new', authenticate, requireVerified, async (req: AuthRequest, res) => {
     try {
         const { subject, subject2, title, forceNew } = req.body
         const normalizedSubject = normalizeSubject(subject)
@@ -1148,7 +1148,7 @@ router.get('/:chatId/messages', authenticate, async (req: AuthRequest, res) => {
     }
 })
 
-router.post('/:chatId/auto-greet', authenticate, async (req: AuthRequest, res) => {
+router.post('/:chatId/auto-greet', authenticate, requireVerified, async (req: AuthRequest, res) => {
     try {
         const chat = await prisma.chat.findFirst({
             where: { id: (req.params.chatId as string), userId: req.user.id }
@@ -1706,7 +1706,7 @@ const uploadSingle = (req: any, res: any, next: any) => {
 };
 
 // Chat uchun fayl yuklash va matn extraction
-router.post('/:chatId/upload-file', authenticate, uploadSingle, async (req: AuthRequest, res) => {
+router.post('/:chatId/upload-file', authenticate, requireVerified, uploadSingle, async (req: AuthRequest, res) => {
     try {
         const chat = await prisma.chat.findFirst({ where: { id: req.params.chatId as string, userId: req.user.id } })
         if (!chat) return res.status(404).json({ error: 'Chat topilmadi' })
@@ -1797,7 +1797,7 @@ router.post('/:chatId/upload-file', authenticate, uploadSingle, async (req: Auth
 })
 
 // Vision tahlil natijasini chat xotirasiga saqlash (stream qilmasdan)
-router.post('/:chatId/save-analysis', authenticate, async (req: AuthRequest, res) => {
+router.post('/:chatId/save-analysis', authenticate, requireVerified, async (req: AuthRequest, res) => {
     try {
         const { userMessage, analysisMessage } = req.body
         if (!userMessage || !analysisMessage) return res.status(400).json({ error: 'userMessage va analysisMessage kerak' })
@@ -1820,7 +1820,7 @@ router.post('/:chatId/save-analysis', authenticate, async (req: AuthRequest, res
 })
 
 // Streaming xabar yuborish (SSE)
-router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
+router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRequest, res) => {
     try {
         const { content, thinking, displayText, todoContext } = req.body
         if (!content?.trim()) return res.status(400).json({ error: 'Xabar bo\'sh' })
@@ -2053,7 +2053,7 @@ router.post('/:chatId/stream', authenticate, async (req: AuthRequest, res) => {
 })
 
 // Eski non-streaming endpoint (fallback)
-router.post('/:chatId/send', authenticate, async (req: AuthRequest, res) => {
+router.post('/:chatId/send', authenticate, requireVerified, async (req: AuthRequest, res) => {
     try {
         const { content } = req.body
         if (!content?.trim()) return res.status(400).json({ error: 'Xabar bo\'sh' })

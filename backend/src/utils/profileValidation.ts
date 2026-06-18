@@ -41,6 +41,28 @@ export function parseOptionalTargetScore(value: unknown): number | null | undefi
     return parsed
 }
 
+// examType-aware target ball validatsiyasi: DTM maks 189, MS maks 75.
+// 99999 kabi qiymatlarni rad etadi. examType noma'lum bo'lsa eng qattiq (DTM) diapazon.
+export function validateTargetScore(value: unknown, examType: ExamType | null | undefined): number | null | undefined {
+    if (value === undefined) return undefined
+    if (value === null || value === '') return null
+    const n = typeof value === 'number' ? value : Number(value)
+    if (!Number.isFinite(n) || !Number.isInteger(n)) {
+        throw new Error('targetScore butun son bo\'lishi kerak')
+    }
+    if (examType === 'MS') {
+        if (n < 0 || n > 75) {
+            throw new Error('Milliy Sertifikat ball 0 dan 75 gacha bo\'lishi kerak')
+        }
+    } else {
+        // DTM yoki noma'lum
+        if (n < 1 || n > 189) {
+            throw new Error('DTM ball 1 dan 189 gacha bo\'lishi kerak')
+        }
+    }
+    return n
+}
+
 export function parseOptionalStudyHours(value: unknown): number | null | undefined {
     if (value === undefined) return undefined
     if (value === null || value === '') return null

@@ -96,3 +96,36 @@ export function requireRole(...roles: string[]) {
         next()
     }
 }
+
+// Email tasdiqlangan bo'lishini talab qiladi. JWT faqat {id, role} saqlagani uchun
+// emailVerified ni DB dan tekshiramiz (requireRole patterni kabi).
+// Faqat STUDENT uchun majburiy — TEACHER/ADMIN admin tomonidan yaratiladi.
+export async function requireVerified(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    if (!req.user) {
+        res.status(401).json({ error: 'Token topilmadi' })
+        return
+    }
+    if (req.user.role !== 'STUDENT') {
+        next()
+        return
+    }
+    try {
+        const dbUser = await prisma.user.findUnique({
+            where: { id: req.user.id },
+            select: { emailVerified: true }
+        })
+        // FAQAT emailVerified === false bo'lganda bloklaymiz.
+        // Legacy foydalanuvchilar (emailVerified null/undefined) bloklanmaydi —
+        // email-verify joriy etilishidan oldin ro'yxatdan o'tganlar.
+        if (dbUser && dbUser.emailVerified === false) {
+            // code: frontend buni oddiy 403 dan ajratishi uchun (api.ts shu kodga tayanadi)
+            res.status(403).json({ error: 'Email tasdiqlanmagan', code: 'EMAIL_NOT_VERIFIED' })
+            return
+        }
+    } catch (err) {
+        console.error('requireVerified DB tekshiruvida xato:', err)
+        res.status(503).json({ error: 'Tekshiruv vaqtincha ishlamayapti' })
+        return
+    }
+    next()
+}

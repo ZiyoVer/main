@@ -10,7 +10,8 @@ import { tokenBlacklist } from '../utils/tokenBlacklist'
 import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/email'
 import { updateOnline } from '../utils/onlineTracker'
 import { normalizeSubject } from '../utils/subjects'
-import { parseOptionalExamDate, parseOptionalExamType, parseOptionalTargetScore } from '../utils/profileValidation'
+import { parseOptionalExamDate, parseOptionalExamType, validateTargetScore } from '../utils/profileValidation'
+import { isValidDtmPair } from '../utils/dtmPairs'
 
 const router = Router()
 const JWT_SECRET = process.env.JWT_SECRET!
@@ -163,7 +164,15 @@ router.post('/register', authLimiter, async (req, res) => {
         const normalizedSubject2 = normalizeSubject(subject2)
         const normalizedExamType = parseOptionalExamType(examType)
         const normalizedExamDate = parseOptionalExamDate(examDate)
-        const normalizedTargetScore = parseOptionalTargetScore(targetScore)
+        const normalizedTargetScore = validateTargetScore(targetScore, normalizedExamType)
+
+        // DTM ixtisos fanlari faqat rasmiy yo'nalish jadvalidagi juftlikdan bo'lishi mumkin
+        // (profile.ts dagi PUT bilan bir xil qoida — register orqali bypass bo'lmasligi uchun)
+        if (normalizedExamType === 'DTM' && normalizedSubject && normalizedSubject2) {
+            if (!isValidDtmPair(normalizedSubject, normalizedSubject2)) {
+                throw new Error('Bu fanlar juftligi DTM yo\'nalishlarida mavjud emas')
+            }
+        }
 
         const user = await prisma.user.create({
             data: {
@@ -186,7 +195,7 @@ router.post('/register', authLimiter, async (req, res) => {
                 examType: normalizedExamType ?? null,
                 examDate: normalizedExamDate ?? null,
                 targetScore: normalizedTargetScore ?? null,
-                onboardingDone: true,
+                onboardingDone: false,
             }
         })
 
@@ -214,7 +223,7 @@ router.post('/register', authLimiter, async (req, res) => {
             return res.status(400).json({ error: 'Bu email allaqachon ro\'yxatdan o\'tilgan' })
         }
         const message = e?.message || 'Server xatoligi. Qayta urinib ko\'ring.'
-        const isValidationError = /examType|examDate|targetScore/.test(message)
+        const isValidationError = /examType|examDate|targetScore|ball|juftligi/.test(message)
         res.status(isValidationError ? 400 : 500).json({ error: isValidationError ? message : 'Server xatoligi. Qayta urinib ko\'ring.' })
     }
 })

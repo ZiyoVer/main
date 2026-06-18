@@ -1,8 +1,9 @@
 import { Router } from 'express'
 import prisma from '../utils/db'
-import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
+import { authenticate, AuthRequest, requireRole, requireVerified } from '../middleware/auth'
 import { normalizeSubject } from '../utils/subjects'
-import { parseOptionalExamDate, parseOptionalExamType, parseOptionalStudyHours, parseOptionalTargetScore } from '../utils/profileValidation'
+import { parseOptionalExamDate, parseOptionalExamType, parseOptionalStudyHours, validateTargetScore } from '../utils/profileValidation'
+import { isValidDtmPair } from '../utils/dtmPairs'
 
 const router = Router()
 const MAX_PROFILE_TEXT_LENGTH = 1000
@@ -53,13 +54,20 @@ router.get('/', authenticate, requireRole('STUDENT'), async (req: AuthRequest, r
 })
 
 // Profil yangilash (onboarding)
-router.put('/', authenticate, requireRole('STUDENT'), async (req: AuthRequest, res) => {
+router.put('/', authenticate, requireRole('STUDENT'), requireVerified, async (req: AuthRequest, res) => {
     try {
         const { subject, subject2, examType, targetScore, weakTopics, strongTopics, concerns, examDate, studyHoursPerDay, onboardingDone } = req.body
         const normalizedSubject = subject !== undefined ? normalizeSubject(subject) : undefined
         const normalizedSubject2 = subject2 !== undefined ? normalizeSubject(subject2) : undefined
         const normalizedExamType = parseOptionalExamType(examType)
-        const normalizedTargetScore = parseOptionalTargetScore(targetScore)
+        const normalizedTargetScore = validateTargetScore(targetScore, normalizedExamType)
+
+        // DTM ixtisos fanlari faqat rasmiy yo'nalish jadvalidagi juftlikdan bo'lishi mumkin
+        if (normalizedExamType === 'DTM' && normalizedSubject && normalizedSubject2) {
+            if (!isValidDtmPair(normalizedSubject, normalizedSubject2)) {
+                throw new Error('Bu fanlar juftligi DTM yo\'nalishlarida mavjud emas')
+            }
+        }
         const normalizedExamDate = parseOptionalExamDate(examDate)
         const normalizedStudyHours = parseOptionalStudyHours(studyHoursPerDay)
         const normalizedConcerns = clampText(concerns, 'concerns')
@@ -107,7 +115,7 @@ router.put('/', authenticate, requireRole('STUDENT'), async (req: AuthRequest, r
     } catch (e: any) {
         console.error(e)
         const message = e?.message || 'Server xatoligi'
-        const isValidationError = /matn bo'lishi kerak|juda uzun|array bo'lishi kerak|juda ko'p element|examType|examDate|targetScore|studyHoursPerDay/.test(message)
+        const isValidationError = /matn bo'lishi kerak|juda uzun|array bo'lishi kerak|juda ko'p element|examType|examDate|targetScore|studyHoursPerDay|ball|juftligi/.test(message)
         res.status(isValidationError ? 400 : 500).json({ error: isValidationError ? message : 'Server xatoligi' })
     }
 })
