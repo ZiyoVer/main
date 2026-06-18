@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, FileText, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, Sun, Moon, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, ArrowUp, BarChart2, User, Calendar, Shield } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, FileText, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, Sun, Moon, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, ArrowUp, BarChart2, User, Calendar, Shield, Sparkles, Clock } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import remarkGfm from 'remark-gfm'
@@ -18,6 +18,7 @@ import { useAuthStore } from '@/store/authStore'
 import ChatContext, { useChatContext, EssayPanel, TodoItem } from '../../contexts/ChatContext'
 import { useTestPanel } from '../../hooks/useTestPanel'
 import { useFlashPanel } from '../../hooks/useFlashPanel'
+import { useIsPro, PRO_PRICE, PRO_PRICE_PERIOD, PRO_STATUS_LABEL, PRO_FEATURES, FREE_FEATURES, PRO_DISCLAIMER } from '@/lib/pro'
 
 interface Chat { id: string; title: string; subject?: string; subject2?: string; updatedAt: string }
 interface Msg { id: string; role: string; content: string; createdAt: string }
@@ -662,15 +663,19 @@ const ChatInputArea = memo(function ChatInputArea({
                                 ? <div className="h-3.5 w-3.5 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--text-muted)', borderTopColor: 'transparent' }} />
                                 : <Paperclip className="h-3.5 w-3.5" />}
                         </button>
-                        {/* Thinking mode */}
+                        {/* Thinking mode — Pro imkoniyat (beta'da hammaga ochiq, bloklanmaydi) */}
                         <button type="button" onClick={() => setThinkingMode(v => !v)}
-                            title={thinkingMode ? 'Chuqur fikrlash yoqilgan' : 'Chuqur fikrlash'}
+                            title={thinkingMode ? 'Chuqur fikrlash yoqilgan • Pro (beta\'da bepul)' : 'Chuqur fikrlash • Pro (beta\'da bepul)'}
                             className="h-8 px-2.5 flex items-center gap-1.5 rounded-lg text-xs font-medium transition"
                             style={thinkingMode ? { background: 'var(--brand-light)', color: 'var(--brand)' } : { color: 'var(--text-muted)' }}
                             onMouseEnter={e => { if (!thinkingMode) e.currentTarget.style.background = 'var(--bg-surface)' }}
                             onMouseLeave={e => { if (!thinkingMode) e.currentTarget.style.background = 'transparent' }}>
                             <Lightbulb className="h-3.5 w-3.5" />
                             {thinkingMode && <span>Chuqur</span>}
+                            <span className="text-[9px] font-bold leading-none px-1 py-0.5 rounded"
+                                style={{ background: thinkingMode ? 'color-mix(in srgb, var(--brand) 22%, transparent)' : 'var(--brand-light)', color: 'var(--brand)', letterSpacing: '0.02em' }}>
+                                PRO
+                            </span>
                         </button>
                         <div className="flex-1" />
                         {/* Send / Stop */}
@@ -735,7 +740,7 @@ export default function ChatLayout() {
     const [profile, setProfile] = useState<Profile | null>(null)
     const [profileLoaded, setProfileLoaded] = useState(false)
     const [showOnboarding, setShowOnboarding] = useState(false)
-    const [overlayPanel, setOverlayPanel] = useState<'tests' | 'flashcards' | 'progress' | null>(null)
+    const [overlayPanel, setOverlayPanel] = useState<'tests' | 'flashcards' | 'progress' | 'pro' | null>(null)
     const [todoItems, setTodoItems] = useState<TodoItem[]>(() => loadStoredTodos(todoStorageKey))
     const [todoOpen, setTodoOpen] = useState(() => loadStoredTodos(todoStorageKey).length > 0)
     const [showSettings, setShowSettings] = useState(false)
@@ -784,6 +789,8 @@ export default function ChatLayout() {
     const [thinkingMode, setThinkingMode] = useState(false)
     const [thinkingText, setThinkingText] = useState('')
     const thinkingModeRef = useRef(thinkingMode)
+    // Pro tier modeli (non-enforcing): faqat ko'rinish/teglar uchun — hech narsani bloklamaydi
+    const pro = useIsPro()
     const todoItemsRef = useRef<TodoItem[]>([])
     const todoAutoCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const visionIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -2321,6 +2328,19 @@ Iltimos, har bir savolni tahlil qilib ber:
                         >
                             <TrendingUp className="h-4 w-4 flex-shrink-0" /> Natijalar
                         </button>
+                        {/* Pro — narxlar/imkoniyatlar ko'rinishi (bloklamaydi, faqat ko'rsatadi) */}
+                        <button onClick={() => setOverlayPanel(overlayPanel === 'pro' ? null : 'pro')}
+                            className="sidebar-nav-button w-full flex items-center gap-2 px-3 py-1.5 rounded-xl text-[14px] font-semibold tracking-[-0.01em] transition"
+                            style={overlayPanel === 'pro'
+                                ? { background: 'color-mix(in srgb, var(--bg-muted) 88%, white 12%)', color: 'var(--text-primary)', borderColor: 'color-mix(in srgb, var(--border) 70%, rgba(15,23,42,0.12) 30%)' }
+                                : { color: 'var(--text-primary)' }}
+                            onMouseEnter={e => { if (overlayPanel !== 'pro') e.currentTarget.style.background = 'var(--bg-muted)' }}
+                            onMouseLeave={e => { if (overlayPanel !== 'pro') e.currentTarget.style.background = 'transparent' }}
+                        >
+                            <Sparkles className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--brand)' }} />
+                            Pro
+                            <span className="ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>BEPUL</span>
+                        </button>
                     </div>
 
                     <div className="mx-3 flex-shrink-0" style={{ height: '1px', background: 'color-mix(in srgb, var(--border) 76%, rgba(15,23,42,0.12) 24%)' }} />
@@ -3282,19 +3302,21 @@ Iltimos, har bir savolni tahlil qilib ber:
                             {/* Header */}
                             <div className="flex items-center gap-3 px-5 py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                                 <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                                    style={{ background: overlayPanel === 'tests' ? 'color-mix(in srgb, var(--brand) 12%, transparent)' : overlayPanel === 'flashcards' ? 'color-mix(in srgb, var(--brand) 12%, transparent)' : 'rgba(16,185,129,0.12)' }}>
+                                    style={{ background: overlayPanel === 'progress' ? 'rgba(16,185,129,0.12)' : 'color-mix(in srgb, var(--brand) 12%, transparent)' }}>
                                     {overlayPanel === 'tests' && <ClipboardList className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
                                     {overlayPanel === 'flashcards' && <Brain className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
                                     {overlayPanel === 'progress' && <BarChart2 className="h-5 w-5" style={{ color: '#10b981' }} />}
+                                    {overlayPanel === 'pro' && <Sparkles className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
                                 </div>
                                 <div className="flex-1">
                                     <h2 className="font-semibold text-base">
-                                        {overlayPanel === 'tests' ? 'Testlar' : overlayPanel === 'flashcards' ? 'Kartochkalar' : 'Natijalar'}
+                                        {overlayPanel === 'tests' ? 'Testlar' : overlayPanel === 'flashcards' ? 'Kartochkalar' : overlayPanel === 'progress' ? 'Natijalar' : 'Pro'}
                                     </h2>
                                     <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
                                         {overlayPanel === 'tests' ? `${publicTests.length} ta test mavjud`
                                             : overlayPanel === 'flashcards' ? `${dueFlashcards.length} ta kartochka qaytarish kerak`
-                                            : 'O\'qish tahlili'}
+                                            : overlayPanel === 'progress' ? 'O\'qish tahlili'
+                                            : 'Rejalar va imkoniyatlar'}
                                     </p>
                                 </div>
                                 <button onClick={() => setOverlayPanel(null)} className="h-8 w-8 flex items-center justify-center rounded-lg transition"
@@ -3523,6 +3545,105 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 <p className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>Hozircha ma'lumot yo'q</p>
                                             </div>
                                         )}
+                                    </div>
+                                )}
+
+                                {/* PRO — narxlar/imkoniyatlar (landing #narxlar bilan bir xil; to'lov YO'Q, bloklash YO'Q) */}
+                                {overlayPanel === 'pro' && (
+                                    <div className="space-y-4">
+                                        {/* Status banner — beta'da bepul */}
+                                        <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: 'var(--brand-light)', border: '1px solid color-mix(in srgb, var(--brand) 24%, transparent)' }}>
+                                            <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--brand) 16%, transparent)' }}>
+                                                <Sparkles className="h-5 w-5" style={{ color: 'var(--brand)' }} />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                                                    {pro.statusLabel}
+                                                </p>
+                                                <p className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                                                    Hozir <strong style={{ color: 'var(--brand)' }}>barcha imkoniyatlar</strong> hammaga bepul ochiq — Pro xususiyatlari ham. To'lov keyinroq ulanadi.
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Free tier card */}
+                                        <div className="rounded-2xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                            <div className="flex items-baseline justify-between gap-2">
+                                                <span className="text-[11px] font-bold uppercase tracking-[0.06em]" style={{ color: 'var(--text-muted)' }}>Bepul</span>
+                                                <div className="flex items-baseline gap-1">
+                                                    <span className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text-primary)' }}>0</span>
+                                                    <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>so'm</span>
+                                                </div>
+                                            </div>
+                                            <p className="text-xs mt-1.5" style={{ color: 'var(--text-secondary)' }}>Hammaga to'liq ochiq — bugun va doimo.</p>
+                                            <ul className="mt-3 space-y-2">
+                                                {FREE_FEATURES.map(f => (
+                                                    <li key={f} className="flex items-start gap-2 text-[13px] leading-snug" style={{ color: 'var(--text-primary)' }}>
+                                                        <CheckCircle className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--text-muted)' }} />
+                                                        <span>{f}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+
+                                        {/* Pro tier card */}
+                                        <div className="rounded-2xl p-4 relative" style={{ background: 'var(--bg-card)', border: '1.5px solid var(--brand)', boxShadow: '0 8px 28px -16px color-mix(in srgb, var(--brand) 60%, transparent)' }}>
+                                            <span className="absolute top-3 right-3 text-[10px] font-bold px-2 py-1 rounded-full" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
+                                                {PRO_STATUS_LABEL}
+                                            </span>
+                                            <div className="flex items-baseline gap-2">
+                                                <span className="text-[11px] font-bold uppercase tracking-[0.06em]" style={{ color: 'var(--brand)' }}>Pro</span>
+                                            </div>
+                                            <div className="flex items-baseline gap-1 mt-1.5">
+                                                <span className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text-primary)' }}>{PRO_PRICE}</span>
+                                                <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{PRO_PRICE_PERIOD}</span>
+                                            </div>
+                                            <p className="text-xs mt-1.5" style={{ color: 'var(--text-secondary)' }}>Orzuingga tezroq yetmoqchilar uchun qo'shimcha kuch.</p>
+                                            <ul className="mt-3 space-y-3">
+                                                {PRO_FEATURES.map(feat => (
+                                                    <li key={feat.id} className="flex items-start gap-2.5">
+                                                        <div className="h-6 w-6 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: 'var(--brand-light)' }}>
+                                                            <Sparkles className="h-3.5 w-3.5" style={{ color: 'var(--brand)' }} />
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                                <span className="text-[13px] font-semibold" style={{ color: 'var(--text-primary)' }}>{feat.title}</span>
+                                                                {feat.available ? (
+                                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full inline-flex items-center gap-1" style={{ background: 'var(--success-light)', color: 'var(--success)' }}>
+                                                                        <CheckCircle className="h-2.5 w-2.5" /> {pro.isPro ? 'Hozir ochiq' : 'Pro'}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full inline-flex items-center gap-1" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
+                                                                        <Clock className="h-2.5 w-2.5" /> Tez kunda
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <p className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{feat.description}</p>
+                                                        </div>
+                                                    </li>
+                                                ))}
+                                            </ul>
+
+                                            {/* CTA — to'lovni TAQLID QILMAYDI: disabled "Tez kunda" */}
+                                            <button
+                                                type="button"
+                                                disabled
+                                                aria-disabled="true"
+                                                className="mt-4 w-full h-10 rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-1.5"
+                                                style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)', border: '1px solid var(--border)', cursor: 'not-allowed' }}
+                                                title="To'lov tizimi tez kunda ulanadi"
+                                            >
+                                                <Clock className="h-4 w-4" /> Tez kunda
+                                            </button>
+                                            <p className="text-[11px] mt-2 text-center" style={{ color: 'var(--text-muted)' }}>
+                                                To'lov hali ishga tushmagan — hozircha Pro ham bepul.
+                                            </p>
+                                        </div>
+
+                                        {/* Honesty disclaimer (landing footnote bilan bir xil) */}
+                                        <p className="text-[11px] leading-relaxed px-1" style={{ color: 'var(--text-muted)' }}>
+                                            {PRO_DISCLAIMER}
+                                        </p>
                                     </div>
                                 )}
 
