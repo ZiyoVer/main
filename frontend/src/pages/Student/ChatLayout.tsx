@@ -192,13 +192,13 @@ const MdMessage = memo(({ content, isStreaming }: {
                     if (qCount === 0) return null
                     return (
                         <div className="my-3 rounded-2xl overflow-hidden" style={{
-                            background: 'linear-gradient(135deg, rgba(224, 123, 57, 0.1) 0%, rgba(224, 123, 57, 0.04) 100%)',
-                            border: '1.5px solid rgba(224, 123, 57, 0.3)',
+                            background: 'linear-gradient(135deg, color-mix(in srgb, var(--brand) 10%, transparent) 0%, color-mix(in srgb, var(--brand) 4%, transparent) 100%)',
+                            border: '1.5px solid color-mix(in srgb, var(--brand) 30%, transparent)',
                         }}>
                             <div className="p-4">
                                 <div className="flex items-center justify-between gap-3">
                                     <div className="flex items-center gap-3 min-w-0">
-                                        <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--brand)' }}>
+                                        <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--k-accent-grad)' }}>
                                             <ClipboardList className="h-5 w-5 text-white" />
                                         </div>
                                         <div className="min-w-0">
@@ -214,7 +214,7 @@ const MdMessage = memo(({ content, isStreaming }: {
                                         <button
                                             onClick={() => onOpenTest(jsonStr)}
                                             className="flex-shrink-0 h-9 px-4 rounded-xl text-[13px] font-bold text-white flex items-center gap-2 transition-all"
-                                            style={{ background: 'var(--brand)' }}
+                                            style={{ background: 'var(--k-accent-grad)' }}
                                             onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
                                             onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
                                         >
@@ -299,19 +299,19 @@ const MdMessage = memo(({ content, isStreaming }: {
                     if (count === 0) return null
                     return (
                         <div className="my-3 rounded-2xl overflow-hidden" style={{
-                            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(99, 102, 241, 0.04) 100%)',
-                            border: '1.5px solid rgba(99, 102, 241, 0.3)',
+                            background: 'linear-gradient(135deg, color-mix(in srgb, var(--brand) 10%, transparent) 0%, color-mix(in srgb, var(--brand) 4%, transparent) 100%)',
+                            border: '1.5px solid color-mix(in srgb, var(--brand) 30%, transparent)',
                         }}>
                             <div className="p-4">
                                 <div className="flex items-center justify-between gap-3">
                                     <div className="flex items-center gap-3 min-w-0">
-                                        <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#6366f1' }}>
+                                        <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--k-accent-grad)' }}>
                                             <Layers className="h-5 w-5 text-white" />
                                         </div>
                                         <div className="min-w-0">
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Kartochkalar tayyor!</p>
-                                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: '#6366f1', color: '#fff' }}>
+                                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--brand)', color: '#fff' }}>
                                                     {count} ta karta
                                                 </span>
                                             </div>
@@ -322,7 +322,7 @@ const MdMessage = memo(({ content, isStreaming }: {
                                         <button
                                             onClick={() => onOpenFlash(jsonStr)}
                                             className="flex-shrink-0 h-9 px-4 rounded-xl text-[13px] font-bold text-white flex items-center gap-2 transition-all"
-                                            style={{ background: '#6366f1' }}
+                                            style={{ background: 'var(--k-accent-grad)' }}
                                             onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
                                             onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
                                         >
@@ -344,7 +344,7 @@ const MdMessage = memo(({ content, isStreaming }: {
                         }).filter(item => item.word.trim().length > 0)
                         : []
                     if (items.length === 0) return null
-                    const accentColors = ['#E07B39', '#6366f1', '#059669', '#d97706', '#0891b2', '#7c3aed', '#be185d', '#15803d']
+                    const accentColors = ['#F15A24', '#0891b2', '#059669', '#d97706', '#2563EB', '#7c3aed', '#be185d', '#15803d']
                     const typeLabels: Record<string, string> = { noun: 'ot', verb: 'fe\'l', adj: 'sifat', adv: 'ravish', prep: 'ko\'m', phrase: 'ibora', phrasal: 'ph.v' }
                     return (
                         <div className="my-3 rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', minWidth: 0 }}>
@@ -683,7 +683,7 @@ const ChatInputArea = memo(function ChatInputArea({
                         ) : (
                             <button type="submit" disabled={!input.trim() && attachedFiles.length === 0}
                                 className="h-9 w-9 flex items-center justify-center rounded-xl transition disabled:opacity-30"
-                                style={{ background: 'var(--brand)', color: 'white' }}
+                                style={{ background: 'var(--k-accent-grad)', color: 'white', boxShadow: 'var(--k-shadow-cta)' }}
                                 title="Yuborish">
                                 <ArrowUp className="h-4 w-4" />
                             </button>
@@ -760,15 +760,6 @@ export default function ChatLayout() {
         weakTopics: '', strongTopics: '', concerns: ''
     })
     const [savingProfile, setSavingProfile] = useState(false)
-    const [emailVerified, setEmailVerified] = useState<boolean>(user?.emailVerified ?? true)
-    const [resendingVerif, setResendingVerif] = useState(false)
-    const [verifBannerDismissed, setVerifBannerDismissed] = useState(() => {
-        try {
-            return localStorage.getItem('dtmmax_verif_dismissed') === '1'
-        } catch {
-            return false
-        }
-    })
     const [notifCount, setNotifCount] = useState(0)
     const [notifications, setNotifications] = useState<any[]>([])
     const [notifLoading, setNotifLoading] = useState(false)
@@ -1349,16 +1340,6 @@ Iltimos, har bir savolni tahlil qilib ber:
             console.error('markNotificationsRead:', err)
             toast.error("Bildirishnomalarni yangilab bo'lmadi")
         }
-    }
-
-    const resendVerification = async () => {
-        setResendingVerif(true)
-        try {
-            await fetchApi('/auth/resend-verification', { method: 'POST' })
-            toast.success('Tasdiqlash emaili yuborildi! Spam papkasini ham tekshiring.')
-        } catch (e: any) {
-            toast.error(e.message || 'Email yuborishda xato')
-        } finally { setResendingVerif(false) }
     }
 
     async function logActivity(xpGained = 5) {
@@ -2169,7 +2150,7 @@ Iltimos, har bir savolni tahlil qilib ber:
 
     return (
         <ChatContext.Provider value={chatContextValue}>
-            <div className="min-h-[100dvh] h-[100dvh] flex overflow-hidden relative" style={{ background: 'var(--bg-page)' }}>
+            <div className="kelviq min-h-[100dvh] h-[100dvh] flex overflow-hidden relative" style={{ background: 'var(--bg-page)' }}>
                 {/* Mobile backdrop */}
                 {sideOpen && isMobile && (
                     <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setSideOpen(false)} />
@@ -2323,7 +2304,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                             <div className="card" style={{ width: '100%', maxWidth: '560px', maxHeight: 'calc(100dvh - 32px)', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '16px' }}>
                                 <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                                     <div>
-                                        <h2 className="text-base font-semibold">Bildirishnomalar</h2>
+                                        <h2 className="text-base font-bold tracking-tight">Bildirishnomalar</h2>
                                         <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Yangi xabarlar va eslatmalar shu yerda ko'rinadi</p>
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -2376,7 +2357,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                             <div className="card" style={{ width: '100%', maxWidth: '560px', maxHeight: 'calc(100dvh - 32px)', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '16px' }}>
                                 <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                                     <div>
-                                        <h2 className="text-base font-semibold">Profil va sozlamalar</h2>
+                                        <h2 className="text-base font-bold tracking-tight">Profil va sozlamalar</h2>
                                         <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Faqat eng kerakli ma'lumotlarni saqlang</p>
                                     </div>
                                     <button onClick={() => setShowSettings(false)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><X className="h-4 w-4" /></button>
@@ -2546,37 +2527,16 @@ Iltimos, har bir savolni tahlil qilib ber:
                         <span className="text-sm font-medium truncate flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>{currentChat?.title || ''}</span>
                     </div>
 
-                    {/* Email verification banner */}
-                    {!emailVerified && !verifBannerDismissed && (
-                        <div className="flex items-center gap-2 px-4 py-2 flex-shrink-0 text-sm" style={{ background: '#FEF3C7', borderBottom: '1px solid #FCD34D', color: '#92400E' }}>
-                            <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-                            <span className="flex-1 min-w-0">Email tasdiqlash xati yuborildi. Spam/Junk papkasini ham tekshiring!</span>
-                            <button
-                                onClick={resendVerification}
-                                disabled={resendingVerif}
-                                className="text-xs font-semibold underline flex-shrink-0"
-                                style={{ color: '#92400E', background: 'none', border: 'none', cursor: 'pointer' }}
-                            >
-                                {resendingVerif ? 'Yuborilmoqda...' : 'Qayta yuborish'}
-                            </button>
-                            <button
-                                onClick={() => { setVerifBannerDismissed(true); localStorage.setItem('dtmmax_verif_dismissed', '1') }}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#92400E', display: 'flex', alignItems: 'center' }}
-                            >
-                                <X className="h-3.5 w-3.5" />
-                            </button>
-                        </div>
-                    )}
-
                     {/* Messages */}
                     <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
                         {(!chatId || (messages.length === 0 && !loading && !streaming)) ? (
-                            <div className="h-full flex items-center justify-center" style={{ background: 'var(--bg-page)' }}>
-                                <div className="text-center px-4 anim-up">
-                                    <div className="h-11 w-11 rounded-xl flex items-center justify-center mx-auto mb-3" style={{ background: 'var(--brand)' }}>
+                            <div className="h-full flex items-center justify-center relative overflow-hidden" style={{ background: 'var(--bg-page)' }}>
+                                <div className="k-tex-dots absolute inset-0" style={{ zIndex: 0 }} />
+                                <div className="text-center px-4 anim-up relative" style={{ zIndex: 1 }}>
+                                    <div className="h-11 w-11 rounded-xl flex items-center justify-center mx-auto mb-3" style={{ background: 'var(--k-accent-grad)', boxShadow: 'var(--k-shadow-cta)' }}>
                                         <BrainCircuit className="h-5 w-5 text-white" />
                                     </div>
-                                    <p className="text-sm font-semibold">AI birinchi xabarni tayyorlayapti...</p>
+                                    <p className="text-base font-bold tracking-tight">AI birinchi xabarni <span className="k-italic">tayyorlayapti</span>...</p>
                                     <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Suhbat ochilgach savolingizni yozishingiz mumkin.</p>
                                 </div>
                             </div>
@@ -2775,7 +2735,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                 {/* Panel header */}
                                 <div className="h-14 flex items-center justify-between px-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                                     <div className="flex items-center gap-2">
-                                        <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--brand)' }}><ClipboardList className="h-3.5 w-3.5 text-white" /></div>
+                                        <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--k-accent-grad)' }}><ClipboardList className="h-3.5 w-3.5 text-white" /></div>
                                         <span className="text-sm font-semibold">Test — {questions.length} savol</span>
                                         {testReadOnly && <span className="text-[10px] px-2 py-0.5 rounded-md font-medium" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>Ko'rish</span>}
                                         {testTimeLeft !== null && (
@@ -2913,14 +2873,14 @@ Iltimos, har bir savolni tahlil qilib ber:
                                 <div onMouseDown={e => { essayDragRef.current = true; e.preventDefault() }}
                                     className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize z-10 transition-colors"
                                     style={{ background: 'transparent' }}
-                                    onMouseEnter={e => e.currentTarget.style.background = '#10b98144'}
+                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--k-soft)'}
                                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'} />
                             )}
 
                             {/* Header */}
                             <div className="h-14 flex items-center justify-between px-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                                 <div className="flex items-center gap-2">
-                                    <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: '#10b981' }}>
+                                    <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--k-accent-grad)' }}>
                                         <PenLine className="h-3.5 w-3.5 text-white" />
                                     </div>
                                     <span className="text-sm font-semibold">Writing — {essayPanel.task}</span>
@@ -2948,8 +2908,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                             <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ scrollbarWidth: 'thin' }}>
                                 <div className={essayMaximized ? 'max-w-2xl mx-auto space-y-4' : 'space-y-4'}>
                                     {/* Prompt */}
-                                    <div className="rounded-xl p-4" style={{ background: 'rgba(16,185,129,0.08)', border: '1.5px solid rgba(16,185,129,0.25)' }}>
-                                        <p className="text-[11px] font-bold uppercase mb-2" style={{ color: '#10b981' }}>Topshiriq — {essayPanel.task}</p>
+                                    <div className="rounded-xl p-4" style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1.5px solid color-mix(in srgb, var(--brand) 25%, transparent)' }}>
+                                        <p className="k-eyebrow mb-2" style={{ fontSize: '11px' }}>Topshiriq — {essayPanel.task}</p>
                                         <p className="text-[13px] leading-relaxed" style={{ color: 'var(--text-primary)' }}>{essayPanel.prompt}</p>
                                         <div className="flex gap-3 mt-3">
                                             <span className="text-[11px] px-2 py-0.5 rounded-full font-medium" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
@@ -2973,7 +2933,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 minHeight: 280,
                                                 height: essayMaximized ? '50vh' : 280,
                                                 background: essaySubmitted ? 'var(--bg-surface)' : 'var(--bg-card)',
-                                                border: `1.5px solid ${essaySubmitted ? 'var(--border)' : 'rgba(16,185,129,0.3)'}`,
+                                                border: `1.5px solid ${essaySubmitted ? 'var(--border)' : 'color-mix(in srgb, var(--brand) 30%, transparent)'}`,
                                                 color: 'var(--text-primary)',
                                                 fontFamily: 'inherit',
                                             }}
@@ -3000,7 +2960,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         <button onClick={submitEssay} disabled={!wordOk || wordOver}
                                             className="w-full h-11 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 transition-all"
                                             style={{
-                                                background: wordOk && !wordOver ? '#10b981' : 'var(--bg-muted)',
+                                                background: wordOk && !wordOver ? 'var(--k-accent-grad)' : 'var(--bg-muted)',
                                                 color: wordOk && !wordOver ? '#fff' : 'var(--text-muted)',
                                                 cursor: wordOk && !wordOver ? 'pointer' : 'not-allowed'
                                             }}>
@@ -3080,7 +3040,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             <div className="absolute inset-0 [backface-visibility:hidden] rounded-3xl p-8 flex flex-col items-center justify-center text-center shadow-xl"
                                                 style={{ background: 'var(--brand-light)', border: '2px solid var(--bg-card)' }}>
                                                 <div className="absolute top-4 left-0 right-0 flex justify-center">
-                                                    <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full" style={{ background: 'rgba(79,70,229,0.12)', color: 'var(--brand)' }}>❓ Savol</span>
+                                                    <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full" style={{ background: 'color-mix(in srgb, var(--brand) 12%, transparent)', color: 'var(--brand)' }}>❓ Savol</span>
                                                 </div>
                                                 <div className="text-[15px] font-medium leading-relaxed w-full mt-2" style={{ color: 'var(--text-primary)' }}>
                                                     <MdMessage content={card.front} />
@@ -3160,9 +3120,9 @@ Iltimos, har bir savolni tahlil qilib ber:
                             {/* Header */}
                             <div className="flex items-center gap-3 px-5 py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                                 <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                                    style={{ background: overlayPanel === 'tests' ? 'rgba(224,123,57,0.12)' : overlayPanel === 'flashcards' ? 'rgba(99,102,241,0.12)' : 'rgba(16,185,129,0.12)' }}>
+                                    style={{ background: overlayPanel === 'tests' ? 'color-mix(in srgb, var(--brand) 12%, transparent)' : overlayPanel === 'flashcards' ? 'color-mix(in srgb, var(--brand) 12%, transparent)' : 'rgba(16,185,129,0.12)' }}>
                                     {overlayPanel === 'tests' && <ClipboardList className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
-                                    {overlayPanel === 'flashcards' && <Brain className="h-5 w-5" style={{ color: '#6366f1' }} />}
+                                    {overlayPanel === 'flashcards' && <Brain className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
                                     {overlayPanel === 'progress' && <BarChart2 className="h-5 w-5" style={{ color: '#10b981' }} />}
                                 </div>
                                 <div className="flex-1">
@@ -3200,7 +3160,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 <div key={t.id} className="rounded-2xl p-4 transition" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
                                                     <div className="flex items-start gap-3">
                                                         <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                                                            style={{ background: result ? 'rgba(16,185,129,0.12)' : 'rgba(224,123,57,0.1)' }}>
+                                                            style={{ background: result ? 'rgba(16,185,129,0.12)' : 'color-mix(in srgb, var(--brand) 10%, transparent)' }}>
                                                             {result ? <CheckCircle className="h-5 w-5" style={{ color: '#10b981' }} /> : <ClipboardList className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
                                                         </div>
                                                         <div className="flex-1 min-w-0">
@@ -3310,11 +3270,11 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             {[
                                                 { label: 'Yechilgan testlar', value: myResults.length, icon: <ClipboardList className="h-5 w-5" />, color: 'var(--brand)' },
                                                 { label: "O'rtacha ball", value: `${Math.round(progressData?.avgScore ?? 0)}%`, icon: <Trophy className="h-5 w-5" />, color: '#10b981' },
-                                                { label: 'Kartochkalar', value: `${reviewedFlashcards}/${totalFlashcards || 0}`, icon: <Brain className="h-5 w-5" />, color: '#6366f1' },
+                                                { label: 'Kartochkalar', value: `${reviewedFlashcards}/${totalFlashcards || 0}`, icon: <Brain className="h-5 w-5" />, color: 'var(--brand)' },
                                             ].map((s, i) => (
                                                 <div key={i} className="rounded-2xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
                                                     <div className="flex items-center gap-2 mb-2">
-                                                        <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: `${s.color}18`, color: s.color }}>{s.icon}</div>
+                                                        <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: `color-mix(in srgb, ${s.color} 10%, transparent)`, color: s.color }}>{s.icon}</div>
                                                         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{s.label}</span>
                                                     </div>
                                                     <p className="text-2xl font-bold">{s.value}</p>

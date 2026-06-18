@@ -20,6 +20,10 @@ export default function Register() {
 
     useEffect(() => {
         if (token && user) {
+            if (user.emailVerified === false) {
+                nav('/email-tasdiqlang', { replace: true })
+                return
+            }
             const safeRedirect = getSafeRegisterRedirect(from)
             if (safeRedirect) nav(safeRedirect, { replace: true })
             else nav('/suhbat', { replace: true })
@@ -80,6 +84,11 @@ export default function Register() {
             })
             // Register javobidan to'g'ridan-to'g'ri token — alohida login shart emas
             login(data.token, data.user)
+            // Email tasdiqlanmagan bo'lsa — boshqa hamma narsadan oldin bloklash ekraniga
+            if (data.user?.emailVerified === false) {
+                nav('/email-tasdiqlang', { replace: true })
+                return
+            }
             // Test linki orqali kelgan bo'lsa — o'sha testga qaytamiz
             const safeRedirect = getSafeRegisterRedirect(from)
             if (safeRedirect) {
@@ -97,17 +106,24 @@ export default function Register() {
 
     return (
         <div
-            className="min-h-screen flex items-center justify-center p-5"
-            style={{ background: 'var(--bg-page)' }}
+            className="kelviq min-h-screen flex items-center justify-center p-5"
+            style={{ background: 'var(--bg-page)', position: 'relative', overflow: 'hidden' }}
         >
-            <div className="w-full max-w-sm anim-up">
+            {/* Faint technical texture behind the card */}
+            <div
+                className="k-tex-dots"
+                aria-hidden="true"
+                style={{ position: 'absolute', inset: 0, zIndex: 0 }}
+            />
+
+            <div className="w-full max-w-sm anim-up" style={{ position: 'relative', zIndex: 1 }}>
 
                 {/* Logo */}
                 <div className="flex items-center gap-2 justify-center mb-8">
-                    <div className="h-9 w-9 rounded-xl flex items-center justify-center" style={{ background: 'var(--brand)' }}>
+                    <div className="h-9 w-9 rounded-xl flex items-center justify-center" style={{ background: 'var(--k-accent-grad)' }}>
                         <BrainCircuit className="h-5 w-5 text-white" />
                     </div>
-                    <span className="font-bold text-xl tracking-tight">DTMMax</span>
+                    <span className="font-bold text-xl tracking-tight">DTM<span className="k-italic">Max</span></span>
                 </div>
 
                 {/* Step indicators */}
@@ -121,7 +137,8 @@ export default function Register() {
 
                     {step === 1 && (
                         <>
-                            <h1 className="text-xl font-bold mb-1">Akkaunt yarating</h1>
+                            <span className="k-eyebrow">RO'YXATDAN O'TISH</span>
+                            <h1 className="text-xl font-bold mb-1 mt-2">Akkaunt <span className="k-italic">yarating</span></h1>
                             <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
                                 Bepul ro'yxatdan o'ting
                             </p>
@@ -197,7 +214,8 @@ export default function Register() {
 
                     {step === 2 && (
                         <form onSubmit={submit}>
-                            <h1 className="text-xl font-bold mb-1">Imtihon ma'lumotlari</h1>
+                            <span className="k-eyebrow">MA'LUMOTLAR</span>
+                            <h1 className="text-xl font-bold mb-1 mt-2">Imtihon <span className="k-italic">ma'lumotlari</span></h1>
                             <p className="text-sm mb-5" style={{ color: 'var(--text-secondary)' }}>
                                 Ixtiyoriy — keyinroq ham o'zgartirishingiz mumkin
                             </p>

@@ -1,0 +1,217 @@
+/* =========================================================================
+   DtmMax — Kelviq SHARED scoped theme
+   ---------------------------------------------------------------------------
+   Matches the locked landing aesthetic (.lp-* in landing.css):
+   white surfaces, faint technical textures, bold Hanken Grotesk with ONE word
+   in italic Fraunces serif, orange #F15A24 accent used SPARINGLY, clean rounded
+   white cards, soft shadows. Green (#16A34A) success / red (#DC2626) error are
+   PRESERVED — never orange-ified.
+
+   STRATEGY — fully scoped under `.kelviq`:
+   This file ONLY redefines the EXISTING global token names (--brand, --bg-page,
+   --text-primary, --border, …) onto the Kelviq palette, plus a small set of
+   scoped atom overrides, INSIDE the `.kelviq` subtree. :root and the global
+   atoms in index.css are NEVER edited. Adding `import './styles/kelviq.css'`
+   globally is safe because every rule below is scoped to `.kelviq` (or `.dark
+   .kelviq`) — nothing leaks to Teacher / Admin / Profile surfaces, which simply
+   never receive the `.kelviq` class.
+
+   USAGE for surface agents: add className="kelviq" to a surface root. No
+   per-file CSS import is needed (this file is imported once in main.tsx).
+   ========================================================================= */
+
+/* ---- Google Fonts (index.html does NOT load these) — must come first ---- */
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Fraunces:ital,opsz,wght@0,9..144,500;1,9..144,400;1,9..144,500&display=swap');
+
+/* =========================================================================
+   1. LIGHT — token remap (redefines the SAME names the app + atoms read)
+   ========================================================================= */
+.kelviq {
+  /* Brand (orange — Kelviq accent) */
+  --brand:        #F15A24;
+  --brand-hover:  #DA4A12;
+  --brand-light:  #FFF1EA;
+  --brand-muted:  #FFD9C7;
+
+  /* Backgrounds — white / near-white surfaces */
+  --bg-page:      #FFFFFF;
+  --bg-card:      #FFFFFF;
+  --bg-surface:   #FAFAFA;
+  --bg-muted:     #F2F2F4;
+
+  /* Text — near-black ink + cool grays */
+  --text-primary:   #0A0A0A;
+  --text-secondary: #5B5B66;
+  --text-muted:     #8A8A95;
+  --text-inverse:   #FFFFFF;
+
+  /* Border — faint hairlines */
+  --border:         #E8E8EC;
+  --border-strong:  #DEDEE4;
+
+  /* Status — KEEP green success / red danger. Re-map warning + info into a
+     warm/neutral family so amber (#D97706) does not bleed into the orange look,
+     while the success/danger semantics stay byte-correct. */
+  --success:        #16A34A;
+  --success-light:  #DCFCE7;
+  --danger:         #DC2626;
+  --danger-light:   #FEE2E2;
+  --warning:        #F15A24;
+  --warning-light:  #FFF1EA;
+  --info:           #2563EB;
+  --info-light:     #DBEAFE;
+
+  /* ---- Kelviq helper vars (k- prefix; do not collide with app tokens) ---- */
+  --k-accent-grad:      linear-gradient(135deg, #F15A24 0%, #FF8A4C 100%);
+  --k-shadow-card:      0 1px 2px rgba(10,10,16,.04), 0 1px 1px rgba(10,10,16,.03);
+  --k-shadow-cta:       0 6px 20px rgba(241,90,36,.28);
+  --k-shadow-cta-hover: 0 10px 28px rgba(241,90,36,.38);
+  --k-soft:             #FFF1EA;
+  --k-serif:            'Fraunces', Georgia, 'Times New Roman', serif;
+  --k-tex:              #DDE0E6;   /* texture color — dots & plus marks (faint) */
+
+  /* Font — Hanken Grotesk across the whole Kelviq subtree */
+  font-family: 'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* =========================================================================
+   2. DARK — `.dark .kelviq` (app toggles html.dark): dark neutrals, ORANGE accent
+   ========================================================================= */
+.dark .kelviq {
+  /* Brand stays orange in dark */
+  --brand:        #F15A24;
+  --brand-hover:  #FF8A4C;
+  --brand-light:  #2A1A12;
+  --brand-muted:  #5A2E1C;
+
+  /* Backgrounds — dark neutrals */
+  --bg-page:      #0B0B0E;
+  --bg-card:      #16161C;
+  --bg-surface:   #121217;
+  --bg-muted:     #1E1E25;
+
+  /* Text */
+  --text-primary:   #F4F4F6;
+  --text-secondary: #B5B5BE;
+  --text-muted:     #8A8A95;
+  --text-inverse:   #0A0A0A;
+
+  /* Border */
+  --border:         #2A2A33;
+  --border-strong:  #3A3A45;
+
+  /* Status — keep success / danger; dark-tuned soft fills */
+  --success:        #16A34A;
+  --success-light:  #052e16;
+  --danger:         #DC2626;
+  --danger-light:   #450a0a;
+  --warning:        #F15A24;
+  --warning-light:  #2A1A12;
+  --info:           #2563EB;
+  --info-light:     #172554;
+
+  /* Helper vars (dark soft bubble fill) */
+  --k-soft:             #1E1E25;
+  --k-shadow-card:      0 1px 2px rgba(0,0,0,.30), 0 1px 1px rgba(0,0,0,.24);
+  --k-shadow-cta:       0 6px 20px rgba(241,90,36,.34);
+  --k-shadow-cta-hover: 0 10px 28px rgba(241,90,36,.46);
+
+  font-family: 'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* =========================================================================
+   3. SCOPED ATOM OVERRIDES — only where a token remap is not enough.
+      Each rule is scoped under `.kelviq` so it touches Kelviq subtrees ONLY.
+   ========================================================================= */
+
+/* Primary CTA → orange gradient (base .btn-primary is dark ink). */
+.kelviq .btn-primary {
+  background: var(--k-accent-grad);
+  background-color: transparent; /* override token bg-color from base rule */
+  color: #FFFFFF;
+  border: none;
+  box-shadow: var(--k-shadow-cta);
+}
+.kelviq .btn-primary:hover:not(:disabled) {
+  opacity: 1;                       /* base sets .85 — keep CTA fully saturated */
+  transform: translateY(-1px);
+  box-shadow: var(--k-shadow-cta-hover);
+}
+/* Orange fill needs a dark focus ring to stay visible (a11y). */
+.kelviq .btn-primary:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+/* User chat bubble → clean soft card (base hardcodes #EDE8DA / #111). */
+.kelviq .bubble-user {
+  background-color: var(--k-soft);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--k-shadow-card);
+}
+/* base rule sets bubble-user md code/links to #111 — re-tie to tokens. */
+.kelviq .bubble-user .md-content code {
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+  color: var(--text-primary);
+}
+.kelviq .bubble-user .md-content a {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+/* Input focus → orange ring. */
+.kelviq .input:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(241,90,36,.18);
+  outline: none;
+}
+
+/* Card → faint hairline + soft shadow + Kelviq radius. */
+.kelviq .card {
+  border-color: var(--border);
+  border-radius: 16px;
+  box-shadow: var(--k-shadow-card);
+}
+
+/* =========================================================================
+   4. HELPER CLASSES — for auth / chat / FAQ Kelviq signature (downstream use).
+      All scoped under `.kelviq`.
+   ========================================================================= */
+
+/* Eyebrow / section label — uppercase orange micro-label. */
+.kelviq .k-eyebrow {
+  font-family: 'Hanken Grotesk', system-ui, -apple-system, sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--brand);
+}
+
+/* The ONE italic word in a Hanken headline (Fraunces serif). */
+.kelviq .k-italic {
+  font-family: var(--k-serif);
+  font-style: italic;
+  font-weight: 400;
+}
+
+/* Faint dotted-grid texture (copy of landing .lp-tex-dots). pointer-events:none
+   so it never intercepts clicks behind content. */
+.kelviq .k-tex-dots {
+  pointer-events: none;
+  background-image: radial-gradient(var(--k-tex) 1.1px, transparent 1.1px);
+  background-size: 22px 22px;
+  background-position: -11px -11px;            /* centres dots in cells */
+  -webkit-mask-image: linear-gradient(to bottom left, #000, transparent 75%);
+          mask-image: linear-gradient(to bottom left, #000, transparent 75%);
+}
+
+/* Faint plus-sign grid (copy of landing .lp-tex-plus — SVG data URI). */
+.kelviq .k-tex-plus {
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Cg fill='none' stroke='%23DDE0E6' stroke-width='1.2'%3E%3Cpath d='M14 9.5v9 M9.5 14h9'/%3E%3C/g%3E%3C/svg%3E");
+  background-repeat: repeat;
+  opacity: .6;
+}

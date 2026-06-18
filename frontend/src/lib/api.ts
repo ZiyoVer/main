@@ -27,6 +27,16 @@ export async function fetchApi(endpoint: string, options: RequestInit & { signal
             err.data = data
             return Promise.reject(err)
         }
+        if (res.status === 403 && data?.code === 'EMAIL_NOT_VERIFIED') {
+            // Email tasdiqlanmagan — bloklash ekraniga yo'naltiramiz, generic toast ko'rsatmaymiz
+            if (window.location.pathname !== '/email-tasdiqlang') {
+                window.location.href = '/email-tasdiqlang'
+            }
+            const err = new Error('Email tasdiqlanmagan') as ApiError
+            err.status = 403
+            err.data = data
+            return Promise.reject(err)
+        }
         if (!res.ok) {
             const errName = data?.error || 'Server xatoligi'
             const err = new Error(errName) as ApiError

@@ -15,9 +15,15 @@ export default function EmailVerify() {
         fetchApi(`/auth/verify-email/${token}`, { method: 'GET' })
             .then(() => {
                 setStatus('success')
-                // authStore da user ni yangilash
-                if (user && authToken) {
-                    login(authToken, { ...user, emailVerified: true })
+                // authStore da user ni yangilash — /auth/me orqali yangi user'ni olib kelamiz,
+                // shunda VerifyEmailNotice polling'i ham, ProtectedRoute ham yangilangan holatni ko'radi.
+                if (authToken) {
+                    fetchApi('/auth/me', { silent: true })
+                        .then(me => login(authToken, me))
+                        .catch(() => {
+                            // /auth/me muvaffaqiyatsiz bo'lsa — mavjud user'ni patch qilamiz
+                            if (user) login(authToken, { ...user, emailVerified: true })
+                        })
                 }
             })
             .catch((e: any) => {
@@ -27,20 +33,28 @@ export default function EmailVerify() {
     }, [token])
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-5" style={{ background: 'var(--bg-page)' }}>
-            <div className="w-full max-w-sm anim-up">
+        <div className="kelviq min-h-screen flex items-center justify-center p-5" style={{ background: 'var(--bg-page)', position: 'relative', overflow: 'hidden' }}>
+            {/* Faint technical texture behind the card */}
+            <div
+                className="k-tex-dots"
+                aria-hidden="true"
+                style={{ position: 'absolute', inset: 0, zIndex: 0 }}
+            />
+
+            <div className="w-full max-w-sm anim-up" style={{ position: 'relative', zIndex: 1 }}>
                 <div className="flex items-center gap-2 justify-center mb-8">
-                    <div className="h-9 w-9 rounded-xl flex items-center justify-center" style={{ background: 'var(--brand)' }}>
+                    <div className="h-9 w-9 rounded-xl flex items-center justify-center" style={{ background: 'var(--k-accent-grad)' }}>
                         <BrainCircuit className="h-5 w-5 text-white" />
                     </div>
-                    <span className="font-bold text-xl tracking-tight">DTMMax</span>
+                    <span className="font-bold text-xl tracking-tight">DTM<span className="k-italic">Max</span></span>
                 </div>
 
                 <div className="card text-center" style={{ padding: '2.5rem 2rem' }}>
                     {status === 'loading' && (
                         <>
                             <Loader2 className="h-12 w-12 mx-auto mb-4 animate-spin" style={{ color: 'var(--brand)' }} />
-                            <h2 className="text-lg font-bold mb-2">Tekshirilmoqda...</h2>
+                            <span className="k-eyebrow">TASDIQLASH</span>
+                            <h2 className="text-lg font-bold mb-2 mt-2">Tekshi<span className="k-italic">rilmoqda</span>...</h2>
                             <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                                 Email manzil tasdiqlanmoqda, kuting...
                             </p>
@@ -49,7 +63,7 @@ export default function EmailVerify() {
                     {status === 'success' && (
                         <>
                             <CheckCircle className="h-12 w-12 mx-auto mb-4" style={{ color: 'var(--success)' }} />
-                            <h2 className="text-lg font-bold mb-2">Email tasdiqlandi!</h2>
+                            <h2 className="text-lg font-bold mb-2">Email <span className="k-italic">tasdiqlandi</span>!</h2>
                             <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
                                 Email manzilingiz muvaffaqiyatli tasdiqlandi. Endi barcha imkoniyatlar ochiq!
                             </p>
@@ -61,7 +75,7 @@ export default function EmailVerify() {
                     {status === 'error' && (
                         <>
                             <XCircle className="h-12 w-12 mx-auto mb-4" style={{ color: 'var(--danger)' }} />
-                            <h2 className="text-lg font-bold mb-2">Tasdiqlash muvaffaqiyatsiz</h2>
+                            <h2 className="text-lg font-bold mb-2">Tasdiqlash <span className="k-italic">muvaffaqiyatsiz</span></h2>
                             <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
                                 {message}
                             </p>

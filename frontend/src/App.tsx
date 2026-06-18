@@ -13,6 +13,7 @@ const AdminLogin = lazy(() => import('./pages/Auth/AdminLogin'))
 const ForgotPassword = lazy(() => import('./pages/Auth/ForgotPassword'))
 const ResetPassword = lazy(() => import('./pages/Auth/ResetPassword'))
 const EmailVerify = lazy(() => import('./pages/Auth/EmailVerify'))
+const VerifyEmailNotice = lazy(() => import('./pages/Auth/VerifyEmailNotice'))
 const ChatLayout = lazy(() => import('./pages/Student/ChatLayout'))
 const TestPage = lazy(() => import('./pages/Student/TestPage'))
 const AdminPanel = lazy(() => import('./pages/Admin/AdminPanel'))
@@ -76,6 +77,8 @@ function ProtectedRoute({ children, roles }: { children: React.ReactNode, roles?
     if (checking) return <PageLoader />
     if (!token || !user) return <Navigate to="/kirish" state={{ from: location.pathname }} replace />
     if (roles && !roles.includes(user.role)) return <Navigate to="/" replace />
+    // STUDENT email tasdiqlamagan bo'lsa — bloklash ekraniga. === false: undefined/legacy bloklanmaydi.
+    if (user.role === 'STUDENT' && user.emailVerified === false) return <Navigate to="/email-tasdiqlang" replace />
     return <>{children}</>
 }
 
@@ -100,6 +103,7 @@ function AppContent() {
                     <Route path="/parolni-tiklash" element={<ForgotPassword />} />
                     <Route path="/parol-tiklash/:token" element={<ResetPassword />} />
                     <Route path="/email-tasdiqlash/:token" element={<EmailVerify />} />
+                    <Route path="/email-tasdiqlang" element={<VerifyEmailNotice />} />
                     {/* O'zbek tilidagi asosiy routelar */}
                     <Route path="/suhbat" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
                     <Route path="/suhbat/:chatId" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />

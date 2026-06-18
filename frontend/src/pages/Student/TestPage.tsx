@@ -305,7 +305,7 @@ export default function TestPage() {
     }
 
     if (loading) return (
-        <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-page)' }}>
+        <div className="kelviq min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-page)' }}>
             <div className="text-center">
                 <div className="w-7 h-7 border-2 border-t-transparent rounded-full animate-spin mx-auto mb-2" style={{ borderColor: 'var(--border-strong)', borderTopColor: 'var(--brand)' }} />
                 <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Yuklanmoqda...</p>
@@ -314,7 +314,7 @@ export default function TestPage() {
     )
 
     if (err) return (
-        <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-page)' }}>
+        <div className="kelviq min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-page)' }}>
             <div className="text-center">
                 <p className="text-sm mb-3" style={{ color: 'var(--danger)' }}>{err}</p>
                 <button onClick={() => nav('/')} className="text-sm" style={{ color: 'var(--brand)' }}>Bosh sahifaga qaytish</button>
@@ -357,7 +357,7 @@ export default function TestPage() {
 
     // ─────────────────── STANDARD MODE ───────────────────
     return (
-        <div className="overflow-y-auto w-full overscroll-contain" style={{ background: 'var(--bg-page)', height: '100dvh' }}>
+        <div className="kelviq overflow-y-auto w-full overscroll-contain" style={{ background: 'var(--bg-page)', height: '100dvh' }}>
             <header className="sticky top-0 z-40" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', backdropFilter: 'blur(12px)' }}>
                 <div className="max-w-2xl mx-auto flex items-center justify-between py-3 px-5">
                     <div className="flex items-center gap-2">
@@ -418,7 +418,7 @@ export default function TestPage() {
                         <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{resultMeta.label}: {resultMeta.value}</p>
                         <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{result.correct} / {result.total} to'g'ri javob</p>
                         <div className="mt-3 flex items-center justify-center gap-2 flex-wrap">
-                            {normalizedTestType === 'MILLIY_SERTIFIKAT' && result.msBall !== undefined && <div className="px-3 py-1.5 rounded-lg text-[12px] font-semibold" style={{ background: 'color-mix(in srgb, #8b5cf6 10%, transparent)', border: '1px solid color-mix(in srgb, #8b5cf6 25%, transparent)', color: '#8b5cf6' }}>MS: {result.msBall} / {result.msMax}</div>}
+                            {normalizedTestType === 'MILLIY_SERTIFIKAT' && result.msBall !== undefined && <div className="px-3 py-1.5 rounded-lg text-[12px] font-semibold" style={{ background: 'color-mix(in srgb, var(--brand) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', color: 'var(--brand)' }}>MS: {result.msBall} / {result.msMax}</div>}
                         </div>
                                 </>
                             )
@@ -464,7 +464,7 @@ export default function TestPage() {
                                     <div className="flex flex-wrap gap-1.5 mb-3 p-2 rounded-lg" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
                                         {(matchingData.answers || []).map((ans: string, ai: number) => (
                                             <span key={ai} className="px-2 py-1 rounded text-[12px] font-medium" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
-                                                <span style={{ color: '#8b5cf6', fontWeight: 700 }}>{String.fromCharCode(65 + ai)})</span> <TextWithMath text={ans} />
+                                                <span style={{ color: 'var(--brand)', fontWeight: 700 }}>{String.fromCharCode(65 + ai)})</span> <TextWithMath text={ans} />
                                             </span>
                                         ))}
                                     </div>
@@ -487,7 +487,7 @@ export default function TestPage() {
                                                             let sty: any = { background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-muted)' }
                                                             if (isCorr) sty = { background: 'var(--success-light)', border: '1px solid var(--success)', color: 'var(--success)', fontWeight: 700 }
                                                             else if (isWrong) sty = { background: 'var(--danger-light)', border: '1px solid var(--danger)', color: 'var(--danger)' }
-                                                            else if (!submitted && isSel) sty = { background: 'color-mix(in srgb, #8b5cf6 10%, transparent)', border: '1px solid #8b5cf6', color: '#8b5cf6', fontWeight: 700 }
+                                                            else if (!submitted && isSel) sty = { background: 'var(--brand-light)', border: '1px solid var(--brand)', color: 'var(--brand-hover)', fontWeight: 700 }
                                                             return (
                                                                 <button key={ai} disabled={submitted || isGuest}
                                                                     onClick={() => !isGuest && setAnswers((a: any) => ({ ...a, [q.id]: { ...(a[q.id] || {}), [si]: ai } }))}
@@ -516,7 +516,7 @@ export default function TestPage() {
                                         const label = subQuestion.label || String.fromCharCode(65 + subIndex)
                                         return (
                                             <div key={subIndex} className="p-3 rounded-lg" style={{ border: `1px solid ${submitted ? (isSubCorrect ? 'var(--success)' : 'var(--danger)') : 'var(--border)'}`, background: 'var(--bg-surface)' }}>
-                                                <p className="text-[12px] mb-2 font-medium"><span style={{ color: '#0f766e' }}>{label})</span> <TextWithMath text={subQuestion.text} /></p>
+                                                <p className="text-[12px] mb-2 font-medium"><span style={{ color: 'var(--brand)' }}>{label})</span> <TextWithMath text={subQuestion.text} /></p>
                                                 <textarea
                                                     disabled={submitted || isGuest}
                                                     value={multipartAnswers[subIndex] || ''}
@@ -528,7 +528,7 @@ export default function TestPage() {
                                                     placeholder={isGuest ? "Yechish uchun kiring..." : `${label}) javobingizni yozing...`}
                                                     rows={2}
                                                     className="w-full rounded-lg border px-3 py-2 text-[13px] resize-none outline-none"
-                                                    style={{ background: 'var(--bg-card)', borderColor: submitted ? (isSubCorrect ? 'var(--success)' : 'var(--danger)') : (multipartAnswers[subIndex] || '').trim() ? '#0f766e' : 'var(--border)', color: 'var(--text-primary)' }}
+                                                    style={{ background: 'var(--bg-card)', borderColor: submitted ? (isSubCorrect ? 'var(--success)' : 'var(--danger)') : (multipartAnswers[subIndex] || '').trim() ? 'var(--brand)' : 'var(--border)', color: 'var(--text-primary)' }}
                                                 />
                                                 {submitted && (
                                                     <div className="mt-2 flex items-start gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: isSubCorrect ? 'var(--success-light)' : 'var(--danger-light)', color: isSubCorrect ? 'var(--success)' : 'var(--danger)' }}>
@@ -577,7 +577,7 @@ export default function TestPage() {
                 {!submitted && (
                     isGuest
                         ? <button onClick={() => nav('/kirish', { state: { from: `/test/${shareLink}` } })} className="w-full h-11 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2" style={{ background: 'var(--brand)' }}><LogIn className="h-4 w-4" /> Yechishni boshlash uchun kiring</button>
-                        : <button onClick={() => submit()} disabled={submitting || answeredCount === 0} className="w-full h-11 rounded-xl text-sm font-semibold text-white transition disabled:opacity-40" style={{ background: 'var(--text-primary)' }}>{submitting ? 'Tekshirilmoqda...' : `Testni yuborish (${answeredCount}/${total})`}</button>
+                        : <button onClick={() => submit()} disabled={submitting || answeredCount === 0} className="w-full h-11 rounded-xl text-sm font-semibold text-white transition disabled:opacity-40" style={{ background: 'var(--k-accent-grad)', boxShadow: 'var(--k-shadow-cta)' }}>{submitting ? 'Tekshirilmoqda...' : `Testni yuborish (${answeredCount}/${total})`}</button>
                 )}
                 {submitted && <button onClick={() => nav('/suhbat')} className="w-full h-11 rounded-xl text-sm font-semibold transition" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>Chatga qaytish</button>}
             </div>
@@ -641,15 +641,15 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
 
                 return (
                     <div key={q.id}>
-                        <div className="flex items-center px-4 py-1" style={{ background: 'color-mix(in srgb, #8b5cf6 6%, transparent)' }}>
-                            <span className="text-[10px] font-bold" style={{ color: '#8b5cf6' }}>
+                        <div className="flex items-center px-4 py-1" style={{ background: 'color-mix(in srgb, var(--brand) 6%, transparent)' }}>
+                            <span className="text-[10px] font-bold" style={{ color: 'var(--brand)' }}>
                                 {qi + 1}. Moslashtirish ({matchingData.subQuestions?.length || 0} kichik savol)
                             </span>
                         </div>
                         <div className="flex items-center px-4 py-0.5" style={{ borderBottom: '1px solid var(--border)' }}>
                             <span className="w-12 flex-shrink-0" />
                             {Array.from({ length: answerCount }, (_, answerIndex) => (
-                                <span key={answerIndex} className="flex-1 text-center text-[10px] font-bold" style={{ color: '#8b5cf6' }}>{alphabet[answerIndex]}</span>
+                                <span key={answerIndex} className="flex-1 text-center text-[10px] font-bold" style={{ color: 'var(--brand)' }}>{alphabet[answerIndex]}</span>
                             ))}
                         </div>
                         {(matchingData.subQuestions || []).map((subQuestion, subIndex) => {
@@ -670,10 +670,10 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                     className="w-full flex items-center px-4 transition"
                                     style={{
                                         height: 32,
-                                        background: isFocused ? 'color-mix(in srgb, #8b5cf6 6%, transparent)' : 'transparent',
-                                        borderLeft: isFocused ? '3px solid #8b5cf6' : '3px solid transparent'
+                                        background: isFocused ? 'color-mix(in srgb, var(--brand) 6%, transparent)' : 'transparent',
+                                        borderLeft: isFocused ? '3px solid var(--brand)' : '3px solid transparent'
                                     }}>
-                                    <span className="w-12 flex-shrink-0 text-[11px] font-semibold text-left" style={{ color: isFocused ? '#8b5cf6' : 'var(--text-muted)' }}>
+                                    <span className="w-12 flex-shrink-0 text-[11px] font-semibold text-left" style={{ color: isFocused ? 'var(--brand)' : 'var(--text-muted)' }}>
                                         {qi + 1}.{subIndex + 1}
                                     </span>
                                     {Array.from({ length: answerCount }, (_, answerIndex) => {
@@ -696,7 +696,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                                 {isSelected || isCorrect ? (
                                                     <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-all"
                                                         style={{
-                                                            background: isWrong ? 'var(--danger)' : isCorrect ? 'var(--success)' : '#8b5cf6',
+                                                            background: isWrong ? 'var(--danger)' : isCorrect ? 'var(--success)' : 'var(--brand)',
                                                             color: 'white',
                                                             transform: isSelected && !submitted ? 'scale(1.1)' : 'scale(1)'
                                                         }}>
@@ -807,7 +807,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
             <div className={footerPadding} style={{ borderTop: '1px solid var(--border)' }}>
                 <button onClick={() => submit()} disabled={submitting || answeredCount === 0}
                     className={`w-full ${buttonHeight} rounded-xl text-[12px] font-semibold text-white transition disabled:opacity-40`}
-                    style={{ background: answeredCount === total ? 'var(--success)' : 'var(--text-primary)' }}>
+                    style={{ background: answeredCount === total ? 'var(--success)' : 'var(--k-accent-grad)' }}>
                     {submitting ? '...' : answeredCount === total ? 'Topshirish ✓' : `Topshirish (${answeredCount}/${total})`}
                 </button>
             </div>
@@ -815,14 +815,14 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
     }
 
     return (
-        <div className="flex flex-col overflow-hidden w-full" style={{ background: 'var(--bg-page)', height: '100dvh', overscrollBehaviorY: 'none' }}>
+        <div className="kelviq flex flex-col overflow-hidden w-full" style={{ background: 'var(--bg-page)', height: '100dvh', overscrollBehaviorY: 'none' }}>
             {/* ── Header ── */}
             <header className="h-12 flex-shrink-0 flex items-center justify-between px-4" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
                 <div className="flex items-center gap-2">
                     <button onClick={() => nav(token ? '/suhbat' : '/')} className="h-7 w-7 flex items-center justify-center rounded-lg" style={{ color: 'var(--text-muted)' }}><ArrowLeft className="h-4 w-4" /></button>
                     <div className="h-5 w-5 rounded-md flex items-center justify-center" style={{ background: 'var(--brand)' }}><BrainCircuit className="h-2.5 w-2.5 text-white" /></div>
                     <span className="text-sm font-bold truncate max-w-[180px] sm:max-w-xs">{test?.title}</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold hidden sm:inline-flex" style={{ background: '#f59e0b22', color: '#f59e0b' }}>DTM</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold hidden sm:inline-flex" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>DTM</span>
                 </div>
                 <div className="flex items-center gap-3">
                     {!submitted && !isGuest && typeof timeLeft === 'number' && (
@@ -841,7 +841,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                         </button>
                     )}
                     {!submitted && !isGuest && !isCompactLayout && (
-                        <button onClick={() => submit()} disabled={submitting || answeredCount === 0} className="px-4 h-8 rounded-lg text-[13px] font-semibold text-white transition disabled:opacity-40" style={{ background: answeredCount === total ? 'var(--success)' : 'var(--text-primary)' }}>
+                        <button onClick={() => submit()} disabled={submitting || answeredCount === 0} className="px-4 h-8 rounded-lg text-[13px] font-semibold text-white transition disabled:opacity-40" style={{ background: answeredCount === total ? 'var(--success)' : 'var(--k-accent-grad)' }}>
                             {submitting ? 'Tekshirilmoqda...' : 'Topshirish'}
                         </button>
                     )}
@@ -906,7 +906,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                         <div className="flex flex-wrap gap-1 mb-2 p-2 rounded-lg" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
                                             {(matchingData.answers || []).map((ans: string, ai: number) => (
                                                 <span key={ai} className="text-[11px] px-2 py-0.5 rounded" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
-                                                    <span style={{ color: '#8b5cf6', fontWeight: 700 }}>{String.fromCharCode(65 + ai)})</span> <TextWithMath text={ans} />
+                                                    <span style={{ color: 'var(--brand)', fontWeight: 700 }}>{String.fromCharCode(65 + ai)})</span> <TextWithMath text={ans} />
                                                 </span>
                                             ))}
                                         </div>
@@ -928,7 +928,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                                                 let sty: any = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)' }
                                                                 if (isCorr) sty = { background: 'var(--success)', color: 'white', border: 'none' }
                                                                 else if (isWrong) sty = { background: 'var(--danger)', color: 'white', border: 'none' }
-                                                                else if (!submitted && isSel) sty = { background: '#8b5cf6', color: 'white', border: 'none' }
+                                                                else if (!submitted && isSel) sty = { background: 'var(--brand)', color: 'white', border: 'none' }
                                                                 return (
                                                                     <button key={ai}
                                                                         onClick={e => { e.stopPropagation(); if (!submitted && !isGuest) setAnswers((a: any) => ({ ...a, [q.id]: { ...(a[q.id] || {}), [si]: ai } })) }}
@@ -1029,7 +1029,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                     {analysisReady ? 'AI tahlil' : 'Chatga qaytish'}
                                 </button>
                             ) : (
-                                <button onClick={() => submit()} disabled={submitting || answeredCount === 0} className="h-11 px-4 rounded-xl text-[13px] font-semibold text-white transition disabled:opacity-40" style={{ background: answeredCount === total ? 'var(--success)' : 'var(--text-primary)' }}>
+                                <button onClick={() => submit()} disabled={submitting || answeredCount === 0} className="h-11 px-4 rounded-xl text-[13px] font-semibold text-white transition disabled:opacity-40" style={{ background: answeredCount === total ? 'var(--success)' : 'var(--k-accent-grad)' }}>
                                     {submitting ? '...' : 'Topshirish'}
                                 </button>
                             )}

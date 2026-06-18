@@ -213,6 +213,41 @@
   border-radius: 4px;
 }
 
+/* ============================ FAQ ACCORDION ============================
+   Native <details>/<summary> for accessibility (no JS state). Suppress the
+   default disclosure marker; the pixel +/× sits inline. On [open] the card
+   border + shadow lift to the orange hover treatment and the mark rotates to
+   read as a close (×). Transitions touch ONLY border-color / box-shadow /
+   transform — never height — so the existing reduced-motion block neutralises
+   them cleanly. The .lp-root focus-visible ring covers <summary> via .lp-faq-q. */
+.lp-root .lp-faq-item {
+  list-style: none;
+  transition: border-color var(--lp-dur) var(--lp-ease-out),
+              box-shadow var(--lp-dur) var(--lp-ease-out);
+}
+.lp-root .lp-faq-item[open] {
+  border-color: var(--lp-accent);
+  box-shadow: var(--lp-shadow-hover);
+}
+.lp-root .lp-faq-q {
+  list-style: none;
+  cursor: pointer;
+  outline: none;
+}
+.lp-root .lp-faq-q::-webkit-details-marker { display: none; }
+.lp-root .lp-faq-q::marker { content: ''; }
+.lp-root .lp-faq-q:focus-visible {
+  outline: 2px solid var(--lp-accent-strong);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.lp-root .lp-faq-mark {
+  transition: transform var(--lp-dur) var(--lp-ease-out);
+}
+.lp-root .lp-faq-item[open] .lp-faq-mark {
+  transform: rotate(45deg);
+}
+
 /* ============================ REDUCED MOTION ============================ */
 @media (prefers-reduced-motion: reduce) {
   .lp-root *, .lp-root ::before, .lp-root ::after {

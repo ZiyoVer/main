@@ -801,6 +801,100 @@ function Testimonials() {
 }
 
 /* ===================================================================== */
+/* FAQ — "Ko'p beriladigan savollar"                                       */
+/* ===================================================================== */
+
+type Faq = { q: string; a: string }
+const FAQS: Faq[] = [
+  {
+    q: 'DtmMax nima?',
+    a: "DtmMax — DTM va Milliy Sertifikat imtihonlariga tayyorlanish uchun sun'iy intellektli o'quv platformasi. U sizga mavzularni tushuntiradi, test tuzadi va natijangizni kuzatib boradi — xuddi shaxsiy repetitordek.",
+  },
+  {
+    q: 'Platforma bepulmi?',
+    a: "Ro'yxatdan o'tish va boshlash mutlaqo bepul, karta ma'lumotlari kerak emas. Kengaytirilgan imkoniyatlar uchun keyinchalik hamyonbop obuna rejalari ham bo'ladi.",
+  },
+  {
+    q: "Qaysi fanlarni o'rganish mumkin?",
+    a: "Hozir Matematika, Fizika, Kimyo, Biologiya, Ona tili, Ingliz tili, Tarix va Geografiya mavjud. Fanlar ro'yxati doimiy kengayib boradi.",
+  },
+  {
+    q: 'AI repetitor qanday ishlaydi?',
+    a: "Siz savol berasiz yoki mavzu tanlaysiz — AI uni soddadan murakkabga tushuntiradi, misollar ko'rsatadi, so'ng o'zlashtirganingizni tekshirish uchun test beradi va xatolaringizni izohlaydi. Hammasi 24/7 ishlaydi.",
+  },
+  {
+    q: "DTM va Milliy Sertifikat o'rtasida farq bormi?",
+    a: "Ha. DTM — oliygohga kirish imtihoni, Milliy Sertifikat esa alohida fan bo'yicha bilim darajangizni tasdiqlaydi. DtmMax ikkalasiga ham alohida tayyorlaydi va har biriga mos test uslubini qo'llaydi.",
+  },
+  {
+    q: 'Platforma imtihon savollarini bashorat qiladimi?',
+    a: "DtmMax kafolatlangan savollarni bermaydi. Lekin oldingi yillardagi imtihon tahlili asosida eng ko'p uchraydigan mavzular va savol turlariga urg'u berib, sizni aniq yo'nalishda tayyorlaydi.",
+  },
+  {
+    q: 'Testlar va tahlil qanday tuzilgan?',
+    a: "Har bir test DTM uslubida bo'lib, darhol baholanadi. Tizim qaysi mavzularda xato qilayotganingizni grafiklar bilan ko'rsatadi, shunda kuchni zaif joylarga qarata olasiz.",
+  },
+  {
+    q: 'Qanday boshlayman?',
+    a: "\"Bepul boshlash\" tugmasini bosib ro'yxatdan o'ting, fan va maqsadingizni tanlang — AI repetitor darhol birinchi darsni boshlaydi. Bir necha daqiqada o'qishga kirishasiz.",
+  },
+]
+
+function FaqSection() {
+  return (
+    <section id="faq" style={{ ...container, padding: '96px 56px', position: 'relative' }} className="lp-container">
+      <Reveal>
+        <div style={{ maxWidth: 680, margin: '0 auto 56px', textAlign: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
+            <Eyebrow align="center">KO'P BERILADIGAN SAVOLLAR</Eyebrow>
+          </div>
+          <h2 className="lp-h2" style={{ fontFamily: SANS, fontSize: 46, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.08, margin: 0, color: C.ink }}>
+            Tez-tez so'raladigan <Em>savollar</Em>
+          </h2>
+          <p style={{ fontSize: 20, lineHeight: 1.6, color: C.gray, maxWidth: '42ch', margin: '20px auto 0' }}>
+            DtmMax haqida eng ko'p so'raladigan savollarga javoblar.
+          </p>
+        </div>
+      </Reveal>
+
+      <div style={{ maxWidth: 820, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {FAQS.map((f, i) => (
+          <Reveal key={f.q} delay={i * 60}>
+            <details
+              className="lp-faq-item"
+              style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 18, padding: '20px 24px', boxShadow: SHADOW.card }}
+            >
+              <summary
+                className="lp-faq-q"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, fontFamily: SANS, fontSize: 17.5, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.3, color: C.ink }}
+              >
+                {f.q}
+                <svg
+                  className="lp-faq-mark"
+                  aria-hidden="true"
+                  width={18}
+                  height={18}
+                  viewBox="0 0 16 16"
+                  shapeRendering="crispEdges"
+                  fill={C.accent}
+                  style={{ flexShrink: 0 }}
+                >
+                  <rect x="6" y="2" width="4" height="12" />
+                  <rect x="2" y="6" width="12" height="4" />
+                </svg>
+              </summary>
+              <div className="lp-faq-a" style={{ fontFamily: SANS, fontSize: 15, lineHeight: 1.6, color: C.gray, margin: '14px 0 0' }}>
+                {f.a}
+              </div>
+            </details>
+          </Reveal>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+/* ===================================================================== */
 /* BIG CTA                                                                 */
 /* ===================================================================== */
 
@@ -938,6 +1032,7 @@ export default function Landing() {
         <Features />
         <Stats />
         <Testimonials />
+        <FaqSection />
         <CtaSection />
       </main>
       <Footer />

@@ -15,6 +15,11 @@ export default function Login() {
 
     useEffect(() => {
         if (token && user) {
+            // Email tasdiqlanmagan bo'lsa — eng avval bloklash ekraniga
+            if (user.emailVerified === false) {
+                nav('/email-tasdiqlang', { replace: true })
+                return
+            }
             if (from && from !== '/kirish') {
                 nav(from, { replace: true })
             } else if (hasGuestTestResult()) {
@@ -48,22 +53,30 @@ export default function Login() {
 
     return (
         <div
-            className="min-h-screen flex items-center justify-center p-5"
-            style={{ background: 'var(--bg-page)' }}
+            className="kelviq min-h-screen flex items-center justify-center p-5"
+            style={{ background: 'var(--bg-page)', position: 'relative', overflow: 'hidden' }}
         >
-            <div className="w-full max-w-sm anim-up">
+            {/* Faint technical texture behind the card */}
+            <div
+                className="k-tex-dots"
+                aria-hidden="true"
+                style={{ position: 'absolute', inset: 0, zIndex: 0 }}
+            />
+
+            <div className="w-full max-w-sm anim-up" style={{ position: 'relative', zIndex: 1 }}>
 
                 {/* Logo */}
                 <div className="flex items-center gap-2 justify-center mb-8">
-                    <div className="h-9 w-9 rounded-xl flex items-center justify-center" style={{ background: 'var(--brand)' }}>
+                    <div className="h-9 w-9 rounded-xl flex items-center justify-center" style={{ background: 'var(--k-accent-grad)' }}>
                         <BrainCircuit className="h-5 w-5 text-white" />
                     </div>
-                    <span className="font-bold text-xl tracking-tight">DTMMax</span>
+                    <span className="font-bold text-xl tracking-tight">DTM<span className="k-italic">Max</span></span>
                 </div>
 
                 {/* Card */}
                 <div className="card" style={{ padding: '2rem' }}>
-                    <h1 className="text-xl font-bold mb-1">Xush kelibsiz!</h1>
+                    <span className="k-eyebrow">KIRISH</span>
+                    <h1 className="text-xl font-bold mb-1 mt-2">Xush <span className="k-italic">kelibsiz</span>!</h1>
                     <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
                         Platformaga kirish
                     </p>

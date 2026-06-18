@@ -282,6 +282,31 @@ html.dark {
     font-size: 1rem;
 }
 
+/* Global focus-visible halqasi — .btn outline:none ni almashtiradi (a11y, WCAG 2.4.7) */
+.btn:focus-visible,
+.input:focus-visible,
+[role="radio"]:focus-visible,
+button:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+}
+
+/* Amber to'ldirilgan yuzada amber halqa ko'rinmaydi — to'q halqa ishlatamiz */
+.btn-brand:focus-visible {
+    outline: 2px solid var(--text-primary);
+    outline-offset: 2px;
+}
+
+/* Majburiy reduced-motion himoyasi */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
 /* Input */
 .input {
     width: 100%;
