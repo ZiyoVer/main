@@ -1,0 +1,259 @@
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Fraunces:ital,opsz,wght@0,9..144,500;1,9..144,400;1,9..144,500&display=swap');
+
+/* =========================================================================
+   DtmMax — Premium landing (Kelviq aesthetic)
+   White + faint technical grids + bold Hanken Grotesk / italic Fraunces
+   headline + sparing orange accent + pixel icons.
+
+   SCOPING: every token + the landing font live under `.lp-root` ONLY, so they
+   never leak into the rest of the Amber app (which keeps Plus Jakarta Sans).
+   No global body{} / *{} / html{} rules — the app's own index.css owns those.
+   ========================================================================= */
+.lp-root {
+  --lp-bg:        #FFFFFF;   /* page */
+  --lp-bg-2:      #FAFAFA;   /* faint alt panels / screenshot well */
+  --lp-soft:      #FFF1EA;   /* indigo wash (rare: stat chip, icon bg) */
+  --lp-ink:       #0A0A0A;   /* headlines, primary text */
+  --lp-gray:      #5B5B66;   /* body */
+  --lp-gray-2:    #8A8A95;   /* captions, footer secondary */
+  --lp-line:      #E8E8EC;   /* hairlines, card borders */
+  --lp-line-2:    #DEDEE4;   /* hover border */
+  --lp-tex:       #DDE0E6;   /* TEXTURE color — dots & plus marks (faint) */
+
+  --lp-accent:    #F15A24;   /* orange — eyebrow, marks */
+  --lp-accent-strong:#DA4A12;/* CTA active, focus ring */
+  --lp-accent-2:  #FF8A4C;   /* gradient stop 2 */
+  --lp-accent-grad: linear-gradient(135deg, #F15A24 0%, #FF8A4C 100%);
+
+  --lp-shadow-card: 0 1px 2px rgba(10,10,16,.04), 0 1px 1px rgba(10,10,16,.03);
+  --lp-shadow-hover: 0 18px 40px -14px rgba(241,90,36,.22), 0 4px 10px -4px rgba(10,10,16,.06);
+  --lp-shadow-cta: 0 6px 20px rgba(241,90,36,.28);
+  --lp-shadow-cta-hover: 0 10px 28px rgba(241,90,36,.38);
+
+  --lp-r-sm:8px; --lp-r-md:11px; --lp-r-lg:16px; --lp-r-xl:20px; /* radii */
+  --lp-dur-fast:150ms; --lp-dur:250ms;
+  --lp-ease-out:cubic-bezier(0,0,.2,1);
+
+  --lp-sans: 'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --lp-serif: 'Fraunces', Georgia, 'Times New Roman', serif;
+
+  /* font applies ONLY inside the landing root — never globally */
+  font-family: 'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background: var(--lp-bg);
+  color: var(--lp-ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  scroll-behavior: smooth;
+}
+
+/* keep box-sizing predictable for the landing's own boxes without touching globals */
+.lp-root *,
+.lp-root *::before,
+.lp-root *::after { box-sizing: border-box; }
+
+/* ============================ TECHNICAL TEXTURES ============================
+   All textures sit behind content at low contrast, pointer-events:none,
+   z-index:0; content z-index:1. Colour = --lp-tex #DDE0E6. */
+
+/* 4-A. Dotted grid (hero upper-right) */
+.lp-root .lp-tex-dots {
+  background-image: radial-gradient(var(--lp-tex) 1.1px, transparent 1.1px);
+  background-size: 22px 22px;
+  background-position: -11px -11px;       /* centres dots in cells */
+  -webkit-mask-image: linear-gradient(to bottom left, #000, transparent 75%);
+          mask-image: linear-gradient(to bottom left, #000, transparent 75%);
+}
+
+/* 4-B. Plus-sign grid (SVG-data-URI — the CSS-mask radial method failed in render) */
+.lp-root .lp-tex-plus {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Cg fill='none' stroke='%23DDE0E6' stroke-width='1.2'%3E%3Cpath d='M14 9.5v9 M9.5 14h9'/%3E%3C/g%3E%3C/svg%3E");
+  background-repeat: repeat;
+  opacity: .6;
+}
+
+/* 4-C. Hairline rules carry --lp-line (lighter than texture so they read as structure) */
+
+/* Hero left vertical ruled margin */
+.lp-root .lp-hero-rule {
+  position: absolute;
+  left: 0;
+  top: 8%;
+  bottom: 8%;
+  width: 1px;
+  background: var(--lp-line);
+}
+
+/* Full-bleed section divider */
+.lp-root .lp-divider {
+  height: 1px;
+  background: var(--lp-line);
+  border: none;
+  margin: 0;
+}
+
+/* ============================ MOTION ============================ */
+
+/* Entrance reveal (transform + opacity only) */
+.lp-root .lp-reveal {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 400ms var(--lp-ease-out), transform 400ms var(--lp-ease-out);
+}
+.lp-root .lp-reveal.is-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Feature / testimonial card hover glow (owner: "cards light up") */
+.lp-root .lp-card {
+  transition: transform var(--lp-dur) var(--lp-ease-out),
+              box-shadow var(--lp-dur) var(--lp-ease-out),
+              border-color var(--lp-dur) var(--lp-ease-out);
+}
+.lp-root .lp-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--lp-shadow-hover);
+  border-color: var(--lp-line-2);
+}
+.lp-root .lp-pixicon {
+  transition: transform var(--lp-dur-fast) var(--lp-ease-out);
+}
+.lp-root .lp-card:hover .lp-pixicon {
+  transform: scale(1.06);
+}
+
+/* ============================ MATH GLYPH ZONE ============================
+   Every floating element (symbols √ Σ π ∫ x², numbers, AND mini-equations)
+   shares .lp-glyph so they react IDENTICALLY on hover/focus. The glow is
+   delivered two ways that are INDEPENDENT of glyph stroke-width — so a thin
+   italic √ lights up exactly as strong as the bold 189:
+     1. .lp-glyph-burst — a pixelated orange halo ring behind the glyph
+        (box-shadow stack, not text-shadow → not stroke-dependent).
+     2. drop-shadow filter on the character itself for the soft outer glow.   */
+.lp-root .lp-glyph {
+  position: absolute;          /* per-glyph position set inline */
+  display: inline-grid;
+  place-items: center;
+  color: var(--lp-tex);
+  opacity: var(--lp-glyph-op, 1);   /* depth fade (0=far) */
+  /* ambient: gentle float + AUTO sequential orange glow (no hover needed).
+     two delays set inline per glyph: "<floatDelay>, <glowDelay>" so the glow
+     cascades from one element to the next, looping forever. */
+  animation: lp-float 7s ease-in-out infinite, lp-glow 8s ease-in-out infinite;
+}
+.lp-root .lp-glyph-ch {
+  position: relative;
+  z-index: 1;
+  display: inline-block;
+  transition: filter var(--lp-dur) var(--lp-ease-out),
+              text-shadow var(--lp-dur) var(--lp-ease-out);
+}
+/* (Pixel-burst "cube" halo removed per owner — the glow is now the auto
+   lp-glow pulse on .lp-glyph itself, no hover required.) */
+
+/* Gentle parallax float (uses the `translate` property, independent of the
+   glow's `transform`, so the two animations compose cleanly). */
+@keyframes lp-float {
+  0%, 100% { translate: 0 0; }
+  50%      { translate: 0 -7px; }
+}
+/* AUTO sequential glow — each glyph lights up orange in turn (delay set inline),
+   then fades back. No hover needed. Lit window ≈10% of the 8s cycle. */
+@keyframes lp-glow {
+  0%, 78%, 100% {
+    color: var(--lp-tex);
+    opacity: var(--lp-glyph-op, 1);
+    transform: scale(1);
+    filter: none;
+  }
+  6%, 16% {
+    color: var(--lp-accent);
+    opacity: 1;
+    transform: scale(1.14);
+    filter: drop-shadow(0 0 9px rgba(241,90,36,.55)) drop-shadow(0 0 3px rgba(241,90,36,.75));
+  }
+}
+
+/* Pixel sparkle TWINKLE — steps() makes the opacity/scale change in choppy
+   8-bit increments rather than a smooth fade (deliberate pixel-art motion). */
+.lp-root .lp-pixel-sparkle {
+  opacity: 0;
+  animation: lp-twinkle 3.2s steps(4, jump-none) infinite;
+}
+@keyframes lp-twinkle {
+  0%   { opacity: 0;   scale: 0.4; }
+  40%  { opacity: .85; scale: 1; }
+  60%  { opacity: .85; scale: 1; }
+  100% { opacity: 0;   scale: 0.4; }
+}
+
+/* Buttons + interactive base */
+.lp-root .lp-btn {
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform .2s var(--lp-ease-out), box-shadow .2s var(--lp-ease-out),
+              background var(--lp-dur) ease, border-color var(--lp-dur) ease,
+              color var(--lp-dur-fast) ease;
+}
+.lp-root .lp-btn:active { transform: translateY(0) scale(.98); }
+
+.lp-root .lp-link { transition: color var(--lp-dur-fast) ease; }
+.lp-root .lp-link:hover { color: var(--lp-ink); text-underline-offset: 4px; }
+
+/* Arrow nudge */
+.lp-root .lp-btn .lp-arrow { transition: transform .2s var(--lp-ease-out); }
+.lp-root .lp-btn:hover .lp-arrow { transform: translateX(3px); }
+
+/* Focus-visible ring — every interactive element */
+.lp-root .lp-btn:focus-visible,
+.lp-root .lp-link:focus-visible,
+.lp-root .lp-glyph:focus-visible {
+  outline: 2px solid var(--lp-accent-strong);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* ============================ REDUCED MOTION ============================ */
+@media (prefers-reduced-motion: reduce) {
+  .lp-root *, .lp-root ::before, .lp-root ::after {
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+  .lp-root .lp-reveal { opacity: 1; transform: none; }
+  .lp-root .lp-card:hover { transform: none; }       /* keep border + static shadow */
+  .lp-root .lp-card:hover .lp-pixicon { transform: none; }
+  /* freeze float + auto-glow + twinkle — static & accessible */
+  .lp-root .lp-glyph { animation: none !important; translate: 0 0 !important; transform: none !important; opacity: var(--lp-glyph-op, 1) !important; }
+  .lp-root .lp-pixel-sparkle { animation: none !important; opacity: .5 !important; scale: 1 !important; }
+}
+
+/* ============================ RESPONSIVE ============================ */
+
+/* 768–1023px */
+@media (max-width: 1023px) {
+  .lp-root .lp-container { padding-left: 40px !important; padding-right: 40px !important; }
+  .lp-root .lp-h1 { font-size: 56px !important; }
+  .lp-root .lp-h2 { font-size: 38px !important; }
+  .lp-root .lp-grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
+  .lp-root .lp-grid-3 { grid-template-columns: repeat(2, 1fr) !important; }
+  .lp-root .lp-math-zone { width: 340px !important; }
+  .lp-root .lp-nav-links { display: none !important; }
+}
+
+/* ≤767px — single column, calm page */
+@media (max-width: 767px) {
+  .lp-root .lp-container { padding-left: 24px !important; padding-right: 24px !important; }
+  .lp-root .lp-h1 { font-size: 40px !important; line-height: 1.08 !important; }
+  .lp-root .lp-h2 { font-size: 32px !important; }
+  .lp-root .lp-hero-rule { display: none !important; }
+  .lp-root .lp-hero-content { padding-left: 0 !important; }
+  .lp-root .lp-math-zone { display: none !important; }   /* keep mobile calm — Kelviq stays minimal */
+  .lp-root .lp-tex-dots { width: 200px !important; height: 160px !important; }
+  .lp-root .lp-grid-4 { grid-template-columns: 1fr !important; }
+  .lp-root .lp-grid-3 { grid-template-columns: 1fr !important; }
+  .lp-root .lp-stats { grid-template-columns: repeat(2, 1fr) !important; }
+  .lp-root .lp-stat-col { border-left: none !important; }
+  .lp-root .lp-cta-actions { flex-direction: column !important; }
+  .lp-root .lp-cta-actions > * { width: 100% !important; justify-content: center !important; }
+  .lp-root .lp-footer-cols { grid-template-columns: 1fr 1fr !important; }
+}
