@@ -209,14 +209,15 @@ export function scoreMilliySertifikatAttempt(params: {
     const correctCount = raschItems.filter(item => item.isCorrect).length
     let ability = currentAbility
 
-    if (canUpdateAbility) {
-        if (correctCount === 0) {
-            ability = -5
-        } else if (correctCount === raschItems.length) {
-            ability = 5
-        } else {
-            ability = updateAbility(currentAbility, raschItems)
-        }
+    // Degenerate chegaralar (0/n va n/n) doimo to'g'ri ability'ga olib kelishi kerak:
+    // canUpdateAbility false bo'lsa ham, all-correct → +5, all-wrong → -5.
+    // Aks holda standart default (0.0) da expectedRatio ~0.5 ga qulab, perfect ball "D" bo'lib qoladi.
+    if (correctCount === 0) {
+        ability = -5
+    } else if (correctCount === raschItems.length) {
+        ability = 5
+    } else if (canUpdateAbility) {
+        ability = updateAbility(currentAbility, raschItems)
     }
 
     const expectedRatio = raschItems.reduce((sum, item) => sum + raschProbability(ability, item.difficulty), 0) / raschItems.length
@@ -227,7 +228,7 @@ export function scoreMilliySertifikatAttempt(params: {
         scorePercent,
         rawScore,
         scoreMax: 75,
-        grade: getMsGrade(rawScore),
+        grade: getMsGrade(scorePercent),
         ability,
     }
 }

@@ -10,7 +10,7 @@ import express from 'express'
 import cors from 'cors'
 import { readFileSync, readdirSync, statSync, existsSync } from 'fs'
 import { join, relative, resolve } from 'path'
-import { execSync } from 'child_process'
+import { execSync, execFileSync } from 'child_process'
 import { z } from 'zod'
 
 const PORT = process.env.MCP_PORT ? parseInt(process.env.MCP_PORT) : 3100
@@ -69,18 +69,38 @@ function listDir(dirPath: string, depth = 2, current = 0): string {
   }
 }
 
-/** Kodda qidirish (grep) */
+/** Kodda qidirish (grep) — shell injection'siz: argumentlar massiv orqali (execFileSync) */
 function searchCode(pattern: string, dir = '', fileExt = ''): string {
   try {
-    const searchDir = dir ? join(ROOT, dir) : ROOT
-    const extFlag = fileExt ? `--include="*.${fileExt}"` : '--include="*.{ts,tsx,js,jsx,json,md}"'
-    const cmd = `grep -r --line-number -i ${extFlag} "${pattern.replace(/"/g, '\\"')}" "${searchDir}" 2>/dev/null | head -50`
-    const result = execSync(cmd, { encoding: 'utf-8', timeout: 10000 })
+    // directory ROOT ichida qolishini tekshiramiz (safeRead/listDir bilan bir xil guard)
+    const searchDir = resolve(dir ? join(ROOT, dir) : ROOT)
+    if (!searchDir.startsWith(ROOT)) return '❌ Root dan tashqari papkada qidirib bo\'lmaydi'
+    if (!existsSync(searchDir)) return `❌ Papka topilmadi: ${dir}`
+
+    // extension whitelist — faqat harf/raqam va {,} (grep brace-list uchun)
+    if (fileExt && !/^[a-z0-9,{}]+$/i.test(fileExt)) {
+      return '❌ Noto\'g\'ri kengaytma formati'
+    }
+    const includeGlob = fileExt ? `*.${fileExt}` : '*.{ts,tsx,js,jsx,json,md}'
+
+    // Argumentlar massiv sifatida uzatiladi — shell parse qilinmaydi, $(...)/`...`/; inert bo'ladi.
+    const args = ['-r', '--line-number', '-i', `--include=${includeGlob}`, '--', pattern, searchDir]
+    let result: string
+    try {
+      result = execFileSync('grep', args, { encoding: 'utf-8', timeout: 10000, maxBuffer: 5 * 1024 * 1024 })
+    } catch (e: any) {
+      // grep status 1 = mos kelmadi (xato emas)
+      if (e.status === 1) return `"${pattern}" topilmadi`
+      throw e
+    }
     if (!result.trim()) return `"${pattern}" topilmadi`
-    // Absolute path ni relative ga aylantirish
-    return result.split('\n').map(line => line.replace(ROOT + '/', '')).join('\n')
+    // Eng ko'pi 50 qator, va absolute path ni relative ga aylantirish
+    return result
+      .split('\n')
+      .slice(0, 50)
+      .map(line => line.replace(ROOT + '/', ''))
+      .join('\n')
   } catch (e: any) {
-    if (e.status === 1) return `"${pattern}" topilmadi`
     return `❌ Xato: ${e.message}`
   }
 }
@@ -274,11 +294,14 @@ main platforma/
     },
     async ({ count }) => {
       try {
-        const log = execSync(
-          `git log --oneline -${Math.min(count, 20)} && echo "---" && git diff --name-only HEAD~1 2>/dev/null`,
-          { encoding: 'utf-8', cwd: ROOT, timeout: 10000 }
-        )
-        return { content: [{ type: 'text', text: log }] }
+        const safeCount = Math.max(1, Math.min(Math.trunc(count), 20))
+        // Shell'siz: argumentlar massiv orqali uzatiladi.
+        const log = execFileSync('git', ['log', '--oneline', `-${safeCount}`], { encoding: 'utf-8', cwd: ROOT, timeout: 10000 })
+        let changed = ''
+        try {
+          changed = execFileSync('git', ['diff', '--name-only', 'HEAD~1'], { encoding: 'utf-8', cwd: ROOT, timeout: 10000 })
+        } catch { /* HEAD~1 yo'q bo'lishi mumkin — e'tiborsiz qoldiramiz */ }
+        return { content: [{ type: 'text', text: `${log}---\n${changed}` }] }
       } catch (e: any) {
         return { content: [{ type: 'text', text: e.message }] }
       }
@@ -291,8 +314,17 @@ main platforma/
 // ─── Express HTTP server ──────────────────────────────────────────────────────
 
 const app = express()
-app.use(cors())
+// Faqat lokal dev tooli: ochiq CORS o'rniga origin'ni yopamiz (DNS-rebinding/cross-origin oldini olish).
+app.use(cors({ origin: false }))
 app.use(express.json())
+
+// Defense-in-depth: MCP_TOKEN o'rnatilgan bo'lsa, /mcp uchun Bearer token talab qilinadi.
+const MCP_TOKEN = process.env.MCP_TOKEN
+function requireMcpAuth(req: express.Request, res: express.Response, next: express.NextFunction): void {
+  if (!MCP_TOKEN) return next() // token sozlanmagan bo'lsa eski xatti-harakat (lokal qulaylik)
+  if (req.headers.authorization === `Bearer ${MCP_TOKEN}`) return next()
+  res.status(401).json({ error: 'Ruxsat yo\'q' })
+}
 
 // Health check
 app.get('/health', (_req, res) => {
@@ -310,7 +342,7 @@ app.get('/health', (_req, res) => {
 })
 
 // MCP endpoint — har so'rov uchun yangi transport
-app.post('/mcp', async (req, res) => {
+app.post('/mcp', requireMcpAuth, async (req, res) => {
   const server = createServer()
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,  // stateless
@@ -320,7 +352,7 @@ app.post('/mcp', async (req, res) => {
   await transport.handleRequest(req, res, req.body)
 })
 
-app.get('/mcp', async (req, res) => {
+app.get('/mcp', requireMcpAuth, async (req, res) => {
   const server = createServer()
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
@@ -334,7 +366,8 @@ app.delete('/mcp', async (req, res) => {
   res.status(405).json({ error: 'DELETE supported emas' })
 })
 
-app.listen(PORT, () => {
+// Faqat loopback (127.0.0.1) ga bog'lanamiz — LAN'dan erishib bo'lmaydi.
+app.listen(PORT, '127.0.0.1', () => {
   console.log(`\n🚀 DTMMax MCP Server ishga tushdi`)
   console.log(`   Port: http://localhost:${PORT}`)
   console.log(`   Health: http://localhost:${PORT}/health`)

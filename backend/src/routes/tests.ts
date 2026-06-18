@@ -23,6 +23,14 @@ import {
 
 const TEST_SUBMIT_GRACE_MS = 5000
 
+// Test allaqachon yechilgan bo'lsa (double-submit/replay) — 409 qaytarish uchun sentinel xato.
+class AlreadySubmittedError extends Error {
+    constructor() {
+        super('Bu test allaqachon yechilgan')
+        this.name = 'AlreadySubmittedError'
+    }
+}
+
 function getTimeLimitMs(timeLimit: number | null | undefined): number | null {
     if (typeof timeLimit !== 'number' || !Number.isFinite(timeLimit) || timeLimit <= 0) return null
     return Math.round(timeLimit * 60 * 1000)
@@ -1875,6 +1883,20 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
         const totalForResponse = effectiveTotal
 
         const attempt = await prisma.$transaction(async (tx) => {
+            // Idempotentlik: vaqt-limitsiz testlarda sessiya guard'i yo'q (timeLimitMs === null),
+            // shuning uchun double-submit/replay'ni shu yerda to'xtatamiz — bir foydalanuvchi
+            // vaqt-limitsiz testni faqat bir marta yechadi. Vaqtli testlar sessiya orqali
+            // (yuqorida 1724-1738) himoyalangan va qayta ochilganda yangi sessiya bilan
+            // qayta yechilishi mumkin — bu xatti-harakatga tegmaymiz.
+            if (!timeLimitMs) {
+                const existingAttempt = await tx.testAttempt.findFirst({
+                    where: { testId: test.id, userId: req.user.id }
+                })
+                if (existingAttempt) {
+                    throw new AlreadySubmittedError()
+                }
+            }
+
             let profile = await tx.studentProfile.findUnique({
                 where: { userId: req.user.id }
             })
@@ -2001,6 +2023,9 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
             correctAnswers
         })
     } catch (e) {
+        if (e instanceof AlreadySubmittedError) {
+            return res.status(409).json({ error: e.message })
+        }
         console.error(e)
         res.status(500).json({ error: 'Server xatoligi' })
     }
@@ -2125,7 +2150,7 @@ router.get('/:testId/analytics', authenticate, requireRole('TEACHER', 'ADMIN'), 
                 dtmMax: normalizedTestType === 'DTM_BLOCK' ? scoreMax : undefined,
                 msBall: normalizedTestType === 'MILLIY_SERTIFIKAT' ? rawScore : undefined,
                 msMax: normalizedTestType === 'MILLIY_SERTIFIKAT' ? scoreMax : undefined,
-                grade: a.grade || (normalizedTestType === 'MILLIY_SERTIFIKAT' ? getMsGrade(rawScore) : null),
+                grade: a.grade || (normalizedTestType === 'MILLIY_SERTIFIKAT' ? getMsGrade(scoreMax > 0 ? (rawScore / scoreMax) * 100 : 0) : null),
                 raschAbility: a.raschAbility ?? null,
                 createdAt: a.createdAt
             }
