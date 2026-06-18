@@ -222,6 +222,11 @@
    them cleanly. The .lp-root focus-visible ring covers <summary> via .lp-faq-q. */
 .lp-root .lp-faq-item {
   list-style: none;
+  background: #fff;
+  border: 1px solid var(--lp-line);
+  border-radius: 18px;
+  padding: 20px 24px;
+  box-shadow: var(--lp-shadow-card);
   transition: border-color var(--lp-dur) var(--lp-ease-out),
               box-shadow var(--lp-dur) var(--lp-ease-out);
 }

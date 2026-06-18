@@ -860,10 +860,7 @@ function FaqSection() {
       <div style={{ maxWidth: 820, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
         {FAQS.map((f, i) => (
           <Reveal key={f.q} delay={i * 60}>
-            <details
-              className="lp-faq-item"
-              style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 18, padding: '20px 24px', boxShadow: SHADOW.card }}
-            >
+            <details className="lp-faq-item">
               <summary
                 className="lp-faq-q"
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, fontFamily: SANS, fontSize: 17.5, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.3, color: C.ink }}
