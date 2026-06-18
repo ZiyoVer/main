@@ -291,6 +291,7 @@
   .lp-root .lp-tex-dots { width: 200px !important; height: 160px !important; }
   .lp-root .lp-grid-4 { grid-template-columns: 1fr !important; }
   .lp-root .lp-grid-3 { grid-template-columns: 1fr !important; }
+  .lp-root .lp-grid-2 { grid-template-columns: 1fr !important; }
   .lp-root .lp-stats { grid-template-columns: repeat(2, 1fr) !important; }
   .lp-root .lp-stat-col { border-left: none !important; }
   .lp-root .lp-cta-actions { flex-direction: column !important; }

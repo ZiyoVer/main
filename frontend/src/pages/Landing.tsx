@@ -383,6 +383,7 @@ function Nav() {
           <SubjectsDropdown />
 
           <a href="#natijalar" className="lp-link" style={{ color: C.gray, textDecoration: 'none' }}>Natijalar</a>
+          <a href="#narxlar" className="lp-link" style={{ color: C.gray, textDecoration: 'none' }}>Narxlar</a>
           <a href="#faq" className="lp-link" style={{ color: C.gray, textDecoration: 'none' }}>FAQ</a>
         </div>
 
@@ -590,13 +591,13 @@ function Hero() {
 
           <h1
             className="lp-h1"
-            style={{ fontFamily: SANS, fontSize: 72, fontWeight: 800, letterSpacing: '-0.035em', lineHeight: 1.04, margin: 0, color: C.ink, maxWidth: '13ch' }}
+            style={{ fontFamily: SANS, fontSize: 72, fontWeight: 800, letterSpacing: '-0.035em', lineHeight: 1.04, margin: 0, color: C.ink, maxWidth: '14ch' }}
           >
-            Imtihoningizni <Em>yutib</Em> chiqing.
+            Orzungdagi universitet — <Em>yetib</Em> boriladigan masofada.
           </h1>
 
           <p style={{ fontSize: 20, fontWeight: 400, lineHeight: 1.6, color: C.gray, maxWidth: '46ch', margin: '26px 0 0' }}>
-            DTM va Milliy Sertifikatga shaxsiy AI repetitor bilan tayyorlaning — tushuntiradi, test tuzadi, natijangizni kuzatadi.
+            Katta maqsading bor — biz yo'lni aniq qilamiz. Shaxsiy AI repetitor har kuni yoningda: tushuntiradi, mashq beradi va seni qadam-baqadam o'sha orzuga yaqinlashtiradi.
           </p>
 
           <div style={{ display: 'flex', gap: 14, marginTop: 34, flexWrap: 'wrap' }} className="lp-cta-actions">
@@ -620,10 +621,10 @@ function Hero() {
 
 type Feature = { icon: PixIconName; title: string; body: string }
 const FEATURES: Feature[] = [
-  { icon: 'brain', title: 'Tushuntirish', body: 'Har bir mavzuni soddadan murakkabga AI tushuntiradi.' },
-  { icon: 'target', title: 'Test', body: 'Cheksiz DTM uslubidagi testlar — darhol baholash.' },
-  { icon: 'chart', title: 'Tahlil', body: "Zaif mavzularingizni grafik bilan ko'rsatadi." },
-  { icon: 'cards', title: 'Eslab qolish', body: 'Flashcardlar bilan formulalarni mustahkamlang.' },
+  { icon: 'brain', title: 'Tushunib ol', body: 'Har bir mavzuni AI soddadan murakkabga, tushunarli qilib ochib beradi.' },
+  { icon: 'target', title: 'Mashq qil', body: "Cheksiz DTM uslubidagi testlar — darhol javob, darhol o'sish." },
+  { icon: 'chart', title: "O'sishingni ko'r", body: "Qaysi mavzu kuchli, qaysi biri zaif — grafiklarda aniq ko'rinadi." },
+  { icon: 'cards', title: 'Mustahkamla', body: 'Flashcardlar bilan formula va qoidalarni uzoq xotirada saqla.' },
 ]
 
 function Features() {
@@ -639,13 +640,13 @@ function Features() {
         <Reveal>
           <div style={{ maxWidth: 680, margin: '0 auto 56px', textAlign: 'center' }}>
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
-              <Eyebrow align="center">BITTA PLATFORMA</Eyebrow>
+              <Eyebrow align="center">ORZU SARI YO'L</Eyebrow>
             </div>
             <h2 className="lp-h2" style={{ fontFamily: SANS, fontSize: 46, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.08, margin: 0, color: C.ink }}>
-              Tayyorgarlik uchun <Em>hammasi</Em> shu yerda
+              Maqsadingga eltadigan <Em>hammasi</Em> shu yerda
             </h2>
             <p style={{ fontSize: 20, lineHeight: 1.6, color: C.gray, maxWidth: '42ch', margin: '20px auto 0' }}>
-              Tushuntirish, test, tahlil va eslab qolish — boshqa ilova kerak emas.
+              Tushuntirish, mashq, tahlil va eslab qolish — har bir qadaming bitta joyda, chalkashliksiz.
             </p>
           </div>
         </Reveal>
@@ -764,13 +765,13 @@ function Testimonials() {
       <Reveal>
         <div style={{ maxWidth: 680, margin: '0 auto 56px', textAlign: 'center' }}>
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
-            <Eyebrow align="center">NATIJALAR</Eyebrow>
+            <Eyebrow align="center">ULAR ORZUSIGA YETDI</Eyebrow>
           </div>
           <h2 className="lp-h2" style={{ fontFamily: SANS, fontSize: 46, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.08, margin: 0, color: C.ink }}>
-            Haqiqiy <Em>natijalar</Em>
+            Sendan oldin <Em>boshlaganlar</Em>
           </h2>
           <p style={{ fontSize: 20, lineHeight: 1.6, color: C.gray, maxWidth: '42ch', margin: '20px auto 0' }}>
-            Mehnat qilgan o'quvchilarning o'z so'zlari bilan.
+            Bir vaqtlar ular ham xuddi sendek boshlagan edi — o'z so'zlari bilan.
           </p>
         </div>
       </Reveal>
@@ -892,6 +893,201 @@ function FaqSection() {
 }
 
 /* ===================================================================== */
+/* PRICING — "Narxlar" (visible, NOT enforced — hammasi hozir bepul)       */
+/* ===================================================================== */
+
+/* Small orange pixel-check used inside the Pro feature list. Reuses the
+   pixel-art language (16×16 crispEdges) of PixelIcon. */
+function PixelCheck({ color = C.accent }: { color?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      width={16}
+      height={16}
+      viewBox="0 0 16 16"
+      shapeRendering="crispEdges"
+      fill={color}
+      style={{ flexShrink: 0, marginTop: 3 }}
+    >
+      <rect x="12" y="3" width="2" height="2" />
+      <rect x="10" y="5" width="2" height="2" />
+      <rect x="8" y="7" width="2" height="2" />
+      <rect x="6" y="9" width="2" height="2" />
+      <rect x="4" y="11" width="2" height="2" />
+      <rect x="2" y="9" width="2" height="2" />
+    </svg>
+  )
+}
+
+type Plan = {
+  name: string
+  price: string
+  period?: string
+  tagline: string
+  features: string[]
+  cta: string
+  to?: string
+  ctaDisabled?: boolean
+  highlight?: boolean
+  badge?: string
+}
+
+const PLANS: Plan[] = [
+  {
+    name: 'Bepul',
+    price: '0',
+    period: "so'm",
+    tagline: "Hammaga to'liq ochiq — bugun va doimo.",
+    features: [
+      'AI repetitor bilan cheksiz suhbat',
+      'Cheksiz DTM uslubidagi testlar',
+      'Natija tahlili va progress kuzatuvi',
+      'Flashcardlar bilan eslab qolish',
+    ],
+    cta: 'Bepul boshlash',
+    to: ROUTE_REGISTER,
+  },
+  {
+    name: 'Pro',
+    price: '35 000',
+    period: "so'm / oy",
+    tagline: 'Orzuingga tezroq yetmoqchilar uchun qo\'shimcha kuch.',
+    features: [
+      'Thinking rejim — murakkab masalalarda AI chuqurroq fikrlaydi',
+      'DTM savol-bashorati — 5 yillik tahlilga asoslangan eng ehtimoliy mavzu va savol turlari',
+      'Chuqur analitika — kengaytirilgan zaiflik va progress tahlili',
+      'Cheksiz va ustuvor yordam',
+    ],
+    cta: 'Tez kunda',
+    ctaDisabled: true,
+    highlight: true,
+    badge: "Beta'da bepul ochiq",
+  },
+]
+
+function PlanCard({ plan }: { plan: Plan }) {
+  const card: CSSProperties = {
+    position: 'relative',
+    background: '#fff',
+    border: plan.highlight ? `1.5px solid ${C.accent}` : `1px solid ${C.line}`,
+    borderRadius: 18,
+    padding: 32,
+    boxShadow: plan.highlight ? '0 18px 40px -16px rgba(241,90,36,.24)' : SHADOW.card,
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+  }
+  return (
+    <div className="lp-card" style={card}>
+      {plan.badge && (
+        <span
+          style={{
+            position: 'absolute',
+            top: 20,
+            right: 20,
+            background: C.soft,
+            color: C.accentStrong,
+            fontSize: 12,
+            fontWeight: 700,
+            letterSpacing: '0.02em',
+            padding: '5px 11px',
+            borderRadius: 999,
+          }}
+        >
+          {plan.badge}
+        </span>
+      )}
+
+      <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: plan.highlight ? C.accent : C.gray2 }}>
+        {plan.name}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: '14px 0 0' }}>
+        <span style={{ fontFamily: SANS, fontSize: 44, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1, color: C.ink }}>
+          {plan.price}
+        </span>
+        {plan.period && <span style={{ fontSize: 15, fontWeight: 500, color: C.gray }}>{plan.period}</span>}
+      </div>
+
+      <p style={{ fontSize: 15, lineHeight: 1.55, color: C.gray, margin: '12px 0 0' }}>{plan.tagline}</p>
+
+      <ul style={{ listStyle: 'none', padding: 0, margin: '24px 0 0', display: 'flex', flexDirection: 'column', gap: 14, flexGrow: 1 }}>
+        {plan.features.map((f) => (
+          <li key={f} style={{ display: 'flex', gap: 11, fontSize: 15, lineHeight: 1.5, color: C.ink }}>
+            <PixelCheck color={plan.highlight ? C.accent : C.gray2} />
+            <span>{f}</span>
+          </li>
+        ))}
+      </ul>
+
+      <div style={{ marginTop: 28 }}>
+        {plan.ctaDisabled ? (
+          <span
+            aria-disabled="true"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '100%',
+              fontFamily: SANS,
+              fontWeight: 600,
+              fontSize: 15,
+              lineHeight: 1,
+              padding: '13px 20px',
+              borderRadius: 11,
+              border: `1px solid ${C.line}`,
+              background: C.bg2,
+              color: C.gray2,
+              cursor: 'not-allowed',
+            }}
+          >
+            {plan.cta}
+          </span>
+        ) : (
+          <div style={{ display: 'flex' }}>
+            <Button to={plan.to ?? ROUTE_REGISTER} variant={plan.highlight ? 'primary' : 'outline'} size="md" arrow>
+              {plan.cta}
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function Pricing() {
+  return (
+    <section id="narxlar" style={{ ...container, padding: '96px 56px', position: 'relative' }} className="lp-container">
+      <Reveal>
+        <div style={{ maxWidth: 680, margin: '0 auto 56px', textAlign: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
+            <Eyebrow align="center">NARXLAR</Eyebrow>
+          </div>
+          <h2 className="lp-h2" style={{ fontFamily: SANS, fontSize: 46, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.08, margin: 0, color: C.ink }}>
+            Hozir <Em>hammasi</Em> bepul
+          </h2>
+          <p style={{ fontSize: 20, lineHeight: 1.6, color: C.gray, maxWidth: '44ch', margin: '20px auto 0' }}>
+            Barcha asosiy imkoniyatlar hammaga ochiq. Pro reja — orzuingga tezroq yetmoqchilar uchun qo'shimcha kuch, tez kunda.
+          </p>
+        </div>
+      </Reveal>
+
+      <div className="lp-grid-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20, maxWidth: 880, margin: '0 auto' }}>
+        {PLANS.map((p, i) => (
+          <Reveal key={p.name} delay={i * 80}>
+            <PlanCard plan={p} />
+          </Reveal>
+        ))}
+      </div>
+
+      <p style={{ fontSize: 13.5, lineHeight: 1.6, color: C.gray2, textAlign: 'center', maxWidth: '60ch', margin: '28px auto 0' }}>
+        DTM savol-bashorati — kafolat emas: 5 yillik DTM tahlillarimizga ko'ra eng ehtimoliy mavzu va savol turlari. To'lov hali ishga tushmagan — hozircha barcha imkoniyatlardan bepul foydalaning.
+      </p>
+    </section>
+  )
+}
+
+/* ===================================================================== */
 /* BIG CTA                                                                 */
 /* ===================================================================== */
 
@@ -904,13 +1100,13 @@ function CtaSection() {
         <div style={{ position: 'relative', zIndex: 1 }}>
           <Reveal>
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
-              <Eyebrow align="center">BUGUN BOSHLANG</Eyebrow>
+              <Eyebrow align="center">ORZUNG SHU YERDAN BOSHLANADI</Eyebrow>
             </div>
             <h2 className="lp-h2" style={{ fontFamily: SANS, fontSize: 46, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.08, margin: 0, color: C.ink }}>
-              Imtihonga <Em>bugundan</Em> tayyorlaning
+              Birinchi qadamni <Em>bugun</Em> tashla
             </h2>
             <p style={{ fontSize: 20, lineHeight: 1.6, color: C.gray, maxWidth: '42ch', margin: '20px auto 0' }}>
-              Ro'yxatdan o'tish bepul. Karta kerak emas.
+              Orzuga eltadigan yo'l bitta qadamdan boshlanadi. Ro'yxatdan o'tish bepul, karta kerak emas.
             </p>
             <div style={{ marginTop: 34, display: 'flex', justifyContent: 'center' }} className="lp-cta-actions">
               <Button to={ROUTE_REGISTER} variant="primary" size="lg" arrow>Bepul boshlash</Button>
@@ -1029,6 +1225,7 @@ export default function Landing() {
         <Features />
         <Stats />
         <Testimonials />
+        <Pricing />
         <FaqSection />
         <CtaSection />
       </main>
