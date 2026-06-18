@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { BrainCircuit, Eye, EyeOff, Check } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import { SUBJECTS } from '@/constants'
+import { DTM_DIRECTIONS, SCORE_BOUNDS, dtmDirectionByCode } from '@/constants/dtmDirections'
 import { useAuthStore } from '@/store/authStore'
 
 function getSafeRegisterRedirect(from: unknown): string | null {
@@ -35,6 +36,7 @@ export default function Register() {
     const [examType, setExamType] = useState<'DTM' | 'MS' | ''>('')
     const [subject1, setSubject1] = useState('')
     const [subject2, setSubject2] = useState('')
+    const [directionCode, setDirectionCode] = useState('')
     const [examDate, setExamDate] = useState('')
     const [targetScore, setTargetScore] = useState('')
     const [showPw, setShowPw] = useState(false)
@@ -43,6 +45,32 @@ export default function Register() {
     const [checkingEmail, setCheckingEmail] = useState(false)
 
     const step1Valid = form.name.trim() && form.email.trim() && form.password.length >= 8 && /[a-zA-Z]/.test(form.password) && /[0-9]/.test(form.password)
+
+    // examType o'zgarganda yo'nalish/2-fanni tozalaymiz (eski derived qiymat ketmasligi uchun)
+    const handleExamTypeChange = (t: 'DTM' | 'MS') => {
+        const next = examType === t ? '' : t
+        setExamType(next)
+        setDirectionCode('')
+        setSubject2('')
+        if (next === 'DTM') setSubject1('')
+    }
+
+    // DTM yo'nalishi tanlanganda subject1/subject2 derived qiymatlarni to'ldiramiz
+    const handleDirectionChange = (code: string) => {
+        setDirectionCode(code)
+        const dir = dtmDirectionByCode(code)
+        setSubject1(dir?.subject1 || '')
+        setSubject2(dir?.subject2 || '')
+    }
+
+    const selectedDirection = directionCode ? dtmDirectionByCode(directionCode) : undefined
+
+    // examType bo'yicha ball chegaralari (DTM 1..189, MS 0..75; noma'lum bo'lsa DTM — eng qattiq)
+    const scoreBounds = examType === 'MS' ? SCORE_BOUNDS.MS : SCORE_BOUNDS.DTM
+    const parsedScore = targetScore.trim() === '' ? null : Number(targetScore)
+    const scoreErr = parsedScore !== null && (!Number.isInteger(parsedScore) || parsedScore < scoreBounds.min || parsedScore > scoreBounds.max)
+        ? `Ball ${scoreBounds.min}–${scoreBounds.max} oralig'idagi butun son bo'lishi kerak`
+        : ''
 
     const goToStep2 = async () => {
         setErr('')
@@ -228,7 +256,7 @@ export default function Register() {
                                         <button
                                             key={t}
                                             type="button"
-                                            onClick={() => setExamType(examType === t ? '' : t)}
+                                            onClick={() => handleExamTypeChange(t)}
                                             className="btn btn-outline"
                                             style={{
                                                 height: '2.75rem',
@@ -247,61 +275,85 @@ export default function Register() {
                                 </div>
                             </div>
 
-                            {/* Subject — DTM: 2 ta, MS: 1 ta, bo'lmasa: 1 ta */}
+                            {/* Subject — DTM: rasmiy yo'nalish (juftlik), MS/bo'sh: 1 ta fan */}
                             <div className="space-y-3 mb-4">
-                                <div>
-                                    <label className="text-sm font-medium block mb-1.5">
-                                        {examType === 'DTM' ? '1-ixtisoslik fani' : 'Fan'} <span style={{ color: 'var(--text-muted)' }}>(ixtiyoriy)</span>
-                                    </label>
-                                    <select
-                                        value={subject1}
-                                        onChange={e => setSubject1(e.target.value)}
-                                        className="input"
-                                        style={{ cursor: 'pointer' }}
-                                    >
-                                        <option value="">— Tanlang —</option>
-                                        {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
-                                    </select>
-                                </div>
-                                {examType === 'DTM' && (
+                                {examType === 'DTM' ? (
                                     <div>
-                                        <label className="text-sm font-medium block mb-1.5">2-ixtisoslik fani <span style={{ color: 'var(--text-muted)' }}>(ixtiyoriy)</span></label>
+                                        <label className="text-sm font-medium block mb-1.5">
+                                            Yo'nalish (fanlar majmuasi) <span style={{ color: 'var(--text-muted)' }}>(ixtiyoriy)</span>
+                                        </label>
                                         <select
-                                            value={subject2}
-                                            onChange={e => setSubject2(e.target.value)}
+                                            value={directionCode}
+                                            onChange={e => handleDirectionChange(e.target.value)}
+                                            className="input"
+                                            style={{ cursor: 'pointer' }}
+                                        >
+                                            <option value="">— Yo'nalishni tanlang —</option>
+                                            {DTM_DIRECTIONS.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
+                                        </select>
+                                        {selectedDirection?.faculties?.length ? (
+                                            <p className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>
+                                                {selectedDirection.faculties.join(', ')}
+                                            </p>
+                                        ) : null}
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <label className="text-sm font-medium block mb-1.5">
+                                            Fan <span style={{ color: 'var(--text-muted)' }}>(ixtiyoriy)</span>
+                                        </label>
+                                        <select
+                                            value={subject1}
+                                            onChange={e => setSubject1(e.target.value)}
                                             className="input"
                                             style={{ cursor: 'pointer' }}
                                         >
                                             <option value="">— Tanlang —</option>
-                                            {SUBJECTS.filter(s => s !== subject1).map(s => <option key={s} value={s}>{s}</option>)}
+                                            {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
                                         </select>
                                     </div>
                                 )}
                             </div>
 
                             {/* Exam date + target */}
-                            <div className="grid grid-cols-2 gap-3 mb-5">
-                                <div>
-                                    <label className="text-sm font-medium block mb-1.5">Imtihon sanasi</label>
-                                    <input
-                                        type="date"
-                                        value={examDate}
-                                        onChange={e => setExamDate(e.target.value)}
-                                        className="input"
-                                    />
+                            <div className="mb-5">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-sm font-medium block mb-1.5">Imtihon sanasi</label>
+                                        <input
+                                            type="date"
+                                            value={examDate}
+                                            onChange={e => setExamDate(e.target.value)}
+                                            className="input"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-sm font-medium block mb-1.5">
+                                            Maqsad ball <span style={{ color: 'var(--text-muted)' }}>({scoreBounds.min}–{scoreBounds.max})</span>
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min={scoreBounds.min}
+                                            max={scoreBounds.max}
+                                            step="1"
+                                            placeholder={examType === 'MS' ? '60' : '150'}
+                                            value={targetScore}
+                                            onChange={e => setTargetScore(e.target.value)}
+                                            onBlur={() => {
+                                                if (targetScore.trim() === '') return
+                                                const n = Number(targetScore)
+                                                if (!Number.isFinite(n)) return
+                                                const clamped = Math.min(scoreBounds.max, Math.max(scoreBounds.min, Math.round(n)))
+                                                setTargetScore(String(clamped))
+                                            }}
+                                            className="input"
+                                            style={scoreErr ? { borderColor: 'var(--danger)' } : {}}
+                                        />
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="text-sm font-medium block mb-1.5">Maqsad ball</label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        max="189"
-                                        placeholder="150"
-                                        value={targetScore}
-                                        onChange={e => setTargetScore(e.target.value)}
-                                        className="input"
-                                    />
-                                </div>
+                                {scoreErr && (
+                                    <p className="text-xs mt-1.5" style={{ color: 'var(--danger)' }}>{scoreErr}</p>
+                                )}
                             </div>
 
                             {err && (
@@ -321,7 +373,7 @@ export default function Register() {
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={loading}
+                                    disabled={loading || !!scoreErr}
                                     className="btn btn-primary"
                                     style={{ flex: 1 }}
                                 >

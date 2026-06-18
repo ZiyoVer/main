@@ -13,6 +13,7 @@ import toast from 'react-hot-toast'
 import { fetchApi } from '@/lib/api'
 import { parseStructuredJson } from '@/lib/structuredJson'
 import { SUBJECTS, normalizeSubjectValue } from '@/constants'
+import { DTM_DIRECTIONS, SCORE_BOUNDS, dtmDirectionByCode, dtmDirectionBySubjects } from '@/constants/dtmDirections'
 import { useAuthStore } from '@/store/authStore'
 import ChatContext, { useChatContext, EssayPanel, TodoItem } from '../../contexts/ChatContext'
 import { useTestPanel } from '../../hooks/useTestPanel'
@@ -20,7 +21,7 @@ import { useFlashPanel } from '../../hooks/useFlashPanel'
 
 interface Chat { id: string; title: string; subject?: string; subject2?: string; updatedAt: string }
 interface Msg { id: string; role: string; content: string; createdAt: string }
-interface Profile { onboardingDone: boolean; subject?: string; subject2?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string; totalTests?: number; avgScore?: number; abilityLevel?: number }
+interface Profile { onboardingDone: boolean; examType?: 'DTM' | 'MS' | null; subject?: string; subject2?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string; totalTests?: number; avgScore?: number; abilityLevel?: number }
 interface PublicTest { id: string; title: string; shareLink: string; subject?: string; _count?: { questions: number; attempts: number } }
 interface MyResult {
     id: string
@@ -755,8 +756,17 @@ export default function ChatLayout() {
     const [totalFlashcards, setTotalFlashcards] = useState(0)
     const [flashIsReview, setFlashIsReview] = useState(false)
     const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 768 : false)
-    const [onboardingForm, setOnboardingForm] = useState({
-        subject: 'Matematika', subject2: '', targetScore: 80, examDate: '',
+    const [onboardingForm, setOnboardingForm] = useState<{
+        examType: '' | 'DTM' | 'MS'
+        subject: string
+        subject2: string
+        targetScore: number | ''
+        examDate: string
+        weakTopics: string
+        strongTopics: string
+        concerns: string
+    }>({
+        examType: '', subject: 'Matematika', subject2: '', targetScore: 80, examDate: '',
         weakTopics: '', strongTopics: '', concerns: ''
     })
     const [savingProfile, setSavingProfile] = useState(false)
@@ -1225,10 +1235,15 @@ Iltimos, har bir savolni tahlil qilib ber:
                 let strong: string[] = []
                 try { weak = normalizedProfile.weakTopics ? JSON.parse(normalizedProfile.weakTopics) : [] } catch { /* invalid JSON */ }
                 try { strong = normalizedProfile.strongTopics ? JSON.parse(normalizedProfile.strongTopics) : [] } catch { /* invalid JSON */ }
+                // examType: saqlangan qiymat; yo'q bo'lsa — to'g'ri DTM juftligi bo'lsa DTM deb taxmin qilamiz
+                const savedExamType = normalizedProfile.examType === 'DTM' || normalizedProfile.examType === 'MS'
+                    ? normalizedProfile.examType
+                    : (dtmDirectionBySubjects(normalizedProfile.subject, normalizedProfile.subject2) ? 'DTM' : '')
                 setOnboardingForm({
+                    examType: savedExamType,
                     subject: normalizedProfile.subject || 'Matematika',
                     subject2: normalizedProfile.subject2 || '',
-                    targetScore: normalizedProfile.targetScore || 80,
+                    targetScore: typeof normalizedProfile.targetScore === 'number' ? normalizedProfile.targetScore : 80,
                     examDate: normalizedProfile.examDate ? new Date(normalizedProfile.examDate).toISOString().split('T')[0] : '',
                     weakTopics: weak.join(', '),
                     strongTopics: strong.join(', '),
@@ -1351,7 +1366,10 @@ Iltimos, har bir savolni tahlil qilib ber:
         try {
             const data = {
                 ...onboardingForm,
-                subject2: onboardingForm.subject2 || null,
+                examType: onboardingForm.examType || null,
+                // MS yoki bo'sh — 2-fan yo'q; DTM — yo'nalish juftligidan kelgan qiymat
+                subject2: (onboardingForm.examType === 'DTM' ? onboardingForm.subject2 : '') || null,
+                targetScore: onboardingForm.targetScore === '' ? null : onboardingForm.targetScore,
                 weakTopics: onboardingForm.weakTopics ? onboardingForm.weakTopics.split(',').map(s => s.trim()).filter(Boolean) : [],
                 strongTopics: onboardingForm.strongTopics ? onboardingForm.strongTopics.split(',').map(s => s.trim()).filter(Boolean) : [],
                 onboardingDone: true,
@@ -2109,6 +2127,47 @@ Iltimos, har bir savolni tahlil qilib ber:
         onMarkTodoDoneByTask: markTodoDoneByTask,
     }), [handleOpenTest, handleProfileUpdate, handleOpenFlash, handleOpenEssay, handleSetTodo, markTodoDoneByTask])
 
+    // ── Onboarding/profil formasi uchun derived qiymatlar (ikkala forma ham shu state bilan) ──
+    // examType bo'yicha ball chegaralari (DTM 1..189, MS 0..75; bo'sh bo'lsa DTM — eng qattiq)
+    const obScoreBounds = onboardingForm.examType === 'MS' ? SCORE_BOUNDS.MS : SCORE_BOUNDS.DTM
+    const obScoreErr = onboardingForm.targetScore !== '' && (
+        !Number.isInteger(onboardingForm.targetScore) ||
+        onboardingForm.targetScore < obScoreBounds.min ||
+        onboardingForm.targetScore > obScoreBounds.max
+    ) ? `Ball ${obScoreBounds.min}–${obScoreBounds.max} oralig'idagi butun son bo'lishi kerak` : ''
+    // Joriy subject juftligiga mos DTM yo'nalish kodi (select value uchun)
+    const obDirectionCode = dtmDirectionBySubjects(onboardingForm.subject, onboardingForm.subject2)?.code || ''
+    // Saqlangan juftlik to'g'ri yo'nalish bo'lmasa (eski/noto'g'ri ma'lumot) — qayta tanlashga undaymiz
+    const obDtmPairInvalid = onboardingForm.examType === 'DTM' && !!onboardingForm.subject2 && !obDirectionCode
+
+    // examType o'zgarganda derived 2-fanni tozalaymiz
+    const handleObExamTypeChange = (t: 'DTM' | 'MS') => {
+        setOnboardingForm(prev => ({
+            ...prev,
+            examType: prev.examType === t ? '' : t,
+            subject2: '',
+        }))
+    }
+    // DTM yo'nalishi tanlanganda subject/subject2 ni derived to'ldiramiz
+    const handleObDirectionChange = (code: string) => {
+        const dir = dtmDirectionByCode(code)
+        setOnboardingForm(prev => ({
+            ...prev,
+            subject: dir?.subject1 || prev.subject,
+            subject2: dir?.subject2 || '',
+        }))
+    }
+    const handleObScoreBlur = () => {
+        setOnboardingForm(prev => {
+            if (prev.targetScore === '') return prev
+            const n = Number(prev.targetScore)
+            if (!Number.isFinite(n)) return prev
+            const clamped = Math.min(obScoreBounds.max, Math.max(obScoreBounds.min, Math.round(n)))
+            return { ...prev, targetScore: clamped }
+        })
+    }
+    const obSelectedDirection = obDirectionCode ? dtmDirectionByCode(obDirectionCode) : undefined
+
     // Onboarding
     if (showOnboarding) {
         return (
@@ -2122,24 +2181,75 @@ Iltimos, har bir savolni tahlil qilib ber:
                         <p className="mt-2 text-sm" style={{ color: 'var(--text-secondary)' }}>Bu ma'lumotlar AI ustozingiz samarali ishlashi uchun kerak</p>
                     </div>
                     <form onSubmit={saveOnboarding} className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        <div><label className="text-sm font-medium block mb-1.5">Qaysi fandan tayyorlanasiz?</label>
-                            <select value={onboardingForm.subject} onChange={e => setOnboardingForm(prev => ({ ...prev, subject: e.target.value }))} className="input" style={{ cursor: 'pointer' }}>
-                                {SUBJECTS.map(f => <option key={f} value={f}>{f}</option>)}
-                            </select></div>
+                        {/* Imtihon turi */}
                         <div>
-                            <label className="text-sm font-medium block mb-1.5">2-fan <span style={{ color: 'var(--text-muted)' }}>(ixtiyoriy)</span></label>
-                            <select value={onboardingForm.subject2} onChange={e => setOnboardingForm(f => ({ ...f, subject2: e.target.value }))} className="input" style={{ cursor: 'pointer' }}>
-                                <option value="">— Tanlang —</option>
-                                {SUBJECTS.filter(s => s !== onboardingForm.subject)
-                                    .map(s => <option key={s} value={s}>{s}</option>)}
-                            </select>
+                            <label className="text-sm font-medium block mb-2">Imtihon turi <span style={{ color: 'var(--text-muted)' }}>(ixtiyoriy)</span></label>
+                            <div className="grid grid-cols-2 gap-2">
+                                {(['DTM', 'MS'] as const).map(t => (
+                                    <button
+                                        key={t}
+                                        type="button"
+                                        onClick={() => handleObExamTypeChange(t)}
+                                        className="btn btn-outline"
+                                        style={{
+                                            height: '2.75rem',
+                                            background: onboardingForm.examType === t ? 'var(--brand-light)' : '',
+                                            borderColor: onboardingForm.examType === t ? 'var(--brand)' : '',
+                                            color: onboardingForm.examType === t ? 'var(--brand-hover)' : '',
+                                            position: 'relative'
+                                        }}
+                                    >
+                                        {onboardingForm.examType === t && <CheckCircle className="h-3.5 w-3.5 absolute top-1.5 right-1.5" />}
+                                        {t === 'DTM' ? 'DTM' : 'Milliy Sertifikat'}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
+
+                        {/* DTM: rasmiy yo'nalish (juftlik) | MS/bo'sh: 1 ta fan */}
+                        {onboardingForm.examType === 'DTM' ? (
+                            <div>
+                                <label className="text-sm font-medium block mb-1.5">Yo'nalish (fanlar majmuasi)</label>
+                                <select value={obDirectionCode} onChange={e => handleObDirectionChange(e.target.value)} className="input" style={{ cursor: 'pointer' }}>
+                                    <option value="">— Yo'nalishni tanlang —</option>
+                                    {DTM_DIRECTIONS.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
+                                </select>
+                                {obDtmPairInvalid && (
+                                    <p className="text-xs mt-1.5" style={{ color: 'var(--danger)' }}>
+                                        Avvalgi tanlovingiz ({onboardingForm.subject} – {onboardingForm.subject2}) rasmiy yo'nalishlarda yo'q. Iltimos, yo'nalishni qayta tanlang.
+                                    </p>
+                                )}
+                                {obSelectedDirection?.faculties?.length ? (
+                                    <p className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>{obSelectedDirection.faculties.join(', ')}</p>
+                                ) : null}
+                            </div>
+                        ) : (
+                            <div>
+                                <label className="text-sm font-medium block mb-1.5">Qaysi fandan tayyorlanasiz?</label>
+                                <select value={onboardingForm.subject} onChange={e => setOnboardingForm(prev => ({ ...prev, subject: e.target.value }))} className="input" style={{ cursor: 'pointer' }}>
+                                    {SUBJECTS.map(f => <option key={f} value={f}>{f}</option>)}
+                                </select>
+                            </div>
+                        )}
                         <div><label className="text-sm font-medium block mb-1.5">Imtihon sanasi</label>
                             <input type="date" value={onboardingForm.examDate} onChange={e => setOnboardingForm(prev => ({ ...prev, examDate: e.target.value }))} className="input" /></div>
-                        <div><label className="text-sm font-medium block mb-1.5">Maqsad ball (0-100)</label>
-                            <input type="number" min="0" max="100" value={onboardingForm.targetScore} onChange={e => setOnboardingForm(prev => ({ ...prev, targetScore: parseInt(e.target.value) || 0 }))} className="input" /></div>
+                        <div>
+                            <label className="text-sm font-medium block mb-1.5">Maqsad ball ({obScoreBounds.min}–{obScoreBounds.max})</label>
+                            <input
+                                type="number"
+                                min={obScoreBounds.min}
+                                max={obScoreBounds.max}
+                                step="1"
+                                value={onboardingForm.targetScore}
+                                onChange={e => { const v = e.target.value; const n = parseInt(v, 10); setOnboardingForm(prev => ({ ...prev, targetScore: v === '' || Number.isNaN(n) ? '' : n })) }}
+                                onBlur={handleObScoreBlur}
+                                className="input"
+                                style={obScoreErr ? { borderColor: 'var(--danger)' } : {}}
+                            />
+                            {obScoreErr && <p className="text-xs mt-1.5" style={{ color: 'var(--danger)' }}>{obScoreErr}</p>}
+                        </div>
                         <div className="flex gap-3 pt-1">
-                            <button type="submit" disabled={savingProfile} className="btn btn-primary" style={{ flex: 1 }}>{savingProfile ? 'Saqlanmoqda...' : 'Saqlash'}</button>
+                            <button type="submit" disabled={savingProfile || !!obScoreErr || obDtmPairInvalid} className="btn btn-primary" style={{ flex: 1 }}>{savingProfile ? 'Saqlanmoqda...' : 'Saqlash'}</button>
                             <button type="button" onClick={() => setShowOnboarding(false)} className="btn btn-outline">Bekor</button>
                         </div>
                     </form>
@@ -2374,13 +2484,54 @@ Iltimos, har bir savolni tahlil qilib ber:
                                     <form onSubmit={saveOnboarding} className="space-y-4 mt-5">
                                         <div>
                                             <label className="text-xs font-medium flex items-center gap-2 mb-1" style={{ color: 'var(--text-muted)' }}>
-                                                <BookOpen className="h-3.5 w-3.5" />
-                                                Asosiy fan
+                                                <GraduationCap className="h-3.5 w-3.5" />
+                                                Imtihon turi
                                             </label>
-                                            <select value={onboardingForm.subject} onChange={e => setOnboardingForm(f => ({ ...f, subject: e.target.value }))} className="input text-sm h-10" style={{ cursor: 'pointer' }}>
-                                                {SUBJECTS.map(f => <option key={f} value={f}>{f}</option>)}
-                                            </select>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {(['DTM', 'MS'] as const).map(t => (
+                                                    <button
+                                                        key={t}
+                                                        type="button"
+                                                        onClick={() => handleObExamTypeChange(t)}
+                                                        className="btn btn-outline h-10 text-sm"
+                                                        style={{
+                                                            background: onboardingForm.examType === t ? 'var(--brand-light)' : '',
+                                                            borderColor: onboardingForm.examType === t ? 'var(--brand)' : '',
+                                                            color: onboardingForm.examType === t ? 'var(--brand-hover)' : '',
+                                                        }}
+                                                    >
+                                                        {t === 'DTM' ? 'DTM' : 'Milliy Sertifikat'}
+                                                    </button>
+                                                ))}
+                                            </div>
                                         </div>
+                                        {onboardingForm.examType === 'DTM' ? (
+                                            <div>
+                                                <label className="text-xs font-medium flex items-center gap-2 mb-1" style={{ color: 'var(--text-muted)' }}>
+                                                    <BookOpen className="h-3.5 w-3.5" />
+                                                    Yo'nalish (fanlar majmuasi)
+                                                </label>
+                                                <select value={obDirectionCode} onChange={e => handleObDirectionChange(e.target.value)} className="input text-sm h-10" style={{ cursor: 'pointer' }}>
+                                                    <option value="">— Yo'nalishni tanlang —</option>
+                                                    {DTM_DIRECTIONS.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
+                                                </select>
+                                                {obDtmPairInvalid && (
+                                                    <p className="text-xs mt-1.5" style={{ color: 'var(--danger)' }}>
+                                                        Avvalgi tanlovingiz ({onboardingForm.subject} – {onboardingForm.subject2}) rasmiy yo'nalishlarda yo'q. Iltimos, yo'nalishni qayta tanlang.
+                                                    </p>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                <label className="text-xs font-medium flex items-center gap-2 mb-1" style={{ color: 'var(--text-muted)' }}>
+                                                    <BookOpen className="h-3.5 w-3.5" />
+                                                    Asosiy fan
+                                                </label>
+                                                <select value={onboardingForm.subject} onChange={e => setOnboardingForm(f => ({ ...f, subject: e.target.value }))} className="input text-sm h-10" style={{ cursor: 'pointer' }}>
+                                                    {SUBJECTS.map(f => <option key={f} value={f}>{f}</option>)}
+                                                </select>
+                                            </div>
+                                        )}
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                             <div>
                                                 <label className="text-xs font-medium flex items-center gap-2 mb-1" style={{ color: 'var(--text-muted)' }}>
@@ -2392,9 +2543,20 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             <div>
                                                 <label className="text-xs font-medium flex items-center gap-2 mb-1" style={{ color: 'var(--text-muted)' }}>
                                                     <Target className="h-3.5 w-3.5" />
-                                                    Maqsad ball (0–100)
+                                                    Maqsad ball ({obScoreBounds.min}–{obScoreBounds.max})
                                                 </label>
-                                                <input type="number" min="0" max="100" value={onboardingForm.targetScore} onChange={e => setOnboardingForm(f => ({ ...f, targetScore: parseInt(e.target.value) || 0 }))} className="input text-sm h-10" />
+                                                <input
+                                                    type="number"
+                                                    min={obScoreBounds.min}
+                                                    max={obScoreBounds.max}
+                                                    step="1"
+                                                    value={onboardingForm.targetScore}
+                                                    onChange={e => { const v = e.target.value; const n = parseInt(v, 10); setOnboardingForm(f => ({ ...f, targetScore: v === '' || Number.isNaN(n) ? '' : n })) }}
+                                                    onBlur={handleObScoreBlur}
+                                                    className="input text-sm h-10"
+                                                    style={obScoreErr ? { borderColor: 'var(--danger)' } : {}}
+                                                />
+                                                {obScoreErr && <p className="text-xs mt-1.5" style={{ color: 'var(--danger)' }}>{obScoreErr}</p>}
                                             </div>
                                         </div>
                                         <div className="rounded-2xl p-4 flex items-center justify-between gap-3" style={{ background: 'var(--bg-page)', border: '1px solid var(--border)' }}>
@@ -2416,7 +2578,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             </button>
                                         </div>
                                         <div className="flex flex-col sm:flex-row gap-3">
-                                            <button type="submit" disabled={savingProfile} className="btn btn-primary h-10 text-sm px-5 flex-1">
+                                            <button type="submit" disabled={savingProfile || !!obScoreErr || obDtmPairInvalid} className="btn btn-primary h-10 text-sm px-5 flex-1">
                                                 {savingProfile ? 'Saqlanmoqda...' : 'Saqlash'}
                                             </button>
                                             <button type="button" onClick={() => { setShowSettings(false); logout() }} className="btn btn-outline h-10 text-sm px-5 flex-1">
