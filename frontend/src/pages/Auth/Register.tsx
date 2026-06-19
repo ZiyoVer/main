@@ -398,17 +398,6 @@ export default function Register() {
                                 >
                                     Orqaga
                                 </button>
-                                {/* Sana qadami — o'tkazib yuborish */}
-                                {step === 4 && (
-                                    <button
-                                        type="button"
-                                        onClick={() => { setExamDate(''); setStep(5) }}
-                                        className="btn btn-outline"
-                                        style={{ flex: '0 0 auto' }}
-                                    >
-                                        O'tkazib yuborish
-                                    </button>
-                                )}
                                 {isLastStep ? (
                                     <button
                                         type="submit"
@@ -430,6 +419,17 @@ export default function Register() {
                                     </button>
                                 )}
                             </div>
+                            {/* Sana qadami — o'tkazib yuborish (alohida, qatorga sig'masa toshib ketmasin) */}
+                            {step === 4 && (
+                                <button
+                                    type="button"
+                                    onClick={() => { setExamDate(''); setStep(5) }}
+                                    className="btn btn-ghost"
+                                    style={{ width: '100%', marginTop: 8 }}
+                                >
+                                    O'tkazib yuborish
+                                </button>
+                            )}
                         </form>
                     )}
                 </div>

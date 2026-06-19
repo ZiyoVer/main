@@ -2303,15 +2303,16 @@ Iltimos, har bir savolni tahlil qilib ber:
                             {obStep > 1 && (
                                 <button type="button" onClick={() => setObStep(s => s - 1)} className="btn btn-outline">Orqaga</button>
                             )}
-                            {obStep === 3 && (
-                                <button type="button" onClick={() => { setOnboardingForm(prev => ({ ...prev, examDate: '' })); setObStep(4) }} className="btn btn-outline">O'tkazib yuborish</button>
-                            )}
                             {obIsLastStep ? (
                                 <button type="submit" disabled={savingProfile || !obStepValid} className="btn btn-primary" style={{ flex: 1 }}>{savingProfile ? 'Saqlanmoqda...' : 'Boshlash'}</button>
                             ) : (
                                 <button type="button" disabled={!obStepValid} onClick={() => setObStep(s => s + 1)} className="btn btn-primary" style={{ flex: 1 }}>Davom etish →</button>
                             )}
                         </div>
+                        {/* Sana qadami — o'tkazib yuborish (alohida, qatorga sig'masa toshib ketmasin) */}
+                        {obStep === 3 && (
+                            <button type="button" onClick={() => { setOnboardingForm(prev => ({ ...prev, examDate: '' })); setObStep(4) }} className="btn btn-ghost" style={{ width: '100%', marginTop: 8 }}>O'tkazib yuborish</button>
+                        )}
                     </form>
                 </div>
             </div>
