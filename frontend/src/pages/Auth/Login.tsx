@@ -15,8 +15,8 @@ export default function Login() {
 
     useEffect(() => {
         if (token && user) {
-            // Email tasdiqlanmagan bo'lsa — eng avval bloklash ekraniga
-            if (user.emailVerified === false) {
+            // Email tasdiqlanmagan bo'lsa — eng avval bloklash ekraniga (faqat STUDENT; admin/o'qituvchiga tegmaydi)
+            if (user.role === 'STUDENT' && user.emailVerified === false) {
                 nav('/email-tasdiqlang', { replace: true })
                 return
             }

@@ -21,7 +21,7 @@ export default function Register() {
 
     useEffect(() => {
         if (token && user) {
-            if (user.emailVerified === false) {
+            if (user.role === 'STUDENT' && user.emailVerified === false) {
                 nav('/email-tasdiqlang', { replace: true })
                 return
             }
@@ -112,8 +112,8 @@ export default function Register() {
             })
             // Register javobidan to'g'ridan-to'g'ri token — alohida login shart emas
             login(data.token, data.user)
-            // Email tasdiqlanmagan bo'lsa — boshqa hamma narsadan oldin bloklash ekraniga
-            if (data.user?.emailVerified === false) {
+            // Email tasdiqlanmagan bo'lsa — boshqa hamma narsadan oldin bloklash ekraniga (faqat STUDENT)
+            if (data.user?.role === 'STUDENT' && data.user?.emailVerified === false) {
                 nav('/email-tasdiqlang', { replace: true })
                 return
             }
