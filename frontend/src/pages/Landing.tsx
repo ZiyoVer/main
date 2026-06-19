@@ -593,7 +593,7 @@ function Hero() {
             className="lp-h1"
             style={{ fontFamily: SANS, fontSize: 72, fontWeight: 800, letterSpacing: '-0.035em', lineHeight: 1.04, margin: 0, color: C.ink, maxWidth: '14ch' }}
           >
-            Orzungdagi universitet — <Em>yetib</Em> boriladigan masofada.
+            Orzuingizdagi universitet sari <Em>yo'l</Em>
           </h1>
 
           <p style={{ fontSize: 20, fontWeight: 400, lineHeight: 1.6, color: C.gray, maxWidth: '46ch', margin: '26px 0 0' }}>
