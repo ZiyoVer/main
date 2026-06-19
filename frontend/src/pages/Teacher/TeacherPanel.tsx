@@ -966,8 +966,8 @@ export default function TeacherPanel() {
     const secondaryText = { color: 'var(--text-secondary)' }
 
     return (
-        <>
-            <div className="kelviq h-screen overflow-y-auto w-full" style={{ background: 'var(--bg-page)' }}>
+        <div className="kelviq">
+            <div className="h-screen overflow-y-auto w-full" style={{ background: 'var(--bg-page)' }}>
                 {/* Header */}
                 <header className="sticky top-0 z-40" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', backdropFilter: 'blur(12px)' }}>
                     <div className="max-w-5xl mx-auto flex items-center justify-between py-2.5 px-5">
@@ -1663,7 +1663,7 @@ export default function TeacherPanel() {
                     <div className="rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl" style={{ background: 'var(--bg-card)' }} onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-between px-5 py-3.5 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                             <div className="flex items-center gap-2.5">
-                                <div className="h-8 w-8 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-lg flex items-center justify-center">
+                                <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--brand)' }}>
                                     <BarChart2 className="h-4 w-4 text-white" />
                                 </div>
                                 <div>
@@ -1914,6 +1914,6 @@ export default function TeacherPanel() {
                     </div>
                 </div>
             )}
-        </>
+        </div>
     )
 }

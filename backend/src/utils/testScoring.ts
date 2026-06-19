@@ -207,21 +207,50 @@ export function scoreMilliySertifikatAttempt(params: {
     }
 
     const correctCount = raschItems.filter(item => item.isCorrect).length
-    let ability = currentAbility
 
-    // Degenerate chegaralar (0/n va n/n) doimo to'g'ri ability'ga olib kelishi kerak:
-    // canUpdateAbility false bo'lsa ham, all-correct → +5, all-wrong → -5.
-    // Aks holda standart default (0.0) da expectedRatio ~0.5 ga qulab, perfect ball "D" bo'lib qoladi.
+    // F6: Degenerate chegaralar (0/n va n/n) DETERMINISTIK ball berishi shart —
+    // raschProbability difficulty'ga bog'liq bo'lgani uchun, nolinchi bo'lmagan
+    // qiyinlikda chegaraviy ball ~50% ga qulab "D"/"A+" kafolati buziladi.
+    // Shuning uchun raschProbability chaqirilishidan OLDIN qisqa tutamiz.
     if (correctCount === 0) {
-        ability = -5
-    } else if (correctCount === raschItems.length) {
-        ability = 5
-    } else if (canUpdateAbility) {
-        ability = updateAbility(currentAbility, raschItems)
+        return {
+            scorePercent: 0,
+            rawScore: 0,
+            scoreMax: 75,
+            grade: getMsGrade(0),
+            ability: -5,
+        }
+    }
+    if (correctCount === raschItems.length) {
+        return {
+            scorePercent: 100,
+            rawScore: 75,
+            scoreMax: 75,
+            grade: getMsGrade(100),
+            ability: 5,
+        }
     }
 
-    const expectedRatio = raschItems.reduce((sum, item) => sum + raschProbability(ability, item.difficulty), 0) / raschItems.length
-    const rawScore = roundScore(expectedRatio * 75)
+    // Oraliq holatlar: ability'ni faqat yangilash mumkin bo'lganda yangilaymiz.
+    if (canUpdateAbility) {
+        const ability = updateAbility(currentAbility, raschItems)
+        const expectedRatio = raschItems.reduce((sum, item) => sum + raschProbability(ability, item.difficulty), 0) / raschItems.length
+        const rawScore = roundScore(expectedRatio * 75)
+        const scorePercent = roundScore((rawScore / 75) * 100)
+        return {
+            scorePercent,
+            rawScore,
+            scoreMax: 75,
+            grade: getMsGrade(scorePercent),
+            ability,
+        }
+    }
+
+    // F7: Qisman urinish (<3 savol) — ability'ni ishonchli yangilab bo'lmaydi.
+    // Eski/eskirgan currentAbility'dan expectedRatio hisoblash tarixga bog'liq ballga olib keladi.
+    // Buning o'rniga to'g'ridan-to'g'ri kuzatilgan nisbatdan (correctCount/n) ball beramiz.
+    const observedRatio = correctCount / raschItems.length
+    const rawScore = roundScore(observedRatio * 75)
     const scorePercent = roundScore((rawScore / 75) * 100)
 
     return {
@@ -229,6 +258,6 @@ export function scoreMilliySertifikatAttempt(params: {
         rawScore,
         scoreMax: 75,
         grade: getMsGrade(scorePercent),
-        ability,
+        ability: currentAbility,
     }
 }

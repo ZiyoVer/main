@@ -771,7 +771,7 @@ export default function ChatLayout() {
         strongTopics: string
         concerns: string
     }>({
-        examType: '', subject: 'Matematika', subject2: '', targetScore: 80, examDate: '',
+        examType: '', subject: 'Matematika', subject2: '', targetScore: '', examDate: '',
         weakTopics: '', strongTopics: '', concerns: ''
     })
     const [savingProfile, setSavingProfile] = useState(false)
@@ -839,6 +839,8 @@ export default function ChatLayout() {
             if (todoAutoCloseRef.current) clearTimeout(todoAutoCloseRef.current)
             if (visionIntervalRef.current) clearInterval(visionIntervalRef.current)
             visionIntervalRef.current = null
+            // ChatLayout unmount bo'lganda global .dark sinfini tozalaymiz (boshqa sahifalarga leak qilmasin)
+            document.documentElement.classList.remove('dark')
         }
     }, [])
 
@@ -1252,7 +1254,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                     examType: savedExamType,
                     subject: normalizedProfile.subject || 'Matematika',
                     subject2: normalizedProfile.subject2 || '',
-                    targetScore: typeof normalizedProfile.targetScore === 'number' ? normalizedProfile.targetScore : 80,
+                    targetScore: typeof normalizedProfile.targetScore === 'number' ? normalizedProfile.targetScore : '',
                     examDate: normalizedProfile.examDate ? new Date(normalizedProfile.examDate).toISOString().split('T')[0] : '',
                     weakTopics: weak.join(', '),
                     strongTopics: strong.join(', '),
@@ -2149,13 +2151,23 @@ Iltimos, har bir savolni tahlil qilib ber:
     // Saqlangan juftlik to'g'ri yo'nalish bo'lmasa (eski/noto'g'ri ma'lumot) — qayta tanlashga undaymiz
     const obDtmPairInvalid = onboardingForm.examType === 'DTM' && !!onboardingForm.subject2 && !obDirectionCode
 
-    // examType o'zgarganda derived 2-fanni tozalaymiz
+    // examType o'zgarganda derived 2-fanni tozalaymiz va ball chegarasini yangi turga moslaymiz
     const handleObExamTypeChange = (t: 'DTM' | 'MS') => {
-        setOnboardingForm(prev => ({
-            ...prev,
-            examType: prev.examType === t ? '' : t,
-            subject2: '',
-        }))
+        setOnboardingForm(prev => {
+            const nextExamType = prev.examType === t ? '' : t
+            const bounds = nextExamType === 'MS' ? SCORE_BOUNDS.MS : SCORE_BOUNDS.DTM
+            // Yangi chegaradan tashqarida qolgan ballni tozalaymiz (Save bloklanmasin)
+            const nextTargetScore = prev.targetScore !== '' &&
+                (prev.targetScore < bounds.min || prev.targetScore > bounds.max)
+                ? ''
+                : prev.targetScore
+            return {
+                ...prev,
+                examType: nextExamType,
+                subject2: '',
+                targetScore: nextTargetScore,
+            }
+        })
     }
     // DTM yo'nalishi tanlanganda subject/subject2 ni derived to'ldiramiz
     const handleObDirectionChange = (code: string) => {
