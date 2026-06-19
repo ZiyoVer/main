@@ -810,11 +810,18 @@ export default function TeacherPanel() {
 
     async function toggleVisibility(testId: string, currentIsPublic: boolean) {
         try {
-            await fetchApi(`/tests/${testId}/visibility`, {
+            const res = await fetchApi(`/tests/${testId}/visibility`, {
                 method: 'PATCH',
                 body: JSON.stringify({ isPublic: !currentIsPublic })
             })
-            toast.success(!currentIsPublic ? 'Test public qilindi! O\'quvchilarga bildirishnoma yuborildi.' : 'Test private qilindi')
+            if (currentIsPublic) {
+                toast.success('Test private qilindi')
+            } else {
+                const notified = typeof res?.notified === 'number' ? res.notified : 0
+                toast.success(notified > 0
+                    ? `Test public qilindi! ${notified} o'quvchiga bildirishnoma yuborildi.`
+                    : 'Test ko\'rinishi yangilandi (hozircha o\'quvchi yo\'q)')
+            }
             loadTests()
         } catch (e: any) {
             toast.error(e.message)
@@ -877,10 +884,10 @@ export default function TeacherPanel() {
             const col = gradeColor(foiz)
             return `<tr style="background:${bg}">
             <td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#374151">${i + 1}</td>
-            <td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;font-weight:500">${s.name}</td>
-            <td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;color:${col}">${ball} / ${maxBall}</td>
-            <td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;text-align:center;color:#374151">${foiz}%</td>
-            <td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:800;color:${col}">${daraja}</td>
+            <td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;font-weight:500">${escapeHtml(String(s.name ?? ''))}</td>
+            <td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:700;color:${col}">${escapeHtml(String(ball ?? ''))} / ${escapeHtml(String(maxBall ?? ''))}</td>
+            <td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;text-align:center;color:#374151">${escapeHtml(String(foiz ?? ''))}%</td>
+            <td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:800;color:${col}">${escapeHtml(String(daraja ?? ''))}</td>
         </tr>`
         }).join('')
 
@@ -888,15 +895,15 @@ export default function TeacherPanel() {
         <tr style="background:${i % 2 === 0 ? '#fff' : '#f9fafb'}">
             <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280">${i + 1}</td>
             <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${renderPrintableMath(String(q.text || '—'))}</td>
-            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center">${q.totalAnswered}</td>
-            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:600;color:${q.errorRate > 50 ? '#dc2626' : q.errorRate > 30 ? '#F15A24' : '#16a34a'}">${q.errorRate}%</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center">${escapeHtml(String(q.totalAnswered ?? ''))}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:600;color:${q.errorRate > 50 ? '#dc2626' : q.errorRate > 30 ? '#F15A24' : '#16a34a'}">${escapeHtml(String(q.errorRate ?? ''))}%</td>
         </tr>`).join('')
 
         const html = `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
-<title>${test?.title || 'Test'} — Natijalar</title>
+<title>${escapeHtml(String(test?.title ?? 'Test'))} — Natijalar</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 <style>
   * { box-sizing: border-box; }
@@ -920,12 +927,12 @@ export default function TeacherPanel() {
 </head>
 <body>
 <div class="header">
-  <div class="title">${dateStr} imtihon natijalari</div>
-  <div class="subtitle">${test?.title || 'Test'} ${test?.subject ? '· ' + test.subject : ''} · Jami: ${totalAttempts} o'quvchi</div>
+  <div class="title">${escapeHtml(String(dateStr ?? ''))} imtihon natijalari</div>
+  <div class="subtitle">${escapeHtml(String(test?.title ?? 'Test'))} ${test?.subject ? '· ' + escapeHtml(String(test.subject)) : ''} · Jami: ${escapeHtml(String(totalAttempts ?? ''))} o'quvchi</div>
 </div>
 <div class="stats-row">
-  <div class="stat"><div class="stat-val">${totalAttempts}</div><div class="stat-lbl">Ishtirokchi</div></div>
-  <div class="stat"><div class="stat-val">${avgScore}%</div><div class="stat-lbl">O'rtacha foiz</div></div>
+  <div class="stat"><div class="stat-val">${escapeHtml(String(totalAttempts ?? ''))}</div><div class="stat-lbl">Ishtirokchi</div></div>
+  <div class="stat"><div class="stat-val">${escapeHtml(String(avgScore ?? ''))}%</div><div class="stat-lbl">O'rtacha foiz</div></div>
   <div class="stat"><div class="stat-val">${(students || []).filter((s: any) => s.score >= 70).length}</div><div class="stat-lbl">O'tdi (≥70%)</div></div>
   <div class="stat"><div class="stat-val">${(students || []).filter((s: any) => s.score < 70).length}</div><div class="stat-lbl">O'tmadi</div></div>
 </div>
@@ -1039,8 +1046,8 @@ export default function TeacherPanel() {
                                 </div>
                             )}
                             {tests.map(t => (
-                                <div key={t.id} className="card px-4 py-3 flex items-center gap-3">
-                                    <div className="flex-1 min-w-0">
+                                <div key={t.id} className="card px-4 py-3 flex flex-wrap items-center gap-3">
+                                    <div className="flex-1 min-w-0 basis-full sm:basis-auto">
                                         <div className="flex items-center gap-1.5 mb-0.5">
                                             <p className="text-[13px] font-medium truncate">{t.title}</p>
                                             {t.isPublic

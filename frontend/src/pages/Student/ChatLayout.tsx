@@ -729,6 +729,8 @@ export default function ChatLayout() {
     const location = useLocation()
     const { user, logout, token } = useAuthStore()
     const todoStorageKey = `${TODO_STORAGE_PREFIX}_${user?.id || 'guest'}`
+    // Essay draft kaliti foydalanuvchi bo'yicha scoped — umumiy qurilmada boshqa userga sizib o'tmasin
+    const essayDraftKey = `dtmmax_essay_draft_${user?.id || 'guest'}`
     const [chats, setChats] = useState<Chat[]>([])
     const [chatsLoaded, setChatsLoaded] = useState(false)
     const [messages, setMessages] = useState<Msg[]>([])
@@ -803,6 +805,7 @@ export default function ChatLayout() {
     const userScrolledRef = useRef(false)
     const blobUrlsRef = useRef<string[]>([])
     const abortRef = useRef<AbortController | null>(null)
+    const chatIdRef = useRef<string | undefined>(chatId)
     const profileRef = useRef<Profile | null>(null)
     const [testsLoading, setTestsLoading] = useState(false)
     // Ko'rilgan test IDlari (localStorage) — yangi testlarni aniqlash uchun
@@ -914,7 +917,17 @@ export default function ChatLayout() {
             blobUrlsRef.current = []
         }
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
-    useEffect(() => { if (chatId) loadMessages(chatId) }, [chatId])
+    useEffect(() => {
+        // chatId ref'ini sinxronlash — stream guard'lari shu ref'ga tayanadi
+        chatIdRef.current = chatId
+        // Boshqa chatga o'tilganda davom etayotgan SSE stream'ni bekor qilamiz,
+        // aks holda javob noto'g'ri chatga yozilib qoladi
+        if (abortRef.current) {
+            abortRef.current.abort()
+            abortRef.current = null
+        }
+        if (chatId) loadMessages(chatId)
+    }, [chatId])
     useEffect(() => {
         if (chatId || !chatsLoaded || !profileLoaded || showOnboarding || autoLandingChatRef.current) return
         autoLandingChatRef.current = true
@@ -1184,29 +1197,28 @@ Iltimos, har bir savolni tahlil qilib ber:
         }
     }, [essayTimeLeft]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Essay draft — localStorage ga saqlash (har o'zgarishda)
-    const ESSAY_DRAFT_KEY = 'dtmmax_essay_draft'
+    // Essay draft — localStorage ga saqlash (har o'zgarishda), foydalanuvchi bo'yicha scoped kalit bilan
     useEffect(() => {
         if (!essayPanel || essaySubmitted) return
-        localStorage.setItem(ESSAY_DRAFT_KEY, JSON.stringify({
+        localStorage.setItem(essayDraftKey, JSON.stringify({
             panel: essayPanel,
             text: essayText,
             timeLeft: essayTimeLeft,
             savedAt: Date.now()
         }))
-    }, [essayPanel, essayText, essayTimeLeft, essaySubmitted])
+    }, [essayPanel, essayText, essayTimeLeft, essaySubmitted, essayDraftKey])
 
-    // Essay draft — mount da tiklash (foydalanuvchi qaytib kelganda)
+    // Essay draft — tiklash (foydalanuvchi qaytib kelganda); kalit user id'ga bog'liq
     useEffect(() => {
         try {
-            const raw = localStorage.getItem(ESSAY_DRAFT_KEY)
+            const raw = localStorage.getItem(essayDraftKey)
             if (!raw) return
             const { panel, text, timeLeft, savedAt } = JSON.parse(raw)
             if (!panel) return
             const elapsed = Math.floor((Date.now() - savedAt) / 1000)
             const restoredTime = timeLeft !== null ? Math.max(0, timeLeft - elapsed) : null
             if (restoredTime !== null && restoredTime <= 0) {
-                localStorage.removeItem(ESSAY_DRAFT_KEY)
+                localStorage.removeItem(essayDraftKey)
                 return
             }
             setEssayPanel(panel)
@@ -1215,7 +1227,7 @@ Iltimos, har bir savolni tahlil qilib ber:
             setEssaySubmitted(false)
             toast.success('Yozish topshirig\'i tiklandi', { duration: 3000 })
         } catch { /* ignore */ }
-    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [essayDraftKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Essay drag resize
     useEffect(() => {
@@ -1503,6 +1515,10 @@ Iltimos, har bir savolni tahlil qilib ber:
         }
         const controller = new AbortController()
         abortRef.current = controller
+        // Stream boshlanganda joriy chat id'ni qotirib olamiz — agar foydalanuvchi
+        // oqim davomida boshqa chatga o'tsa, javobni noto'g'ri chatga yozmaymiz
+        const captured = targetChatId
+        const isCurrentChat = () => chatIdRef.current === captured
         let fullText = '' // local ref — stale closure muammosini oldini olish uchun
         let completed = false
         const requestThinkingMode = thinkingModeRef.current
@@ -1524,54 +1540,72 @@ Iltimos, har bir savolni tahlil qilib ber:
             const decoder = new TextDecoder()
             let thinkBuf = ''
             let streamErrored = false
+
+            // Bitta `data:` qatorini qayta ishlaydi. `true` qaytarsa — oqimni to'xtatamiz.
+            const handleLine = async (line: string): Promise<boolean> => {
+                if (!line.startsWith('data: ')) return false
+                try {
+                    const d = JSON.parse(line.slice(6))
+                    if (d.error) {
+                        if (isCurrentChat()) {
+                            setMessages(prev => {
+                                const filtered = prev.filter(m => m.id !== 'temp-u')
+                                return [...filtered,
+                                { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() },
+                                { id: 'err-' + Date.now(), role: 'assistant', content: `⚠️ ${d.error}`, createdAt: new Date().toISOString() }
+                                ]
+                            })
+                        }
+                        setStreaming(''); setThinkingText('')
+                        streamErrored = true
+                        return true
+                    }
+                    if (d.thinking) { thinkBuf += d.thinking; if (isCurrentChat()) setThinkingText(thinkBuf) }
+                    if (d.content) { fullText += d.content; if (isCurrentChat()) setStreaming(fullText) }
+                    if (d.done) {
+                        completed = true
+                        if (isCurrentChat()) {
+                            setMessages(prev => {
+                                const filtered = prev.filter(m => m.id !== 'temp-u')
+                                return [...filtered,
+                                { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() },
+                                { id: d.id || 'a-' + Date.now(), role: 'assistant', content: fullText, createdAt: new Date().toISOString() }
+                                ]
+                            })
+                            setStreaming(''); setThinkingText(''); loadChats()
+                            // Test avtomatik ochish
+                            const testMatch = fullText.match(/```test\s*([\s\S]*?)```/)
+                            if (testMatch) {
+                                const parsedTest = parseStructuredJson<unknown[]>(testMatch[1].trim())
+                                if (Array.isArray(parsedTest) && parsedTest.length > 0) {
+                                    setTimeout(() => { setTodoOpen(false); openTestPanel(testMatch[1].trim()) }, 400)
+                                }
+                            }
+                        }
+                    }
+                } catch { }
+                return false
+            }
+
             if (reader) {
                 try {
+                    let sseBuf = '' // chunk chegarasida bo'lingan frame'ni saqlash uchun (cross-read buffer)
                     while (true) {
                         const { done, value } = await reader.read()
                         if (done) break
                         const chunk = decoder.decode(value, { stream: true })
-                        for (const line of chunk.split('\n')) {
-                            if (line.startsWith('data: ')) {
-                                try {
-                                    const d = JSON.parse(line.slice(6))
-                                    if (d.error) {
-                                        setMessages(prev => {
-                                            const filtered = prev.filter(m => m.id !== 'temp-u')
-                                            return [...filtered,
-                                            { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() },
-                                            { id: 'err-' + Date.now(), role: 'assistant', content: `⚠️ ${d.error}`, createdAt: new Date().toISOString() }
-                                            ]
-                                        })
-                                        setStreaming(''); setThinkingText('')
-                                        streamErrored = true
-                                        await reader.cancel()
-                                        break
-                                    }
-                                    if (d.thinking) { thinkBuf += d.thinking; setThinkingText(thinkBuf) }
-                                    if (d.content) { fullText += d.content; setStreaming(fullText) }
-                                    if (d.done) {
-                                        completed = true
-                                        setMessages(prev => {
-                                            const filtered = prev.filter(m => m.id !== 'temp-u')
-                                            return [...filtered,
-                                            { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() },
-                                            { id: d.id || 'a-' + Date.now(), role: 'assistant', content: fullText, createdAt: new Date().toISOString() }
-                                            ]
-                                        })
-                                        setStreaming(''); setThinkingText(''); loadChats()
-                                        // Test avtomatik ochish
-                                        const testMatch = fullText.match(/```test\s*([\s\S]*?)```/)
-                                        if (testMatch) {
-                                            const parsedTest = parseStructuredJson<unknown[]>(testMatch[1].trim())
-                                            if (Array.isArray(parsedTest) && parsedTest.length > 0) {
-                                                setTimeout(() => { setTodoOpen(false); openTestPanel(testMatch[1].trim()) }, 400)
-                                            }
-                                        }
-                                    }
-                                } catch { }
-                            }
+                        sseBuf += chunk
+                        const lines = sseBuf.split('\n')
+                        sseBuf = lines.pop() ?? '' // oxirgi (tugallanmagan) bo'lakni keyingi o'qishga qoldiramiz
+                        for (const line of lines) {
+                            const stop = await handleLine(line)
+                            if (stop) { try { await reader.cancel() } catch { } break }
                         }
                         if (streamErrored) break
+                    }
+                    // Oqim tugadi — bufferda qolgan tugallanmagan frame bo'lsa, oxirgi marta flush qilamiz
+                    if (!streamErrored && sseBuf.startsWith('data: ')) {
+                        await handleLine(sseBuf)
                     }
                 } finally {
                     try { reader?.cancel() } catch { }
@@ -1580,7 +1614,8 @@ Iltimos, har bir savolni tahlil qilib ber:
         } catch (err: any) {
             if (err?.name === 'AbortError') {
                 // User stopped — fullText local variable ishlatamiz (stale closure yo'q)
-                if (fullText.trim()) {
+                // Faqat joriy chatga yozamiz (boshqa chatga o'tilgan bo'lsa — yozmaymiz)
+                if (fullText.trim() && isCurrentChat()) {
                     setMessages(prev => {
                         const filtered = prev.filter(m => m.id !== 'temp-u')
                         return [...filtered,
@@ -1589,7 +1624,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                         ]
                     })
                 }
-            } else {
+            } else if (isCurrentChat()) {
                 const errText = `⚠️ ${err?.message || 'AI javob bera olmadi. Qayta urinib ko\'ring.'}`
                 setMessages(prev => {
                     const filtered = prev.filter(m => m.id !== 'temp-u')
@@ -1601,7 +1636,11 @@ Iltimos, har bir savolni tahlil qilib ber:
             }
             setStreaming(''); setThinkingText('')
         }
-        setLoading(false); abortRef.current = null
+        // Faqat bizning controller hali ham faol bo'lsa tozalaymiz — aks holda
+        // bu oqim bekor qilingan, yangi oqim allaqachon abortRef'ni egallagan bo'lishi mumkin
+        if (abortRef.current === controller) {
+            setLoading(false); abortRef.current = null
+        }
         return completed && fullText.trim().length > 0
     }
 
@@ -1763,13 +1802,31 @@ Iltimos, har bir savolni tahlil qilib ber:
     const markTodoDoneByTask = useCallback((taskName: string) => {
         setTodoItems(prev => {
             const norm = (s: string) => s.toLowerCase().trim()
-            const match = prev.find(t => !t.done && (
-                norm(t.task) === norm(taskName) ||
-                norm(t.task).includes(norm(taskName)) ||
-                norm(taskName).includes(norm(t.task))
-            ))
+            const target = norm(taskName)
+            if (!target) return prev
+            const pending = prev.filter(t => !t.done)
+            if (pending.length === 0) return prev // hech narsa qolmagan — re-fire'da hech narsa o'zgartirmaymiz
+
+            // 1) Aniq (exact) moslik ustuvor
+            let match = pending.find(t => norm(t.task) === target)
+
+            // 2) Aniq moslik yo'q bo'lsa — eng tor (ixcham) substring moslikni tanlaymiz,
+            //    shunda umumiy substring bir nechta vazifaga tegib, noto'g'risini belgilamaydi
+            if (!match) {
+                const candidates = pending.filter(t => {
+                    const nt = norm(t.task)
+                    return nt.includes(target) || target.includes(nt)
+                })
+                if (candidates.length > 0) {
+                    match = candidates.reduce((best, t) =>
+                        norm(t.task).length < norm(best.task).length ? t : best
+                    )
+                }
+            }
+
             if (!match) return prev
-            return prev.map(t => t.id === match.id ? { ...t, done: true } : t)
+            const matchedId = match.id
+            return prev.map(t => t.id === matchedId ? { ...t, done: true } : t)
         })
     }, [])
 
@@ -1802,7 +1859,7 @@ Iltimos, har bir savolni tahlil qilib ber:
             toast.error(`Kamida ${essayPanel.minWords} ta so'z yozing (hozir: ${wordCount})`)
             return
         }
-        localStorage.removeItem('dtmmax_essay_draft')
+        localStorage.removeItem(essayDraftKey)
         setEssaySubmitted(true)
         setEssayTimeLeft(null)
         const prompt = `📝 **Writing topshirig'i — ${essayPanel.task}:**\n"${essayPanel.prompt}"\n\n**Mening essayim (${wordCount} so'z):**\n${essayText}\n\n---\nIltimos, ushbu essayni Milliy Sertifikat (Multilevel) mezonlari bo'yicha baholang:\n1. **Task Achievement** — vazifani to'liq bajardimmi?\n2. **Coherence & Cohesion** — tuzilma va bog'liqlik\n3. **Lexical Resource** — leksik boylik\n4. **Grammatical Range & Accuracy** — grammatik to'g'rilik\n\nHar bir mezon uchun 30 balldan baho bering, jami 120 dan. Asosiy xatolarni ko'rsating va yaxshilash bo'yicha aniq tavsiyalar bering.`
@@ -2476,6 +2533,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     method: 'DELETE',
                                                     body: JSON.stringify({ password: deletePassword })
                                                 })
+                                                localStorage.removeItem(essayDraftKey)
                                                 logout()
                                             } catch (e: any) {
                                                 setDeleteErr(e.message || 'Xatolik yuz berdi')
@@ -2558,125 +2616,141 @@ Iltimos, har bir savolni tahlil qilib ber:
                                     </div>
                                     <button onClick={() => setShowSettings(false)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><X className="h-4 w-4" /></button>
                                 </div>
-                                <div className="flex-1 overflow-y-auto p-6">
-                                    <div className="flex items-center gap-3 pb-5" style={{ borderBottom: '1px solid var(--border)' }}>
-                                        <div className="h-12 w-12 rounded-full flex items-center justify-center text-base font-bold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>{user?.name?.[0]?.toUpperCase()}</div>
-                                        <div>
-                                            <p className="font-semibold">{user?.name}</p>
-                                            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
+                                <div className="flex-1 overflow-y-auto p-6 space-y-7">
+                                    {/* ── 1. Profil ── */}
+                                    <section className="space-y-3">
+                                        <p className="k-eyebrow">Profil</p>
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-12 w-12 rounded-full flex items-center justify-center text-base font-bold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>{user?.name?.[0]?.toUpperCase()}</div>
+                                            <div className="min-w-0">
+                                                <p className="font-semibold truncate">{user?.name}</p>
+                                                <p className="text-sm truncate" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
+                                            </div>
                                         </div>
-                                    </div>
+                                    </section>
 
-                                    <form onSubmit={saveOnboarding} className="space-y-4 mt-5">
-                                        <div>
-                                            <label className="text-xs font-medium flex items-center gap-2 mb-1" style={{ color: 'var(--text-muted)' }}>
-                                                <GraduationCap className="h-3.5 w-3.5" />
-                                                Imtihon turi
-                                            </label>
-                                            <div className="grid grid-cols-2 gap-2">
-                                                {(['DTM', 'MS'] as const).map(t => (
-                                                    <button
-                                                        key={t}
-                                                        type="button"
-                                                        onClick={() => handleObExamTypeChange(t)}
-                                                        className="btn btn-outline h-10 text-sm"
-                                                        style={{
-                                                            background: onboardingForm.examType === t ? 'var(--brand-light)' : '',
-                                                            borderColor: onboardingForm.examType === t ? 'var(--brand)' : '',
-                                                            color: onboardingForm.examType === t ? 'var(--brand-hover)' : '',
-                                                        }}
-                                                    >
-                                                        {t === 'DTM' ? 'DTM' : 'Milliy Sertifikat'}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        {onboardingForm.examType === 'DTM' ? (
+                                    <form onSubmit={saveOnboarding} className="space-y-7">
+                                        {/* ── 2. Imtihon ma'lumotlari ── */}
+                                        <section className="pt-7 space-y-4" style={{ borderTop: '1px solid var(--border)' }}>
+                                            <p className="k-eyebrow">Imtihon ma'lumotlari</p>
                                             <div>
                                                 <label className="text-xs font-medium flex items-center gap-2 mb-1" style={{ color: 'var(--text-muted)' }}>
-                                                    <BookOpen className="h-3.5 w-3.5" />
-                                                    Yo'nalish (fanlar majmuasi)
+                                                    <GraduationCap className="h-3.5 w-3.5" />
+                                                    Imtihon turi
                                                 </label>
-                                                <select value={obDirectionCode} onChange={e => handleObDirectionChange(e.target.value)} className="input text-sm h-10" style={{ cursor: 'pointer' }}>
-                                                    <option value="">— Yo'nalishni tanlang —</option>
-                                                    {DTM_DIRECTIONS.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
-                                                </select>
-                                                {obDtmPairInvalid && (
-                                                    <p className="text-xs mt-1.5" style={{ color: 'var(--danger)' }}>
-                                                        Avvalgi tanlovingiz ({onboardingForm.subject} – {onboardingForm.subject2}) rasmiy yo'nalishlarda yo'q. Iltimos, yo'nalishni qayta tanlang.
-                                                    </p>
-                                                )}
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {(['DTM', 'MS'] as const).map(t => (
+                                                        <button
+                                                            key={t}
+                                                            type="button"
+                                                            onClick={() => handleObExamTypeChange(t)}
+                                                            className="btn btn-outline h-10 text-sm"
+                                                            style={{
+                                                                background: onboardingForm.examType === t ? 'var(--brand-light)' : '',
+                                                                borderColor: onboardingForm.examType === t ? 'var(--brand)' : '',
+                                                                color: onboardingForm.examType === t ? 'var(--brand-hover)' : '',
+                                                            }}
+                                                        >
+                                                            {t === 'DTM' ? 'DTM' : 'Milliy Sertifikat'}
+                                                        </button>
+                                                    ))}
+                                                </div>
                                             </div>
-                                        ) : (
-                                            <div>
-                                                <label className="text-xs font-medium flex items-center gap-2 mb-1" style={{ color: 'var(--text-muted)' }}>
-                                                    <BookOpen className="h-3.5 w-3.5" />
-                                                    Asosiy fan
-                                                </label>
-                                                <select value={onboardingForm.subject} onChange={e => setOnboardingForm(f => ({ ...f, subject: e.target.value }))} className="input text-sm h-10" style={{ cursor: 'pointer' }}>
-                                                    {SUBJECTS.map(f => <option key={f} value={f}>{f}</option>)}
-                                                </select>
-                                            </div>
-                                        )}
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                            <div>
-                                                <label className="text-xs font-medium flex items-center gap-2 mb-1" style={{ color: 'var(--text-muted)' }}>
-                                                    <Calendar className="h-3.5 w-3.5" />
-                                                    Imtihon sanasi
-                                                </label>
-                                                <input type="date" value={onboardingForm.examDate} onChange={e => setOnboardingForm(f => ({ ...f, examDate: e.target.value }))} className="input text-sm h-10" />
-                                            </div>
-                                            <div>
-                                                <label className="text-xs font-medium flex items-center gap-2 mb-1" style={{ color: 'var(--text-muted)' }}>
-                                                    <Target className="h-3.5 w-3.5" />
-                                                    Maqsad ball ({obScoreBounds.min}–{obScoreBounds.max})
-                                                </label>
-                                                <input
-                                                    type="number"
-                                                    min={obScoreBounds.min}
-                                                    max={obScoreBounds.max}
-                                                    step="1"
-                                                    value={onboardingForm.targetScore}
-                                                    onChange={e => { const v = e.target.value; const n = parseInt(v, 10); setOnboardingForm(f => ({ ...f, targetScore: v === '' || Number.isNaN(n) ? '' : n })) }}
-                                                    onBlur={handleObScoreBlur}
-                                                    className="input text-sm h-10"
-                                                    style={obScoreErr ? { borderColor: 'var(--danger)' } : {}}
-                                                />
-                                                {obScoreErr && <p className="text-xs mt-1.5" style={{ color: 'var(--danger)' }}>{obScoreErr}</p>}
-                                            </div>
-                                        </div>
-                                        <div className="rounded-2xl p-4 flex items-center justify-between gap-3" style={{ background: 'var(--bg-page)', border: '1px solid var(--border)' }}>
-                                            <div className="flex items-center gap-3">
-                                                <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                                    {darkMode ? <Moon className="h-4 w-4" style={{ color: 'var(--brand)' }} /> : <Sun className="h-4 w-4" style={{ color: 'var(--brand)' }} />}
+                                            {onboardingForm.examType === 'DTM' ? (
+                                                <div>
+                                                    <label className="text-xs font-medium flex items-center gap-2 mb-1" style={{ color: 'var(--text-muted)' }}>
+                                                        <BookOpen className="h-3.5 w-3.5" />
+                                                        Yo'nalish (fanlar majmuasi)
+                                                    </label>
+                                                    <select value={obDirectionCode} onChange={e => handleObDirectionChange(e.target.value)} className="input text-sm h-10" style={{ cursor: 'pointer' }}>
+                                                        <option value="">— Yo'nalishni tanlang —</option>
+                                                        {DTM_DIRECTIONS.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
+                                                    </select>
+                                                    {obDtmPairInvalid && (
+                                                        <p className="text-xs mt-1.5" style={{ color: 'var(--danger)' }}>
+                                                            Avvalgi tanlovingiz ({onboardingForm.subject} – {onboardingForm.subject2}) rasmiy yo'nalishlarda yo'q. Iltimos, yo'nalishni qayta tanlang.
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div>
+                                                    <label className="text-xs font-medium flex items-center gap-2 mb-1" style={{ color: 'var(--text-muted)' }}>
+                                                        <BookOpen className="h-3.5 w-3.5" />
+                                                        Asosiy fan
+                                                    </label>
+                                                    <select value={onboardingForm.subject} onChange={e => setOnboardingForm(f => ({ ...f, subject: e.target.value }))} className="input text-sm h-10" style={{ cursor: 'pointer' }}>
+                                                        {SUBJECTS.map(f => <option key={f} value={f}>{f}</option>)}
+                                                    </select>
+                                                </div>
+                                            )}
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="text-xs font-medium flex items-center gap-2 mb-1" style={{ color: 'var(--text-muted)' }}>
+                                                        <Calendar className="h-3.5 w-3.5" />
+                                                        Imtihon sanasi
+                                                    </label>
+                                                    <input type="date" value={onboardingForm.examDate} onChange={e => setOnboardingForm(f => ({ ...f, examDate: e.target.value }))} className="input text-sm h-10" />
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm font-semibold">Ko'rinish</p>
-                                                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{darkMode ? 'Qorong‘i rejim yoqilgan' : 'Yorug‘ rejim yoqilgan'}</p>
+                                                    <label className="text-xs font-medium flex items-center gap-2 mb-1" style={{ color: 'var(--text-muted)' }}>
+                                                        <Target className="h-3.5 w-3.5" />
+                                                        Maqsad ball ({obScoreBounds.min}–{obScoreBounds.max})
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        min={obScoreBounds.min}
+                                                        max={obScoreBounds.max}
+                                                        step="1"
+                                                        value={onboardingForm.targetScore}
+                                                        onChange={e => { const v = e.target.value; const n = parseInt(v, 10); setOnboardingForm(f => ({ ...f, targetScore: v === '' || Number.isNaN(n) ? '' : n })) }}
+                                                        onBlur={handleObScoreBlur}
+                                                        className="input text-sm h-10"
+                                                        style={obScoreErr ? { borderColor: 'var(--danger)' } : {}}
+                                                    />
+                                                    {obScoreErr && <p className="text-xs mt-1.5" style={{ color: 'var(--danger)' }}>{obScoreErr}</p>}
                                                 </div>
                                             </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => setDarkMode(!darkMode)}
-                                                className="btn btn-outline h-9 text-sm px-4"
-                                            >
-                                                {darkMode ? 'Yorug‘ rejim' : 'Qorong‘i rejim'}
-                                            </button>
-                                        </div>
-                                        <div className="flex flex-col sm:flex-row gap-3">
+                                        </section>
+
+                                        {/* ── 4. Ko'rinish ── */}
+                                        <section className="pt-7 space-y-4" style={{ borderTop: '1px solid var(--border)' }}>
+                                            <p className="k-eyebrow">Ko'rinish</p>
+                                            <div className="rounded-2xl p-4 flex items-center justify-between gap-3" style={{ background: 'var(--bg-page)', border: '1px solid var(--border)' }}>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                                        {darkMode ? <Moon className="h-4 w-4" style={{ color: 'var(--brand)' }} /> : <Sun className="h-4 w-4" style={{ color: 'var(--brand)' }} />}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-semibold">Tungi rejim</p>
+                                                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{darkMode ? 'Qorong‘i rejim yoqilgan' : 'Yorug‘ rejim yoqilgan'}</p>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setDarkMode(!darkMode)}
+                                                    className="btn btn-outline h-9 text-sm px-4"
+                                                >
+                                                    {darkMode ? 'Yorug‘ rejim' : 'Qorong‘i rejim'}
+                                                </button>
+                                            </div>
+                                        </section>
+
+                                        {/* ── Footer: Save (primary) + Logout (ghost) ── */}
+                                        <div className="pt-7 flex flex-col sm:flex-row gap-3" style={{ borderTop: '1px solid var(--border)' }}>
                                             <button type="submit" disabled={savingProfile || !!obScoreErr || obDtmPairInvalid} className="btn btn-primary h-10 text-sm px-5 flex-1">
                                                 {savingProfile ? 'Saqlanmoqda...' : 'Saqlash'}
                                             </button>
-                                            <button type="button" onClick={() => { setShowSettings(false); logout() }} className="btn btn-outline h-10 text-sm px-5 flex-1">
+                                            <button type="button" onClick={() => { setShowSettings(false); localStorage.removeItem(essayDraftKey); logout() }} className="btn btn-outline h-10 text-sm px-5 flex-1">
                                                 Chiqish
                                             </button>
                                         </div>
                                     </form>
 
-                                    <details className="mt-6 rounded-2xl p-4" style={{ background: 'var(--bg-page)', border: '1px solid var(--border)' }}>
+                                    {/* ── 3. Parolni o'zgartirish + xavfsizlik (collapsed) ── */}
+                                    <details className="pt-7" style={{ borderTop: '1px solid var(--border)' }}>
                                         <summary className="cursor-pointer text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
                                             <Shield className="h-4 w-4" />
-                                            Qo'shimcha xavfsizlik sozlamalari
+                                            Parolni o'zgartirish va xavfsizlik
                                         </summary>
                                         <div className="space-y-4 mt-4">
                                             <div className="space-y-3">
@@ -2965,7 +3039,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                     testPanel && (() => {
                         let questions: any[] = []
                         try { questions = JSON.parse(testPanel) } catch { return null }
-                        const answered = Object.keys(testAnswers).length
+                        // Faqat bo'sh bo'lmagan javoblarni sanaymiz — tozalangan ('') javob "javob berilgan" emas
+                        const answered = Object.values(testAnswers).filter(v => v.trim() !== '').length
                         const score = testSubmitted ? questions.filter((q: any, i: number) => testAnswers[i] === q.correct).length : 0
                         return (
                             <div className={(testPanelMaximized || isMobile) ? 'fixed inset-0 z-50 flex flex-col' : 'relative flex flex-col flex-shrink-0'}
@@ -3360,8 +3435,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                 {/* ===== OVERLAY PANELS ===== */}
                 {overlayPanel && (
                     <div className="fixed inset-0 z-50 flex" onClick={() => setOverlayPanel(null)}>
-                        <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(2px)' }} />
-                        <div className="relative ml-auto h-full flex flex-col overflow-hidden anim-up"
+                        <div className="absolute inset-0 k-fade-in" style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(2px)' }} />
+                        <div className="relative ml-auto h-full flex flex-col overflow-hidden k-slide-in-right"
                             style={{ width: '100%', maxWidth: '680px', background: 'var(--bg-page)', boxShadow: '-8px 0 40px rgba(0,0,0,0.15)' }}
                             onClick={e => e.stopPropagation()}>
 

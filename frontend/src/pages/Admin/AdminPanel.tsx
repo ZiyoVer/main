@@ -104,6 +104,7 @@ export default function AdminPanel() {
     const [usersPages, setUsersPages] = useState(1)
     const [usersSearch, setUsersSearch] = useState('')
     const [debouncedUsersSearch, setDebouncedUsersSearch] = useState('')
+    const [usersLoading, setUsersLoading] = useState(false)
     const USERS_PER_PAGE = 50
 
     // Teachers tab
@@ -234,6 +235,7 @@ export default function AdminPanel() {
     }
 
     async function loadUsers() {
+        setUsersLoading(true)
         try {
             const params = new URLSearchParams({ page: String(usersPage), limit: String(USERS_PER_PAGE) })
             if (debouncedUsersSearch) params.set('search', debouncedUsersSearch)
@@ -242,6 +244,7 @@ export default function AdminPanel() {
             setUsersTotal(data.total || 0)
             setUsersPages(data.pages || 1)
         } catch { setUsers([]) }
+        finally { setUsersLoading(false) }
     }
 
     async function deleteUser(userId: string, userName: string) {
@@ -540,22 +543,22 @@ export default function AdminPanel() {
                     <div className="space-y-5">
 
                         {/* === HOZIR ONLAYN === */}
-                        <div className="rounded-xl overflow-hidden" style={{ border: '1.5px solid rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.04)' }}>
-                            <div className="px-4 py-2.5 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(16,185,129,0.15)' }}>
+                        <div className="rounded-xl overflow-hidden" style={{ border: '1.5px solid color-mix(in srgb, var(--success) 30%, transparent)', background: 'color-mix(in srgb, var(--success) 4%, transparent)' }}>
+                            <div className="px-4 py-2.5 flex items-center justify-between" style={{ borderBottom: '1px solid color-mix(in srgb, var(--success) 15%, transparent)' }}>
                                 <div className="flex items-center gap-2">
                                     <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                                    <span className="text-[12px] font-bold" style={{ color: '#059669' }}>Hozir onlayn — {onlineUsers.length} ta</span>
+                                    <span className="text-[12px] font-bold" style={{ color: 'var(--success)' }}>Hozir onlayn — {onlineUsers.length} ta</span>
                                 </div>
                                 <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>30s yangilanadi</span>
                             </div>
                             {onlineUsers.length === 0 ? (
                                 <div className="px-4 py-3 text-[12px]" style={{ color: 'var(--text-muted)' }}>Hozircha hech kim onlayn emas</div>
                             ) : (
-                                <div className="divide-y" style={{ borderColor: 'rgba(16,185,129,0.1)' }}>
+                                <div className="divide-y" style={{ borderColor: 'color-mix(in srgb, var(--success) 10%, transparent)' }}>
                                     {onlineUsers.map((u: any, i: number) => {
                                         const ago = Math.round((Date.now() - u.lastSeen) / 1000)
                                         const agoStr = ago < 60 ? `${ago}s oldin` : `${Math.round(ago/60)}min oldin`
-                                        const roleColor = u.role === 'ADMIN' ? 'var(--info)' : u.role === 'TEACHER' ? 'var(--brand)' : '#059669'
+                                        const roleColor = u.role === 'ADMIN' ? 'var(--info)' : u.role === 'TEACHER' ? 'var(--brand)' : 'var(--success)'
                                         return (
                                             <div key={i} className="flex items-center gap-3 px-4 py-2">
                                                 <div className="h-7 w-7 rounded-full flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0" style={{ background: roleColor }}>{u.name?.[0]?.toUpperCase() || '?'}</div>
@@ -564,9 +567,9 @@ export default function AdminPanel() {
                                                     <p className="text-[10px] truncate" style={{ color: 'var(--text-muted)' }}>{u.email}</p>
                                                 </div>
                                                 <div className="flex items-center gap-2 flex-shrink-0">
-                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: `${roleColor}18`, color: roleColor }}>{u.role}</span>
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: `color-mix(in srgb, ${roleColor} 12%, transparent)`, color: roleColor }}>{u.role}</span>
                                                     <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{agoStr}</span>
-                                                    <Wifi className="h-3 w-3" style={{ color: '#059669' }} />
+                                                    <Wifi className="h-3 w-3" style={{ color: 'var(--success)' }} />
                                                 </div>
                                             </div>
                                         )
@@ -602,7 +605,7 @@ export default function AdminPanel() {
                             <p className="text-[11px] font-semibold uppercase tracking-wider mb-2.5" style={mutedText}>Faollik</p>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                                 {[
-                                    { n: stats.onlineNow ?? onlineUsers.length, l: 'Hozir onlayn', icon: Wifi, color: '#059669' },
+                                    { n: stats.onlineNow ?? onlineUsers.length, l: 'Hozir onlayn', icon: Wifi, color: 'var(--success)' },
                                     { n: stats.newUsers24h, l: 'Yangi userlar (24h)', icon: UserPlus, color: 'var(--info)' },
                                     { n: stats.activeUsers7d, l: 'Faol userlar (7 kun)', icon: Activity, color: '#06b6d4' },
                                     { n: stats.messages7d, l: 'Xabarlar (7 kun)', icon: MessageSquare, color: 'var(--brand)' },
@@ -875,7 +878,8 @@ export default function AdminPanel() {
                             />
                         </div>
                         <div className="rounded-xl overflow-hidden" style={cardStyle}>
-                            <table className="w-full text-sm">
+                            <div className="overflow-x-auto">
+                            <table className="w-full text-sm min-w-[760px]">
                                 <thead>
                                     <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
                                         <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Ism</th>
@@ -886,7 +890,11 @@ export default function AdminPanel() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {users.map(u => (
+                                    {usersLoading ? (
+                                        <tr><td colSpan={5} className="text-center py-10 text-[12px]" style={mutedText}>Yuklanmoqda...</td></tr>
+                                    ) : users.length === 0 ? (
+                                        <tr><td colSpan={5} className="text-center py-10 text-[12px]" style={mutedText}>Foydalanuvchilar topilmadi</td></tr>
+                                    ) : users.map(u => (
                                         <tr key={u.id} className="transition" style={{ borderBottom: '1px solid var(--border)' }}
                                             onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
                                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
@@ -918,6 +926,7 @@ export default function AdminPanel() {
                                     ))}
                                 </tbody>
                             </table>
+                            </div>
                         </div>
                         {/* Pagination */}
                         {usersPages > 1 && (
@@ -1168,7 +1177,8 @@ export default function AdminPanel() {
 
                         {/* Table */}
                         <div className="rounded-xl overflow-hidden" style={cardStyle}>
-                            <table className="w-full text-sm">
+                            <div className="overflow-x-auto">
+                            <table className="w-full text-sm min-w-[900px]">
                                 <thead>
                                     <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
                                         <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Test nomi</th>
@@ -1252,6 +1262,7 @@ export default function AdminPanel() {
                                     ))}
                                 </tbody>
                             </table>
+                            </div>
                         </div>
 
                         {/* Pagination */}

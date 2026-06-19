@@ -215,3 +215,39 @@
   background-repeat: repeat;
   opacity: .6;
 }
+
+/* =========================================================================
+   5. OVERLAY MOTION — right-side drawer slide-in + backdrop fade.
+      The shared right drawer (Pro / Natijalar / Testlar / Kartochkalar)
+      reads as a natural "open from the right", not an abrupt pop.
+      Scoped under `.kelviq`; honours prefers-reduced-motion.
+   ========================================================================= */
+
+/* Drawer: slide in from the right edge with a gentle opacity rise. */
+@keyframes k-slide-in-right {
+  from { transform: translateX(100%); opacity: .4; }
+  to   { transform: translateX(0);    opacity: 1;  }
+}
+.kelviq .k-slide-in-right {
+  animation: k-slide-in-right 260ms cubic-bezier(0, 0, .2, 1) both;
+  will-change: transform, opacity;
+}
+
+/* Backdrop: soft fade-in only (no movement). */
+@keyframes k-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.kelviq .k-fade-in {
+  animation: k-fade-in 260ms ease-out both;
+}
+
+/* Reduced motion: no transform / opacity entrance — appear immediately. */
+@media (prefers-reduced-motion: reduce) {
+  .kelviq .k-slide-in-right,
+  .kelviq .k-fade-in {
+    animation: none;
+    transform: none;
+    opacity: 1;
+  }
+}

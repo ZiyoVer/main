@@ -383,6 +383,37 @@ router.delete('/users/:userId', authenticate, requireRole('ADMIN'), async (req: 
         if (!target) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' })
         if (target.role === 'ADMIN') return res.status(403).json({ error: 'Admin akkauntini o\'chirib bo\'lmaydi' })
 
+        // O'qituvchini o'chirish kaskadli: uning testlari (Test.creator onDelete: Cascade) va
+        // shu testlardagi BOSHQA o'quvchilarning urinishlari (TestAttempt.test onDelete: Cascade)
+        // jimgina o'chib ketadi. Bu ommaviy ma'lumot yo'qotilishini oldini olish uchun, agar
+        // kollateral (boshqalarning ma'lumotlari) bo'lsa, aniq tasdiq (force/confirm) bo'lmaguncha
+        // 409 bilan rad etamiz. Admin xohlasa ataylab majburiy o'chira oladi.
+        if (target.role === 'TEACHER') {
+            const force = req.query.force === 'true' || req.body?.confirm === true
+            if (!force) {
+                const teacherTests = await prisma.test.findMany({
+                    where: { creatorId: uid },
+                    select: { id: true }
+                })
+                const testIds = teacherTests.map((t: { id: string }) => t.id)
+                // Faqat BOSHQA o'quvchilarning urinishlari kollateral hisoblanadi
+                const collateralAttempts = testIds.length > 0
+                    ? await prisma.testAttempt.count({
+                        where: { testId: { in: testIds }, userId: { not: uid } }
+                    })
+                    : 0
+
+                if (teacherTests.length > 0 && collateralAttempts > 0) {
+                    return res.status(409).json({
+                        error: `Bu o'qituvchini o'chirish ${teacherTests.length} ta testni va boshqa o'quvchilarning ${collateralAttempts} ta test urinishini ham o'chirib yuboradi. Bu amalni bajarish uchun majburiy tasdiq kerak.`,
+                        requiresConfirmation: true,
+                        tests: teacherTests.length,
+                        attempts: collateralAttempts
+                    })
+                }
+            }
+        }
+
         // Avval chatlar ID larini olamiz (message delete uchun)
         const userChats = await prisma.chat.findMany({ where: { userId: uid }, select: { id: true } })
         const chatIds = userChats.map(c => c.id)

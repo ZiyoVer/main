@@ -1932,6 +1932,17 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
             streamOptions.temperature = aiSettings.temperature
         }
 
+        // Foydalanuvchi xabarini AI chaqiruvidan OLDIN saqlaymiz — agar AI provayder
+        // chaqiruvi xato bersa ham user xabari yo'qolmasligi uchun (history allaqachon
+        // yuqorida olingani sababli bu yozuv joriy promptga qo'shilmaydi, dublikat bo'lmaydi).
+        try {
+            await prisma.message.create({
+                data: { chatId: chat.id, role: 'user', content: savedUserContent }
+            })
+        } catch (userSaveErr) {
+            console.error('User message save failed:', userSaveErr)
+        }
+
         // DeepSeek ishlamasa OpenAI ga fallback qilamiz
         let activeClient = chatClient
         let activeModel = model
@@ -1956,10 +1967,6 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
                 throw firstErr
             }
         }
-
-        await prisma.message.create({
-            data: { chatId: chat.id, role: 'user', content: savedUserContent }
-        })
 
         if (isFirstMessage) {
             try {
@@ -1996,10 +2003,14 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
         }
 
         if (aborted) {
-            if (fullReply.trim()) {
+            // Faqat mazmunli javob bo'lsa saqlaymiz — 3 belgidan kam stray bufer (masalan 1-2 belgi)
+            // foydasiz yozuvni yaratmaymiz. Saqlanganda live UI ko'rsatgan [To'xtatildi] markerini
+            // qo'shamiz, shunda reload qilinganda matn UI bilan bir xil bo'ladi.
+            const abortedReply = fullReply.trim()
+            if (abortedReply.length >= 3) {
                 try {
                     await prisma.message.create({
-                        data: { chatId: chat.id, role: 'assistant', content: fullReply }
+                        data: { chatId: chat.id, role: 'assistant', content: fullReply + "\n\n*[To'xtatildi]*" }
                     })
                 } catch (dbErr) {
                     console.error('Aborted message save failed:', dbErr)

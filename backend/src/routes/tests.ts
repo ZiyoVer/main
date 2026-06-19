@@ -2320,6 +2320,8 @@ router.patch('/:testId/visibility', authenticate, requireRole('TEACHER', 'ADMIN'
         })
 
         // Private → Public bo'lganda barcha studentlarga bildirishnoma
+        // Haqiqatda nechta bildirishnoma yaratilganini kuzatamiz (student bo'lmasa 0).
+        let notified = 0
         if (isPublic && !test.isPublic) {
             try {
                 const students = await prisma.user.findMany({
@@ -2327,7 +2329,7 @@ router.patch('/:testId/visibility', authenticate, requireRole('TEACHER', 'ADMIN'
                     select: { id: true }
                 })
                 if (students.length > 0) {
-                    await prisma.notification.createMany({
+                    const created = await prisma.notification.createMany({
                         data: students.map((s: { id: string }) => ({
                             userId: s.id,
                             senderId: req.user.id,
@@ -2337,13 +2339,14 @@ router.patch('/:testId/visibility', authenticate, requireRole('TEACHER', 'ADMIN'
                             targetId: test.id
                         }))
                     })
+                    notified = created.count
                 }
             } catch (notifErr) {
                 console.error('Notification send error:', notifErr)
             }
         }
 
-        res.json(updated)
+        res.json({ ...updated, notified })
     } catch (e) {
         console.error(e)
         res.status(500).json({ error: 'Server xatoligi' })
