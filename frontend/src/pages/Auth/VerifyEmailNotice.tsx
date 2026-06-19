@@ -36,6 +36,9 @@ export default function VerifyEmailNotice() {
     const [resendOk, setResendOk] = useState(false)
     const [error, setError] = useState<ResendError | null>(null)
     const [verified, setVerified] = useState(false)
+    // Qo'lda "Tasdiqladim — tekshirish" tugmasi holati (mobil cross-browser uchun)
+    const [checkingNow, setCheckingNow] = useState(false)
+    const [notYet, setNotYet] = useState(false)
 
     const headingRef = useRef<HTMLHeadingElement | null>(null)
     const successOkTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -92,25 +95,34 @@ export default function VerifyEmailNotice() {
         }, 1200)
     }, [token, user, login, nav])
 
-    // Polling: /auth/me ni har 5s tekshiramiz; document yashirin bo'lsa pauza
+    // Serverdan emailVerified holatini bir marta tekshiradi.
+    // Tasdiqlangan bo'lsa true qaytaradi — chaqiruvchi keyingi qadamni hal qiladi.
+    const checkVerifiedOnce = useCallback(async (): Promise<boolean> => {
+        try {
+            const me = await fetchApi('/auth/me', { silent: true })
+            if (me?.emailVerified === true) {
+                handleVerified()
+                return true
+            }
+        } catch {
+            // Polling/qo'lda tekshiruvda tarmoq xatosi — chaqiruvchi hal qiladi
+        }
+        return false
+    }, [handleVerified])
+
+    // Polling: /auth/me ni har 5s tekshiramiz. document.hidden guard YO'Q — backgrounded
+    // mobil tab ham o'zini tozalaydi (/auth/me arzon). Fokus/visibility'ga ham bog'lanamiz.
     useEffect(() => {
         if (verified) return
         let active = true
 
-        const checkOnce = async () => {
-            if (document.hidden) return
-            try {
-                const me = await fetchApi('/auth/me', { silent: true })
-                if (active && me?.emailVerified === true) {
-                    handleVerified()
-                }
-            } catch {
-                // Polling jim — vaqtinchalik tarmoq xatosi ekranni buzmasin
-            }
-        }
+        const tick = () => { if (active) void checkVerifiedOnce() }
 
-        const interval = setInterval(checkOnce, POLL_INTERVAL_MS)
-        const onVisibility = () => { if (!document.hidden) void checkOnce() }
+        // Mount'da darhol bir marta — yangidan yuklangan tab stale localStorage'ga ishonmasin
+        tick()
+
+        const interval = setInterval(tick, POLL_INTERVAL_MS)
+        const onVisibility = () => { if (!document.hidden) tick() }
         window.addEventListener('focus', onVisibility)
         document.addEventListener('visibilitychange', onVisibility)
 
@@ -120,7 +132,18 @@ export default function VerifyEmailNotice() {
             window.removeEventListener('focus', onVisibility)
             document.removeEventListener('visibilitychange', onVisibility)
         }
-    }, [verified, handleVerified])
+    }, [verified, checkVerifiedOnce])
+
+    // Qo'lda "Tasdiqladim — tekshirish": mobil cross-browser holatda yagona ishonchli yo'l.
+    // Foydalanuvchi pochta-brauzerda tasdiqlab, asl tabга qaytib bosadi → devordan chiqadi.
+    const checkNow = async () => {
+        if (checkingNow) return
+        setCheckingNow(true)
+        setNotYet(false)
+        const ok = await checkVerifiedOnce()
+        if (!ok) setNotYet(true)
+        setCheckingNow(false)
+    }
 
     useEffect(() => () => {
         if (successOkTimer.current) clearTimeout(successOkTimer.current)
@@ -254,12 +277,35 @@ export default function VerifyEmailNotice() {
                                 </div>
                             )}
 
+                            {/* Asosiy amal: havolani bosgandan keyin (ayniqsa boshqa brauzerda)
+                                bu tugma devorni darhol va ishonchli tozalaydi */}
+                            <button
+                                type="button"
+                                onClick={checkNow}
+                                disabled={checkingNow}
+                                aria-busy={checkingNow}
+                                className="btn btn-brand"
+                                style={{ width: '100%' }}
+                            >
+                                {checkingNow ? 'Tekshirilmoqda…' : 'Tasdiqladim — tekshirish'}
+                            </button>
+
+                            {/* "Hali tasdiqlanmagan" microcopy (qo'lda tekshiruv natijasi) */}
+                            <div aria-live="polite" style={{ minHeight: '1.25rem' }}>
+                                {notYet && (
+                                    <p className="text-xs mt-3" style={{ color: 'var(--text-secondary)' }}>
+                                        Hali tasdiqlanmadi. Pochtangizdagi havolani bosib, qaytib tekshiring.
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* Ikkilamchi amal: havolani qayta yuborish */}
                             <button
                                 type="button"
                                 onClick={resend}
                                 disabled={resending || cooldown > 0}
                                 aria-busy={resending}
-                                className="btn btn-brand"
+                                className="btn btn-ghost mt-2"
                                 style={{ width: '100%' }}
                             >
                                 {primaryLabel}
@@ -278,7 +324,7 @@ export default function VerifyEmailNotice() {
                                 Xat kelmadimi? Spam papkasini ham tekshiring.
                             </p>
 
-                            {/* Poll indikatori */}
+                            {/* Poll indikatori — fonда avtomatik ham tekshirib turamiz */}
                             <div className="flex items-center justify-center gap-2 mt-5 pt-4" style={{ borderTop: '1px solid var(--border)' }} role="status" aria-live="polite">
                                 <span className="typing-dots" aria-hidden="true"><span /><span /><span /></span>
                                 <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>

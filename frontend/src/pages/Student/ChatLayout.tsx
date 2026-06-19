@@ -2259,8 +2259,8 @@ Iltimos, har bir savolni tahlil qilib ber:
     // Onboarding
     if (showOnboarding) {
         return (
-            <div className="kelviq h-screen flex items-center justify-center p-6" style={{ background: 'var(--bg-page)' }}>
-                <div className="w-full max-w-lg anim-up">
+            <div className="kelviq flex items-center justify-center p-5" style={{ background: 'var(--bg-page)', minHeight: '100dvh' }}>
+                <div className="w-full max-w-sm anim-up">
                     <div className="text-center mb-6">
                         <div className="h-14 w-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--brand)' }}>
                             <GraduationCap className="h-7 w-7 text-white" />
@@ -2294,9 +2294,11 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             onClick={() => handleObExamTypeChange(t)}
                                             className="btn btn-outline"
                                             style={{
-                                                height: '6rem',
+                                                minHeight: '5.5rem',
+                                                height: 'auto',
+                                                padding: '0.75rem 0.5rem',
                                                 flexDirection: 'column',
-                                                gap: '0.35rem',
+                                                gap: '0.25rem',
                                                 background: onboardingForm.examType === t ? 'var(--brand-light)' : '',
                                                 borderColor: onboardingForm.examType === t ? 'var(--brand)' : '',
                                                 color: onboardingForm.examType === t ? 'var(--brand-hover)' : '',
@@ -2305,7 +2307,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         >
                                             {onboardingForm.examType === t && <CheckCircle className="h-4 w-4 absolute top-2 right-2" />}
                                             <span className="font-bold text-base">{t === 'DTM' ? 'DTM' : 'MS'}</span>
-                                            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{t === 'DTM' ? 'Davlat test markazi' : 'Milliy Sertifikat'}</span>
+                                            <span className="text-xs text-center" style={{ color: 'var(--text-muted)', lineHeight: 1.3 }}>{t === 'DTM' ? 'Davlat test markazi' : 'Milliy Sertifikat'}</span>
                                         </button>
                                     ))}
                                 </div>

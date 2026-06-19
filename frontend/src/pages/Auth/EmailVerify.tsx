@@ -26,11 +26,19 @@ export default function EmailVerify() {
                         })
                 }
             })
-            .catch((e: any) => {
+            .catch((e: unknown) => {
                 setStatus('error')
-                setMessage(e.message || 'Havola noto\'g\'ri yoki muddati o\'tgan')
+                const msg = e instanceof Error ? e.message : ''
+                setMessage(msg || 'Havola noto\'g\'ri yoki muddati o\'tgan')
             })
     }, [token])
+
+    // Havola qaysi brauzerda ochilganiga qarab CTA: token bo'lsa to'g'ridan-to'g'ri
+    // platformaga (/suhbat); token bo'lmasa (mobil pochta-brauzeri) /kirish'ga —
+    // aks holda ProtectedRoute jim ravishda /kirish'ga otib, chalkash dead-end bo'ladi.
+    const hasToken = !!authToken
+    const successTo = hasToken ? '/suhbat' : '/kirish'
+    const successCta = hasToken ? 'Platformaga kirish' : 'Kirish sahifasiga o\'tish'
 
     return (
         <div className="kelviq min-h-screen flex items-center justify-center p-5" style={{ background: 'var(--bg-page)', position: 'relative', overflow: 'hidden' }}>
@@ -65,10 +73,12 @@ export default function EmailVerify() {
                             <CheckCircle className="h-12 w-12 mx-auto mb-4" style={{ color: 'var(--success)' }} />
                             <h2 className="text-lg font-bold mb-2">Email <span className="k-italic">tasdiqlandi</span>!</h2>
                             <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
-                                Email manzilingiz muvaffaqiyatli tasdiqlandi. Endi barcha imkoniyatlar ochiq!
+                                {hasToken
+                                    ? 'Email manzilingiz muvaffaqiyatli tasdiqlandi. Endi barcha imkoniyatlar ochiq!'
+                                    : 'Email manzilingiz tasdiqlandi. Endi kirib, davom etishingiz mumkin.'}
                             </p>
-                            <Link to="/suhbat" className="btn btn-primary">
-                                Platformaga kirish
+                            <Link to={successTo} className="btn btn-primary">
+                                {successCta}
                             </Link>
                         </>
                     )}
@@ -80,8 +90,8 @@ export default function EmailVerify() {
                                 {message}
                             </p>
                             <div className="flex flex-col gap-3">
-                                <Link to="/suhbat" className="btn btn-primary">
-                                    Platformaga kirish
+                                <Link to={successTo} className="btn btn-primary">
+                                    {successCta}
                                 </Link>
                                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                                     Platformaga kirib, yangi tasdiqlash havolasini so'rashingiz mumkin.

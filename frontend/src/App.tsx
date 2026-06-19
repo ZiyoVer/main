@@ -42,6 +42,9 @@ function ProtectedRoute({ children, roles }: { children: React.ReactNode, roles?
     // Token bor lekin user store da yo'q — /auth/me orqali tiklaymiz
     const [storedToken, setStoredToken] = useState(() => localStorage.getItem('token'))
     const [checking, setChecking] = useState(!user && !!storedToken)
+    // STUDENT emailVerified===false localStorage'dan o'qilgan bo'lsa — bloklashdan oldin
+    // serverdan bir marta qayta tekshiramiz (mobil cross-browser tasdiq holatini ko'rish uchun).
+    const [verifyChecked, setVerifyChecked] = useState(false)
 
     useEffect(() => {
         const syncToken = () => setStoredToken(localStorage.getItem('token'))
@@ -74,10 +77,31 @@ function ProtectedRoute({ children, roles }: { children: React.ReactNode, roles?
         return () => { active = false }
     }, [user, storedToken, login])
 
+    // Stale localStorage himoyasi: STUDENT'da emailVerified===false bo'lsa, darhol
+    // /email-tasdiqlang'ga otmaymiz — avval /auth/me bilan yangi holatni olamiz.
+    // Bir martalik (verifyChecked) — verified bo'lsa store yangilanadi, aks holsa bloklanadi.
+    const needsVerifyRecheck = !!token && !!user && user.role === 'STUDENT' && user.emailVerified === false && !verifyChecked
+    useEffect(() => {
+        if (!needsVerifyRecheck || !token) {
+            return
+        }
+        let active = true
+        fetchApi('/auth/me', { silent: true })
+            .then(data => {
+                if (!active) return
+                login(token, data)
+            })
+            .catch(() => { /* tarmoq xatosi — eski holatda bloklanadi */ })
+            .finally(() => { if (active) setVerifyChecked(true) })
+        return () => { active = false }
+    }, [needsVerifyRecheck, token, login])
+
     if (checking) return <PageLoader />
     if (!token || !user) return <Navigate to="/kirish" state={{ from: location.pathname }} replace />
     if (roles && !roles.includes(user.role)) return <Navigate to="/" replace />
     // STUDENT email tasdiqlamagan bo'lsa — bloklash ekraniga. === false: undefined/legacy bloklanmaydi.
+    // Avval serverdan qayta tekshiramiz (needsVerifyRecheck) — stale localStorage bilan bloklanmasin.
+    if (needsVerifyRecheck) return <PageLoader />
     if (user.role === 'STUDENT' && user.emailVerified === false) return <Navigate to="/email-tasdiqlang" replace />
     return <>{children}</>
 }
