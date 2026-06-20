@@ -131,6 +131,12 @@ model Test {
   creatorId   String
   creator     User           @relation("TestCreator", fields: [creatorId], references: [id], onDelete: Cascade)
   isPublic    Boolean        @default(false)
+  // Moderatsiya: public testlar admin tasdig'idan o'tishi kerak.
+  // @default(true) — mavjud testlar migratsiyadan keyin ko'rinib qoladi (backfill).
+  // ADMIN yaratgan testlar darrov approved=true; TEACHER yaratganlari approved=false (kutilmoqda).
+  approved     Boolean       @default(true)
+  approvedAt   DateTime?      // tasdiqlangan vaqt (traceability uchun)
+  approvedById String?        // tasdiqlagan admin id'si (traceability uchun)
   shareLink   String         @unique @default(uuid())
   subject     String?
   subject2    String?
@@ -146,6 +152,8 @@ model Test {
   @@index([creatorId])
   @@index([isPublic, createdAt])
   @@index([creatorId, createdAt])
+  // Public ro'yxat (approved=true) va moderatsiya navbati (approved=false) tez ishlashi uchun
+  @@index([isPublic, approved, createdAt])
 }
 
 model TestQuestion {

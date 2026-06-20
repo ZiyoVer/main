@@ -119,6 +119,23 @@ function ConfirmModal({ state, onClose }: { state: ConfirmState; onClose: (resul
     )
 }
 
+// ── Moderatsiya (kutilayotgan testlar) tiplari ─────────────────────────
+interface PendingTestCreator {
+    id?: string
+    name?: string | null
+    email?: string | null
+    role?: ConfirmRole
+}
+interface PendingTest {
+    id: string
+    title: string
+    subject?: string | null
+    testType?: string | null
+    createdAt: string
+    creator?: PendingTestCreator | null
+    _count?: { questions?: number } | null
+}
+
 // ── User detail (drawer) tiplari ───────────────────────────────────────
 type UserStatus = 'ACTIVE' | 'SUSPENDED'
 
@@ -246,7 +263,7 @@ export default function AdminPanel() {
     const [editName, setEditName] = useState('')
     const [editNameDirty, setEditNameDirty] = useState(false)
     const [savingUser, setSavingUser] = useState(false)
-    const [tab, setTab] = useState<'stats' | 'presence' | 'users' | 'teachers' | 'docs' | 'tests' | 'ai' | 'knowledge' | 'activity' | 'audit' | 'broadcast'>('stats')
+    const [tab, setTab] = useState<'stats' | 'presence' | 'users' | 'teachers' | 'docs' | 'tests' | 'ai' | 'knowledge' | 'activity' | 'audit' | 'moderation' | 'broadcast'>('stats')
     const [stats, setStats] = useState<any>(null)
     const [statsError, setStatsError] = useState('')
     const [users, setUsers] = useState<any[]>([])
@@ -336,6 +353,13 @@ export default function AdminPanel() {
     const [auditLoading, setAuditLoading] = useState(false)
     const [auditError, setAuditError] = useState('')
 
+    // Moderatsiya — kutilayotgan (tasdiqlanmagan) testlar
+    const [pendingTests, setPendingTests] = useState<PendingTest[]>([])
+    const [pendingCount, setPendingCount] = useState(0)
+    const [pendingLoading, setPendingLoading] = useState(false)
+    const [pendingError, setPendingError] = useState('')
+    const [moderationBusy, setModerationBusy] = useState<string | null>(null)
+
     const KNOWLEDGE_SUBJECTS = SUBJECTS
 
     // Users pagination
@@ -356,6 +380,8 @@ export default function AdminPanel() {
     useEffect(() => {
         loadStats()
         loadPeriodTrend(30)
+        // Tab badge uchun kutilayotgan testlar sonini darhol yuklaymiz
+        loadPending()
         // Online users — darhol va har 30 soniyada yangilanadi
         const loadOnline = () => fetchApi('/analytics/online-users').then(setOnlineUsers).catch(() => {})
         loadOnline()
@@ -404,6 +430,7 @@ export default function AdminPanel() {
         }
     }, [tab, activityPage, activityFilter])
     useEffect(() => { if (tab === 'audit') loadAudit() }, [tab, auditPage])
+    useEffect(() => { if (tab === 'moderation') loadPending() }, [tab])
 
     async function loadStats() {
         setLoading(true)
@@ -704,6 +731,67 @@ export default function AdminPanel() {
             setAuditError(e?.message || 'Audit jurnalini yuklab boʻlmadi')
         } finally {
             setAuditLoading(false)
+        }
+    }
+
+    // GET /admin/tests/pending — kutilayotgan (tasdiqlanmagan) testlar ro'yxati
+    async function loadPending() {
+        setPendingLoading(true)
+        try {
+            const data = await fetchApi('/admin/tests/pending', { silent: true })
+            const list: PendingTest[] = Array.isArray(data) ? data : (data.tests || [])
+            setPendingTests(list)
+            setPendingCount(typeof data.total === 'number' ? data.total : list.length)
+            setPendingError('')
+        } catch (e: any) {
+            setPendingTests([])
+            setPendingError(e?.message || 'Kutilayotgan testlarni yuklab boʻlmadi')
+        } finally {
+            setPendingLoading(false)
+        }
+    }
+
+    // POST /admin/tests/:id/approve — testni tasdiqlash (ommaga ochiladi)
+    async function approveTest(test: PendingTest) {
+        const ok = await confirm({
+            title: 'Testni tasdiqlash',
+            message: `"${test.title}" testini tasdiqlaysizmi? Tasdiqlangach barcha o'quvchilarga ochiladi.`,
+            confirmLabel: 'Tasdiqlash',
+        })
+        if (!ok) return
+        setModerationBusy(test.id)
+        try {
+            await fetchApi(`/admin/tests/${test.id}/approve`, { method: 'POST' })
+            toast.success(`"${test.title}" tasdiqlandi`)
+            // Ro'yxatdan darhol olib tashlaymiz va badge'ni yangilaymiz
+            setPendingTests(prev => prev.filter(t => t.id !== test.id))
+            setPendingCount(prev => Math.max(0, prev - 1))
+        } catch (e: any) {
+            toast.error(e?.message || 'Tasdiqlashda xatolik')
+        } finally {
+            setModerationBusy(null)
+        }
+    }
+
+    // POST /admin/tests/:id/reject — testni rad etish (yopiq qoladi)
+    async function rejectTest(test: PendingTest) {
+        const ok = await confirm({
+            title: 'Testni rad etish',
+            message: `"${test.title}" testini rad etasizmi? Test yopiq qoladi va muallifga xabar beriladi.`,
+            confirmLabel: 'Rad etish',
+            danger: true,
+        })
+        if (!ok) return
+        setModerationBusy(test.id)
+        try {
+            await fetchApi(`/admin/tests/${test.id}/reject`, { method: 'POST' })
+            toast.success(`"${test.title}" rad etildi`)
+            setPendingTests(prev => prev.filter(t => t.id !== test.id))
+            setPendingCount(prev => Math.max(0, prev - 1))
+        } catch (e: any) {
+            toast.error(e?.message || 'Rad etishda xatolik')
+        } finally {
+            setModerationBusy(null)
         }
     }
 
@@ -1029,6 +1117,7 @@ export default function AdminPanel() {
         { k: 'presence' as const, l: 'Online vaqt', icon: Clock3 },
         { k: 'activity' as const, l: 'Faollik', icon: Activity },
         { k: 'audit' as const, l: 'Audit', icon: ScrollText },
+        { k: 'moderation' as const, l: 'Moderatsiya', icon: ShieldCheck },
         { k: 'users' as const, l: 'Foydalanuvchilar', icon: Users },
         { k: 'teachers' as const, l: 'O\'qituvchi', icon: UserCheck },
         { k: 'tests' as const, l: 'Testlar', icon: Layers },
@@ -1108,6 +1197,12 @@ export default function AdminPanel() {
                             className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[13px] font-medium transition whitespace-nowrap"
                             style={tab === t.k ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { color: 'var(--text-secondary)' }}>
                             <t.icon className="h-3.5 w-3.5" /> {t.l}
+                            {t.k === 'moderation' && pendingCount > 0 && (
+                                <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold leading-none text-white"
+                                    style={{ background: 'var(--brand)' }}>
+                                    {pendingCount > 99 ? '99+' : pendingCount}
+                                </span>
+                            )}
                         </button>
                     ))}
                 </div>
@@ -2351,6 +2446,107 @@ export default function AdminPanel() {
                                 <button disabled={auditPage >= auditPages} onClick={() => setAuditPage(p => Math.min(auditPages, p + 1))} className="btn btn-sm btn-outline">Keyingi →</button>
                             </div>
                         )}
+                    </div>
+                )}
+
+                {/* === MODERATSIYA (kutilayotgan testlar) === */}
+                {tab === 'moderation' && (
+                    <div>
+                        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                            <div className="flex items-center gap-2">
+                                <p className="text-[11px]" style={mutedText}>{pendingCount} ta kutilmoqda</p>
+                                <button onClick={loadPending} className="btn btn-sm btn-outline flex items-center gap-1.5">
+                                    <RefreshCw className={`h-3 w-3 ${pendingLoading ? 'animate-spin' : ''}`} /> Yangilash
+                                </button>
+                            </div>
+                            <p className="text-[11px] flex items-center gap-1.5" style={mutedText}>
+                                <ShieldCheck className="h-3.5 w-3.5" style={{ color: 'var(--brand)' }} />
+                                Tasdiqlanmagan testlar — ommaga chiqishidan oldin koʻrib chiqing
+                            </p>
+                        </div>
+
+                        {pendingError && (
+                            <div className="rounded-xl px-4 py-3 text-[12px] mb-3 flex items-center justify-between gap-3" style={{ background: 'var(--danger-light)', color: 'var(--danger)', border: '1px solid color-mix(in srgb, var(--danger) 25%, transparent)' }}>
+                                <span>{pendingError}</span>
+                                <button onClick={loadPending} className="btn btn-sm btn-outline flex items-center gap-1.5 flex-shrink-0">
+                                    <RefreshCw className="h-3 w-3" /> Qayta urinish
+                                </button>
+                            </div>
+                        )}
+
+                        <div className="rounded-xl overflow-hidden" style={cardStyle}>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm min-w-[760px]">
+                                    <thead>
+                                        <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+                                            <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Test nomi</th>
+                                            <th className="text-left py-2.5 px-3 font-medium text-[11px] uppercase" style={mutedText}>Muallif</th>
+                                            <th className="text-left py-2.5 px-3 font-medium text-[11px] uppercase" style={mutedText}>Fan</th>
+                                            <th className="text-left py-2.5 px-3 font-medium text-[11px] uppercase" style={mutedText}>Sana</th>
+                                            <th className="py-2.5 px-3" />
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {pendingLoading && pendingTests.length === 0 ? (
+                                            <tr><td colSpan={5} className="text-center py-10 text-[12px]" style={mutedText}>Yuklanmoqda...</td></tr>
+                                        ) : pendingTests.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={5} className="text-center py-12">
+                                                    <ShieldCheck className="h-8 w-8 mx-auto mb-2 opacity-30" style={{ color: 'var(--success)' }} />
+                                                    <p className="text-[12px]" style={mutedText}>Kutilayotgan testlar yoʻq — hammasi koʻrib chiqilgan</p>
+                                                </td>
+                                            </tr>
+                                        ) : pendingTests.map(t => {
+                                            const creatorName = t.creator?.name || t.creator?.email || '—'
+                                            const creatorEmail = t.creator?.email || ''
+                                            const busy = moderationBusy === t.id
+                                            return (
+                                                <tr key={t.id} style={{ borderBottom: '1px solid var(--border)' }} className="hover:bg-[var(--bg-surface)] transition-colors">
+                                                    <td className="py-2.5 px-4 max-w-[240px]">
+                                                        <p className="text-[13px] font-medium truncate">{t.title}</p>
+                                                        <p className="text-[10px]" style={mutedText}>
+                                                            {t.testType || 'REGULAR'} · {t._count?.questions || 0} ta savol
+                                                        </p>
+                                                    </td>
+                                                    <td className="py-2.5 px-3">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0"
+                                                                style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>
+                                                                {creatorName?.[0]?.toUpperCase() || '?'}
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <p className="text-[12px] font-medium truncate max-w-[140px]">{creatorName}</p>
+                                                                {creatorEmail && <p className="text-[10px] truncate max-w-[140px]" style={mutedText}>{creatorEmail}</p>}
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-2.5 px-3">
+                                                        <span className="text-[11px]" style={mutedText}>{t.subject || '—'}</span>
+                                                    </td>
+                                                    <td className="py-2.5 px-3 text-[11px] tabular-nums" style={mutedText}>
+                                                        {new Date(t.createdAt).toLocaleDateString('uz-UZ', { day: '2-digit', month: 'short', year: '2-digit' })}
+                                                    </td>
+                                                    <td className="py-2.5 px-3">
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            <button onClick={() => approveTest(t)} disabled={busy}
+                                                                className="inline-flex items-center gap-1 h-7 px-3 rounded-lg text-[12px] font-semibold text-white transition disabled:opacity-50"
+                                                                style={{ background: 'var(--success)' }}>
+                                                                <CheckCircle2 className="h-3.5 w-3.5" /> Tasdiqlash
+                                                            </button>
+                                                            <button onClick={() => rejectTest(t)} disabled={busy}
+                                                                className="inline-flex items-center gap-1 h-7 px-3 rounded-lg text-[12px] font-semibold transition disabled:opacity-50"
+                                                                style={{ background: 'var(--danger-light)', color: 'var(--danger)', border: '1px solid color-mix(in srgb, var(--danger) 25%, transparent)' }}>
+                                                                <Ban className="h-3.5 w-3.5" /> Rad etish
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 )}
 

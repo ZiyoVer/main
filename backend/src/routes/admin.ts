@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
+import { logAdminAction } from '../utils/adminAudit'
 
 const router = Router()
 
@@ -246,6 +247,182 @@ router.get('/audit', authenticate, requireRole('ADMIN'), async (req: AuthRequest
         res.json({ items, total, page, pages: Math.ceil(total / limit) })
     } catch (e) {
         console.error('admin audit list error:', e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+// ============ TEST MODERATSIYASI (faqat ADMIN) ============
+// Public testlar admin tasdig'idan o'tishi kerak. TEACHER yaratgan/qayta nashr qilgan
+// public testlar approved=false bo'ladi va shu navbatga tushadi.
+
+// GET /api/admin/tests/pending — tasdiq kutayotgan public testlar (approved=false).
+// Eng eskidan yangiga (FIFO navbat). Query: ?page (1+), sahifada 50 ta.
+router.get('/tests/pending', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
+    try {
+        const page = Math.max(1, parseInt(req.query.page as string) || 1)
+        const limit = 50
+        const where = { isPublic: true, approved: false }
+
+        const [tests, total] = await Promise.all([
+            prisma.test.findMany({
+                where,
+                include: {
+                    _count: { select: { questions: true, attempts: true } },
+                    creator: { select: { id: true, name: true, email: true, role: true } }
+                },
+                orderBy: { createdAt: 'asc' },
+                take: limit,
+                skip: (page - 1) * limit,
+            }),
+            prisma.test.count({ where })
+        ])
+
+        res.json({
+            tests,
+            total,
+            page,
+            pages: Math.ceil(total / limit)
+        })
+    } catch (e) {
+        console.error('admin tests pending error:', e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+// POST /api/admin/tests/:testId/approve — testni tasdiqlash.
+// approved=true qiladi, approvedAt/approvedById yozadi, studentlarga bildirishnoma yuboradi,
+// audit log (TEST_APPROVE). Allaqachon tasdiqlangan bo'lsa qayta bildirishnoma yubormaydi.
+router.post('/tests/:testId/approve', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
+    try {
+        const testId = req.params.testId as string
+        const test = await prisma.test.findUnique({
+            where: { id: testId },
+            select: { id: true, title: true, subject: true, isPublic: true, approved: true, creatorId: true }
+        })
+        if (!test) return res.status(404).json({ error: 'Test topilmadi' })
+        if (!test.isPublic) {
+            return res.status(400).json({ error: 'Faqat public testlar tasdiqlanadi. Bu test private.' })
+        }
+
+        const alreadyApproved = test.approved
+
+        const updated = await prisma.test.update({
+            where: { id: test.id },
+            data: {
+                approved: true,
+                approvedAt: new Date(),
+                approvedById: req.user.id,
+            }
+        })
+
+        // Studentlarga bildirishnoma — faqat birinchi marta tasdiqlanganda yuboramiz
+        // (idempotentlik: qayta approve bosilsa spam bo'lmasin).
+        let notified = 0
+        if (!alreadyApproved) {
+            try {
+                const students = await prisma.user.findMany({
+                    where: { role: 'STUDENT' },
+                    select: { id: true }
+                })
+                if (students.length > 0) {
+                    const created = await prisma.notification.createMany({
+                        data: students.map((s: { id: string }) => ({
+                            userId: s.id,
+                            senderId: req.user.id,
+                            title: `📚 Yangi test: ${test.title}`,
+                            message: `"${test.title}" nomli yangi ${test.subject || ''} testi qo'shildi. Hoziroq yechib ko'ring!`,
+                            targetType: 'test',
+                            targetId: test.id
+                        }))
+                    })
+                    notified = created.count
+                }
+            } catch (notifErr) {
+                console.error('Notification send error (approve):', notifErr)
+                // Bildirishnoma xatosi tasdiqlashni to'xtatmasin
+            }
+        }
+
+        // AUDIT (best-effort)
+        const actor = await prisma.user.findUnique({
+            where: { id: req.user.id },
+            select: { email: true }
+        }).catch(() => null)
+        await logAdminAction(req.user.id, actor?.email ?? null, 'TEST_APPROVE', 'TEST', test.id, {
+            title: test.title,
+            creatorId: test.creatorId,
+            notified,
+        })
+
+        res.json({ ...updated, notified })
+    } catch (e) {
+        console.error('admin test approve error:', e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+// POST /api/admin/tests/:testId/reject — testni rad etish.
+// Testni private qiladi (isPublic=false) va approved=false qoldiradi — shunda u
+// public ro'yxatdan ham, kutilayotganlar navbatidan ham chiqib ketadi, lekin
+// o'chmaydi (egasi tahrirlab qayta yuborishi mumkin). Egasiga sabab bilan bildirishnoma.
+// Body: { reason?: string }. Audit log (TEST_REJECT).
+router.post('/tests/:testId/reject', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
+    try {
+        const testId = req.params.testId as string
+        const rawReason = req.body?.reason
+        const reason = typeof rawReason === 'string' ? rawReason.trim().slice(0, 500) : ''
+
+        const test = await prisma.test.findUnique({
+            where: { id: testId },
+            select: { id: true, title: true, creatorId: true }
+        })
+        if (!test) return res.status(404).json({ error: 'Test topilmadi' })
+
+        const updated = await prisma.test.update({
+            where: { id: test.id },
+            data: {
+                isPublic: false,
+                approved: false,
+                approvedAt: null,
+                approvedById: null,
+            }
+        })
+
+        // Egasiga (test yaratuvchisiga) bildirishnoma — o'ziga o'zi yubormaslik uchun tekshiramiz
+        if (test.creatorId && test.creatorId !== req.user.id) {
+            try {
+                await prisma.notification.create({
+                    data: {
+                        userId: test.creatorId,
+                        senderId: req.user.id,
+                        title: `❌ Test rad etildi: ${test.title}`,
+                        message: reason
+                            ? `"${test.title}" testi admin tomonidan rad etildi. Sabab: ${reason}`
+                            : `"${test.title}" testi admin tomonidan rad etildi. Iltimos, qayta ko'rib chiqing.`,
+                        targetType: 'test',
+                        targetId: test.id
+                    }
+                })
+            } catch (notifErr) {
+                console.error('Notification send error (reject):', notifErr)
+                // Bildirishnoma xatosi rad etishni to'xtatmasin
+            }
+        }
+
+        // AUDIT (best-effort)
+        const actor = await prisma.user.findUnique({
+            where: { id: req.user.id },
+            select: { email: true }
+        }).catch(() => null)
+        await logAdminAction(req.user.id, actor?.email ?? null, 'TEST_REJECT', 'TEST', test.id, {
+            title: test.title,
+            creatorId: test.creatorId,
+            reason: reason || null,
+        })
+
+        res.json({ ...updated, message: 'Test rad etildi' })
+    } catch (e) {
+        console.error('admin test reject error:', e)
         res.status(500).json({ error: 'Server xatoligi' })
     }
 })

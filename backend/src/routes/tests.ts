@@ -758,8 +758,10 @@ router.get('/my-results', authenticate, async (req: AuthRequest, res) => {
 // Public testlar ro'yxati (barcha o'quvchilar uchun)
 router.get('/public', authenticate, async (req: AuthRequest, res) => {
     try {
+        // XAVFSIZLIK: faqat admin tasdiqlagan (approved) public testlar ko'rinadi.
+        // Tasdiqlanmagan (TEACHER yaratgan, kutilayotgan) testlar bu yerda chiqmaydi.
         const tests = await prisma.test.findMany({
-            where: { isPublic: true },
+            where: { isPublic: true, approved: true },
             include: {
                 _count: { select: { questions: true, attempts: true } },
                 creator: { select: { name: true } }
@@ -845,6 +847,19 @@ router.get('/by-link/:shareLink', optionalAuthenticate, testReadLimiter, async (
             }
         })
         if (!test) return res.status(404).json({ error: 'Test topilmadi' })
+
+        // MODERATSIYA: tasdiqlanmagan (approved=false) public testlar link orqali ham
+        // tarqalmasligi kerak. Faqat test egasi yoki admin tasdiqlanmagan testni
+        // link orqali ko'ra oladi (preview uchun). Private testlar (isPublic=false)
+        // link bilan ulashiladi va approved=true bo'ladi — ular bu cheklovga tushmaydi.
+        if (test.isPublic && !test.approved) {
+            const viewerId = req.user?.id
+            const viewerRole = req.user?.role
+            const isOwnerOrAdmin = viewerRole === 'ADMIN' || (viewerId && viewerId === test.creatorId)
+            if (!isOwnerOrAdmin) {
+                return res.status(403).json({ error: 'Bu test hali admin tomonidan tasdiqlanmagan' })
+            }
+        }
 
         // Matching savollar uchun to'g'ri javoblarni (correctIdx) options dan olib tashlaymiz —
         // aks holda o'quvchi devtools orqali barcha javoblarni ko'ra oladi
@@ -1242,6 +1257,13 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
                 }
             }
         }
+        // Moderatsiya: ADMIN yaratgan public test darrov tasdiqlanadi,
+        // TEACHER (yoki kelajakdagi STUDENT) yaratganlari admin tasdig'ini kutadi.
+        // Private (isPublic=false) testlar uchun approved muhim emas — ular ro'yxatda chiqmaydi.
+        const isAdminCreator = req.user.role === 'ADMIN'
+        const wantsPublic = Boolean(isPublic)
+        const approvedOnCreate = isAdminCreator ? true : !wantsPublic
+
         const test = await prisma.test.create({
             data: {
                 title,
@@ -1249,6 +1271,9 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
                 subject: normalizedSubject,
                 subject2: normalizedSubject2,
                 isPublic: isPublic || false,
+                approved: approvedOnCreate,
+                approvedAt: approvedOnCreate && wantsPublic ? new Date() : null,
+                approvedById: approvedOnCreate && wantsPublic && isAdminCreator ? req.user.id : null,
                 testType: normalizedTestType,
                 timeLimit: timeLimit || null,
                 creatorId: req.user.id,
@@ -1284,8 +1309,11 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
             include: { questions: true }
         })
 
-        // Public test yaratilsa barcha studentlarga bildirishnoma
-        if (isPublic) {
+        // Bildirishnoma FAQAT test public VA tasdiqlangan bo'lsa yuboriladi
+        // (ya'ni ADMIN yaratgan public test). TEACHER public testi tasdiqlanmaguncha
+        // studentlar ko'ra olmaydi — shuning uchun bildirishnoma ham yubormaymiz
+        // (u admin approve qilganda yuboriladi).
+        if (wantsPublic && approvedOnCreate) {
             try {
                 const students = await prisma.user.findMany({
                     where: { role: 'STUDENT' },
@@ -1423,6 +1451,13 @@ router.patch('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), testMuta
             }
         }
 
+        // MODERATSIYA: TEACHER public testni tahrirlasa — qayta tasdiqlash uchun
+        // approved=false bo'ladi. ADMIN tahrirlasa approved=true qoladi.
+        // Private testlar (isPublic=false) ro'yxatda chiqmaydi — ular uchun approved=true qoldiramiz.
+        const wantsPublicEdit = Boolean(isPublic)
+        const isAdminEditor = req.user.role === 'ADMIN'
+        const approvedAfterEdit = isAdminEditor ? true : !wantsPublicEdit
+
         const updated = await prisma.test.update({
             where: { id: existing.id },
             data: {
@@ -1431,6 +1466,9 @@ router.patch('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), testMuta
                 subject: normalizedSubject,
                 subject2: normalizedSubject2,
                 isPublic: Boolean(isPublic),
+                approved: approvedAfterEdit,
+                approvedAt: approvedAfterEdit && wantsPublicEdit && isAdminEditor ? new Date() : null,
+                approvedById: approvedAfterEdit && wantsPublicEdit && isAdminEditor ? req.user.id : null,
                 testType: normalizedTestType,
                 timeLimit: timeLimit || null,
                 questions: {
@@ -1722,6 +1760,12 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
         // Student public test yoki valid share-link bilan kirilgan private testni submit qila oladi
         if (!test.isPublic && req.user?.role === 'STUDENT' && shareLink !== test.shareLink) {
             return res.status(403).json({ error: 'Bu test uchun ruxsat yo\'q' })
+        }
+        // MODERATSIYA: student tasdiqlanmagan public testni link orqali topib submit qila olmasin.
+        // (Egasi/admin preview qilishi mumkin, lekin natija yozilmasligi uchun ularni ham bloklaymiz
+        // — tasdiqlanmagan test hali "tirik" emas.)
+        if (test.isPublic && !test.approved) {
+            return res.status(403).json({ error: 'Bu test hali admin tomonidan tasdiqlanmagan' })
         }
 
         const timeLimitMs = getTimeLimitMs(test.timeLimit)
@@ -2315,15 +2359,28 @@ router.patch('/:testId/visibility', authenticate, requireRole('TEACHER', 'ADMIN'
         const test = await prisma.test.findFirst({ where })
         if (!test) return res.status(404).json({ error: 'Test topilmadi yoki ruxsat yo\'q' })
 
+        // MODERATSIYA: TEACHER public qilsa — admin tasdig'ini kutadi (approved=false).
+        // ADMIN public qilsa — darrov approved=true. Private qilinsa approved=true qoldiramiz
+        // (private test ro'yxatda chiqmaydi, qayta public qilinsa yana tekshiriladi).
+        const isAdminToggler = req.user.role === 'ADMIN'
+        const approvedAfterToggle = !isPublic ? true : isAdminToggler
+
         const updated = await prisma.test.update({
             where: { id: test.id },
-            data: { isPublic }
+            data: {
+                isPublic,
+                approved: approvedAfterToggle,
+                approvedAt: isPublic && approvedAfterToggle && isAdminToggler ? new Date() : null,
+                approvedById: isPublic && approvedAfterToggle && isAdminToggler ? req.user.id : null,
+            }
         })
 
-        // Private → Public bo'lganda barcha studentlarga bildirishnoma
+        // Private → Public bo'lganda barcha studentlarga bildirishnoma.
+        // FAQAT public VA tasdiqlangan bo'lsa yuboriladi (ADMIN toggle). TEACHER public
+        // qilsa bildirishnoma admin approve qilganda yuboriladi.
         // Haqiqatda nechta bildirishnoma yaratilganini kuzatamiz (student bo'lmasa 0).
         let notified = 0
-        if (isPublic && !test.isPublic) {
+        if (isPublic && !test.isPublic && approvedAfterToggle) {
             try {
                 const students = await prisma.user.findMany({
                     where: { role: 'STUDENT' },
