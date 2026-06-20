@@ -438,6 +438,55 @@ router.delete('/users/:userId', authenticate, requireRole('ADMIN'), async (req: 
     }
 })
 
+// Admin: Foydalanuvchiga tasdiqlash emailini qayta yuborish
+// Token-gen naqshи register/resend-verification bilan bir xil (hashlangan token saqlanadi,
+// emailga ochiq token yuboriladi). 200 { ok: true }.
+router.post('/users/:userId/resend-verification', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
+    try {
+        const uid = String(req.params.userId)
+        const target = await prisma.user.findUnique({ where: { id: uid } })
+        if (!target) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' })
+        if (target.emailVerified) return res.status(400).json({ error: 'Email allaqachon tasdiqlangan' })
+
+        const verificationToken = crypto.randomBytes(32).toString('hex')
+        const hashedVerificationToken = hashToken(verificationToken)
+        const verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 soat
+        await prisma.user.update({
+            where: { id: target.id },
+            data: { verificationToken: hashedVerificationToken, verificationTokenExpiry }
+        })
+        await sendVerificationEmail(target.email, target.name, verificationToken)
+        res.json({ ok: true })
+    } catch (e) {
+        console.error('admin resend-verification error:', e)
+        res.status(500).json({ error: 'Email yuborishda xato. Qayta urinib ko\'ring.' })
+    }
+})
+
+// Admin: Foydalanuvchiga parol tiklash emailini yuborish
+// Ochiq parol HECH QACHON qaytarilmaydi/o'rnatilmaydi — faqat reset token generatsiya qilinadi
+// va emailga tiklash havolasi yuboriladi (forgot-password naqshi). 200 { ok: true }.
+router.post('/users/:userId/reset-password', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
+    try {
+        const uid = String(req.params.userId)
+        const target = await prisma.user.findUnique({ where: { id: uid } })
+        if (!target) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' })
+
+        const resetToken = crypto.randomBytes(32).toString('hex')
+        const hashedResetToken = hashToken(resetToken)
+        const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000) // 1 soat
+        await prisma.user.update({
+            where: { id: target.id },
+            data: { resetToken: hashedResetToken, resetTokenExpiry }
+        })
+        await sendPasswordResetEmail(target.email, target.name, resetToken)
+        res.json({ ok: true })
+    } catch (e) {
+        console.error('admin reset-password error:', e)
+        res.status(500).json({ error: 'Email yuborishda xato. Qayta urinib ko\'ring.' })
+    }
+})
+
 // Email tasdiqlash — token orqali
 router.get('/verify-email/:token', async (req, res) => {
     try {

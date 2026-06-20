@@ -115,6 +115,7 @@ import flashcardsRoutes from './routes/flashcards'
 import mockExamRoutes from './routes/mockExam'
 import notificationsRoutes from './routes/notifications'
 import knowledgeRoutes from './routes/knowledge'
+import adminRoutes from './routes/admin'
 
 app.get('/api/health', async (_req, res) => {
     try {
@@ -137,6 +138,7 @@ app.use('/api/flashcards', optionalAuthenticate, apiLimiter, flashcardsRoutes)
 app.use('/api/mock-exam', optionalAuthenticate, apiLimiter, mockExamRoutes)
 app.use('/api/notifications', optionalAuthenticate, apiLimiter, notificationsRoutes)
 app.use('/api/knowledge', optionalAuthenticate, apiLimiter, knowledgeRoutes)
+app.use('/api/admin', optionalAuthenticate, apiLimiter, adminRoutes)
 
 // 404 handler (API)
 app.use('/api', (_req, res) => {

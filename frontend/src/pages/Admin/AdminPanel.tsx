@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BrainCircuit, Users, UserCheck, GraduationCap, BarChart3, MessageSquare, FileText, Layers, Target, LogOut, Upload, Trash2, Activity, Bot, Save, Globe, Lock, TrendingUp, UserPlus, BookOpen, RefreshCw, Wifi, Search, Filter, ClipboardList, CheckCircle2, Award, Clock3, ExternalLink } from 'lucide-react'
+import { BrainCircuit, Users, UserCheck, GraduationCap, BarChart3, MessageSquare, FileText, Layers, Target, LogOut, Upload, Trash2, Activity, Bot, Save, Globe, Lock, TrendingUp, UserPlus, BookOpen, RefreshCw, Wifi, Search, Filter, ClipboardList, CheckCircle2, Award, Clock3, ExternalLink, Send, Download, Mail, KeyRound, MoreVertical, AlertTriangle, Bell } from 'lucide-react'
 import { AreaChart, Area, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { fetchApi, uploadFile } from '@/lib/api'
 import { SUBJECTS } from '@/constants'
@@ -22,6 +22,14 @@ interface TimeSpentUser {
     onlineLastSeen: number | null
 }
 
+interface DeleteConfirmInfo {
+    requiresConfirmation?: boolean
+    testsCount?: number
+    notificationsCount?: number
+    studentsCount?: number
+    [key: string]: unknown
+}
+
 function formatDuration(minutes: number) {
     if (!minutes || minutes <= 0) return '0 daq'
     const hours = Math.floor(minutes / 60)
@@ -35,14 +43,29 @@ export default function AdminPanel() {
     const nav = useNavigate()
     const { logout } = useAuthStore()
     const pageRef = useRef<HTMLDivElement | null>(null)
-    const [tab, setTab] = useState<'stats' | 'presence' | 'users' | 'teachers' | 'docs' | 'tests' | 'ai' | 'knowledge' | 'activity'>('stats')
+    const [tab, setTab] = useState<'stats' | 'presence' | 'users' | 'teachers' | 'docs' | 'tests' | 'ai' | 'knowledge' | 'activity' | 'broadcast'>('stats')
     const [stats, setStats] = useState<any>(null)
+    const [statsError, setStatsError] = useState('')
     const [users, setUsers] = useState<any[]>([])
     const [docs, setDocs] = useState<any[]>([])
     const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null)
     const [backfillingDocs, setBackfillingDocs] = useState(false)
     const [tests, setTests] = useState<any[]>([])
+    const [testsLoading, setTestsLoading] = useState(false)
     const [tf, setTf] = useState({ name: '', email: '', password: '' })
+
+    // Broadcast (Xabarnoma)
+    const [bcTitle, setBcTitle] = useState('')
+    const [bcMessage, setBcMessage] = useState('')
+    const [bcTarget, setBcTarget] = useState<'all' | 'specific'>('all')
+    const [bcEmails, setBcEmails] = useState('')
+    const [bcSending, setBcSending] = useState(false)
+    const [bcResult, setBcResult] = useState<{ ok: boolean; text: string } | null>(null)
+
+    // Users list — CSV export + row action menu + per-row busy state
+    const [exportingUsers, setExportingUsers] = useState(false)
+    const [openUserMenu, setOpenUserMenu] = useState<string | null>(null)
+    const [userActionBusy, setUserActionBusy] = useState<string | null>(null)
     const [uploading, setUploading] = useState(false)
     const [docSubject, setDocSubject] = useState('Matematika')
     const [msg, setMsg] = useState('')
@@ -172,8 +195,8 @@ export default function AdminPanel() {
             fetchApi('/analytics/test-stats'),
         ])
 
-        if (statsRes.status === 'fulfilled') setStats(statsRes.value)
-        else setStats({})
+        if (statsRes.status === 'fulfilled') { setStats(statsRes.value); setStatsError('') }
+        else { setStats(null); setStatsError('Statistikani yuklab boʻlmadi') }
 
         if (timeSpentRes.status === 'fulfilled') {
             applyTimeSpentPayload(timeSpentRes.value)
@@ -221,6 +244,7 @@ export default function AdminPanel() {
     }
 
     async function loadTests() {
+        setTestsLoading(true)
         try {
             const params = new URLSearchParams({ page: String(testsPage), sortBy: testsSortBy })
             if (debouncedTestsSearch) params.set('search', debouncedTestsSearch)
@@ -232,6 +256,7 @@ export default function AdminPanel() {
             setTestsPages(data.pages || 1)
             setTestsSummary(data.summary || null)
         } catch { setTests([]) }
+        finally { setTestsLoading(false) }
     }
 
     async function loadUsers() {
@@ -247,14 +272,168 @@ export default function AdminPanel() {
         finally { setUsersLoading(false) }
     }
 
+    // 409 collateral matnini tuzadi (TEACHER o'chirilganda bog'liq ma'lumotlar)
+    function collateralText(info: DeleteConfirmInfo): string {
+        const parts: string[] = []
+        if (typeof info.testsCount === 'number' && info.testsCount > 0) parts.push(`${info.testsCount} ta test`)
+        if (typeof info.studentsCount === 'number' && info.studentsCount > 0) parts.push(`${info.studentsCount} ta o'quvchi bog'lanishi`)
+        if (typeof info.notificationsCount === 'number' && info.notificationsCount > 0) parts.push(`${info.notificationsCount} ta bildirishnoma`)
+        return parts.length ? parts.join(', ') : 'unga bog\'liq barcha ma\'lumotlar'
+    }
+
+    // DELETE — 409 requiresConfirmation bo'lsa collateral ko'rsatib, ?force=true bilan qayta urinadi
+    async function deleteUserWithForce(userId: string): Promise<boolean> {
+        try {
+            await fetchApi(`/auth/users/${userId}`, { method: 'DELETE', silent: true })
+            return true
+        } catch (e: any) {
+            if (e?.status === 409 && e?.data?.requiresConfirmation) {
+                const info = e.data as DeleteConfirmInfo
+                const ok = window.confirm(
+                    `Diqqat! Bu foydalanuvchi bilan birga ${collateralText(info)} ham o'chiriladi.\n\nDavom etamizmi? Bu amalni qaytarib bo'lmaydi.`
+                )
+                if (!ok) return false
+                await fetchApi(`/auth/users/${userId}?force=true`, { method: 'DELETE' })
+                return true
+            }
+            // Boshqa xato — foydalanuvchiga ko'rsatamiz (silent bo'lgani uchun bu yerda toast)
+            toast.error(e?.message || 'O\'chirishda xatolik')
+            throw e
+        }
+    }
+
     async function deleteUser(userId: string, userName: string) {
         if (!confirm(`"${userName}" foydalanuvchisini o'chirishni tasdiqlaysizmi? Bu amalni qaytarib bo'lmaydi.`)) return
         try {
-            await fetchApi(`/auth/users/${userId}`, { method: 'DELETE' })
-            toast.success(`${userName} o'chirildi`)
-            loadUsers()
+            const done = await deleteUserWithForce(userId)
+            if (done) {
+                toast.success(`${userName} o'chirildi`)
+                loadUsers()
+            }
+        } catch { /* xato deleteUserWithForce ichida ko'rsatildi */ }
+    }
+
+    async function resetUserPassword(userId: string, userName: string) {
+        setOpenUserMenu(null)
+        if (!window.confirm(`"${userName}" uchun parolni tiklash havolasi emailga yuborilsinmi?`)) return
+        setUserActionBusy(userId)
+        try {
+            await fetchApi(`/auth/users/${userId}/reset-password`, { method: 'POST' })
+            toast.success('Parolni tiklash havolasi emailga yuborildi')
         } catch (e: any) {
-            toast.error(e.message || 'O\'chirishda xatolik')
+            toast.error(e?.message || 'Parolni tiklashda xatolik')
+        } finally {
+            setUserActionBusy(null)
+        }
+    }
+
+    async function resendVerification(userId: string, userName: string) {
+        setOpenUserMenu(null)
+        setUserActionBusy(userId)
+        try {
+            await fetchApi(`/auth/users/${userId}/resend-verification`, { method: 'POST' })
+            toast.success(`${userName} uchun tasdiqlash xati qayta yuborildi`)
+        } catch (e: any) {
+            toast.error(e?.message || 'Tasdiqlash xatini yuborishda xatolik')
+        } finally {
+            setUserActionBusy(null)
+        }
+    }
+
+    async function exportUsersCsv() {
+        setExportingUsers(true)
+        try {
+            const token = localStorage.getItem('token')
+            const params = new URLSearchParams()
+            if (debouncedUsersSearch) params.set('search', debouncedUsersSearch)
+            const qs = params.toString()
+            const res = await fetch(`/api/admin/export/users${qs ? `?${qs}` : ''}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+            })
+            if (!res.ok) throw new Error('CSV eksport qilishda xatolik')
+            const blob = await res.blob()
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `dtmmax-users-${new Date().toISOString().slice(0, 10)}.csv`
+            document.body.appendChild(a)
+            a.click()
+            a.remove()
+            URL.revokeObjectURL(url)
+            toast.success('CSV yuklab olindi')
+        } catch (e: any) {
+            toast.error(e?.message || 'CSV eksport qilishda xatolik')
+        } finally {
+            setExportingUsers(false)
+        }
+    }
+
+    // Email(lar)ni userId(lar)ga aylantiradi — /notifications/send userIds kutadi
+    async function resolveEmailsToIds(emails: string[]): Promise<{ ids: string[]; notFound: string[] }> {
+        const ids: string[] = []
+        const notFound: string[] = []
+        for (const email of emails) {
+            try {
+                const params = new URLSearchParams({ search: email, limit: '10' })
+                const data = await fetchApi(`/auth/users?${params}`, { silent: true })
+                const match = (data.users || []).find(
+                    (u: { id: string; email: string }) => u.email?.toLowerCase() === email.toLowerCase()
+                )
+                if (match) ids.push(match.id)
+                else notFound.push(email)
+            } catch {
+                notFound.push(email)
+            }
+        }
+        return { ids, notFound }
+    }
+
+    async function sendBroadcast(e: React.FormEvent) {
+        e.preventDefault()
+        if (bcSending) return
+        setBcResult(null)
+        if (!bcTitle.trim() || !bcMessage.trim()) {
+            setBcResult({ ok: false, text: 'Sarlavha va matn kerak' })
+            return
+        }
+        setBcSending(true)
+        try {
+            if (bcTarget === 'all') {
+                const data = await fetchApi('/notifications/send', {
+                    method: 'POST',
+                    body: JSON.stringify({ title: bcTitle.trim(), message: bcMessage.trim(), broadcastAll: true }),
+                })
+                setBcResult({ ok: true, text: `Xabar ${data.sent ?? 0} ta foydalanuvchiga yuborildi` })
+                setBcTitle(''); setBcMessage('')
+            } else {
+                const emails = bcEmails
+                    .split(/[\s,;]+/)
+                    .map(s => s.trim())
+                    .filter(Boolean)
+                if (emails.length === 0) {
+                    setBcResult({ ok: false, text: 'Kamida bitta email kiriting' })
+                    setBcSending(false)
+                    return
+                }
+                const { ids, notFound } = await resolveEmailsToIds(emails)
+                if (ids.length === 0) {
+                    setBcResult({ ok: false, text: 'Hech qaysi email topilmadi' })
+                    setBcSending(false)
+                    return
+                }
+                const data = await fetchApi('/notifications/send', {
+                    method: 'POST',
+                    body: JSON.stringify({ title: bcTitle.trim(), message: bcMessage.trim(), userIds: ids }),
+                })
+                const sent = data.sent ?? ids.length
+                const warn = notFound.length ? ` (${notFound.length} ta email topilmadi: ${notFound.join(', ')})` : ''
+                setBcResult({ ok: true, text: `Xabar ${sent} ta foydalanuvchiga yuborildi${warn}` })
+                setBcTitle(''); setBcMessage(''); setBcEmails('')
+            }
+        } catch (err: any) {
+            setBcResult({ ok: false, text: err?.message || 'Xabar yuborishda xatolik' })
+        } finally {
+            setBcSending(false)
         }
     }
 
@@ -301,12 +480,14 @@ export default function AdminPanel() {
         if (!window.confirm('O\'qituvchini o\'chirishni tasdiqlaysizmi? Bu amal qaytarib bo\'lmaydi.')) return
         setDeletingTeacher(userId)
         try {
-            await fetchApi(`/auth/users/${userId}`, { method: 'DELETE' })
-            toast.success('O\'qituvchi o\'chirildi')
-            loadTeachers()
-            loadStats()
-        } catch (e: any) { toast.error(e.message || 'O\'chirishda xatolik') }
-        setDeletingTeacher(null)
+            const done = await deleteUserWithForce(userId)
+            if (done) {
+                toast.success('O\'qituvchi o\'chirildi')
+                loadTeachers()
+                loadStats()
+            }
+        } catch { /* xato deleteUserWithForce ichida ko'rsatildi */ }
+        finally { setDeletingTeacher(null) }
     }
 
     async function uploadDoc(e: React.ChangeEvent<HTMLInputElement>) {
@@ -454,6 +635,7 @@ export default function AdminPanel() {
         { k: 'teachers' as const, l: 'O\'qituvchi', icon: UserCheck },
         { k: 'tests' as const, l: 'Testlar', icon: Layers },
         { k: 'docs' as const, l: 'Materiallar', icon: FileText },
+        { k: 'broadcast' as const, l: 'Xabarnoma', icon: Bell },
         { k: 'ai' as const, l: 'AI Sozlamalar', icon: Bot },
         { k: 'knowledge' as const, l: 'Bilim Bazasi', icon: BookOpen },
     ]
@@ -536,6 +718,20 @@ export default function AdminPanel() {
                         <div className="text-center">
                             <div className="w-7 h-7 border-2 rounded-full animate-spin mx-auto mb-2" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--brand)' }} />
                             <p className="text-sm" style={mutedText}>Yuklanmoqda...</p>
+                        </div>
+                    </div>
+                )}
+                {tab === 'stats' && !loading && !stats && (
+                    <div className="flex items-center justify-center py-20">
+                        <div className="rounded-2xl px-6 py-8 text-center max-w-sm" style={cardStyle}>
+                            <div className="h-11 w-11 rounded-xl flex items-center justify-center mx-auto mb-3" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>
+                                <AlertTriangle className="h-5 w-5" />
+                            </div>
+                            <p className="text-sm font-semibold mb-1">Statistikani yuklab boʻlmadi</p>
+                            <p className="text-[12px] mb-4" style={mutedText}>{statsError || 'Server bilan bogʻlanishda xatolik yuz berdi'}</p>
+                            <button onClick={loadStats} className="btn btn-primary flex items-center gap-2 mx-auto">
+                                <RefreshCw className="h-3.5 w-3.5" /> Qayta urinish
+                            </button>
                         </div>
                     </div>
                 )}
@@ -868,14 +1064,21 @@ export default function AdminPanel() {
                 {/* === USERS === */}
                 {tab === 'users' && (
                     <div>
-                        <div className="flex items-center justify-between mb-3 gap-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-2">
                             <p className="text-[11px]" style={mutedText}>{usersTotal} ta foydalanuvchi</p>
-                            <input
-                                type="search" placeholder="Ism yoki email bo'yicha qidirish..."
-                                value={usersSearch}
-                                onChange={e => { setUsersSearch(e.target.value); setUsersPage(1) }}
-                                className="input" style={{ height: '2rem', fontSize: '12px', width: '240px' }}
-                            />
+                            <div className="flex items-center gap-2 w-full sm:w-auto">
+                                <input
+                                    type="search" placeholder="Ism yoki email bo'yicha qidirish..."
+                                    value={usersSearch}
+                                    onChange={e => { setUsersSearch(e.target.value); setUsersPage(1) }}
+                                    className="input flex-1 sm:flex-none" style={{ height: '2rem', fontSize: '12px' }}
+                                />
+                                <button onClick={exportUsersCsv} disabled={exportingUsers}
+                                    className="btn btn-sm btn-outline flex items-center gap-1.5 flex-shrink-0 disabled:opacity-50">
+                                    <Download className={`h-3.5 w-3.5 ${exportingUsers ? 'animate-pulse' : ''}`} />
+                                    {exportingUsers ? 'Yuklanmoqda...' : 'CSV yuklab olish'}
+                                </button>
+                            </div>
                         </div>
                         <div className="rounded-xl overflow-hidden" style={cardStyle}>
                             <div className="overflow-x-auto">
@@ -912,14 +1115,45 @@ export default function AdminPanel() {
                                             <td className="py-2.5 px-4 text-[12px] tabular-nums" style={mutedText}>{new Date(u.createdAt).toLocaleDateString('uz')}</td>
                                             <td className="py-2.5 px-2">
                                                 {u.role !== 'ADMIN' && (
-                                                    <button onClick={() => deleteUser(u.id, u.name)}
-                                                        className="h-6 w-6 flex items-center justify-center rounded transition"
-                                                        style={{ color: 'var(--border-strong)' }}
-                                                        onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.background = 'var(--danger-light)' }}
-                                                        onMouseLeave={e => { e.currentTarget.style.color = 'var(--border-strong)'; e.currentTarget.style.background = 'transparent' }}
-                                                        title="O'chirish">
-                                                        <Trash2 className="h-3.5 w-3.5" />
-                                                    </button>
+                                                    <div className="flex items-center justify-end gap-1">
+                                                        <div className="relative">
+                                                            <button onClick={() => setOpenUserMenu(prev => prev === u.id ? null : u.id)}
+                                                                disabled={userActionBusy === u.id}
+                                                                className="h-6 w-6 flex items-center justify-center rounded transition disabled:opacity-50"
+                                                                style={{ color: 'var(--text-muted)' }}
+                                                                onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-surface)' }}
+                                                                onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                                                                title="Amallar">
+                                                                {userActionBusy === u.id
+                                                                    ? <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+                                                                    : <MoreVertical className="h-3.5 w-3.5" />}
+                                                            </button>
+                                                            {openUserMenu === u.id && (
+                                                                <>
+                                                                    <div className="fixed inset-0 z-40" onClick={() => setOpenUserMenu(null)} />
+                                                                    <div className="absolute right-0 top-7 z-50 w-52 rounded-xl py-1 shadow-lg"
+                                                                        style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                                                        <button onClick={() => resetUserPassword(u.id, u.name)}
+                                                                            className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-left transition hover:bg-[var(--bg-surface)]">
+                                                                            <KeyRound className="h-3.5 w-3.5" style={{ color: 'var(--brand)' }} /> Parolni tiklash
+                                                                        </button>
+                                                                        <button onClick={() => resendVerification(u.id, u.name)}
+                                                                            className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-left transition hover:bg-[var(--bg-surface)]">
+                                                                            <Mail className="h-3.5 w-3.5" style={{ color: 'var(--info)' }} /> Tasdiqni qayta yuborish
+                                                                        </button>
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                        <button onClick={() => deleteUser(u.id, u.name)}
+                                                            className="h-6 w-6 flex items-center justify-center rounded transition"
+                                                            style={{ color: 'var(--border-strong)' }}
+                                                            onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.background = 'var(--danger-light)' }}
+                                                            onMouseLeave={e => { e.currentTarget.style.color = 'var(--border-strong)'; e.currentTarget.style.background = 'transparent' }}
+                                                            title="O'chirish">
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </button>
+                                                    </div>
                                                 )}
                                             </td>
                                         </tr>
@@ -1139,40 +1373,42 @@ export default function AdminPanel() {
                         )}
 
                         {/* Search + filter controls */}
-                        <div className="flex flex-wrap gap-2 items-center">
-                            <div className="relative flex-1" style={{ minWidth: 200 }}>
+                        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:items-center">
+                            <div className="relative w-full sm:flex-1" style={{ minWidth: 0 }}>
                                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
                                 <input type="search" placeholder="Test nomi yoki mualif bo'yicha..."
                                     value={testsSearch}
                                     onChange={e => { setTestsSearch(e.target.value); setTestsPage(1) }}
-                                    className="input pl-8" style={{ height: '2rem', fontSize: '12px' }} />
+                                    className="input pl-8 w-full" style={{ height: '2rem', fontSize: '12px' }} />
                             </div>
-                            {/* Visibility filter */}
-                            <div className="flex gap-0.5 rounded-lg p-0.5" style={{ background: 'var(--bg-surface)' }}>
-                                {(['all', 'public', 'private'] as const).map(v => (
-                                    <button key={v} onClick={() => { setTestsVisibility(v); setTestsPage(1) }}
-                                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition"
-                                        style={testsVisibility === v ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { color: 'var(--text-muted)' }}>
-                                        {v === 'all' ? 'Barchasi' : v === 'public' ? <><Globe className="h-3 w-3" /> Ochiq</> : <><Lock className="h-3 w-3" /> Yopiq</>}
-                                    </button>
-                                ))}
+                            <div className="flex flex-wrap gap-2 items-center">
+                                {/* Visibility filter */}
+                                <div className="flex gap-0.5 rounded-lg p-0.5" style={{ background: 'var(--bg-surface)' }}>
+                                    {(['all', 'public', 'private'] as const).map(v => (
+                                        <button key={v} onClick={() => { setTestsVisibility(v); setTestsPage(1) }}
+                                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition"
+                                            style={testsVisibility === v ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { color: 'var(--text-muted)' }}>
+                                            {v === 'all' ? 'Barchasi' : v === 'public' ? <><Globe className="h-3 w-3" /> Ochiq</> : <><Lock className="h-3 w-3" /> Yopiq</>}
+                                        </button>
+                                    ))}
+                                </div>
+                                {/* Subject filter */}
+                                <select value={testsSubject} onChange={e => { setTestsSubject(e.target.value); setTestsPage(1) }}
+                                    className="input flex-1 sm:flex-none" style={{ height: '2rem', fontSize: '12px', minWidth: 120 }}>
+                                    <option value="">Barcha fanlar</option>
+                                    {KNOWLEDGE_SUBJECTS.map(s =>
+                                        <option key={s} value={s}>{s}</option>
+                                    )}
+                                </select>
+                                {/* Sort */}
+                                <select value={testsSortBy} onChange={e => setTestsSortBy(e.target.value)}
+                                    className="input flex-1 sm:flex-none" style={{ height: '2rem', fontSize: '12px', minWidth: 120 }}>
+                                    <option value="createdAt">Yangi → Eski</option>
+                                    <option value="attempts">Ko'p urinilgan</option>
+                                    <option value="questions">Ko'p savollar</option>
+                                </select>
+                                <span className="text-[11px]" style={mutedText}>{testsTotal} ta natija</span>
                             </div>
-                            {/* Subject filter */}
-                            <select value={testsSubject} onChange={e => { setTestsSubject(e.target.value); setTestsPage(1) }}
-                                className="input" style={{ height: '2rem', fontSize: '12px', width: 'auto' }}>
-                                <option value="">Barcha fanlar</option>
-                                {KNOWLEDGE_SUBJECTS.map(s =>
-                                    <option key={s} value={s}>{s}</option>
-                                )}
-                            </select>
-                            {/* Sort */}
-                            <select value={testsSortBy} onChange={e => setTestsSortBy(e.target.value)}
-                                className="input" style={{ height: '2rem', fontSize: '12px', width: 'auto' }}>
-                                <option value="createdAt">Yangi → Eski</option>
-                                <option value="attempts">Ko'p urinilgan</option>
-                                <option value="questions">Ko'p savollar</option>
-                            </select>
-                            <span className="text-[11px]" style={mutedText}>{testsTotal} ta natija</span>
                         </div>
 
                         {/* Table */}
@@ -1193,7 +1429,9 @@ export default function AdminPanel() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {tests.length === 0 ? (
+                                    {testsLoading && tests.length === 0 ? (
+                                        <tr><td colSpan={9} className="text-center py-10 text-[12px]" style={mutedText}>Yuklanmoqda...</td></tr>
+                                    ) : tests.length === 0 ? (
                                         <tr><td colSpan={9} className="text-center py-10 text-[12px]" style={mutedText}>Testlar topilmadi</td></tr>
                                     ) : tests.map((t: any) => (
                                         <tr key={t.id} className="transition" style={{ borderBottom: '1px solid var(--border)' }}
@@ -1513,15 +1751,14 @@ export default function AdminPanel() {
                                     <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
                                         <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Foydalanuvchi</th>
                                         <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Harakat</th>
-                                        <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>IP</th>
                                         <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Vaqt</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {activityLoading && activityLogs.length === 0 ? (
-                                        <tr><td colSpan={4} className="text-center py-10 text-[12px]" style={mutedText}>Yuklanmoqda...</td></tr>
+                                        <tr><td colSpan={3} className="text-center py-10 text-[12px]" style={mutedText}>Yuklanmoqda...</td></tr>
                                     ) : activityLogs.length === 0 ? (
-                                        <tr><td colSpan={4} className="text-center py-10 text-[12px]" style={mutedText}>Yozuvlar yo'q</td></tr>
+                                        <tr><td colSpan={3} className="text-center py-10 text-[12px]" style={mutedText}>Yozuvlar yo'q</td></tr>
                                     ) : activityLogs.map((log: any) => (
                                         <tr key={log.id} style={{ borderBottom: '1px solid var(--border)' }} className="hover:bg-[var(--bg-surface)] transition-colors">
                                             <td className="py-2.5 px-4">
@@ -1548,7 +1785,6 @@ export default function AdminPanel() {
                                                     <span className="ml-1.5 text-[10px]" style={mutedText}>{log.user.role}</span>
                                                 )}
                                             </td>
-                                            <td className="py-2.5 px-4 text-[11px]" style={mutedText}>{log.ip || '—'}</td>
                                             <td className="py-2.5 px-4 text-[11px] tabular-nums" style={mutedText}>
                                                 {new Date(log.createdAt).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                                             </td>
@@ -1608,7 +1844,7 @@ export default function AdminPanel() {
                                 <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
                                     PDF, Word yoki TXT fayl yuklang — AI uchun avtomatik bo'laklarga bo'linadi. Tarix, Biologiya darsliklari, Milliy Sertifikat materiallari va boshqalar.
                                 </p>
-                                <div className="grid grid-cols-2 gap-3 mb-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                                     <div>
                                         <label className="text-sm font-medium block mb-1">Fan</label>
                                         <select className="input" value={pdfForm.subject} onChange={e => setPdfForm(f => ({ ...f, subject: e.target.value }))}>
@@ -1642,7 +1878,7 @@ export default function AdminPanel() {
                         {/* Yangi qo'shish / tahrirlash formasi */}
                         <div className="rounded-xl p-4 mb-6" style={cardStyle}>
                             <h3 className="font-semibold mb-4">{editingKnowledge ? 'Tahrirlash' : "Yangi ma'lumot qo'shish"}</h3>
-                            <div className="grid grid-cols-2 gap-3 mb-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                                 <div>
                                     <label className="text-sm font-medium block mb-1">Fan</label>
                                     <select className="input" value={knowledgeForm.subject}
@@ -1747,6 +1983,84 @@ export default function AdminPanel() {
                                 )}
                             </div>
                         )}
+                    </div>
+                )}
+
+                {/* === XABARNOMA (BROADCAST) === */}
+                {tab === 'broadcast' && (
+                    <div className="max-w-xl">
+                        <div className="rounded-2xl p-5 space-y-5" style={cardStyle}>
+                            <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--brand) 14%, transparent)', color: 'var(--brand)' }}>
+                                    <Bell className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-sm">Xabarnoma yuborish</h3>
+                                    <p className="text-[12px]" style={mutedText}>O'quvchilarga bildirishnoma joʻnating</p>
+                                </div>
+                            </div>
+
+                            {bcResult && (
+                                <div className="text-[13px] px-3.5 py-2.5 rounded-xl flex items-start gap-2"
+                                    style={bcResult.ok
+                                        ? { background: 'color-mix(in srgb, var(--success) 10%, transparent)', color: 'var(--success)', border: '1px solid color-mix(in srgb, var(--success) 25%, transparent)' }
+                                        : { background: 'var(--danger-light)', color: 'var(--danger)' }}>
+                                    {bcResult.ok ? <CheckCircle2 className="h-4 w-4 flex-shrink-0 mt-0.5" /> : <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />}
+                                    <span>{bcResult.text}</span>
+                                </div>
+                            )}
+
+                            <form onSubmit={sendBroadcast} className="space-y-4">
+                                <div>
+                                    <label className="text-sm font-medium block mb-1.5" style={secondaryText}>Sarlavha</label>
+                                    <input className="input" placeholder="Masalan: Yangi test qoʻshildi"
+                                        value={bcTitle} onChange={e => setBcTitle(e.target.value)} maxLength={120} />
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium block mb-1.5" style={secondaryText}>Matn</label>
+                                    <textarea className="input resize-y" rows={5} placeholder="Xabar matnini kiriting..."
+                                        value={bcMessage} onChange={e => setBcMessage(e.target.value)}
+                                        style={{ height: 'auto', padding: '0.625rem 0.875rem' }} />
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium block mb-1.5" style={secondaryText}>Kimga</label>
+                                    <div className="flex gap-0.5 rounded-lg p-0.5 w-fit" style={{ background: 'var(--bg-surface)' }}>
+                                        {([
+                                            { k: 'all' as const, l: 'Hammaga' },
+                                            { k: 'specific' as const, l: 'Aniq foydalanuvchi(lar)' },
+                                        ]).map(opt => (
+                                            <button key={opt.k} type="button" onClick={() => { setBcTarget(opt.k); setBcResult(null) }}
+                                                className="px-3 py-1.5 rounded-md text-[12px] font-medium transition"
+                                                style={bcTarget === opt.k ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { color: 'var(--text-muted)' }}>
+                                                {opt.l}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                {bcTarget === 'specific' && (
+                                    <div>
+                                        <label className="text-sm font-medium block mb-1.5" style={secondaryText}>Email manzillar</label>
+                                        <textarea className="input resize-y" rows={3}
+                                            placeholder="Email manzillarni vergul, boʻshliq yoki yangi qatordan ajrating&#10;ali@mail.com, vali@mail.com"
+                                            value={bcEmails} onChange={e => setBcEmails(e.target.value)}
+                                            style={{ height: 'auto', padding: '0.625rem 0.875rem' }} />
+                                        <p className="text-[11px] mt-1" style={mutedText}>Faqat oʻquvchilarga xabar yuboriladi.</p>
+                                    </div>
+                                )}
+                                {bcTarget === 'all' && (
+                                    <div className="rounded-xl px-3.5 py-3 text-[12px] flex items-start gap-2" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
+                                        <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" style={{ color: 'var(--brand)' }} />
+                                        <span>Bu xabar barcha oʻquvchilarga yuboriladi.</span>
+                                    </div>
+                                )}
+                                <button type="submit" disabled={bcSending}
+                                    className="btn btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50">
+                                    {bcSending
+                                        ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Yuborilmoqda...</>
+                                        : <><Send className="h-4 w-4" /> Yuborish</>}
+                                </button>
+                            </form>
+                        </div>
                     </div>
                 )}
 
