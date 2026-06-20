@@ -27,6 +27,9 @@ const C = {
   accentStrong: '#DA4A12',
   accent2: '#FF8A4C',
   accentGrad: 'linear-gradient(135deg, #F15A24 0%, #FF8A4C 100%)',
+  /* pixel-target 3D shading: extruded side-shadow gray + top-left highlight */
+  targetShade: '#B9BCC6',  /* darker ring-shadow for the extruded depth layer */
+  targetHi: '#F3F4F7',     /* near-white highlight edge on the top-left rings */
 } as const
 
 const SHADOW = {
@@ -402,43 +405,33 @@ function Nav() {
 /* ===================================================================== */
 
 /* Floating math elements. `depth` (0=far/faint/small … 2=near/solid/large) drives
-   size + opacity so the cluster reads with parallax depth. `isNum` switches to the
-   Hanken family (numbers/equations) vs Fraunces italic (pure symbols). Each gets a
-   staggered float `delay` (ms) so the drift never marches in lock-step. */
+   size + opacity so the cluster reads with parallax depth. All entries are pure
+   symbols (Fraunces italic). Each gets a staggered float `delay` (ms) so the drift
+   never marches in lock-step. */
 type GlyphDepth = 0 | 1 | 2
-type Glyph = { ch: string; top: number; left: number; isNum?: boolean; depth: GlyphDepth; delay: number }
+type Glyph = { ch: string; top: number; left: number; depth: GlyphDepth; delay: number }
 
 const GLYPHS: Glyph[] = [
-  /* original signature set — kept */
+  /* pure-symbol signature set — numbers/equations removed per owner request.
+     A few positions were nudged so the cluster stays airy around the enlarged
+     3D target (which now sits ~top:24% / left:46% of the zone) and nothing
+     overlaps it. */
   { ch: '√', top: 4, left: 2, depth: 2, delay: 0 },
-  { ch: 'π', top: 0, left: 44, depth: 1, delay: 900 },
+  { ch: 'π', top: 2, left: 40, depth: 1, delay: 900 },
   { ch: '∫', top: 28, left: 88, depth: 2, delay: 1800 },
   { ch: 'Σ', top: 62, left: 6, depth: 2, delay: 600 },
   { ch: 'x²', top: 1, left: 76, depth: 1, delay: 2400 },
-  { ch: '189', top: 70, left: 48, isNum: true, depth: 2, delay: 1200 },
-  /* added symbols — varied depths keep it airy, not cluttered */
-  { ch: '≈', top: 16, left: 30, depth: 0, delay: 3000 },
-  { ch: '÷', top: 46, left: 70, depth: 0, delay: 1500 },
-  { ch: '%', top: 84, left: 80, isNum: true, depth: 1, delay: 2100 },
-  { ch: '∞', top: 50, left: 38, depth: 1, delay: 300 },
-  { ch: 'θ', top: 30, left: 14, depth: 0, delay: 2700 },
+  { ch: '≈', top: 14, left: 24, depth: 0, delay: 3000 },
+  { ch: '÷', top: 56, left: 70, depth: 0, delay: 1500 },
+  { ch: '∞', top: 70, left: 40, depth: 1, delay: 300 },
+  { ch: 'θ', top: 36, left: 12, depth: 0, delay: 2700 },
   { ch: 'Δ', top: 88, left: 22, depth: 1, delay: 1050 },
   { ch: '∠', top: 8, left: 62, depth: 0, delay: 3300 },
-  { ch: '°', top: 40, left: 94, depth: 0, delay: 750 },
-  /* added numbers + mini-equations */
-  { ch: '100', top: 22, left: 50, isNum: true, depth: 0, delay: 1650 },
-  { ch: '75', top: 58, left: 88, isNum: true, depth: 0, delay: 2250 },
-  { ch: 'x²−5x+6=0', top: 92, left: 44, isNum: true, depth: 1, delay: 450 },
-  { ch: 'a²+b²=c²', top: 14, left: 6, isNum: true, depth: 1, delay: 1950 },
-  { ch: 'πr²', top: 76, left: 8, isNum: true, depth: 0, delay: 2850 },
+  { ch: '°', top: 44, left: 94, depth: 0, delay: 750 },
 ]
 
-/* size (px) per depth, split by family so equations stay readable but recessed */
-const GLYPH_SIZE: Record<GlyphDepth, { sym: number; num: number }> = {
-  0: { sym: 22, num: 15 },
-  1: { sym: 30, num: 22 },
-  2: { sym: 36, num: 28 },
-}
+/* size (px) per depth — pure symbols only (Fraunces italic). */
+const GLYPH_SIZE: Record<GlyphDepth, number> = { 0: 22, 1: 30, 2: 36 }
 const GLYPH_OPACITY: Record<GlyphDepth, number> = { 0: 0.45, 1: 0.7, 2: 1 }
 
 /* Pixel-art sparkle: a tiny <rect> grid that TWINKLES via steps() keyframes
@@ -487,8 +480,31 @@ function PixelSparkle({ s }: { s: Sparkle }) {
 function PixelTarget() {
   return (
     <div className="lp-target-wrap" aria-hidden="true">
-      {/* 16×16 grid rendered at 56px — concentric pixel rings */}
-      <svg className="lp-target" width={56} height={56} viewBox="0 0 16 16" shapeRendering="crispEdges">
+      {/* soft cast shadow beneath — sells the lift off the page */}
+      <span className="lp-target-shadow" />
+
+      {/* 16×16 grid rendered at 92px — pseudo-3D concentric pixel rings.
+          Three stacked passes give genuine thickness:
+            1) EXTRUSION: a darker copy of every ring offset +1/+1 (down-right)
+               so the disc reads like it has an extruded side wall.
+            2) RINGS: the real faint→gray concentric rings.
+            3) HIGHLIGHT: a near-white edge on the top-left cells (lit from
+               the upper-left) so the top of the disc catches the light. */}
+      <svg className="lp-target" width={92} height={92} viewBox="0 0 16 16" shapeRendering="crispEdges">
+        {/* 1 — EXTRUDED SIDE (dark, offset down-right by 1 cell) */}
+        <g transform="translate(1 1)" fill={C.targetShade}>
+          <rect x="6" y="0" width="4" height="2" />
+          <rect x="0" y="6" width="2" height="4" />
+          <rect x="14" y="6" width="2" height="4" />
+          <rect x="6" y="14" width="4" height="2" />
+          <rect x="4" y="2" width="8" height="2" />
+          <rect x="2" y="4" width="2" height="8" />
+          <rect x="12" y="4" width="2" height="8" />
+          <rect x="4" y="12" width="8" height="2" />
+          <rect x="4" y="4" width="8" height="8" />
+        </g>
+
+        {/* 2 — RINGS (the lit top face) */}
         {/* outer ring tips (faint) */}
         <rect x="6" y="0" width="4" height="2" fill={C.tex} />
         <rect x="0" y="6" width="2" height="4" fill={C.tex} />
@@ -501,15 +517,40 @@ function PixelTarget() {
         <rect x="4" y="12" width="8" height="2" fill={C.line2} />
         {/* inner soft wash around the bullseye */}
         <rect x="4" y="4" width="8" height="8" fill={C.soft} />
-        {/* BULLSEYE — orange */}
-        <rect className="lp-bull" x="6" y="6" width="4" height="4" fill={C.accent} />
+
+        {/* 3 — TOP-LEFT HIGHLIGHT EDGE (near-white, catches the light) */}
+        <g fill={C.targetHi}>
+          <rect x="6" y="0" width="4" height="1" />
+          <rect x="4" y="2" width="6" height="1" />
+          <rect x="0" y="6" width="1" height="4" />
+          <rect x="2" y="4" width="1" height="6" />
+        </g>
+
+        {/* BULLSEYE — beveled orange: hi top-left, dark bottom-right, accent core */}
+        <g className="lp-bull">
+          <rect className="lp-bull-core" x="6" y="6" width="4" height="4" fill={C.accent} />
+          <rect className="lp-bull-hi" x="6" y="6" width="3" height="1" fill={C.accent2} />
+          <rect className="lp-bull-hi" x="6" y="6" width="1" height="3" fill={C.accent2} />
+          <rect className="lp-bull-lo" x="7" y="9" width="3" height="1" fill={C.accentStrong} />
+          <rect className="lp-bull-lo" x="9" y="7" width="1" height="3" fill={C.accentStrong} />
+        </g>
       </svg>
 
-      {/* impact ripple ring */}
+      {/* impact ripple rings — two offset rings for a richer shockwave */}
       <span className="lp-arrow-ripple" />
+      <span className="lp-arrow-ripple lp-arrow-ripple-2" />
 
-      {/* the flying pixel arrow (orange shaft + darker head + light fletching) */}
-      <svg className="lp-arrow-fly" width={44} height={16} viewBox="0 0 22 8" shapeRendering="crispEdges">
+      {/* the flying pixel arrow (orange shaft + darker head + light fletching),
+          carries its own pixel under-shadow so it reads as 3D in flight */}
+      <svg className="lp-arrow-fly" width={72} height={26} viewBox="0 0 22 8" shapeRendering="crispEdges">
+        {/* drop shadow row under the shaft */}
+        <g transform="translate(0 1)" fill={C.targetShade} opacity="0.55">
+          <rect x="0" y="3" width="14" height="2" />
+          <rect x="14" y="3" width="2" height="2" />
+          <rect x="16" y="2" width="2" height="4" />
+          <rect x="18" y="1" width="2" height="6" />
+        </g>
+        {/* shaft + head + fletching */}
         <rect x="0" y="3" width="14" height="2" fill={C.accent} />
         <rect x="14" y="3" width="2" height="2" fill={C.accentStrong} />
         <rect x="16" y="2" width="2" height="4" fill={C.accentStrong} />
@@ -522,7 +563,7 @@ function PixelTarget() {
 }
 
 function MathGlyph({ g, i }: { g: Glyph; i: number }) {
-  const size = g.isNum ? GLYPH_SIZE[g.depth].num : GLYPH_SIZE[g.depth].sym
+  const size = GLYPH_SIZE[g.depth]
   /* expose depth opacity to CSS so the auto-glow can lift to full opacity uniformly */
   const styleVars = { '--lp-glyph-op': GLYPH_OPACITY[g.depth] } as CSSProperties
   return (
@@ -533,9 +574,9 @@ function MathGlyph({ g, i }: { g: Glyph; i: number }) {
         position: 'absolute',
         top: `${g.top}%`,
         left: `${g.left}%`,
-        fontFamily: g.isNum ? SANS : SERIF,
-        fontStyle: g.isNum ? 'normal' : 'italic',
-        fontWeight: g.isNum ? 700 : 500,
+        fontFamily: SERIF,
+        fontStyle: 'italic',
+        fontWeight: 500,
         fontSize: size,
         whiteSpace: 'nowrap',
         userSelect: 'none',

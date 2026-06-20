@@ -25,6 +25,9 @@
   --lp-accent-2:  #FF8A4C;   /* gradient stop 2 */
   --lp-accent-grad: linear-gradient(135deg, #F15A24 0%, #FF8A4C 100%);
 
+  --lp-target-shade: #B9BCC6;/* pixel-target 3D: extruded side-wall shadow gray */
+  --lp-target-hi:    #F3F4F7;/* pixel-target 3D: top-left highlight edge */
+
   --lp-shadow-card: 0 1px 2px rgba(10,10,16,.04), 0 1px 1px rgba(10,10,16,.03);
   --lp-shadow-hover: 0 18px 40px -14px rgba(241,90,36,.22), 0 4px 10px -4px rgba(10,10,16,.06);
   --lp-shadow-cta: 0 6px 20px rgba(241,90,36,.28);
@@ -188,87 +191,152 @@
 }
 
 /* ===================== PIXEL TARGET + ARROW (math-zone) =====================
-   A pixel-art bullseye that an orange pixel arrow flies into from the LEFT,
-   strikes dead-centre, flashes, sticks a beat, fades, pauses, then loops.
-   One shared 4s cycle keeps the arrow's arrival (~17.5%) perfectly in sync
-   with the bullseye flash / ripple (16–19%). All keyframes use `k-` names so
-   they never collide with the existing lp-float / lp-glow / lp-twinkle set.
-   Geometry: target is a 56px box; bullseye centre = (28,28). The arrow lives
-   inside the same wrap, offset so its TIP lands exactly on the bullseye. */
+   A pseudo-3D pixel-art bullseye that an orange pixel arrow flies into from the
+   LEFT, strikes dead-centre, the disc POPS toward the viewer with a perspective
+   tilt + deeper cast shadow, flashes, sticks a beat, fades, pauses, then loops.
+   One shared 4s cycle keeps the arrow's arrival (~17.5%) perfectly in sync with
+   the bullseye flash / impact pop / ripple (16–19%). All keyframes use `k-`
+   names so they never collide with lp-float / lp-glow / lp-twinkle.
+
+   3D build (see PixelTarget in Landing.tsx): a darker extruded side wall
+   (--lp-target-shade) offset down-right gives thickness, a near-white top-left
+   highlight (--lp-target-hi) catches the light, the bullseye is beveled, and a
+   blurred dark ellipse (.lp-target-shadow) is cast beneath the whole disc.
+
+   Geometry: target is a 92px box (16×16 viewBox → 5.75px/cell). The lit
+   bullseye core spans cells 6–10, so its centre = cell (8,8) = 46px from the
+   wrap's top-left. The arrow lives in the same wrap, offset so its TIP lands
+   exactly on (46,46). Arrow svg = 72×26 (viewBox 22×8 → 3.273×/3.25×): tip at
+   viewBox x=20 → 65.45px, centre at viewBox y=4 → 13px, hence left:-19.45px /
+   top:33px so the tip rests on the bullseye centre. */
 .lp-root .lp-target-wrap {
   position: absolute;
-  top: 34%;
-  left: 56%;
-  width: 56px;
-  height: 56px;
-  z-index: 2;          /* sits above the faint glyphs, never under 189/Σ */
+  top: 24%;
+  left: 46%;
+  width: 92px;
+  height: 92px;
+  z-index: 2;          /* sits above the faint glyphs, never under ∫/Σ */
+  perspective: 320px;  /* gives the impact tilt real depth */
+}
+/* soft cast shadow beneath the disc — reads as lifted off the page */
+.lp-root .lp-target-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 64px;
+  height: 16px;
+  margin-left: -32px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(10,10,16,.26) 0%, rgba(10,10,16,.12) 55%, transparent 75%);
+  filter: blur(1.5px);
+  opacity: .8;
+  transform-origin: center;
+  animation: k-target-shadow 4s linear infinite;
 }
 .lp-root .lp-target {
   position: absolute;
   inset: 0;
   display: block;
-  transform-origin: center;
+  transform-origin: center 70%;   /* pivot low so the disc tips toward viewer */
+  transform-style: preserve-3d;
   animation: k-target-hit 4s linear infinite;
 }
 .lp-root .lp-bull {
   transform-box: fill-box;
   transform-origin: center;
-  animation: k-bull-hit 4s linear infinite;
 }
+/* the beveled bullseye cells flash on impact (core lifts to accent-2) */
+.lp-root .lp-bull-core { animation: k-bull-hit 4s linear infinite; }
 .lp-root .lp-arrow-fly {
   position: absolute;
-  left: -16px;         /* tip (x=44) rests at bullseye centre x=28 */
-  top: 20px;           /* arrow centre (h/2=8) rests at bullseye centre y=28 */
-  transform: translateX(-200px);
+  left: -19.45px;      /* tip (viewBox x=20 → 65.45px) rests on bullseye x=46 */
+  top: 33px;           /* arrow centre (viewBox y=4 → 13px) rests on bullseye y=46 */
+  transform: translateX(-240px);
   opacity: 0;
   animation: k-arrow-fly 4s linear infinite;
 }
 .lp-root .lp-arrow-ripple {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 24px;
-  height: 24px;
-  margin: -12px 0 0 -12px;
+  left: 46px;          /* anchored on the bullseye centre, not the box centre */
+  top: 46px;
+  width: 30px;
+  height: 30px;
+  margin: -15px 0 0 -15px;
   border: 2px solid var(--lp-accent);
   border-radius: 2px;
   opacity: 0;
   transform: scale(.4);
   animation: k-arrow-ripple 4s linear infinite;
 }
+/* second, offset ring — staggered + thinner for a richer shockwave */
+.lp-root .lp-arrow-ripple-2 {
+  border-color: var(--lp-accent-2);
+  animation: k-arrow-ripple-2 4s linear infinite;
+}
 
 /* fast ease-in flight, slam to centre at ~17.5%, tiny recoil, stick, fade */
 @keyframes k-arrow-fly {
-  0%    { transform: translateX(-200px); opacity: 0; }
-  4%    { transform: translateX(-200px); opacity: 0; }
-  7%    { transform: translateX(-180px); opacity: 1; }
+  0%    { transform: translateX(-240px); opacity: 0; }
+  4%    { transform: translateX(-240px); opacity: 0; }
+  7%    { transform: translateX(-216px); opacity: 1; }
   17.5% { transform: translateX(0);      opacity: 1; }
-  19%   { transform: translateX(5px);    opacity: 1; }   /* impact recoil */
+  19%   { transform: translateX(6px);    opacity: 1; }   /* impact recoil */
   21%   { transform: translateX(0);      opacity: 1; }
   58%   { transform: translateX(0);      opacity: 1; }   /* stuck a beat */
   72%   { transform: translateX(0);      opacity: 0; }   /* fade out */
-  100%  { transform: translateX(-200px); opacity: 0; }   /* reset (hidden) */
+  100%  { transform: translateX(-240px); opacity: 0; }   /* reset (hidden) */
 }
-/* bullseye flash — fires exactly when the arrow arrives (16–23%) */
+/* bullseye core flash — fires exactly when the arrow arrives (16–23%) */
 @keyframes k-bull-hit {
   0%, 16%   { fill: var(--lp-accent); }
   18%       { fill: var(--lp-accent-2); }
   23%       { fill: var(--lp-accent-2); }
   30%, 100% { fill: var(--lp-accent); }
 }
-/* whole target pulses + orange glow on impact */
+/* whole disc POPS toward the viewer on impact: bigger scale + perspective tilt
+   (rotateX/Y) + a lift, with a stronger orange glow, then settles (~0.3s) */
 @keyframes k-target-hit {
-  0%, 16%   { transform: scale(1);    filter: none; }
-  19%       { transform: scale(1.16); filter: drop-shadow(0 0 7px rgba(241,90,36,.8)) drop-shadow(0 0 2px rgba(241,90,36,.95)); }
-  27%       { transform: scale(1.05); filter: drop-shadow(0 0 3px rgba(241,90,36,.4)); }
-  34%, 100% { transform: scale(1);    filter: none; }
+  0%, 16% {
+    transform: scale(1) translateY(0) rotateX(0deg) rotateY(0deg);
+    filter: none;
+  }
+  19% {
+    transform: scale(1.36) translateY(-5px) rotateX(16deg) rotateY(-8deg);
+    filter: drop-shadow(0 0 12px rgba(241,90,36,.85)) drop-shadow(0 0 3px rgba(241,90,36,1));
+  }
+  24% {
+    transform: scale(1.18) translateY(-2px) rotateX(7deg) rotateY(-3deg);
+    filter: drop-shadow(0 0 6px rgba(241,90,36,.5));
+  }
+  30% {
+    transform: scale(1.05) translateY(0) rotateX(0deg) rotateY(0deg);
+    filter: drop-shadow(0 0 3px rgba(241,90,36,.28));
+  }
+  37%, 100% {
+    transform: scale(1) translateY(0) rotateX(0deg) rotateY(0deg);
+    filter: none;
+  }
+}
+/* cast shadow grows + softens as the disc lifts on impact, then settles */
+@keyframes k-target-shadow {
+  0%, 16%   { transform: scale(1);              opacity: .8; }
+  19%       { transform: scale(1.5) translateY(4px); opacity: .42; }
+  30%       { transform: scale(1.12);           opacity: .7; }
+  37%, 100% { transform: scale(1);              opacity: .8; }
 }
 /* ripple ring expands outward from the bullseye on impact */
 @keyframes k-arrow-ripple {
   0%, 16.5% { opacity: 0;   transform: scale(.4); }
-  19%       { opacity: .75; transform: scale(.9); }
-  30%       { opacity: 0;   transform: scale(2.2); }
-  100%      { opacity: 0;   transform: scale(2.2); }
+  19%       { opacity: .8;  transform: scale(1); }
+  30%       { opacity: 0;   transform: scale(2.6); }
+  100%      { opacity: 0;   transform: scale(2.6); }
+}
+/* second ring — slightly later + larger for a layered shockwave */
+@keyframes k-arrow-ripple-2 {
+  0%, 17.5% { opacity: 0;   transform: scale(.5); }
+  21%       { opacity: .55; transform: scale(1.3); }
+  33%       { opacity: 0;   transform: scale(3.2); }
+  100%      { opacity: 0;   transform: scale(3.2); }
 }
 
 /* Buttons + interactive base */
@@ -349,9 +417,11 @@
   /* freeze float + auto-glow + twinkle — static & accessible */
   .lp-root .lp-glyph { animation: none !important; translate: 0 0 !important; transform: none !important; opacity: var(--lp-glyph-op, 1) !important; }
   .lp-root .lp-pixel-sparkle { animation: none !important; opacity: .5 !important; scale: 1 !important; }
-  /* freeze target with the arrow already STUCK in the bullseye, no motion */
+  /* freeze the 3D target with the arrow already STUCK in the bullseye, no motion,
+     no glow pulse — but KEEP the static depth (cast shadow + extrusion + bevel) */
   .lp-root .lp-target { animation: none !important; transform: none !important; filter: none !important; }
-  .lp-root .lp-bull   { animation: none !important; fill: var(--lp-accent) !important; }
+  .lp-root .lp-bull-core { animation: none !important; fill: var(--lp-accent) !important; }
+  .lp-root .lp-target-shadow { animation: none !important; transform: none !important; opacity: .8 !important; }
   .lp-root .lp-arrow-fly { animation: none !important; transform: translateX(0) !important; opacity: 1 !important; }
   .lp-root .lp-arrow-ripple { animation: none !important; opacity: 0 !important; }
 }
