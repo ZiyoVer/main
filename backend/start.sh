@@ -19,9 +19,14 @@ ENDSQL
 fi
 
 echo ">>> prisma migrate deploy ishlamoqda..."
-if ! npx prisma migrate deploy; then
-    echo ">>> migrate deploy amalga oshmadi, prisma db push ishlatilmoqda (birinchi deploy)..."
-    npx prisma db push --skip-generate
-fi
+# migrate deploy mavjud migratsiyalarni qo'llaydi. Bu repoda additiv schema
+# o'zgarishlar (User.status, AdminAuditLog) uchun migratsiya fayli YO'Q —
+# shuning uchun migrate deploy "muvaffaqiyatli" bo'lsa ham yangi ustun/jadval
+# YARATILMAYDI. Buni hal qilish uchun migrate urinishidan KEYIN db push'ni
+# SHARTSIZ ishlatamiz: schema'dagi additiv o'zgarishlar jonli DBga aniq
+# qo'llanilsin. Additiv bo'lgani uchun bu xavfsiz (data-loss yo'q).
+npx prisma migrate deploy || echo ">>> migrate deploy o'tmadi (migratsiya yo'q bo'lishi mumkin) — db push davom etadi..."
+echo ">>> prisma db push ishlamoqda (additiv schema'ni jonli DBga qo'llash)..."
+npx prisma db push --skip-generate
 echo ">>> Server ishga tushmoqda..."
 exec node dist/app.js

@@ -12,6 +12,7 @@ import { updateOnline } from '../utils/onlineTracker'
 import { normalizeSubject } from '../utils/subjects'
 import { parseOptionalExamDate, parseOptionalExamType, validateTargetScore } from '../utils/profileValidation'
 import { isValidDtmPair } from '../utils/dtmPairs'
+import { logAdminAction } from '../utils/adminAudit'
 
 const router = Router()
 const JWT_SECRET = process.env.JWT_SECRET!
@@ -23,6 +24,22 @@ let lastPresenceCleanupAt = 0
 
 function hashToken(token: string): string {
     return crypto.createHash('sha256').update(token).digest('hex')
+}
+
+// Audit log uchun admin (actor) email'ini DB dan oladi. JWT faqat {id, role}
+// saqlaydi, shuning uchun email'ni shu yerda qidiramiz. Best-effort: topilmasa
+// yoki xato bo'lsa null qaytaradi (audit yozuvini bloklamaydi).
+async function getActorEmail(actorId: string): Promise<string | null> {
+    try {
+        const actor = await prisma.user.findUnique({
+            where: { id: actorId },
+            select: { email: true }
+        })
+        return actor?.email ?? null
+    } catch (err) {
+        console.warn('getActorEmail muvaffaqiyatsiz:', err)
+        return null
+    }
 }
 
 function isTemporaryDnsError(code?: string): boolean {
@@ -250,6 +267,11 @@ router.post('/login', authLimiter, async (req, res) => {
         const valid = await bcrypt.compare(password, user.password)
         if (!valid) return res.status(400).json({ error: 'Email yoki parol xato' })
 
+        // Bloklangan (SUSPENDED) akkauntga token berilmaydi
+        if (user.status === 'SUSPENDED') {
+            return res.status(403).json({ error: 'Akkauntingiz bloklangan. Administrator bilan bog\'laning.' })
+        }
+
         const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' })
 
         // Visit log
@@ -324,9 +346,15 @@ router.post('/create-teacher', authenticate, requireRole('ADMIN'), async (req: A
         if (existing) return res.status(400).json({ error: 'Bu email allaqachon band' })
 
         const hashed = await bcrypt.hash(password, 10)
-        await prisma.user.create({
+        const created = await prisma.user.create({
             data: { email: teacherEmail, password: hashed, name: name.trim(), role: 'TEACHER' }
         })
+
+        // AUDIT (best-effort)
+        await logAdminAction(req.user.id, await getActorEmail(req.user.id), 'TEACHER_CREATE', 'USER', created.id, {
+            email: teacherEmail,
+        })
+
         res.status(201).json({ message: 'O\'qituvchi yaratildi' })
     } catch (e: any) {
         console.error(e)
@@ -359,7 +387,7 @@ router.get('/users', authenticate, requireRole('ADMIN'), async (req: AuthRequest
             prisma.user.findMany({
                 where,
                 select: {
-                    id: true, email: true, name: true, role: true, createdAt: true,
+                    id: true, email: true, name: true, role: true, status: true, createdAt: true,
                     _count: { select: { testsCreated: true } }
                 },
                 orderBy: { createdAt: 'desc' },
@@ -431,6 +459,12 @@ router.delete('/users/:userId', authenticate, requireRole('ADMIN'), async (req: 
             prisma.user.delete({ where: { id: uid } })
         ])
 
+        // AUDIT (best-effort)
+        await logAdminAction(req.user.id, await getActorEmail(req.user.id), 'USER_DELETE', 'USER', uid, {
+            email: target.email,
+            role: target.role,
+        })
+
         res.json({ message: 'Foydalanuvchi o\'chirildi' })
     } catch (e: any) {
         console.error('delete user error:', e)
@@ -438,21 +472,23 @@ router.delete('/users/:userId', authenticate, requireRole('ADMIN'), async (req: 
     }
 })
 
-// Admin: Foydalanuvchining rolini va/yoki ismini yangilash
-// PATCH /api/auth/users/:userId — body { role?, name? }
+// Admin: Foydalanuvchining rolini, ismini va/yoki holatini (status) yangilash
+// PATCH /api/auth/users/:userId — body { role?, name?, status? }
 // GUARD: admin o'z rolini o'zgartira olmaydi (req.user.id === userId → 400),
+// admin o'zini bloklay olmaydi (status, req.user.id === userId → 400),
 // bo'sh ism rad etiladi. Parol bu yerda o'zgartirilmaydi. Yangilangan user qaytariladi.
+// AUDIT: rol o'zgarishi va suspend/activate uchun AdminAuditLog yoziladi (best-effort).
 router.patch('/users/:userId', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
     try {
         const uid = String(req.params.userId)
-        const { role, name } = req.body as { role?: unknown; name?: unknown }
+        const { role, name, status } = req.body as { role?: unknown; name?: unknown; status?: unknown }
 
         // Kamida bitta maydon kelishi kerak
-        if (role === undefined && name === undefined) {
-            return res.status(400).json({ error: 'O\'zgartirish uchun rol yoki ism kiriting' })
+        if (role === undefined && name === undefined && status === undefined) {
+            return res.status(400).json({ error: 'O\'zgartirish uchun rol, ism yoki holat kiriting' })
         }
 
-        const data: { role?: 'STUDENT' | 'TEACHER' | 'ADMIN'; name?: string } = {}
+        const data: { role?: 'STUDENT' | 'TEACHER' | 'ADMIN'; name?: string; status?: 'ACTIVE' | 'SUSPENDED' } = {}
 
         // Rol — faqat ruxsat etilgan qiymatlar (whitelist)
         const ALLOWED_ROLES = ['STUDENT', 'TEACHER', 'ADMIN'] as const
@@ -465,6 +501,19 @@ router.patch('/users/:userId', authenticate, requireRole('ADMIN'), async (req: A
                 return res.status(400).json({ error: 'O\'z rolingizni o\'zgartira olmaysiz' })
             }
             data.role = role as (typeof ALLOWED_ROLES)[number]
+        }
+
+        // Status — faqat ACTIVE | SUSPENDED (whitelist)
+        const ALLOWED_STATUSES = ['ACTIVE', 'SUSPENDED'] as const
+        if (status !== undefined) {
+            if (typeof status !== 'string' || !ALLOWED_STATUSES.includes(status as (typeof ALLOWED_STATUSES)[number])) {
+                return res.status(400).json({ error: 'Holat noto\'g\'ri (ACTIVE yoki SUSPENDED bo\'lishi kerak)' })
+            }
+            // GUARD: admin o'zini bloklay (yoki holatini o'zgartira) olmaydi
+            if (req.user.id === uid) {
+                return res.status(400).json({ error: 'O\'z holatingizni o\'zgartira olmaysiz' })
+            }
+            data.status = status as (typeof ALLOWED_STATUSES)[number]
         }
 
         // Ism — bo'sh bo'lmasligi kerak
@@ -486,10 +535,36 @@ router.patch('/users/:userId', authenticate, requireRole('ADMIN'), async (req: A
                 email: true,
                 name: true,
                 role: true,
+                status: true,
                 emailVerified: true,
                 createdAt: true,
             }
         })
+
+        // AUDIT (best-effort) — rol o'zgarishi va suspend/activate.
+        // JWT faqat {id, role} saqlagani uchun actor email'ini DB dan olamiz.
+        const roleChanged = data.role !== undefined && data.role !== target.role
+        const statusChanged = data.status !== undefined && data.status !== target.status
+        if (roleChanged || statusChanged) {
+            const actorEmail = await getActorEmail(req.user.id)
+            if (roleChanged) {
+                await logAdminAction(req.user.id, actorEmail, 'USER_ROLE_CHANGE', 'USER', uid, {
+                    email: target.email,
+                    from: target.role,
+                    to: data.role,
+                })
+            }
+            if (statusChanged) {
+                await logAdminAction(
+                    req.user.id,
+                    actorEmail,
+                    data.status === 'SUSPENDED' ? 'USER_SUSPEND' : 'USER_ACTIVATE',
+                    'USER',
+                    uid,
+                    { email: target.email, from: target.status, to: data.status }
+                )
+            }
+        }
 
         res.json({ user: updated })
     } catch (e: any) {
@@ -516,6 +591,12 @@ router.post('/users/:userId/resend-verification', authenticate, requireRole('ADM
             data: { verificationToken: hashedVerificationToken, verificationTokenExpiry }
         })
         await sendVerificationEmail(target.email, target.name, verificationToken)
+
+        // AUDIT (best-effort)
+        await logAdminAction(req.user.id, await getActorEmail(req.user.id), 'USER_RESEND_VERIFICATION', 'USER', target.id, {
+            email: target.email,
+        })
+
         res.json({ ok: true })
     } catch (e) {
         console.error('admin resend-verification error:', e)
@@ -540,6 +621,12 @@ router.post('/users/:userId/reset-password', authenticate, requireRole('ADMIN'),
             data: { resetToken: hashedResetToken, resetTokenExpiry }
         })
         await sendPasswordResetEmail(target.email, target.name, resetToken)
+
+        // AUDIT (best-effort)
+        await logAdminAction(req.user.id, await getActorEmail(req.user.id), 'USER_RESET_PASSWORD', 'USER', target.id, {
+            email: target.email,
+        })
+
         res.json({ ok: true })
     } catch (e) {
         console.error('admin reset-password error:', e)

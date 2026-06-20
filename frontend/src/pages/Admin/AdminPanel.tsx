@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BrainCircuit, Users, UserCheck, GraduationCap, BarChart3, MessageSquare, FileText, Layers, Target, LogOut, Upload, Trash2, Activity, Bot, Save, Globe, Lock, TrendingUp, UserPlus, BookOpen, RefreshCw, Wifi, Search, Filter, ClipboardList, CheckCircle2, Award, Clock3, ExternalLink, Send, Download, Mail, KeyRound, MoreVertical, AlertTriangle, Bell, X, Shield, Flame, Zap, CalendarClock, Gauge, ThumbsUp, ThumbsDown, Pencil } from 'lucide-react'
+import { BrainCircuit, Users, UserCheck, GraduationCap, BarChart3, MessageSquare, FileText, Layers, Target, LogOut, Upload, Trash2, Activity, Bot, Save, Globe, Lock, TrendingUp, UserPlus, BookOpen, RefreshCw, Wifi, Search, Filter, ClipboardList, CheckCircle2, Award, Clock3, ExternalLink, Send, Download, Mail, KeyRound, MoreVertical, AlertTriangle, Bell, X, Shield, Flame, Zap, CalendarClock, Gauge, ThumbsUp, ThumbsDown, Pencil, ScrollText, Ban, ShieldCheck } from 'lucide-react'
 import { AreaChart, Area, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { fetchApi, uploadFile } from '@/lib/api'
 import { SUBJECTS } from '@/constants'
@@ -120,6 +120,8 @@ function ConfirmModal({ state, onClose }: { state: ConfirmState; onClose: (resul
 }
 
 // ── User detail (drawer) tiplari ───────────────────────────────────────
+type UserStatus = 'ACTIVE' | 'SUSPENDED'
+
 interface UserDetailUser {
     id: string
     name: string
@@ -127,6 +129,26 @@ interface UserDetailUser {
     role: ConfirmRole
     createdAt: string
     emailVerified?: boolean
+    status?: UserStatus
+}
+
+// ── Audit log (admin amallari tarixi) tiplari ──────────────────────────
+interface AuditActor {
+    id?: string
+    name?: string | null
+    email?: string | null
+    role?: ConfirmRole
+}
+interface AuditLogRow {
+    id: string
+    actorId: string
+    actorEmail?: string | null
+    action: string
+    targetType: string
+    targetId?: string | null
+    meta?: string | null
+    createdAt: string
+    actor?: AuditActor | null
 }
 interface UserDetailProfile {
     examType?: 'DTM' | 'MS' | null
@@ -166,6 +188,26 @@ interface UserDetail {
 const ROLE_OPTIONS: ConfirmRole[] = ['STUDENT', 'TEACHER', 'ADMIN']
 const ROLE_LABELS: Record<ConfirmRole, string> = { STUDENT: "O'quvchi", TEACHER: "O'qituvchi", ADMIN: 'Admin' }
 
+// Audit amallarining o'zbekcha ko'rinishi — har biriga matn + rang ohangi
+const AUDIT_ACTIONS: Record<string, { label: string; tone: string }> = {
+    'USER_DELETE': { label: 'Foydalanuvchi o‘chirildi', tone: 'var(--danger)' },
+    'USER_ROLE_CHANGE': { label: 'Rol o‘zgartirildi', tone: 'var(--info)' },
+    'USER_SUSPEND': { label: 'Bloklandi', tone: 'var(--danger)' },
+    'USER_ACTIVATE': { label: 'Blokdan chiqarildi', tone: 'var(--success)' },
+    'TEACHER_CREATE': { label: 'O‘qituvchi yaratildi', tone: 'var(--success)' },
+    'USER_RESET_PASSWORD': { label: 'Parol tiklandi', tone: 'var(--brand)' },
+    'USER_RESEND_VERIFICATION': { label: 'Tasdiq qayta yuborildi', tone: 'var(--brand)' },
+    'TEST_DELETE': { label: 'Test o‘chirildi', tone: 'var(--danger)' },
+}
+const AUDIT_TARGET_LABELS: Record<string, string> = {
+    USER: 'Foydalanuvchi',
+    TEST: 'Test',
+    TEACHER: 'O‘qituvchi',
+}
+function auditActionInfo(action: string): { label: string; tone: string } {
+    return AUDIT_ACTIONS[action] || { label: action, tone: 'var(--text-muted)' }
+}
+
 // Imtihon sanasiga qolgan kun (manfiy bo'lsa o'tib ketgan)
 function daysUntil(dateStr?: string | null): number | null {
     if (!dateStr) return null
@@ -204,7 +246,7 @@ export default function AdminPanel() {
     const [editName, setEditName] = useState('')
     const [editNameDirty, setEditNameDirty] = useState(false)
     const [savingUser, setSavingUser] = useState(false)
-    const [tab, setTab] = useState<'stats' | 'presence' | 'users' | 'teachers' | 'docs' | 'tests' | 'ai' | 'knowledge' | 'activity' | 'broadcast'>('stats')
+    const [tab, setTab] = useState<'stats' | 'presence' | 'users' | 'teachers' | 'docs' | 'tests' | 'ai' | 'knowledge' | 'activity' | 'audit' | 'broadcast'>('stats')
     const [stats, setStats] = useState<any>(null)
     const [statsError, setStatsError] = useState('')
     const [users, setUsers] = useState<any[]>([])
@@ -227,6 +269,8 @@ export default function AdminPanel() {
     const [exportingUsers, setExportingUsers] = useState(false)
     const [openUserMenu, setOpenUserMenu] = useState<string | null>(null)
     const [userActionBusy, setUserActionBusy] = useState<string | null>(null)
+    // Bloklash/blokdan chiqarish davom etayotgan user (drawer tugmasi uchun alohida)
+    const [statusBusy, setStatusBusy] = useState<string | null>(null)
     const [uploading, setUploading] = useState(false)
     const [docSubject, setDocSubject] = useState('Matematika')
     const [msg, setMsg] = useState('')
@@ -283,6 +327,14 @@ export default function AdminPanel() {
     const [activityFilter, setActivityFilter] = useState('all')
     const [activityLoading, setActivityLoading] = useState(false)
     const activityTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+    // Audit log (admin amallari) — paginatsiya
+    const [auditLogs, setAuditLogs] = useState<AuditLogRow[]>([])
+    const [auditTotal, setAuditTotal] = useState(0)
+    const [auditPages, setAuditPages] = useState(1)
+    const [auditPage, setAuditPage] = useState(1)
+    const [auditLoading, setAuditLoading] = useState(false)
+    const [auditError, setAuditError] = useState('')
 
     const KNOWLEDGE_SUBJECTS = SUBJECTS
 
@@ -351,6 +403,7 @@ export default function AdminPanel() {
             }
         }
     }, [tab, activityPage, activityFilter])
+    useEffect(() => { if (tab === 'audit') loadAudit() }, [tab, auditPage])
 
     async function loadStats() {
         setLoading(true)
@@ -636,6 +689,24 @@ export default function AdminPanel() {
         setActivityLoading(false)
     }
 
+    // GET /admin/audit — admin amallari tarixi (yangi → eski)
+    async function loadAudit() {
+        setAuditLoading(true)
+        try {
+            const params = new URLSearchParams({ page: String(auditPage) })
+            const data = await fetchApi(`/admin/audit?${params}`, { silent: true })
+            setAuditLogs(Array.isArray(data.logs) ? data.logs : [])
+            setAuditTotal(data.total || 0)
+            setAuditPages(data.pages || 1)
+            setAuditError('')
+        } catch (e: any) {
+            setAuditLogs([])
+            setAuditError(e?.message || 'Audit jurnalini yuklab boʻlmadi')
+        } finally {
+            setAuditLoading(false)
+        }
+    }
+
     async function loadTeachers() {
         setTeachersLoading(true)
         try {
@@ -915,10 +986,49 @@ export default function AdminPanel() {
         }
     }
 
+    // PATCH /auth/users/:id { status } — bloklash / blokdan chiqarish.
+    // Backenddagi guard: admin o'zini bloklay olmaydi. Frontda ham oldini olamiz.
+    async function toggleUserStatus(userId: string, userName: string, current: UserStatus) {
+        setOpenUserMenu(null)
+        if (currentUser?.id === userId) {
+            toast.error('Oʻzingizni bloklay olmaysiz')
+            return
+        }
+        const next: UserStatus = current === 'SUSPENDED' ? 'ACTIVE' : 'SUSPENDED'
+        const suspending = next === 'SUSPENDED'
+        const ok = await confirm({
+            title: suspending ? 'Foydalanuvchini bloklash' : 'Blokdan chiqarish',
+            message: suspending
+                ? `"${userName}" bloklanadi — u tizimga kira olmaydi.\n\nTasdiqlaysizmi?`
+                : `"${userName}" blokdan chiqariladi va yana tizimga kira oladi.\n\nTasdiqlaysizmi?`,
+            confirmLabel: suspending ? 'Bloklash' : 'Blokdan chiqarish',
+            danger: suspending,
+        })
+        if (!ok) return
+        setStatusBusy(userId)
+        try {
+            await fetchApi(`/auth/users/${userId}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ status: next }),
+                silent: true,
+            })
+            toast.success(suspending ? `${userName} bloklandi` : `${userName} blokdan chiqarildi`)
+            // Drawer va ro'yxat holatini darhol yangilaymiz (server javob shaklidan mustaqil)
+            setDetail(prev => prev && prev.user.id === userId ? { ...prev, user: { ...prev.user, status: next } } : prev)
+            setUsers(prev => prev.map(u => u.id === userId ? { ...u, status: next } : u))
+            if (tab === 'users') loadUsers()
+        } catch (e: any) {
+            toast.error(e?.message || (suspending ? 'Bloklashda xatolik' : 'Blokdan chiqarishda xatolik'))
+        } finally {
+            setStatusBusy(null)
+        }
+    }
+
     const tabs = [
         { k: 'stats' as const, l: 'Statistika', icon: BarChart3 },
         { k: 'presence' as const, l: 'Online vaqt', icon: Clock3 },
         { k: 'activity' as const, l: 'Faollik', icon: Activity },
+        { k: 'audit' as const, l: 'Audit', icon: ScrollText },
         { k: 'users' as const, l: 'Foydalanuvchilar', icon: Users },
         { k: 'teachers' as const, l: 'O\'qituvchi', icon: UserCheck },
         { k: 'tests' as const, l: 'Testlar', icon: Layers },
@@ -1401,8 +1511,16 @@ export default function AdminPanel() {
                                             </td>
                                             <td className="py-2.5 px-4 text-[13px]" style={secondaryText}>{u.email}</td>
                                             <td className="py-2.5 px-4">
-                                                <span className="px-2 py-0.5 rounded text-[11px] font-medium"
-                                                    style={u.role === 'ADMIN' ? { background: 'color-mix(in srgb, var(--danger) 12%, transparent)', color: 'var(--danger)' } : u.role === 'TEACHER' ? { background: 'color-mix(in srgb, var(--brand) 12%, transparent)', color: 'var(--brand)' } : { background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>{u.role}</span>
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    <span className="px-2 py-0.5 rounded text-[11px] font-medium"
+                                                        style={u.role === 'ADMIN' ? { background: 'color-mix(in srgb, var(--danger) 12%, transparent)', color: 'var(--danger)' } : u.role === 'TEACHER' ? { background: 'color-mix(in srgb, var(--brand) 12%, transparent)', color: 'var(--brand)' } : { background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>{u.role}</span>
+                                                    {u.status === 'SUSPENDED' && (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold"
+                                                            style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>
+                                                            <Ban className="h-2.5 w-2.5" /> Bloklangan
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
                                             <td className="py-2.5 px-4 text-[12px] tabular-nums" style={mutedText}>{new Date(u.createdAt).toLocaleDateString('uz')}</td>
                                             <td className="py-2.5 px-2">
@@ -1418,13 +1536,13 @@ export default function AdminPanel() {
                                                     {u.role !== 'ADMIN' && (<>
                                                         <div className="relative">
                                                             <button onClick={() => setOpenUserMenu(prev => prev === u.id ? null : u.id)}
-                                                                disabled={userActionBusy === u.id}
+                                                                disabled={userActionBusy === u.id || statusBusy === u.id}
                                                                 className="h-6 w-6 flex items-center justify-center rounded transition disabled:opacity-50"
                                                                 style={{ color: 'var(--text-muted)' }}
                                                                 onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-surface)' }}
                                                                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
                                                                 title="Amallar">
-                                                                {userActionBusy === u.id
+                                                                {(userActionBusy === u.id || statusBusy === u.id)
                                                                     ? <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
                                                                     : <MoreVertical className="h-3.5 w-3.5" />}
                                                             </button>
@@ -1441,6 +1559,23 @@ export default function AdminPanel() {
                                                                             className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-left transition hover:bg-[var(--bg-surface)]">
                                                                             <Mail className="h-3.5 w-3.5" style={{ color: 'var(--info)' }} /> Tasdiqni qayta yuborish
                                                                         </button>
+                                                                        {currentUser?.id !== u.id && (
+                                                                            <>
+                                                                                <div className="my-1 mx-2" style={{ borderTop: '1px solid var(--border)' }} />
+                                                                                {u.status === 'SUSPENDED' ? (
+                                                                                    <button onClick={() => toggleUserStatus(u.id, u.name, 'SUSPENDED')}
+                                                                                        className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-left transition hover:bg-[var(--bg-surface)]">
+                                                                                        <ShieldCheck className="h-3.5 w-3.5" style={{ color: 'var(--success)' }} /> Blokdan chiqarish
+                                                                                    </button>
+                                                                                ) : (
+                                                                                    <button onClick={() => toggleUserStatus(u.id, u.name, 'ACTIVE')}
+                                                                                        className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-left transition hover:bg-[var(--bg-surface)]"
+                                                                                        style={{ color: 'var(--danger)' }}>
+                                                                                        <Ban className="h-3.5 w-3.5" /> Bloklash
+                                                                                    </button>
+                                                                                )}
+                                                                            </>
+                                                                        )}
                                                                     </div>
                                                                 </>
                                                             )}
@@ -2120,6 +2255,105 @@ export default function AdminPanel() {
                     </div>
                 )}
 
+                {/* === AUDIT LOGI (admin amallari tarixi) === */}
+                {tab === 'audit' && (
+                    <div>
+                        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                            <div className="flex items-center gap-2">
+                                <p className="text-[11px]" style={mutedText}>{auditTotal} ta yozuv</p>
+                                <button onClick={loadAudit} className="btn btn-sm btn-outline flex items-center gap-1.5">
+                                    <RefreshCw className={`h-3 w-3 ${auditLoading ? 'animate-spin' : ''}`} /> Yangilash
+                                </button>
+                            </div>
+                            <p className="text-[11px] flex items-center gap-1.5" style={mutedText}>
+                                <ScrollText className="h-3.5 w-3.5" style={{ color: 'var(--brand)' }} />
+                                Admin amallari tarixi (yangi → eski)
+                            </p>
+                        </div>
+
+                        {auditError && (
+                            <div className="rounded-xl px-4 py-3 text-[12px] mb-3 flex items-center justify-between gap-3" style={{ background: 'var(--danger-light)', color: 'var(--danger)', border: '1px solid color-mix(in srgb, var(--danger) 25%, transparent)' }}>
+                                <span>{auditError}</span>
+                                <button onClick={loadAudit} className="btn btn-sm btn-outline flex items-center gap-1.5 flex-shrink-0">
+                                    <RefreshCw className="h-3 w-3" /> Qayta urinish
+                                </button>
+                            </div>
+                        )}
+
+                        <div className="rounded-xl overflow-hidden" style={cardStyle}>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm min-w-[720px]">
+                                    <thead>
+                                        <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+                                            <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Admin</th>
+                                            <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Amal</th>
+                                            <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Obyekt</th>
+                                            <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Vaqt</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {auditLoading && auditLogs.length === 0 ? (
+                                            <tr><td colSpan={4} className="text-center py-10 text-[12px]" style={mutedText}>Yuklanmoqda...</td></tr>
+                                        ) : auditLogs.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={4} className="text-center py-12">
+                                                    <ScrollText className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                                                    <p className="text-[12px]" style={mutedText}>Hali audit yozuvlari yoʻq</p>
+                                                </td>
+                                            </tr>
+                                        ) : auditLogs.map(log => {
+                                            const info = auditActionInfo(log.action)
+                                            const actorName = log.actor?.name || log.actorEmail || '—'
+                                            const actorEmail = log.actor?.email || log.actorEmail || ''
+                                            const targetLabel = AUDIT_TARGET_LABELS[log.targetType] || log.targetType
+                                            return (
+                                                <tr key={log.id} style={{ borderBottom: '1px solid var(--border)' }} className="hover:bg-[var(--bg-surface)] transition-colors">
+                                                    <td className="py-2.5 px-4">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0"
+                                                                style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>
+                                                                {actorName?.[0]?.toUpperCase() || '?'}
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <p className="text-[12px] font-medium truncate">{actorName}</p>
+                                                                {actorEmail && <p className="text-[10px] truncate" style={mutedText}>{actorEmail}</p>}
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-2.5 px-4">
+                                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                                                            style={{ background: `color-mix(in srgb, ${info.tone} 14%, transparent)`, color: info.tone }}>
+                                                            {info.label}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-2.5 px-4">
+                                                        <div className="min-w-0">
+                                                            <p className="text-[12px] font-medium">{targetLabel}</p>
+                                                            {log.targetId && <p className="text-[10px] truncate font-mono" style={mutedText}>{log.targetId}</p>}
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-2.5 px-4 text-[11px] tabular-nums" style={mutedText}>
+                                                        {new Date(log.createdAt).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                                    </td>
+                                                </tr>
+                                            )
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* Pagination */}
+                        {auditPages > 1 && (
+                            <div className="flex items-center justify-center gap-2 mt-3">
+                                <button disabled={auditPage <= 1} onClick={() => setAuditPage(p => Math.max(1, p - 1))} className="btn btn-sm btn-outline">← Oldingi</button>
+                                <span className="text-[12px]" style={mutedText}>{auditPage} / {auditPages}</span>
+                                <button disabled={auditPage >= auditPages} onClick={() => setAuditPage(p => Math.min(auditPages, p + 1))} className="btn btn-sm btn-outline">Keyingi →</button>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* === KNOWLEDGE BASE === */}
                 {tab === 'knowledge' && (
                     <div>
@@ -2572,6 +2806,10 @@ export default function AdminPanel() {
                                 const weak = p?.weakTopics ?? []
                                 const strong = p?.strongTopics ?? []
                                 const roleColor = u.role === 'ADMIN' ? 'var(--info)' : u.role === 'TEACHER' ? 'var(--brand)' : 'var(--success)'
+                                const userStatus: UserStatus = u.status === 'SUSPENDED' ? 'SUSPENDED' : 'ACTIVE'
+                                const isSuspended = userStatus === 'SUSPENDED'
+                                // Bloklash faqat o'zga ADMIN bo'lmagan foydalanuvchilar uchun ko'rsatiladi
+                                const canSuspend = !isSelf && u.role !== 'ADMIN'
                                 return (
                                     <div className="space-y-4">
                                         {/* Identity */}
@@ -2587,6 +2825,9 @@ export default function AdminPanel() {
                                                     {u.emailVerified
                                                         ? <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)' }}><CheckCircle2 className="h-2.5 w-2.5" /> Tasdiqlangan</span>
                                                         : <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}><Mail className="h-2.5 w-2.5" /> Tasdiqlanmagan</span>}
+                                                    {isSuspended && (
+                                                        <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}><Ban className="h-2.5 w-2.5" /> Bloklangan</span>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -2741,6 +2982,34 @@ export default function AdminPanel() {
                                                     : <><Save className="h-4 w-4" /> Saqlash</>}
                                             </button>
                                         </div>
+
+                                        {/* Holat: bloklash / blokdan chiqarish (faqat o'zga STUDENT/TEACHER uchun) */}
+                                        {canSuspend && (
+                                            <div className="rounded-xl p-4 space-y-3" style={cardStyle}>
+                                                <p className="text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5" style={mutedText}>
+                                                    <Shield className="h-3 w-3" /> Holat
+                                                </p>
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <div className="flex items-center gap-2 text-[12px]">
+                                                        <span className="h-2 w-2 rounded-full" style={{ background: isSuspended ? 'var(--danger)' : 'var(--success)' }} />
+                                                        <span style={secondaryText}>{isSuspended ? 'Bloklangan — tizimga kira olmaydi' : 'Faol — tizimga kira oladi'}</span>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => toggleUserStatus(u.id, u.name, userStatus)}
+                                                    disabled={statusBusy === u.id}
+                                                    className="btn w-full flex items-center justify-center gap-2 disabled:opacity-50"
+                                                    style={isSuspended
+                                                        ? { background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)', border: '1px solid color-mix(in srgb, var(--success) 30%, transparent)' }
+                                                        : { background: 'var(--danger-light)', color: 'var(--danger)', border: '1px solid color-mix(in srgb, var(--danger) 25%, transparent)' }}>
+                                                    {statusBusy === u.id
+                                                        ? <><div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Bajarilmoqda...</>
+                                                        : isSuspended
+                                                            ? <><ShieldCheck className="h-4 w-4" /> Blokdan chiqarish</>
+                                                            : <><Ban className="h-4 w-4" /> Bloklash</>}
+                                                </button>
+                                            </div>
+                                        )}
 
                                         <p className="text-[10px] text-center pt-1" style={mutedText}>
                                             Roʻyxatdan oʻtgan: {new Date(u.createdAt).toLocaleDateString('uz-UZ', { year: 'numeric', month: 'long', day: 'numeric' })}

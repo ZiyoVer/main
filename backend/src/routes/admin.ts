@@ -183,4 +183,71 @@ router.get('/users/:id', authenticate, requireRole('ADMIN'), async (req: AuthReq
     }
 })
 
+// GET /api/admin/audit — admin audit jurnali (faqat ADMIN)
+// Sahifalangan (pagination), eng yangidan eskiga. Har yozuvda actor ma'lumoti
+// (audit yozilgan paytdagi snapshot email + agar mavjud bo'lsa joriy actor ism/email).
+// Query: ?page (1+), ?limit (10..100, default 50).
+router.get('/audit', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
+    try {
+        const page = Math.max(1, parseInt(req.query.page as string) || 1)
+        const limit = Math.min(100, Math.max(10, parseInt(req.query.limit as string) || 50))
+        const skip = (page - 1) * limit
+
+        const [logs, total] = await Promise.all([
+            prisma.adminAuditLog.findMany({
+                orderBy: { createdAt: 'desc' },
+                skip,
+                take: limit,
+                select: {
+                    id: true,
+                    actorId: true,
+                    actorEmail: true,
+                    action: true,
+                    targetType: true,
+                    targetId: true,
+                    meta: true,
+                    createdAt: true,
+                }
+            }),
+            prisma.adminAuditLog.count()
+        ])
+
+        // Actor ma'lumotini boyitish: shu sahifadagi actorId'lar bo'yicha joriy
+        // foydalanuvchini bir martalik so'rov bilan olamiz (o'chirilgan bo'lishi mumkin).
+        const actorIds = Array.from(new Set(logs.map((l) => l.actorId)))
+        const actors = actorIds.length > 0
+            ? await prisma.user.findMany({
+                where: { id: { in: actorIds } },
+                select: { id: true, name: true, email: true, role: true }
+            })
+            : []
+        const actorMap = new Map(actors.map((a) => [a.id, a]))
+
+        const items = logs.map((l) => {
+            const actor = actorMap.get(l.actorId)
+            return {
+                id: l.id,
+                action: l.action,
+                targetType: l.targetType,
+                targetId: l.targetId,
+                meta: l.meta,
+                createdAt: l.createdAt,
+                actor: {
+                    id: l.actorId,
+                    // Snapshot email (audit yozilgan paytdagi) — actor o'chirilgan bo'lsa ham qoladi
+                    email: l.actorEmail ?? actor?.email ?? null,
+                    name: actor?.name ?? null,
+                    role: actor?.role ?? null,
+                    exists: !!actor,
+                }
+            }
+        })
+
+        res.json({ items, total, page, pages: Math.ceil(total / limit) })
+    } catch (e) {
+        console.error('admin audit list error:', e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
 export default router

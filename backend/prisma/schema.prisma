@@ -16,6 +16,7 @@ model User {
   password  String
   name      String
   role      Role     @default(STUDENT)
+  status    String   @default("ACTIVE") // ACTIVE | SUSPENDED
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -333,4 +334,19 @@ model KnowledgeItem {
 
   @@index([subject])
   @@index([subject, createdAt])
+}
+
+// ============ ADMIN AUDIT LOG ============
+
+model AdminAuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  actorEmail String?
+  action     String
+  targetType String
+  targetId   String?
+  meta       String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
 }

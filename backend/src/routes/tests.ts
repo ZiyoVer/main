@@ -8,6 +8,7 @@ import { DtmBlockType } from '@prisma/client'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole, optionalAuthenticate } from '../middleware/auth'
 import { uploadToS3, getSignedS3Url, resolveStoredS3Url, toStoredS3Ref } from '../utils/s3'
+import { logAdminAction } from '../utils/adminAudit'
 import { getSubjectVariants, normalizeSubject } from '../utils/subjects'
 import {
     getDefaultDtmCoefficient,
@@ -2356,12 +2357,33 @@ router.patch('/:testId/visibility', authenticate, requireRole('TEACHER', 'ADMIN'
 // Test o'chirish (o'qituvchi/admin)
 router.delete('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), async (req: AuthRequest, res) => {
     try {
+        const testId = req.params.testId as string
+        const isAdmin = req.user.role === 'ADMIN'
         // Admin har qanday testni o'chira oladi, o'qituvchi faqat o'zinikini
-        const where = req.user.role === 'ADMIN'
-            ? { id: req.params.testId as string }
-            : { id: req.params.testId as string, creatorId: req.user.id }
+        const where = isAdmin
+            ? { id: testId }
+            : { id: testId, creatorId: req.user.id }
+
+        // Audit meta uchun testni avval o'qib olamiz (faqat admin uchun)
+        const existing = isAdmin
+            ? await prisma.test.findUnique({ where: { id: testId }, select: { title: true, creatorId: true } })
+            : null
+
         const deleted = await prisma.test.deleteMany({ where })
         if (deleted.count === 0) return res.status(404).json({ error: 'Test topilmadi yoki ruxsat yo\'q' })
+
+        // AUDIT (best-effort) — faqat admin o'chirishi audit qilinadi
+        if (isAdmin) {
+            const actor = await prisma.user.findUnique({
+                where: { id: req.user.id },
+                select: { email: true }
+            }).catch(() => null)
+            await logAdminAction(req.user.id, actor?.email ?? null, 'TEST_DELETE', 'TEST', testId, {
+                title: existing?.title ?? null,
+                creatorId: existing?.creatorId ?? null,
+            })
+        }
+
         res.json({ message: 'Test o\'chirildi' })
     } catch (e) {
         res.status(500).json({ error: 'Server xatoligi' })
