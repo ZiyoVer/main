@@ -7,6 +7,10 @@ const router = Router()
 
 const PROMPT_KEYS = ['prompt_role', 'prompt_teaching', 'prompt_format', 'prompt_math', 'prompt_english', 'prompt_file', 'prompt_donts']
 
+// Har bir prompt maydoni uchun maksimal uzunlik (belgi). Juda uzun prompt
+// token limitini buzadi va xizmatni sekinlashtiradi.
+const MAX_PROMPT_LEN = 8000
+
 // Default matnlar — chat.ts dagi kabi
 const DEFAULTS: Record<string, string> = {
     prompt_role: `Sen — Milliy Sertifikatga tayyorlaydigan aqlli, samimiy ustoz. Do'stona, lekin professional. Ortiqcha rasmiyatchilik yo'q — oddiy, jonli tilda gapir. O'quvchining vaqtini qadirla: kerak bo'lmagan savollar berma, keraksiz uzun javoblar yozma.`,
@@ -187,6 +191,43 @@ router.put('/', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res
             prompt_role, prompt_teaching, prompt_format,
             prompt_math, prompt_english, prompt_file, prompt_donts } = req.body
 
+        // ── VALIDATSIYA ──
+        // Prompt maydonlari AI tizim ko'rsatmasini tashkil qiladi: bo'sh yoki faqat
+        // bo'shliqdan iborat bo'lishi mumkin emas, hamda MAX_PROMPT_LEN dan oshmasligi kerak.
+        const promptFields: Record<string, unknown> = {
+            prompt_role, prompt_teaching, prompt_format,
+            prompt_math, prompt_english, prompt_file, prompt_donts,
+        }
+        const promptLabels: Record<string, string> = {
+            prompt_role: 'Rol',
+            prompt_teaching: "O'qitish uslubi",
+            prompt_format: 'Format',
+            prompt_math: 'Matematika',
+            prompt_english: 'Ingliz tili',
+            prompt_file: 'Fayl',
+            prompt_donts: 'Taqiqlar',
+        }
+        for (const key of PROMPT_KEYS) {
+            const raw = promptFields[key]
+            if (typeof raw !== 'string') {
+                res.status(400).json({ error: `"${promptLabels[key]}" matni noto'g'ri formatda` })
+                return
+            }
+            if (raw.trim().length === 0) {
+                res.status(400).json({ error: `"${promptLabels[key]}" matni bo'sh bo'lishi mumkin emas` })
+                return
+            }
+            if (raw.length > MAX_PROMPT_LEN) {
+                res.status(400).json({ error: `"${promptLabels[key]}" matni juda uzun (maksimal ${MAX_PROMPT_LEN} belgi)` })
+                return
+            }
+        }
+        // extra_rules ixtiyoriy (bo'sh bo'lishi mumkin), faqat uzunlikni tekshiramiz
+        if (extra_rules != null && String(extra_rules).length > MAX_PROMPT_LEN) {
+            res.status(400).json({ error: `Qo'shimcha qoidalar matni juda uzun (maksimal ${MAX_PROMPT_LEN} belgi)` })
+            return
+        }
+
         const updates = [
             { key: 'temperature', value: String(temperature ?? 0.7) },
             { key: 'max_tokens', value: String(max_tokens ?? 4096) },
@@ -221,6 +262,39 @@ router.put('/', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res
         invalidateAISettingsCache()
 
         res.json({ message: 'Sozlamalar saqlandi' })
+    } catch (e) {
+        console.error(e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+// AI prompt sozlamasini standart (default) holatiga qaytarish — FAQAT so'ralgan bo'lim.
+// Yangilangan to'liq sozlamalar obyekti qaytariladi (frontend state'ni yangilash uchun).
+// temperature/max_tokens tegilmaydi.
+router.post('/reset', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
+    try {
+        const body = req.body as { section?: unknown } | undefined
+        const section = typeof body?.section === 'string' ? body.section : ''
+        if (!PROMPT_KEYS.includes(section)) {
+            return res.status(400).json({ error: 'Notoʻgʻri boʻlim tanlandi' })
+        }
+
+        await prisma.aISetting.upsert({
+            where: { key: section },
+            update: { value: DEFAULTS[section] ?? '' },
+            create: { key: section, value: DEFAULTS[section] ?? '' },
+        })
+
+        // Cache ni darhol tozalash — keyingi so'rovda yangi sozlamalar yuklanadi
+        invalidateAISettingsCache()
+
+        // Joriy barcha prompt_* + extra_rules ni qaytaramiz (frontend uni o'qib state'ni yangilaydi)
+        const rows = await prisma.aISetting.findMany({ where: { key: { in: [...PROMPT_KEYS, 'extra_rules'] } } })
+        const settings: Record<string, string> = {}
+        for (const k of PROMPT_KEYS) settings[k] = DEFAULTS[k] ?? ''
+        settings['extra_rules'] = ''
+        for (const row of rows) settings[row.key] = row.value
+        res.json(settings)
     } catch (e) {
         console.error(e)
         res.status(500).json({ error: 'Server xatoligi' })

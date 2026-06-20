@@ -22,6 +22,27 @@ interface TimeSpentUser {
     onlineLastSeen: number | null
 }
 
+// Faol foydalanuvchilar metrikalari — kontrakt bo'yicha /stats yoki /admin/active-users
+interface ActiveUsersMetrics {
+    dau: number
+    wau: number
+    mau: number
+}
+
+// Stats yoki active-users javobidan dau/wau/mau ni xavfsiz ajratib oladi.
+// Backend hali bermasa null qaytaradi (UI kartalarni ko'rsatmaydi — crash bo'lmaydi).
+function pickActiveUsers(source: unknown): ActiveUsersMetrics | null {
+    if (!source || typeof source !== 'object') return null
+    const obj = source as Record<string, unknown>
+    const dau = obj.dau
+    const wau = obj.wau
+    const mau = obj.mau
+    if (typeof dau === 'number' && typeof wau === 'number' && typeof mau === 'number') {
+        return { dau, wau, mau }
+    }
+    return null
+}
+
 interface DeleteConfirmInfo {
     requiresConfirmation?: boolean
     testsCount?: number
@@ -249,6 +270,8 @@ export default function AdminPanel() {
     const nav = useNavigate()
     const { logout, user: currentUser } = useAuthStore()
     const pageRef = useRef<HTMLDivElement | null>(null)
+    // Tablar uchun ref'lar (klaviatura navigatsiyasi — fokusni ko'chirish)
+    const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({})
 
     // Branded confirm modal
     const { state: confirmState, confirm, handleClose: closeConfirm } = useConfirm()
@@ -266,6 +289,8 @@ export default function AdminPanel() {
     const [tab, setTab] = useState<'stats' | 'presence' | 'users' | 'teachers' | 'docs' | 'tests' | 'ai' | 'knowledge' | 'activity' | 'audit' | 'moderation' | 'broadcast'>('stats')
     const [stats, setStats] = useState<any>(null)
     const [statsError, setStatsError] = useState('')
+    // Faol foydalanuvchilar: DAU / WAU / MAU (kontrakt: /stats yoki /admin/active-users)
+    const [activeUsers, setActiveUsers] = useState<ActiveUsersMetrics | null>(null)
     const [users, setUsers] = useState<any[]>([])
     const [docs, setDocs] = useState<any[]>([])
     const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null)
@@ -298,6 +323,9 @@ export default function AdminPanel() {
     const [showDefault, setShowDefault] = useState(false)
     const [aiSaving, setAiSaving] = useState(false)
     const [aiMsg, setAiMsg] = useState('')
+    // AI prompt: standartga qaytarish (reset) holati + inline validatsiya xatosi
+    const [aiResetting, setAiResetting] = useState(false)
+    const [aiError, setAiError] = useState('')
     const [loading, setLoading] = useState(true)
     // Period trend (login+register combined)
     const [chartPeriod, setChartPeriod] = useState<7 | 30>(30)
@@ -320,6 +348,7 @@ export default function AdminPanel() {
     const [knowledgeForm, setKnowledgeForm] = useState({ subject: 'Matematika', title: '', content: '', source: '' })
     const [editingKnowledge, setEditingKnowledge] = useState<string | null>(null)
     const [knowledgeFilter, setKnowledgeFilter] = useState('all')
+    const [knowledgeSearch, setKnowledgeSearch] = useState('')
     const KNOWLEDGE_PER_PAGE = 20
     const [knowledgeVisible, setKnowledgeVisible] = useState(KNOWLEDGE_PER_PAGE)
 
@@ -408,8 +437,8 @@ export default function AdminPanel() {
     useEffect(() => { if (tab === 'knowledge') loadKnowledge() }, [tab])
     // Presence ro'yxati filtr/saralash o'zgarganda load-more hisoblagichini qayta tiklaymiz
     useEffect(() => { setPresenceVisible(PRESENCE_PER_PAGE) }, [timeSpentSearch, timeSpentSort, tab])
-    // Knowledge ro'yxati filtr o'zgarganda load-more hisoblagichini qayta tiklaymiz
-    useEffect(() => { setKnowledgeVisible(KNOWLEDGE_PER_PAGE) }, [knowledgeFilter, tab])
+    // Knowledge ro'yxati filtr/qidiruv o'zgarganda load-more hisoblagichini qayta tiklaymiz
+    useEffect(() => { setKnowledgeVisible(KNOWLEDGE_PER_PAGE) }, [knowledgeFilter, knowledgeSearch, tab])
     useEffect(() => { if (tab === 'teachers') loadTeachers() }, [tab])
     useEffect(() => { if (tab === 'presence') loadTimeSpent() }, [tab])
     useEffect(() => {
@@ -446,6 +475,19 @@ export default function AdminPanel() {
 
         if (statsRes.status === 'fulfilled') { setStats(statsRes.value); setStatsError('') }
         else { setStats(null); setStatsError('Statistikani yuklab boʻlmadi') }
+
+        // DAU/WAU/MAU — avval /stats javobidan, bo'lmasa /admin/active-users dan
+        const fromStats = statsRes.status === 'fulfilled' ? pickActiveUsers(statsRes.value) : null
+        if (fromStats) {
+            setActiveUsers(fromStats)
+        } else {
+            try {
+                const au = await fetchApi('/admin/active-users', { silent: true })
+                setActiveUsers(pickActiveUsers(au))
+            } catch {
+                setActiveUsers(null)
+            }
+        }
 
         if (timeSpentRes.status === 'fulfilled') {
             applyTimeSpentPayload(timeSpentRes.value)
@@ -1112,6 +1154,54 @@ export default function AdminPanel() {
         }
     }
 
+    // AI sozlamalarini saqlash — backend validatsiya xatosini (bo'sh / juda uzun) inline ko'rsatadi
+    async function saveAiSettings() {
+        setAiSaving(true); setAiMsg(''); setAiError('')
+        try {
+            await fetchApi('/ai-settings', { method: 'PUT', body: JSON.stringify(aiConfig), silent: true })
+            setAiMsg('✓ Sozlamalar saqlandi!')
+        } catch (e: any) {
+            // 400 — validatsiya (bo'sh yoki juda uzun matn): inline xato sifatida ko'rsatamiz
+            const data = e?.data as { error?: string } | undefined
+            setAiError(data?.error || e?.message || 'Sozlamalarni saqlashda xatolik')
+        } finally {
+            setAiSaving(false)
+        }
+    }
+
+    // Joriy prompt bo'limini standart matnga qaytaradi (backend reset, branded confirm bilan)
+    async function resetAiPromptSection(sectionKey: string, sectionLabel: string) {
+        const ok = await confirm({
+            title: 'Standartga qaytarish',
+            message: `"${sectionLabel}" boʻlimi standart (kodga kiritilgan) matnga qaytariladi. Sizning oʻzgartirishlaringiz oʻchadi.\n\nDavom etamizmi?`,
+            confirmLabel: 'Qaytarish',
+            danger: true,
+        })
+        if (!ok) return
+        setAiResetting(true); setAiMsg(''); setAiError('')
+        try {
+            const updated = await fetchApi('/ai-settings/reset', {
+                method: 'POST',
+                body: JSON.stringify({ section: sectionKey }),
+                silent: true,
+            })
+            // Backend yangilangan sozlamalarni qaytarsa — to'g'ridan-to'g'ri ishlatamiz.
+            // Aks holda joriy bo'limni bo'shatamiz (bo'sh = standart kod ishlatiladi).
+            if (updated && typeof updated === 'object' && typeof (updated as Record<string, unknown>)[sectionKey] === 'string') {
+                setAiConfig(prev => ({ ...prev, ...(updated as Partial<typeof prev>) }))
+            } else {
+                setAiConfig(prev => ({ ...prev, [sectionKey]: '' }) as typeof prev)
+            }
+            setShowDefault(false)
+            setAiMsg('✓ Standartga qaytarildi!')
+        } catch (e: any) {
+            const data = e?.data as { error?: string } | undefined
+            setAiError(data?.error || e?.message || 'Standartga qaytarishda xatolik')
+        } finally {
+            setAiResetting(false)
+        }
+    }
+
     const tabs = [
         { k: 'stats' as const, l: 'Statistika', icon: BarChart3 },
         { k: 'presence' as const, l: 'Online vaqt', icon: Clock3 },
@@ -1126,6 +1216,25 @@ export default function AdminPanel() {
         { k: 'ai' as const, l: 'AI Sozlamalar', icon: Bot },
         { k: 'knowledge' as const, l: 'Bilim Bazasi', icon: BookOpen },
     ]
+    type TabKey = (typeof tabs)[number]['k']
+
+    // Tablist klaviatura navigatsiyasi: ←/→ qo'shni tab, Home/End — chekka tablar.
+    // Fokus ko'chgan tabni darhol faollashtiramiz (roving tabindex naqshi).
+    function onTabKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+        const keys: TabKey[] = tabs.map(t => t.k)
+        const currentIndex = keys.indexOf(tab)
+        if (currentIndex < 0) return
+        let nextIndex: number | null = null
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') nextIndex = (currentIndex + 1) % keys.length
+        else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') nextIndex = (currentIndex - 1 + keys.length) % keys.length
+        else if (e.key === 'Home') nextIndex = 0
+        else if (e.key === 'End') nextIndex = keys.length - 1
+        if (nextIndex === null) return
+        e.preventDefault()
+        const nextKey = keys[nextIndex]
+        setTab(nextKey)
+        tabRefs.current[nextKey]?.focus()
+    }
 
     // Helper: card style
     const cardStyle = { background: 'var(--bg-card)', border: '1px solid var(--border)' }
@@ -1165,8 +1274,18 @@ export default function AdminPanel() {
     const onlineNowCount = timeSpentUsers.filter(user => user.isOnline).length
     const totalTodayMinutes = timeSpentUsers.reduce((sum, user) => sum + (user.todayMinutes || 0), 0)
     const totalWeekMinutes = timeSpentUsers.reduce((sum, user) => sum + (user.weekMinutes || 0), 0)
-    // Knowledge — filtr + load-more uchun bitta marta hisoblanadi
-    const filteredKnowledge = knowledgeItems.filter(item => knowledgeFilter === 'all' || item.subject === knowledgeFilter)
+    // Knowledge — fan filtri + matn qidiruv (sarlavha/manba/mazmun) + load-more uchun bir marta hisoblanadi
+    const normalizedKnowledgeSearch = knowledgeSearch.trim().toLowerCase()
+    const filteredKnowledge = knowledgeItems
+        .filter(item => knowledgeFilter === 'all' || item.subject === knowledgeFilter)
+        .filter(item => {
+            if (!normalizedKnowledgeSearch) return true
+            return (
+                item.title?.toLowerCase().includes(normalizedKnowledgeSearch) ||
+                item.source?.toLowerCase().includes(normalizedKnowledgeSearch) ||
+                item.content?.toLowerCase().includes(normalizedKnowledgeSearch)
+            )
+        })
 
     return (
         <div ref={pageRef} className="kelviq h-screen overflow-y-auto w-full" style={{ background: 'var(--bg-page)' }}>
@@ -1191,21 +1310,35 @@ export default function AdminPanel() {
 
             <div className="max-w-6xl mx-auto px-5 py-5">
                 {/* Tabs */}
-                <div className="flex gap-0.5 mb-5 rounded-xl p-1 w-fit overflow-x-auto" style={{ background: 'var(--bg-surface)' }}>
-                    {tabs.map(t => (
-                        <button key={t.k} onClick={() => setTab(t.k)}
-                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[13px] font-medium transition whitespace-nowrap"
-                            style={tab === t.k ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { color: 'var(--text-secondary)' }}>
-                            <t.icon className="h-3.5 w-3.5" /> {t.l}
-                            {t.k === 'moderation' && pendingCount > 0 && (
-                                <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold leading-none text-white"
-                                    style={{ background: 'var(--brand)' }}>
-                                    {pendingCount > 99 ? '99+' : pendingCount}
-                                </span>
-                            )}
-                        </button>
-                    ))}
+                <div role="tablist" aria-label="Admin paneli bo'limlari"
+                    className="flex gap-0.5 mb-5 rounded-xl p-1 w-fit overflow-x-auto" style={{ background: 'var(--bg-surface)' }}
+                    onKeyDown={onTabKeyDown}>
+                    {tabs.map(t => {
+                        const selected = tab === t.k
+                        return (
+                            <button key={t.k} onClick={() => setTab(t.k)}
+                                role="tab"
+                                id={`admin-tab-${t.k}`}
+                                aria-selected={selected}
+                                aria-controls={`admin-tabpanel-${t.k}`}
+                                tabIndex={selected ? 0 : -1}
+                                ref={el => { tabRefs.current[t.k] = el }}
+                                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[13px] font-medium transition whitespace-nowrap"
+                                style={selected ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { color: 'var(--text-secondary)' }}>
+                                <t.icon className="h-3.5 w-3.5" /> {t.l}
+                                {t.k === 'moderation' && pendingCount > 0 && (
+                                    <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold leading-none text-white"
+                                        style={{ background: 'var(--brand)' }}>
+                                        {pendingCount > 99 ? '99+' : pendingCount}
+                                    </span>
+                                )}
+                            </button>
+                        )
+                    })}
                 </div>
+
+                {/* Tab paneli — faqat faol bo'lim render qilinadi, ARIA bilan bog'langan */}
+                <div role="tabpanel" id={`admin-tabpanel-${tab}`} aria-labelledby={`admin-tab-${tab}`} tabIndex={0} className="focus:outline-none">
 
                 {/* === STATS === */}
                 {tab === 'stats' && loading && (
@@ -1313,6 +1446,30 @@ export default function AdminPanel() {
                                 ))}
                             </div>
                         </div>
+
+                        {/* === FAOL FOYDALANUVCHILAR (DAU / WAU / MAU) === */}
+                        {activeUsers && (
+                            <div>
+                                <p className="text-[11px] font-semibold uppercase tracking-wider mb-2.5" style={mutedText}>Faol foydalanuvchilar</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                    {[
+                                        { n: activeUsers.dau, l: 'Bugun faol', icon: Activity, color: 'var(--brand)' },
+                                        { n: activeUsers.wau, l: '7 kun', icon: CalendarClock, color: 'var(--info)' },
+                                        { n: activeUsers.mau, l: '30 kun', icon: TrendingUp, color: 'var(--success)' },
+                                    ].map((s, i) => (
+                                        <div key={i} className="rounded-xl p-4 flex items-center gap-3" style={cardStyle}>
+                                            <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ color: s.color, background: `color-mix(in srgb, ${s.color} 12%, transparent)` }}>
+                                                <s.icon className="h-4 w-4" />
+                                            </div>
+                                            <div>
+                                                <p className="text-2xl font-bold tabular-nums leading-none">{s.n ?? 0}</p>
+                                                <p className="text-[11px] mt-0.5" style={mutedText}>{s.l}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         {/* === TREND CHART === */}
                         <div className="rounded-xl p-4" style={cardStyle}>
@@ -2667,6 +2824,15 @@ export default function AdminPanel() {
                             </div>
                         </div>
 
+                        {/* Qidiruv (sarlavha / manba / mazmun bo'yicha — mavjud ro'yxat ustidan) */}
+                        <div className="relative mb-3">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
+                            <input type="search" placeholder="Sarlavha, manba yoki mazmun bo'yicha qidirish..."
+                                value={knowledgeSearch}
+                                onChange={e => { setKnowledgeSearch(e.target.value); setKnowledgeVisible(KNOWLEDGE_PER_PAGE) }}
+                                className="input pl-9 w-full" style={{ height: '2.25rem', fontSize: '13px' }} />
+                        </div>
+
                         {/* Filter */}
                         <div className="flex gap-2 mb-4 flex-wrap">
                             <button className={`btn btn-sm ${knowledgeFilter === 'all' ? 'btn-primary' : 'btn-outline'}`}
@@ -2723,7 +2889,9 @@ export default function AdminPanel() {
                                     ))}
                                 {filteredKnowledge.length === 0 && (
                                     <div className="text-center py-8" style={mutedText}>
-                                        Hali ma'lumot yo'q. Yuqoridagi forma orqali qo'shing.
+                                        {normalizedKnowledgeSearch || knowledgeFilter !== 'all'
+                                            ? 'Qidiruv yoki filtrga mos maʼlumot topilmadi.'
+                                            : "Hali ma'lumot yo'q. Yuqoridagi forma orqali qo'shing."}
                                     </div>
                                 )}
                                 {/* Load more / hisob */}
@@ -2851,6 +3019,13 @@ export default function AdminPanel() {
                                     </div>
                                 </div>
                                 {aiMsg && <div className="text-sm px-4 py-2.5 rounded-xl" style={aiMsg.includes('\u2713') ? { background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)' } : { background: 'var(--danger-light)', color: 'var(--danger)' }}>{aiMsg}</div>}
+                                {aiError && (
+                                    <div className="text-[13px] px-4 py-2.5 rounded-xl flex items-start gap-2" role="alert"
+                                        style={{ background: 'var(--danger-light)', color: 'var(--danger)', border: '1px solid color-mix(in srgb, var(--danger) 25%, transparent)' }}>
+                                        <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                                        <span>{aiError}</span>
+                                    </div>
+                                )}
                                 <div>
                                     <label className="text-sm font-medium block mb-1.5" style={secondaryText}>Harorat (Temperature): {aiConfig.temperature}</label>
                                     <input type="range" min="0" max="2" step="0.1" value={aiConfig.temperature}
@@ -2865,14 +3040,7 @@ export default function AdminPanel() {
                                         className="input" />
                                     <p className="text-[11px] mt-1" style={mutedText}>AI javobining maksimal uzunligi (1000-8000)</p>
                                 </div>
-                                <button onClick={async () => {
-                                    setAiSaving(true); setAiMsg('')
-                                    try {
-                                        await fetchApi('/ai-settings', { method: 'PUT', body: JSON.stringify(aiConfig) })
-                                        setAiMsg('\u2713 Sozlamalar saqlandi!')
-                                    } catch (e: any) { setAiMsg(e.message) }
-                                    setAiSaving(false)
-                                }} disabled={aiSaving} className="btn btn-primary flex items-center justify-center gap-2" style={{ width: '100%' }}>
+                                <button onClick={saveAiSettings} disabled={aiSaving} className="btn btn-primary flex items-center justify-center gap-2" style={{ width: '100%' }}>
                                     <Save className="h-4 w-4" /> {aiSaving ? 'Saqlanmoqda...' : 'Sozlamalarni saqlash'}
                                 </button>
                             </div>
@@ -2887,7 +3055,7 @@ export default function AdminPanel() {
                                 {/* Section chip tabs */}
                                 <div className="flex flex-wrap gap-1.5">
                                     {SECTIONS.map(s => (
-                                        <button key={s.key} onClick={() => { setPromptSection(s.key); setShowDefault(false) }}
+                                        <button key={s.key} onClick={() => { setPromptSection(s.key); setShowDefault(false); setAiError('') }}
                                             className="px-2.5 py-1 rounded-lg text-[12px] font-medium transition"
                                             style={promptSection === s.key ? { background: 'var(--text-primary)', color: 'var(--bg-card)', border: '1px solid var(--text-primary)' } : { background: 'var(--bg-card)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>
                                             {s.label}
@@ -2909,9 +3077,9 @@ export default function AdminPanel() {
                                     />
                                 </div>
 
-                                {/* Default view + clear */}
+                                {/* Default view + clear + reset-to-default */}
                                 <div className="space-y-2">
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-3 flex-wrap">
                                         <button onClick={() => setShowDefault(v => !v)}
                                             className="text-[12px] font-medium" style={{ color: 'var(--brand)' }}>
                                             {showDefault ? 'Yopish \u25B2' : 'Standartni ko\'rish \u25BC'}
@@ -2922,6 +3090,14 @@ export default function AdminPanel() {
                                                 Tozalash
                                             </button>
                                         )}
+                                        <button onClick={() => resetAiPromptSection(promptSection, activeSection.label)}
+                                            disabled={aiResetting}
+                                            className="inline-flex items-center gap-1.5 text-[12px] font-medium disabled:opacity-50"
+                                            style={{ color: 'var(--text-secondary)' }}
+                                            title="Bu bo'limni standart matnga qaytaradi">
+                                            <RefreshCw className={`h-3 w-3 ${aiResetting ? 'animate-spin' : ''}`} />
+                                            {aiResetting ? 'Qaytarilmoqda...' : 'Standartga qaytarish'}
+                                        </button>
                                     </div>
                                     {showDefault && defaults[promptSection] && (
                                         <textarea
@@ -2934,20 +3110,14 @@ export default function AdminPanel() {
                                     )}
                                 </div>
 
-                                <button onClick={async () => {
-                                    setAiSaving(true); setAiMsg('')
-                                    try {
-                                        await fetchApi('/ai-settings', { method: 'PUT', body: JSON.stringify(aiConfig) })
-                                        setAiMsg('\u2713 Sozlamalar saqlandi!')
-                                    } catch (e: any) { setAiMsg(e.message) }
-                                    setAiSaving(false)
-                                }} disabled={aiSaving} className="btn btn-primary flex items-center justify-center gap-2" style={{ width: '100%' }}>
+                                <button onClick={saveAiSettings} disabled={aiSaving} className="btn btn-primary flex items-center justify-center gap-2" style={{ width: '100%' }}>
                                     <Save className="h-4 w-4" /> {aiSaving ? 'Saqlanmoqda...' : 'Sozlamalarni saqlash'}
                                 </button>
                             </div>
                         </div>
                     )
                 })()}
+                </div>
             </div>
 
             {/* === USER DETAIL DRAWER === */}

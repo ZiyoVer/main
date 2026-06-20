@@ -39,6 +39,7 @@ router.get('/stats', authenticate, requireRole('ADMIN'), async (req: AuthRequest
             newUsers24h,
             activeUsers7d,
             activeUsers30d,
+            activeUsers24h,
         ] = await Promise.all([
             prisma.user.count(),
             prisma.user.count({ where: { role: 'STUDENT' } }),
@@ -63,13 +64,21 @@ router.get('/stats', authenticate, requireRole('ADMIN'), async (req: AuthRequest
             prisma.user.count({ where: { emailVerified: true } }),
             prisma.studentProfile.aggregate({ _avg: { abilityLevel: true } }),
             prisma.user.count({ where: { createdAt: { gte: h24 } } }),
+            // WAU — so'nggi 7 kunda VisitLog yozgan distinct userId lar
             prisma.visitLog.findMany({
                 where: { userId: { not: null }, createdAt: { gte: w1 }, action: { in: ['login', 'register', 'activity', 'presence'] } },
                 select: { userId: true },
                 distinct: ['userId']
             }),
+            // MAU — so'nggi 30 kunda VisitLog yozgan distinct userId lar
             prisma.visitLog.findMany({
                 where: { userId: { not: null }, createdAt: { gte: m1 }, action: { in: ['login', 'register', 'activity', 'presence'] } },
+                select: { userId: true },
+                distinct: ['userId']
+            }),
+            // DAU — so'nggi 24 soatda VisitLog yozgan distinct userId lar
+            prisma.visitLog.findMany({
+                where: { userId: { not: null }, createdAt: { gte: h24 }, action: { in: ['login', 'register', 'activity', 'presence'] } },
                 select: { userId: true },
                 distinct: ['userId']
             }),
@@ -106,6 +115,10 @@ router.get('/stats', authenticate, requireRole('ADMIN'), async (req: AuthRequest
             newUsers24h,
             activeUsers7d: activeUsers7d.length,
             activeUsers30d: activeUsers30d.length,
+            // DAU/WAU/MAU — VisitLog'dagi distinct userId (login/register/activity/presence)
+            dau: activeUsers24h.length,
+            wau: activeUsers7d.length,
+            mau: activeUsers30d.length,
         })
     } catch (e) {
         console.error(e)
@@ -457,7 +470,7 @@ router.get('/test-stats', authenticate, requireRole('ADMIN'), async (_req, res) 
             topTests,
             subjectBreakdown,
             recentAttempts,
-            avgScoreResult,
+            scoreRows,
         ] = await Promise.all([
             prisma.test.count(),
             prisma.test.count({ where: { isPublic: true } }),
@@ -488,13 +501,27 @@ router.get('/test-stats', authenticate, requireRole('ADMIN'), async (_req, res) 
                     test: { select: { title: true, subject: true } }
                 }
             }),
-            prisma.testAttempt.aggregate({ _avg: { score: true } }),
+            // O'rtacha ball uchun xom ballarni emas — har urinishning FOIZini hisoblaymiz
+            prisma.testAttempt.findMany({ select: { score: true, scoreMax: true } }),
         ])
+
+        // O'rtacha test ball — har urinishning FOIZi (score/scoreMax*100) ning o'rtachasi.
+        // Bu /stats dagi tuzatish bilan bir xil: turli scoreMax'li testlarning xom
+        // ballarini aralashtirmaydi. scoreMax<=0 yoki yo'q qatorlar tashlanadi.
+        let percentSum = 0
+        let percentCount = 0
+        for (const row of scoreRows) {
+            if (row.scoreMax != null && row.scoreMax > 0) {
+                percentSum += (row.score / row.scoreMax) * 100
+                percentCount += 1
+            }
+        }
+        const avgScorePercent = percentCount > 0 ? percentSum / percentCount : 0
 
         res.json({
             totalTests, publicTests, privateTests,
             totalAttempts,
-            avgScore: Math.round((avgScoreResult._avg.score || 0) * 10) / 10,
+            avgScore: Math.round(avgScorePercent * 10) / 10,
             topTests,
             subjectBreakdown,
             recentAttempts,
