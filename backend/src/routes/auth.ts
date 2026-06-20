@@ -438,6 +438,66 @@ router.delete('/users/:userId', authenticate, requireRole('ADMIN'), async (req: 
     }
 })
 
+// Admin: Foydalanuvchining rolini va/yoki ismini yangilash
+// PATCH /api/auth/users/:userId — body { role?, name? }
+// GUARD: admin o'z rolini o'zgartira olmaydi (req.user.id === userId → 400),
+// bo'sh ism rad etiladi. Parol bu yerda o'zgartirilmaydi. Yangilangan user qaytariladi.
+router.patch('/users/:userId', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
+    try {
+        const uid = String(req.params.userId)
+        const { role, name } = req.body as { role?: unknown; name?: unknown }
+
+        // Kamida bitta maydon kelishi kerak
+        if (role === undefined && name === undefined) {
+            return res.status(400).json({ error: 'O\'zgartirish uchun rol yoki ism kiriting' })
+        }
+
+        const data: { role?: 'STUDENT' | 'TEACHER' | 'ADMIN'; name?: string } = {}
+
+        // Rol — faqat ruxsat etilgan qiymatlar (whitelist)
+        const ALLOWED_ROLES = ['STUDENT', 'TEACHER', 'ADMIN'] as const
+        if (role !== undefined) {
+            if (typeof role !== 'string' || !ALLOWED_ROLES.includes(role as (typeof ALLOWED_ROLES)[number])) {
+                return res.status(400).json({ error: 'Rol noto\'g\'ri' })
+            }
+            // GUARD: admin o'z rolini o'zgartira olmaydi (o'zini bloklab qo'yishdan saqlanish)
+            if (req.user.id === uid) {
+                return res.status(400).json({ error: 'O\'z rolingizni o\'zgartira olmaysiz' })
+            }
+            data.role = role as (typeof ALLOWED_ROLES)[number]
+        }
+
+        // Ism — bo'sh bo'lmasligi kerak
+        if (name !== undefined) {
+            if (typeof name !== 'string' || name.trim().length < 2) {
+                return res.status(400).json({ error: 'Ism kamida 2 ta belgi bo\'lishi kerak' })
+            }
+            data.name = name.trim()
+        }
+
+        const target = await prisma.user.findUnique({ where: { id: uid } })
+        if (!target) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' })
+
+        const updated = await prisma.user.update({
+            where: { id: uid },
+            data,
+            select: {
+                id: true,
+                email: true,
+                name: true,
+                role: true,
+                emailVerified: true,
+                createdAt: true,
+            }
+        })
+
+        res.json({ user: updated })
+    } catch (e: any) {
+        console.error('admin update user error:', e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
 // Admin: Foydalanuvchiga tasdiqlash emailini qayta yuborish
 // Token-gen naqshи register/resend-verification bilan bir xil (hashlangan token saqlanadi,
 // emailga ochiq token yuboriladi). 200 { ok: true }.

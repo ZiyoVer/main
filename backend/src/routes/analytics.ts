@@ -75,8 +75,21 @@ router.get('/stats', authenticate, requireRole('ADMIN'), async (req: AuthRequest
             }),
         ])
 
-        // O'rtacha test ball
-        const avgScoreResult = await prisma.testAttempt.aggregate({ _avg: { score: true } })
+        // O'rtacha test ball — platforma o'rtachasini har urinishning FOIZi
+        // (score/scoreMax*100) ning o'rtachasi sifatida hisoblaymiz. Bu xom ballarni
+        // (turli scoreMax'li testlar) aralashtirmaydi. scoreMax<=0 yoki yo'q qatorlar tashlanadi.
+        const scoreRows = await prisma.testAttempt.findMany({
+            select: { score: true, scoreMax: true }
+        })
+        let percentSum = 0
+        let percentCount = 0
+        for (const row of scoreRows) {
+            if (row.scoreMax != null && row.scoreMax > 0) {
+                percentSum += (row.score / row.scoreMax) * 100
+                percentCount += 1
+            }
+        }
+        const avgScorePercent = percentCount > 0 ? percentSum / percentCount : 0
 
         const onlineUsers = await getOnlineUsers()
 
@@ -85,7 +98,7 @@ router.get('/stats', authenticate, requireRole('ADMIN'), async (req: AuthRequest
             logins24h: last24h, loginsWeek: lastWeek, loginsMonth: lastMonth, totalVisits,
             totalTests, totalChats, totalMessages, messages7d,
             totalDocuments, totalChunks, totalAttempts, attempts30d,
-            avgScore: Math.round((avgScoreResult._avg.score || 0) * 100) / 100,
+            avgScore: Math.round(avgScorePercent * 100) / 100,
             recentUsers,
             emailVerifiedCount,
             avgAbility: Math.round((avgAbilityResult._avg.abilityLevel || 0) * 100) / 100,

@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BrainCircuit, Users, UserCheck, GraduationCap, BarChart3, MessageSquare, FileText, Layers, Target, LogOut, Upload, Trash2, Activity, Bot, Save, Globe, Lock, TrendingUp, UserPlus, BookOpen, RefreshCw, Wifi, Search, Filter, ClipboardList, CheckCircle2, Award, Clock3, ExternalLink, Send, Download, Mail, KeyRound, MoreVertical, AlertTriangle, Bell } from 'lucide-react'
+import { BrainCircuit, Users, UserCheck, GraduationCap, BarChart3, MessageSquare, FileText, Layers, Target, LogOut, Upload, Trash2, Activity, Bot, Save, Globe, Lock, TrendingUp, UserPlus, BookOpen, RefreshCw, Wifi, Search, Filter, ClipboardList, CheckCircle2, Award, Clock3, ExternalLink, Send, Download, Mail, KeyRound, MoreVertical, AlertTriangle, Bell, X, Shield, Flame, Zap, CalendarClock, Gauge, ThumbsUp, ThumbsDown, Pencil } from 'lucide-react'
 import { AreaChart, Area, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { fetchApi, uploadFile } from '@/lib/api'
 import { SUBJECTS } from '@/constants'
@@ -30,6 +30,153 @@ interface DeleteConfirmInfo {
     [key: string]: unknown
 }
 
+// ── Branded confirm modal ──────────────────────────────────────────────
+type ConfirmRole = 'STUDENT' | 'TEACHER' | 'ADMIN'
+
+interface ConfirmOptions {
+    title: string
+    message: string
+    confirmLabel?: string
+    cancelLabel?: string
+    danger?: boolean
+}
+
+interface ConfirmState extends ConfirmOptions {
+    open: boolean
+    resolve: ((value: boolean) => void) | null
+    busy: boolean
+}
+
+// Promise-asoslangan branded confirm — window.confirm() o'rnini bosadi.
+function useConfirm() {
+    const [state, setState] = useState<ConfirmState>({
+        open: false, title: '', message: '', resolve: null, busy: false,
+    })
+
+    const confirm = useCallback((options: ConfirmOptions): Promise<boolean> => {
+        return new Promise<boolean>(resolve => {
+            setState({ ...options, open: true, resolve, busy: false })
+        })
+    }, [])
+
+    const handleClose = useCallback((result: boolean) => {
+        setState(prev => {
+            prev.resolve?.(result)
+            return { ...prev, open: false, resolve: null, busy: false }
+        })
+    }, [])
+
+    return { state, confirm, handleClose }
+}
+
+function ConfirmModal({ state, onClose }: { state: ConfirmState; onClose: (result: boolean) => void }) {
+    // Escape bilan bekor qilish
+    useEffect(() => {
+        if (!state.open) return
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(false) }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+    }, [state.open, onClose])
+
+    if (!state.open) return null
+    const accent = state.danger ? 'var(--danger)' : 'var(--brand)'
+    const accentLight = state.danger ? 'var(--danger-light)' : 'var(--brand-light)'
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+            <div className="absolute inset-0 k-fade-in" style={{ background: 'rgba(10,10,16,0.45)', backdropFilter: 'blur(2px)' }}
+                onClick={() => onClose(false)} />
+            <div className="relative w-full max-w-sm rounded-2xl p-5 k-fade-in"
+                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: '0 20px 50px rgba(10,10,16,0.25)' }}>
+                <div className="flex items-start gap-3 mb-3">
+                    <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{ background: accentLight, color: accent }}>
+                        <AlertTriangle className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1 min-w-0 pt-0.5">
+                        <h3 className="text-[15px] font-bold leading-snug">{state.title}</h3>
+                    </div>
+                </div>
+                <p className="text-[13px] leading-relaxed mb-5 whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>
+                    {state.message}
+                </p>
+                <div className="flex items-center justify-end gap-2">
+                    <button onClick={() => onClose(false)}
+                        className="h-9 px-4 rounded-xl text-[13px] font-semibold transition"
+                        style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>
+                        {state.cancelLabel || 'Bekor qilish'}
+                    </button>
+                    <button onClick={() => onClose(true)} autoFocus
+                        className="h-9 px-4 rounded-xl text-[13px] font-semibold text-white transition"
+                        style={{ background: accent }}
+                        onMouseEnter={e => { e.currentTarget.style.opacity = '0.9' }}
+                        onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}>
+                        {state.confirmLabel || 'Tasdiqlash'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// ── User detail (drawer) tiplari ───────────────────────────────────────
+interface UserDetailUser {
+    id: string
+    name: string
+    email: string
+    role: ConfirmRole
+    createdAt: string
+    emailVerified?: boolean
+}
+interface UserDetailProfile {
+    examType?: 'DTM' | 'MS' | null
+    subject?: string | null
+    subject2?: string | null
+    examDate?: string | null
+    targetScore?: number | null
+    abilityLevel?: number | null
+    weakTopics?: string[] | null
+    strongTopics?: string[] | null
+}
+interface UserDetailProgress {
+    xp?: number
+    streak?: number
+    totalTests?: number
+    avgScore?: number
+}
+interface UserDetailAttempt {
+    testTitle?: string
+    score?: number
+    scoreMax?: number
+    createdAt?: string
+}
+interface UserDetailTopicStat {
+    topic?: string
+    correct?: number
+    total?: number
+}
+interface UserDetail {
+    user: UserDetailUser
+    profile?: UserDetailProfile | null
+    progress?: UserDetailProgress | null
+    recentAttempts?: UserDetailAttempt[]
+    topicStats?: UserDetailTopicStat[]
+}
+
+const ROLE_OPTIONS: ConfirmRole[] = ['STUDENT', 'TEACHER', 'ADMIN']
+const ROLE_LABELS: Record<ConfirmRole, string> = { STUDENT: "O'quvchi", TEACHER: "O'qituvchi", ADMIN: 'Admin' }
+
+// Imtihon sanasiga qolgan kun (manfiy bo'lsa o'tib ketgan)
+function daysUntil(dateStr?: string | null): number | null {
+    if (!dateStr) return null
+    const target = new Date(dateStr)
+    if (Number.isNaN(target.getTime())) return null
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    target.setHours(0, 0, 0, 0)
+    return Math.round((target.getTime() - today.getTime()) / 86400000)
+}
+
 function formatDuration(minutes: number) {
     if (!minutes || minutes <= 0) return '0 daq'
     const hours = Math.floor(minutes / 60)
@@ -41,8 +188,22 @@ function formatDuration(minutes: number) {
 
 export default function AdminPanel() {
     const nav = useNavigate()
-    const { logout } = useAuthStore()
+    const { logout, user: currentUser } = useAuthStore()
     const pageRef = useRef<HTMLDivElement | null>(null)
+
+    // Branded confirm modal
+    const { state: confirmState, confirm, handleClose: closeConfirm } = useConfirm()
+
+    // User detail drawer
+    const [detailUserId, setDetailUserId] = useState<string | null>(null)
+    const [detail, setDetail] = useState<UserDetail | null>(null)
+    const [detailLoading, setDetailLoading] = useState(false)
+    const [detailError, setDetailError] = useState('')
+    // Drawer ichidagi rol/ism tahrirlash
+    const [editRole, setEditRole] = useState<ConfirmRole>('STUDENT')
+    const [editName, setEditName] = useState('')
+    const [editNameDirty, setEditNameDirty] = useState(false)
+    const [savingUser, setSavingUser] = useState(false)
     const [tab, setTab] = useState<'stats' | 'presence' | 'users' | 'teachers' | 'docs' | 'tests' | 'ai' | 'knowledge' | 'activity' | 'broadcast'>('stats')
     const [stats, setStats] = useState<any>(null)
     const [statsError, setStatsError] = useState('')
@@ -98,6 +259,8 @@ export default function AdminPanel() {
     const [knowledgeForm, setKnowledgeForm] = useState({ subject: 'Matematika', title: '', content: '', source: '' })
     const [editingKnowledge, setEditingKnowledge] = useState<string | null>(null)
     const [knowledgeFilter, setKnowledgeFilter] = useState('all')
+    const KNOWLEDGE_PER_PAGE = 20
+    const [knowledgeVisible, setKnowledgeVisible] = useState(KNOWLEDGE_PER_PAGE)
 
     // Online users
     const [onlineUsers, setOnlineUsers] = useState<any[]>([])
@@ -109,6 +272,8 @@ export default function AdminPanel() {
     const [timeSpentError, setTimeSpentError] = useState('')
     const [timeSpentSearch, setTimeSpentSearch] = useState('')
     const [timeSpentSort, setTimeSpentSort] = useState<'today' | 'week' | 'total'>('today')
+    const PRESENCE_PER_PAGE = 25
+    const [presenceVisible, setPresenceVisible] = useState(PRESENCE_PER_PAGE)
 
     // Activity log
     const [activityLogs, setActivityLogs] = useState<any[]>([])
@@ -163,6 +328,10 @@ export default function AdminPanel() {
     useEffect(() => { if (tab === 'users') loadUsers() }, [tab, usersPage, debouncedUsersSearch])
     useEffect(() => { if (tab === 'tests') loadTests() }, [tab, testsPage, debouncedTestsSearch, testsVisibility, testsSubject, testsSortBy])
     useEffect(() => { if (tab === 'knowledge') loadKnowledge() }, [tab])
+    // Presence ro'yxati filtr/saralash o'zgarganda load-more hisoblagichini qayta tiklaymiz
+    useEffect(() => { setPresenceVisible(PRESENCE_PER_PAGE) }, [timeSpentSearch, timeSpentSort, tab])
+    // Knowledge ro'yxati filtr o'zgarganda load-more hisoblagichini qayta tiklaymiz
+    useEffect(() => { setKnowledgeVisible(KNOWLEDGE_PER_PAGE) }, [knowledgeFilter, tab])
     useEffect(() => { if (tab === 'teachers') loadTeachers() }, [tab])
     useEffect(() => { if (tab === 'presence') loadTimeSpent() }, [tab])
     useEffect(() => {
@@ -289,9 +458,12 @@ export default function AdminPanel() {
         } catch (e: any) {
             if (e?.status === 409 && e?.data?.requiresConfirmation) {
                 const info = e.data as DeleteConfirmInfo
-                const ok = window.confirm(
-                    `Diqqat! Bu foydalanuvchi bilan birga ${collateralText(info)} ham o'chiriladi.\n\nDavom etamizmi? Bu amalni qaytarib bo'lmaydi.`
-                )
+                const ok = await confirm({
+                    title: 'Bog\'liq ma\'lumotlar ham o\'chadi',
+                    message: `Diqqat! Bu foydalanuvchi bilan birga ${collateralText(info)} ham o'chiriladi.\n\nDavom etamizmi? Bu amalni qaytarib bo'lmaydi.`,
+                    confirmLabel: 'Ha, o\'chirish',
+                    danger: true,
+                })
                 if (!ok) return false
                 await fetchApi(`/auth/users/${userId}?force=true`, { method: 'DELETE' })
                 return true
@@ -303,7 +475,13 @@ export default function AdminPanel() {
     }
 
     async function deleteUser(userId: string, userName: string) {
-        if (!confirm(`"${userName}" foydalanuvchisini o'chirishni tasdiqlaysizmi? Bu amalni qaytarib bo'lmaydi.`)) return
+        const ok = await confirm({
+            title: 'Foydalanuvchini o\'chirish',
+            message: `"${userName}" foydalanuvchisini o'chirishni tasdiqlaysizmi? Bu amalni qaytarib bo'lmaydi.`,
+            confirmLabel: 'O\'chirish',
+            danger: true,
+        })
+        if (!ok) return
         try {
             const done = await deleteUserWithForce(userId)
             if (done) {
@@ -315,7 +493,12 @@ export default function AdminPanel() {
 
     async function resetUserPassword(userId: string, userName: string) {
         setOpenUserMenu(null)
-        if (!window.confirm(`"${userName}" uchun parolni tiklash havolasi emailga yuborilsinmi?`)) return
+        const ok = await confirm({
+            title: 'Parolni tiklash',
+            message: `"${userName}" uchun parolni tiklash havolasi emailga yuborilsinmi?`,
+            confirmLabel: 'Yuborish',
+        })
+        if (!ok) return
         setUserActionBusy(userId)
         try {
             await fetchApi(`/auth/users/${userId}/reset-password`, { method: 'POST' })
@@ -477,7 +660,13 @@ export default function AdminPanel() {
     }
 
     async function deleteTeacher(userId: string) {
-        if (!window.confirm('O\'qituvchini o\'chirishni tasdiqlaysizmi? Bu amal qaytarib bo\'lmaydi.')) return
+        const ok = await confirm({
+            title: 'O\'qituvchini o\'chirish',
+            message: 'O\'qituvchini o\'chirishni tasdiqlaysizmi? Bu amal qaytarib bo\'lmaydi.',
+            confirmLabel: 'O\'chirish',
+            danger: true,
+        })
+        if (!ok) return
         setDeletingTeacher(userId)
         try {
             const done = await deleteUserWithForce(userId)
@@ -589,7 +778,13 @@ export default function AdminPanel() {
     }
 
     const deleteKnowledge = async (id: string) => {
-        if (!confirm("O'chirishni tasdiqlaysizmi?")) return
+        const ok = await confirm({
+            title: 'Ma\'lumotni o\'chirish',
+            message: "Bu bilim bazasi yozuvini o'chirishni tasdiqlaysizmi?",
+            confirmLabel: 'O\'chirish',
+            danger: true,
+        })
+        if (!ok) return
         try {
             await fetchApi('/knowledge/' + id, { method: 'DELETE' })
             setKnowledgeItems(prev => prev.filter(i => i.id !== id))
@@ -598,7 +793,13 @@ export default function AdminPanel() {
     }
 
     async function deleteDoc(id: string) {
-        if (!confirm('Hujjatni o\'chirmoqchimisiz?')) return
+        const ok = await confirm({
+            title: 'Hujjatni o\'chirish',
+            message: 'Hujjatni o\'chirmoqchimisiz? RAG indeksidan ham o\'chiriladi.',
+            confirmLabel: 'O\'chirish',
+            danger: true,
+        })
+        if (!ok) return
         try { await fetchApi(`/documents/${id}`, { method: 'DELETE' }); loadAll() } catch { }
     }
 
@@ -623,8 +824,95 @@ export default function AdminPanel() {
     }
 
     async function deleteTest(id: string) {
-        if (!confirm('Testni o\'chirmoqchimisiz?')) return
+        const ok = await confirm({
+            title: 'Testni o\'chirish',
+            message: 'Testni o\'chirmoqchimisiz? Bu amalni qaytarib bo\'lmaydi.',
+            confirmLabel: 'O\'chirish',
+            danger: true,
+        })
+        if (!ok) return
         try { await fetchApi(`/tests/${id}`, { method: 'DELETE' }); toast.success('Test o\'chirildi'); loadTests() } catch { toast.error('Xatolik') }
+    }
+
+    // ── User detail drawer ─────────────────────────────────────────────
+    async function openUserDetail(userId: string) {
+        setOpenUserMenu(null)
+        setDetailUserId(userId)
+        setDetail(null)
+        setDetailError('')
+        setEditNameDirty(false)
+        setDetailLoading(true)
+        try {
+            const data: UserDetail = await fetchApi(`/admin/users/${userId}`, { silent: true })
+            setDetail(data)
+            setEditRole(data.user.role)
+            setEditName(data.user.name || '')
+        } catch (e: any) {
+            setDetailError(e?.message || 'Foydalanuvchi maʼlumotini yuklab boʻlmadi')
+        } finally {
+            setDetailLoading(false)
+        }
+    }
+
+    function closeUserDetail() {
+        setDetailUserId(null)
+        setDetail(null)
+        setDetailError('')
+        setEditNameDirty(false)
+    }
+
+    // PATCH /auth/users/:id — rol va/yoki ism yangilash
+    async function saveUserChanges() {
+        if (!detail) return
+        const target = detail.user
+        const isSelf = currentUser?.id === target.id
+        const trimmedName = editName.trim()
+        const roleChanged = editRole !== target.role && !isSelf
+        const nameChanged = editNameDirty && trimmedName !== target.name
+
+        if (!roleChanged && !nameChanged) {
+            toast('Hech narsa oʻzgartirilmadi', { icon: 'ℹ️' })
+            return
+        }
+        if (nameChanged && !trimmedName) {
+            toast.error('Ism boʻsh boʻlishi mumkin emas')
+            return
+        }
+        // Rol o'zgarishi uchun branded confirm
+        if (roleChanged) {
+            const ok = await confirm({
+                title: 'Rolni oʻzgartirish',
+                message: `"${target.name}" foydalanuvchisi roli ${ROLE_LABELS[target.role]} → ${ROLE_LABELS[editRole]} ga oʻzgartiriladi.\n\nTasdiqlaysizmi?`,
+                confirmLabel: 'Oʻzgartirish',
+                danger: editRole === 'ADMIN',
+            })
+            if (!ok) return
+        }
+
+        const body: { role?: ConfirmRole; name?: string } = {}
+        if (roleChanged) body.role = editRole
+        if (nameChanged) body.name = trimmedName
+
+        setSavingUser(true)
+        try {
+            const updated: UserDetailUser = await fetchApi(`/auth/users/${target.id}`, {
+                method: 'PATCH',
+                body: JSON.stringify(body),
+            })
+            toast.success('Foydalanuvchi yangilandi')
+            // Drawer va ro'yxatlarni yangilaymiz
+            setDetail(prev => prev ? { ...prev, user: { ...prev.user, ...updated } } : prev)
+            setEditRole(updated.role)
+            setEditName(updated.name || '')
+            setEditNameDirty(false)
+            setUsers(prev => prev.map(u => u.id === target.id ? { ...u, role: updated.role, name: updated.name } : u))
+            if (tab === 'users') loadUsers()
+            if (tab === 'teachers') loadTeachers()
+        } catch (e: any) {
+            toast.error(e?.message || 'Yangilashda xatolik')
+        } finally {
+            setSavingUser(false)
+        }
     }
 
     const tabs = [
@@ -678,6 +966,8 @@ export default function AdminPanel() {
     const onlineNowCount = timeSpentUsers.filter(user => user.isOnline).length
     const totalTodayMinutes = timeSpentUsers.reduce((sum, user) => sum + (user.todayMinutes || 0), 0)
     const totalWeekMinutes = timeSpentUsers.reduce((sum, user) => sum + (user.weekMinutes || 0), 0)
+    // Knowledge — filtr + load-more uchun bitta marta hisoblanadi
+    const filteredKnowledge = knowledgeItems.filter(item => knowledgeFilter === 'all' || item.subject === knowledgeFilter)
 
     return (
         <div ref={pageRef} className="kelviq h-screen overflow-y-auto w-full" style={{ background: 'var(--bg-page)' }}>
@@ -1102,10 +1392,12 @@ export default function AdminPanel() {
                                             onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
                                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                             <td className="py-2.5 px-4">
-                                                <div className="flex items-center gap-2">
+                                                <button onClick={() => openUserDetail(u.id)}
+                                                    className="flex items-center gap-2 text-left transition group"
+                                                    title="Batafsil koʻrish">
                                                     <div className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-semibold" style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>{u.name?.[0]?.toUpperCase()}</div>
-                                                    <span className="text-[13px] font-medium">{u.name}</span>
-                                                </div>
+                                                    <span className="text-[13px] font-medium group-hover:underline" style={{ textDecorationColor: 'var(--brand)' }}>{u.name}</span>
+                                                </button>
                                             </td>
                                             <td className="py-2.5 px-4 text-[13px]" style={secondaryText}>{u.email}</td>
                                             <td className="py-2.5 px-4">
@@ -1114,8 +1406,16 @@ export default function AdminPanel() {
                                             </td>
                                             <td className="py-2.5 px-4 text-[12px] tabular-nums" style={mutedText}>{new Date(u.createdAt).toLocaleDateString('uz')}</td>
                                             <td className="py-2.5 px-2">
-                                                {u.role !== 'ADMIN' && (
-                                                    <div className="flex items-center justify-end gap-1">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <button onClick={() => openUserDetail(u.id)}
+                                                        className="h-6 px-2 flex items-center gap-1 rounded text-[11px] font-medium transition"
+                                                        style={{ color: 'var(--text-secondary)' }}
+                                                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-surface)'; e.currentTarget.style.color = 'var(--brand)' }}
+                                                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+                                                        title="Batafsil">
+                                                        <ExternalLink className="h-3 w-3" /> Batafsil
+                                                    </button>
+                                                    {u.role !== 'ADMIN' && (<>
                                                         <div className="relative">
                                                             <button onClick={() => setOpenUserMenu(prev => prev === u.id ? null : u.id)}
                                                                 disabled={userActionBusy === u.id}
@@ -1153,8 +1453,8 @@ export default function AdminPanel() {
                                                             title="O'chirish">
                                                             <Trash2 className="h-3.5 w-3.5" />
                                                         </button>
-                                                    </div>
-                                                )}
+                                                    </>)}
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -1673,7 +1973,7 @@ export default function AdminPanel() {
                                             <tr><td colSpan={7} className="text-center py-10 text-[12px]" style={mutedText}>Yuklanmoqda...</td></tr>
                                         ) : filteredTimeSpentUsers.length === 0 ? (
                                             <tr><td colSpan={7} className="text-center py-10 text-[12px]" style={mutedText}>Mos foydalanuvchi topilmadi</td></tr>
-                                        ) : filteredTimeSpentUsers.map(user => (
+                                        ) : filteredTimeSpentUsers.slice(0, presenceVisible).map(user => (
                                             <tr key={user.id} style={{ borderBottom: '1px solid var(--border)' }} className="hover:bg-[var(--bg-surface)] transition-colors">
                                                 <td className="py-3 px-4">
                                                     <div className="flex items-center gap-2.5">
@@ -1722,6 +2022,21 @@ export default function AdminPanel() {
                                 </table>
                             </div>
                         </div>
+
+                        {/* Load more / hisob */}
+                        {filteredTimeSpentUsers.length > 0 && (
+                            <div className="flex items-center justify-between gap-3 flex-wrap">
+                                <p className="text-[11px]" style={mutedText}>
+                                    {Math.min(presenceVisible, filteredTimeSpentUsers.length)} / {filteredTimeSpentUsers.length} koʻrsatilmoqda
+                                </p>
+                                {presenceVisible < filteredTimeSpentUsers.length && (
+                                    <button onClick={() => setPresenceVisible(v => v + PRESENCE_PER_PAGE)}
+                                        className="btn btn-sm btn-outline flex items-center gap-1.5">
+                                        Yana koʻrsatish ({Math.min(PRESENCE_PER_PAGE, filteredTimeSpentUsers.length - presenceVisible)} ta)
+                                    </button>
+                                )}
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -1938,8 +2253,8 @@ export default function AdminPanel() {
                             <div className="text-center py-8" style={mutedText}>Yuklanmoqda...</div>
                         ) : (
                             <div className="space-y-3">
-                                {knowledgeItems
-                                    .filter(item => knowledgeFilter === 'all' || item.subject === knowledgeFilter)
+                                {filteredKnowledge
+                                    .slice(0, knowledgeVisible)
                                     .map(item => (
                                         <div key={item.id} className="rounded-xl p-4" style={cardStyle}>
                                             <div className="flex items-start justify-between gap-3">
@@ -1976,9 +2291,23 @@ export default function AdminPanel() {
                                             </div>
                                         </div>
                                     ))}
-                                {knowledgeItems.filter(i => knowledgeFilter === 'all' || i.subject === knowledgeFilter).length === 0 && (
+                                {filteredKnowledge.length === 0 && (
                                     <div className="text-center py-8" style={mutedText}>
                                         Hali ma'lumot yo'q. Yuqoridagi forma orqali qo'shing.
+                                    </div>
+                                )}
+                                {/* Load more / hisob */}
+                                {filteredKnowledge.length > 0 && (
+                                    <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
+                                        <p className="text-[11px]" style={mutedText}>
+                                            {Math.min(knowledgeVisible, filteredKnowledge.length)} / {filteredKnowledge.length} koʻrsatilmoqda
+                                        </p>
+                                        {knowledgeVisible < filteredKnowledge.length && (
+                                            <button onClick={() => setKnowledgeVisible(v => v + KNOWLEDGE_PER_PAGE)}
+                                                className="btn btn-sm btn-outline flex items-center gap-1.5">
+                                                Yana koʻrsatish ({Math.min(KNOWLEDGE_PER_PAGE, filteredKnowledge.length - knowledgeVisible)} ta)
+                                            </button>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -2190,6 +2519,242 @@ export default function AdminPanel() {
                     )
                 })()}
             </div>
+
+            {/* === USER DETAIL DRAWER === */}
+            {detailUserId && (
+                <div className="fixed inset-0 z-[90] flex justify-end">
+                    <div className="absolute inset-0 k-fade-in" style={{ background: 'rgba(10,10,16,0.40)', backdropFilter: 'blur(2px)' }}
+                        onClick={closeUserDetail} />
+                    <aside className="relative h-full w-full max-w-md k-slide-in-right overflow-y-auto"
+                        style={{ background: 'var(--bg-card)', borderLeft: '1px solid var(--border)', boxShadow: '-12px 0 40px rgba(10,10,16,0.18)' }}>
+                        {/* Drawer header */}
+                        <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-3.5"
+                            style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
+                            <div className="flex items-center gap-2">
+                                <Users className="h-4 w-4" style={{ color: 'var(--brand)' }} />
+                                <span className="text-[13px] font-bold">Foydalanuvchi maʼlumotlari</span>
+                            </div>
+                            <button onClick={closeUserDetail}
+                                className="h-8 w-8 flex items-center justify-center rounded-lg transition"
+                                style={{ color: 'var(--text-muted)' }}
+                                onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-surface)' }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                                aria-label="Yopish">
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+
+                        <div className="px-5 py-4">
+                            {detailLoading ? (
+                                <div className="flex flex-col items-center justify-center py-20">
+                                    <div className="w-7 h-7 border-2 rounded-full animate-spin mb-3" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--brand)' }} />
+                                    <p className="text-[12px]" style={mutedText}>Yuklanmoqda...</p>
+                                </div>
+                            ) : detailError ? (
+                                <div className="rounded-xl px-4 py-8 text-center" style={cardStyle}>
+                                    <div className="h-10 w-10 rounded-xl flex items-center justify-center mx-auto mb-3" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>
+                                        <AlertTriangle className="h-5 w-5" />
+                                    </div>
+                                    <p className="text-[13px] font-semibold mb-1">Maʼlumotni yuklab boʻlmadi</p>
+                                    <p className="text-[12px] mb-4" style={mutedText}>{detailError}</p>
+                                    <button onClick={() => detailUserId && openUserDetail(detailUserId)} className="btn btn-sm btn-outline flex items-center gap-1.5 mx-auto">
+                                        <RefreshCw className="h-3.5 w-3.5" /> Qayta urinish
+                                    </button>
+                                </div>
+                            ) : detail ? (() => {
+                                const u = detail.user
+                                const p = detail.profile
+                                const pr = detail.progress
+                                const isSelf = currentUser?.id === u.id
+                                const examLabel = p?.examType === 'DTM' ? 'DTM' : p?.examType === 'MS' ? 'Milliy Sertifikat' : null
+                                const directionParts = [p?.subject, p?.subject2].filter(Boolean) as string[]
+                                const dLeft = daysUntil(p?.examDate)
+                                const weak = p?.weakTopics ?? []
+                                const strong = p?.strongTopics ?? []
+                                const roleColor = u.role === 'ADMIN' ? 'var(--info)' : u.role === 'TEACHER' ? 'var(--brand)' : 'var(--success)'
+                                return (
+                                    <div className="space-y-4">
+                                        {/* Identity */}
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-14 w-14 rounded-2xl flex items-center justify-center text-white text-[20px] font-bold flex-shrink-0" style={{ background: roleColor }}>
+                                                {u.name?.[0]?.toUpperCase() || '?'}
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-[15px] font-bold truncate">{u.name}</p>
+                                                <p className="text-[12px] truncate" style={mutedText}>{u.email}</p>
+                                                <div className="flex items-center gap-1.5 mt-1">
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: `color-mix(in srgb, ${roleColor} 14%, transparent)`, color: roleColor }}>{ROLE_LABELS[u.role]}</span>
+                                                    {u.emailVerified
+                                                        ? <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)' }}><CheckCircle2 className="h-2.5 w-2.5" /> Tasdiqlangan</span>
+                                                        : <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}><Mail className="h-2.5 w-2.5" /> Tasdiqlanmagan</span>}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Progress metrics */}
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {[
+                                                { label: 'XP', value: pr?.xp ?? 0, icon: Zap, color: 'var(--brand)' },
+                                                { label: 'Streak', value: `${pr?.streak ?? 0} kun`, icon: Flame, color: '#EA580C' },
+                                                { label: 'Testlar', value: pr?.totalTests ?? 0, icon: ClipboardList, color: 'var(--info)' },
+                                                { label: "O'rtacha ball", value: `${Math.round(pr?.avgScore ?? 0)}%`, icon: Award, color: 'var(--success)' },
+                                            ].map(item => (
+                                                <div key={item.label} className="rounded-xl p-3 flex items-center gap-2.5" style={cardStyle}>
+                                                    <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ color: item.color, background: `color-mix(in srgb, ${item.color} 12%, transparent)` }}>
+                                                        <item.icon className="h-3.5 w-3.5" />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="text-[15px] font-bold tabular-nums leading-none">{item.value}</p>
+                                                        <p className="text-[10px] mt-0.5" style={mutedText}>{item.label}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Exam / profile */}
+                                        <div className="rounded-xl p-4 space-y-2.5" style={cardStyle}>
+                                            <p className="text-[11px] font-semibold uppercase tracking-wider" style={mutedText}>Imtihon profili</p>
+                                            <div className="space-y-2">
+                                                <div className="flex items-center gap-2 text-[12px]">
+                                                    <Target className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--brand)' }} />
+                                                    <span style={mutedText}>Imtihon turi:</span>
+                                                    <span className="font-medium ml-auto">{examLabel || '—'}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 text-[12px]">
+                                                    <BookOpen className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--brand)' }} />
+                                                    <span style={mutedText}>Yoʻnalish:</span>
+                                                    <span className="font-medium ml-auto text-right truncate">{directionParts.length ? directionParts.join(' + ') : '—'}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 text-[12px]">
+                                                    <CalendarClock className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--info)' }} />
+                                                    <span style={mutedText}>Imtihongacha:</span>
+                                                    <span className="font-medium ml-auto">
+                                                        {dLeft === null ? '—' : dLeft > 0 ? `${dLeft} kun qoldi` : dLeft === 0 ? 'Bugun!' : `${Math.abs(dLeft)} kun oldin oʻtdi`}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-2 text-[12px]">
+                                                    <Award className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--success)' }} />
+                                                    <span style={mutedText}>Maqsad ball:</span>
+                                                    <span className="font-medium ml-auto">{p?.targetScore ?? '—'}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 text-[12px]">
+                                                    <Gauge className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--brand)' }} />
+                                                    <span style={mutedText}>Daraja (ability):</span>
+                                                    <span className="font-medium ml-auto tabular-nums">{p?.abilityLevel != null ? p.abilityLevel.toFixed(2) : '—'}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Weak / strong topics */}
+                                        {(weak.length > 0 || strong.length > 0) && (
+                                            <div className="rounded-xl p-4 space-y-3" style={cardStyle}>
+                                                {weak.length > 0 && (
+                                                    <div>
+                                                        <p className="text-[11px] font-semibold mb-1.5 flex items-center gap-1.5" style={{ color: 'var(--danger)' }}>
+                                                            <ThumbsDown className="h-3 w-3" /> Qiyin mavzular
+                                                        </p>
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {weak.map((t, i) => (
+                                                                <span key={i} className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>{t}</span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {strong.length > 0 && (
+                                                    <div>
+                                                        <p className="text-[11px] font-semibold mb-1.5 flex items-center gap-1.5" style={{ color: 'var(--success)' }}>
+                                                            <ThumbsUp className="h-3 w-3" /> Kuchli mavzular
+                                                        </p>
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {strong.map((t, i) => (
+                                                                <span key={i} className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)' }}>{t}</span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Recent attempts */}
+                                        <div className="rounded-xl overflow-hidden" style={cardStyle}>
+                                            <div className="px-4 py-2.5 flex items-center gap-2" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+                                                <Activity className="h-3.5 w-3.5" style={{ color: 'var(--brand)' }} />
+                                                <p className="text-[12px] font-semibold">Soʻnggi urinishlar</p>
+                                            </div>
+                                            {(detail.recentAttempts && detail.recentAttempts.length > 0) ? (
+                                                detail.recentAttempts.map((a, i) => {
+                                                    const pct = a.score != null && a.scoreMax ? Math.round((a.score / a.scoreMax) * 100) : null
+                                                    return (
+                                                        <div key={i} className="flex items-center gap-3 px-4 py-2.5" style={{ borderBottom: i < (detail.recentAttempts!.length - 1) ? '1px solid var(--border)' : 'none' }}>
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-[12px] font-medium truncate">{a.testTitle || 'Test'}</p>
+                                                                <p className="text-[10px]" style={mutedText}>
+                                                                    {a.createdAt ? new Date(a.createdAt).toLocaleDateString('uz-UZ', { month: 'short', day: 'numeric' }) : '—'}
+                                                                </p>
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                                <span className="text-[12px] font-bold tabular-nums" style={{ color: pct == null ? 'var(--text-muted)' : pct >= 70 ? 'var(--success)' : pct >= 50 ? 'var(--brand)' : 'var(--danger)' }}>
+                                                                    {pct != null ? `${pct}%` : '—'}
+                                                                </span>
+                                                                {a.scoreMax != null && (
+                                                                    <span className="text-[10px] tabular-nums" style={mutedText}>{a.score ?? 0}/{a.scoreMax}</span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })
+                                            ) : (
+                                                <div className="px-4 py-6 text-center text-[12px]" style={mutedText}>Hali test yechilmagan</div>
+                                            )}
+                                        </div>
+
+                                        {/* Edit: name + role */}
+                                        <div className="rounded-xl p-4 space-y-3" style={cardStyle}>
+                                            <p className="text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5" style={mutedText}>
+                                                <Pencil className="h-3 w-3" /> Tahrirlash
+                                            </p>
+                                            <div>
+                                                <label className="text-[12px] font-medium block mb-1" style={secondaryText}>Ism</label>
+                                                <input className="input" value={editName}
+                                                    onChange={e => { setEditName(e.target.value); setEditNameDirty(true) }}
+                                                    placeholder="Foydalanuvchi ismi" />
+                                            </div>
+                                            <div>
+                                                <label className="text-[12px] font-medium block mb-1 flex items-center gap-1.5" style={secondaryText}>
+                                                    <Shield className="h-3 w-3" /> Rol
+                                                </label>
+                                                {isSelf ? (
+                                                    <div className="rounded-xl px-3.5 py-2.5 text-[12px] flex items-start gap-2" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
+                                                        <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" style={{ color: 'var(--brand)' }} />
+                                                        <span>Oʻz rolingizni oʻzgartira olmaysiz.</span>
+                                                    </div>
+                                                ) : (
+                                                    <select className="input" value={editRole} onChange={e => setEditRole(e.target.value as ConfirmRole)} style={{ cursor: 'pointer' }}>
+                                                        {ROLE_OPTIONS.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                                                    </select>
+                                                )}
+                                            </div>
+                                            <button onClick={saveUserChanges} disabled={savingUser}
+                                                className="btn btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50">
+                                                {savingUser
+                                                    ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Saqlanmoqda...</>
+                                                    : <><Save className="h-4 w-4" /> Saqlash</>}
+                                            </button>
+                                        </div>
+
+                                        <p className="text-[10px] text-center pt-1" style={mutedText}>
+                                            Roʻyxatdan oʻtgan: {new Date(u.createdAt).toLocaleDateString('uz-UZ', { year: 'numeric', month: 'long', day: 'numeric' })}
+                                        </p>
+                                    </div>
+                                )
+                            })() : null}
+                        </div>
+                    </aside>
+                </div>
+            )}
+
+            {/* === BRANDED CONFIRM MODAL === */}
+            <ConfirmModal state={confirmState} onClose={closeConfirm} />
         </div>
     )
 }
