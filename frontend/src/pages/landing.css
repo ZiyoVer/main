@@ -203,33 +203,32 @@
    highlight (--lp-target-hi) catches the light, the bullseye is beveled, and a
    blurred dark ellipse (.lp-target-shadow) is cast beneath the whole disc.
 
-   Geometry: target is a 120px box (16×16 viewBox → 7.5px/cell). The lit
-   bullseye core spans cells 6–10, so its centre = cell (8,8) = 60px from the
-   wrap's top-left. The arrow lives in the same wrap, offset so its TIP lands
-   exactly on (60,60). Arrow svg = 104×40 (viewBox 26×10 → 4×/cell): the head
-   tapers to a single tip cell whose right edge is viewBox x=25 → 100px, centre
-   at viewBox y=5 → 20px, hence left:-40px / top:40px so the sharpened point
-   rests on the bullseye centre (60 − 100 = −40 ; 60 − 20 = 40). */
+   Geometry: target is a 240px box (16×16 viewBox → 15px/cell). The lit
+   bullseye core spans cells 6–10, so its centre = cell (8,8) = 120px from the
+   wrap's top-left. The arrow (208×80, viewBox 26×10 → 8px/cell) has its needle
+   tip at local (200,40); left:-80 / top:80 puts that tip on (120,120), and
+   transform-origin:200px 40px pins the 45° rotation on the tip so the spear
+   stays embedded dead-centre while planted diagonally. */
 .lp-root .lp-target-wrap {
   position: absolute;
-  top: 22%;
-  left: 45%;
-  width: 120px;
-  height: 120px;
+  top: 18%;
+  left: 38%;
+  width: 240px;
+  height: 240px;
   z-index: 2;          /* sits above the faint glyphs, never under ∫/Σ */
-  perspective: 420px;  /* gives the impact tilt real depth (scaled to 120px) */
+  perspective: 820px;  /* gives the impact tilt real depth (scaled to 240px) */
 }
 /* soft cast shadow beneath the disc — reads as lifted off the page */
 .lp-root .lp-target-shadow {
   position: absolute;
   left: 50%;
-  bottom: -8px;
-  width: 84px;
-  height: 21px;
-  margin-left: -42px;
+  bottom: -14px;
+  width: 168px;
+  height: 42px;
+  margin-left: -84px;
   border-radius: 50%;
   background: radial-gradient(ellipse at center, rgba(10,10,16,.26) 0%, rgba(10,10,16,.12) 55%, transparent 75%);
-  filter: blur(2px);
+  filter: blur(3px);
   opacity: .8;
   transform-origin: center;
   animation: k-target-shadow 4s linear infinite;
@@ -250,19 +249,24 @@
 .lp-root .lp-bull-core { animation: k-bull-hit 4s linear infinite; }
 .lp-root .lp-arrow-fly {
   position: absolute;
-  left: -40px;         /* tip (viewBox x=25 → 100px) rests on bullseye x=60 */
-  top: 40px;           /* arrow centre (viewBox y=5 → 20px) rests on bullseye y=60 */
-  transform: translateX(-300px);
+  /* 208×80 arrow (viewBox 26×10 → 8px/cell): needle tip at local (200,40).
+     left/top place that tip on the 240px disc's bullseye centre (120,120):
+     120−200=−80 ; 120−40=80. transform-origin pins the rotation on the tip so
+     the spear stays embedded at centre while planted at 45°. */
+  left: -80px;
+  top: 80px;
+  transform-origin: 200px 40px;
+  transform: translate(0, 0) rotate(45deg);   /* planted diagonally, tip on (120,120) */
   opacity: 0;
   animation: k-arrow-fly 4s linear infinite;
 }
 .lp-root .lp-arrow-ripple {
   position: absolute;
-  left: 60px;          /* anchored on the bullseye centre, not the box centre */
-  top: 60px;
-  width: 40px;
-  height: 40px;
-  margin: -20px 0 0 -20px;
+  left: 120px;         /* anchored on the bullseye centre (240px disc), not the box centre */
+  top: 120px;
+  width: 64px;
+  height: 64px;
+  margin: -32px 0 0 -32px;
   border: 2px solid var(--lp-accent);
   border-radius: 2px;
   opacity: 0;
@@ -277,15 +281,15 @@
 
 /* fast ease-in flight, slam to centre at ~17.5%, tiny recoil, stick, fade */
 @keyframes k-arrow-fly {
-  0%    { transform: translateX(-300px); opacity: 0; }
-  4%    { transform: translateX(-300px); opacity: 0; }
-  7%    { transform: translateX(-272px); opacity: 1; }
-  17.5% { transform: translateX(0);      opacity: 1; }
-  19%   { transform: translateX(7px);    opacity: 1; }   /* impact recoil */
-  21%   { transform: translateX(0);      opacity: 1; }
-  58%   { transform: translateX(0);      opacity: 1; }   /* stuck a beat */
-  72%   { transform: translateX(0);      opacity: 0; }   /* fade out */
-  100%  { transform: translateX(-300px); opacity: 0; }   /* reset (hidden) */
+  0%    { transform: translate(-190px, -190px) rotate(45deg); opacity: 0; }
+  4%    { transform: translate(-190px, -190px) rotate(45deg); opacity: 0; }
+  7%    { transform: translate(-172px, -172px) rotate(45deg); opacity: 1; }
+  17.5% { transform: translate(0, 0) rotate(45deg);           opacity: 1; }
+  19%   { transform: translate(6px, 6px) rotate(45deg);       opacity: 1; }   /* impact recoil along 45° */
+  21%   { transform: translate(0, 0) rotate(45deg);           opacity: 1; }
+  58%   { transform: translate(0, 0) rotate(45deg);           opacity: 1; }   /* stuck a beat */
+  72%   { transform: translate(0, 0) rotate(45deg);           opacity: 0; }   /* fade out */
+  100%  { transform: translate(-190px, -190px) rotate(45deg); opacity: 0; }   /* reset (hidden) */
 }
 /* bullseye core flash — fires exactly when the arrow arrives (16–23%) */
 @keyframes k-bull-hit {
@@ -302,16 +306,16 @@
     filter: none;
   }
   19% {
-    transform: scale(1.36) translateY(-6px) rotateX(16deg) rotateY(-8deg);
-    filter: drop-shadow(0 0 16px rgba(241,90,36,.85)) drop-shadow(0 0 4px rgba(241,90,36,1));
+    transform: scale(1.36) translateY(-12px) rotateX(16deg) rotateY(-8deg);
+    filter: drop-shadow(0 0 26px rgba(241,90,36,.85)) drop-shadow(0 0 7px rgba(241,90,36,1));
   }
   24% {
-    transform: scale(1.18) translateY(-3px) rotateX(7deg) rotateY(-3deg);
-    filter: drop-shadow(0 0 8px rgba(241,90,36,.5));
+    transform: scale(1.18) translateY(-6px) rotateX(7deg) rotateY(-3deg);
+    filter: drop-shadow(0 0 13px rgba(241,90,36,.5));
   }
   30% {
     transform: scale(1.05) translateY(0) rotateX(0deg) rotateY(0deg);
-    filter: drop-shadow(0 0 4px rgba(241,90,36,.28));
+    filter: drop-shadow(0 0 7px rgba(241,90,36,.28));
   }
   37%, 100% {
     transform: scale(1) translateY(0) rotateX(0deg) rotateY(0deg);
@@ -321,7 +325,7 @@
 /* cast shadow grows + softens as the disc lifts on impact, then settles */
 @keyframes k-target-shadow {
   0%, 16%   { transform: scale(1);              opacity: .8; }
-  19%       { transform: scale(1.5) translateY(4px); opacity: .42; }
+  19%       { transform: scale(1.5) translateY(8px); opacity: .42; }
   30%       { transform: scale(1.12);           opacity: .7; }
   37%, 100% { transform: scale(1);              opacity: .8; }
 }
@@ -423,7 +427,7 @@
   .lp-root .lp-target { animation: none !important; transform: none !important; filter: none !important; }
   .lp-root .lp-bull-core { animation: none !important; fill: var(--lp-accent) !important; }
   .lp-root .lp-target-shadow { animation: none !important; transform: none !important; opacity: .8 !important; }
-  .lp-root .lp-arrow-fly { animation: none !important; transform: translateX(0) !important; opacity: 1 !important; }
+  .lp-root .lp-arrow-fly { animation: none !important; transform: translate(0, 0) rotate(45deg) !important; opacity: 1 !important; }
   .lp-root .lp-arrow-ripple { animation: none !important; opacity: 0 !important; }
 }
 

@@ -484,15 +484,15 @@ function PixelTarget() {
       <span className="lp-target-shadow" />
 
       {/* 16×16 grid rendered at 120px — pseudo-3D concentric pixel rings.
-          120/16 = 7.5px per cell; the lit bullseye core (cells 6–10) is centred
-          on cell (8,8) → 60px from the wrap's top-left = the new impact point.
+          240/16 = 15px per cell; the lit bullseye core (cells 6–10) is centred
+          on cell (8,8) → 120px from the wrap's top-left = the impact point.
           Three stacked passes give genuine thickness:
             1) EXTRUSION: a darker copy of every ring offset +1/+1 (down-right)
                so the disc reads like it has an extruded side wall.
             2) RINGS: the real faint→gray concentric rings.
             3) HIGHLIGHT: a near-white edge on the top-left cells (lit from
                the upper-left) so the top of the disc catches the light. */}
-      <svg className="lp-target" width={120} height={120} viewBox="0 0 16 16" shapeRendering="crispEdges">
+      <svg className="lp-target" width={240} height={240} viewBox="0 0 16 16" shapeRendering="crispEdges">
         {/* 1 — EXTRUDED SIDE (dark, offset down-right by 1 cell) */}
         <g transform="translate(1 1)" fill={C.targetShade}>
           <rect x="6" y="0" width="4" height="2" />
@@ -547,11 +547,12 @@ function PixelTarget() {
           converges into a needle POINT, accent2 bevel catching the light + a
           accent2 fletching at the tail, plus a pixel under-shadow so it reads
           as 3D in flight.
-          viewBox 26×10 rendered at 104×40 ⇒ 4px/cell. Centre band straddles y=5
+          viewBox 26×10 rendered at 208×80 ⇒ 8px/cell. Centre band straddles y=5
           (shaft = y4..y6). The needle's rightmost drawn cells (x=23..25) put the
-          visible POINT TIP at viewBox x=25 → 25·4 = 100px, centre y=5 → 20px.
-          With left:-40 / top:40 in landing.css the tip lands on (60,60). */}
-      <svg className="lp-arrow-fly" width={104} height={40} viewBox="0 0 26 10" shapeRendering="crispEdges">
+          visible POINT TIP at viewBox x=25 → 25·8 = 200px, centre y=5 → 40px.
+          The arrow is rotated 45° (origin pinned on the tip) so it plants
+          diagonally with the tip on the bullseye centre (120,120). */}
+      <svg className="lp-arrow-fly" width={208} height={80} viewBox="0 0 26 10" shapeRendering="crispEdges">
         {/* drop shadow — a soft copy of the whole spear, offset +1 down */}
         <g transform="translate(0 1)" fill={C.targetShade} opacity="0.5">
           <rect x="2" y="4" width="13" height="2" />
