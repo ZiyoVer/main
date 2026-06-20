@@ -187,6 +187,90 @@
   100% { opacity: 0;   scale: 0.4; }
 }
 
+/* ===================== PIXEL TARGET + ARROW (math-zone) =====================
+   A pixel-art bullseye that an orange pixel arrow flies into from the LEFT,
+   strikes dead-centre, flashes, sticks a beat, fades, pauses, then loops.
+   One shared 4s cycle keeps the arrow's arrival (~17.5%) perfectly in sync
+   with the bullseye flash / ripple (16–19%). All keyframes use `k-` names so
+   they never collide with the existing lp-float / lp-glow / lp-twinkle set.
+   Geometry: target is a 56px box; bullseye centre = (28,28). The arrow lives
+   inside the same wrap, offset so its TIP lands exactly on the bullseye. */
+.lp-root .lp-target-wrap {
+  position: absolute;
+  top: 34%;
+  left: 56%;
+  width: 56px;
+  height: 56px;
+  z-index: 2;          /* sits above the faint glyphs, never under 189/Σ */
+}
+.lp-root .lp-target {
+  position: absolute;
+  inset: 0;
+  display: block;
+  transform-origin: center;
+  animation: k-target-hit 4s linear infinite;
+}
+.lp-root .lp-bull {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: k-bull-hit 4s linear infinite;
+}
+.lp-root .lp-arrow-fly {
+  position: absolute;
+  left: -16px;         /* tip (x=44) rests at bullseye centre x=28 */
+  top: 20px;           /* arrow centre (h/2=8) rests at bullseye centre y=28 */
+  transform: translateX(-200px);
+  opacity: 0;
+  animation: k-arrow-fly 4s linear infinite;
+}
+.lp-root .lp-arrow-ripple {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
+  border: 2px solid var(--lp-accent);
+  border-radius: 2px;
+  opacity: 0;
+  transform: scale(.4);
+  animation: k-arrow-ripple 4s linear infinite;
+}
+
+/* fast ease-in flight, slam to centre at ~17.5%, tiny recoil, stick, fade */
+@keyframes k-arrow-fly {
+  0%    { transform: translateX(-200px); opacity: 0; }
+  4%    { transform: translateX(-200px); opacity: 0; }
+  7%    { transform: translateX(-180px); opacity: 1; }
+  17.5% { transform: translateX(0);      opacity: 1; }
+  19%   { transform: translateX(5px);    opacity: 1; }   /* impact recoil */
+  21%   { transform: translateX(0);      opacity: 1; }
+  58%   { transform: translateX(0);      opacity: 1; }   /* stuck a beat */
+  72%   { transform: translateX(0);      opacity: 0; }   /* fade out */
+  100%  { transform: translateX(-200px); opacity: 0; }   /* reset (hidden) */
+}
+/* bullseye flash — fires exactly when the arrow arrives (16–23%) */
+@keyframes k-bull-hit {
+  0%, 16%   { fill: var(--lp-accent); }
+  18%       { fill: var(--lp-accent-2); }
+  23%       { fill: var(--lp-accent-2); }
+  30%, 100% { fill: var(--lp-accent); }
+}
+/* whole target pulses + orange glow on impact */
+@keyframes k-target-hit {
+  0%, 16%   { transform: scale(1);    filter: none; }
+  19%       { transform: scale(1.16); filter: drop-shadow(0 0 7px rgba(241,90,36,.8)) drop-shadow(0 0 2px rgba(241,90,36,.95)); }
+  27%       { transform: scale(1.05); filter: drop-shadow(0 0 3px rgba(241,90,36,.4)); }
+  34%, 100% { transform: scale(1);    filter: none; }
+}
+/* ripple ring expands outward from the bullseye on impact */
+@keyframes k-arrow-ripple {
+  0%, 16.5% { opacity: 0;   transform: scale(.4); }
+  19%       { opacity: .75; transform: scale(.9); }
+  30%       { opacity: 0;   transform: scale(2.2); }
+  100%      { opacity: 0;   transform: scale(2.2); }
+}
+
 /* Buttons + interactive base */
 .lp-root .lp-btn {
   font-family: inherit;
@@ -265,6 +349,11 @@
   /* freeze float + auto-glow + twinkle — static & accessible */
   .lp-root .lp-glyph { animation: none !important; translate: 0 0 !important; transform: none !important; opacity: var(--lp-glyph-op, 1) !important; }
   .lp-root .lp-pixel-sparkle { animation: none !important; opacity: .5 !important; scale: 1 !important; }
+  /* freeze target with the arrow already STUCK in the bullseye, no motion */
+  .lp-root .lp-target { animation: none !important; transform: none !important; filter: none !important; }
+  .lp-root .lp-bull   { animation: none !important; fill: var(--lp-accent) !important; }
+  .lp-root .lp-arrow-fly { animation: none !important; transform: translateX(0) !important; opacity: 1 !important; }
+  .lp-root .lp-arrow-ripple { animation: none !important; opacity: 0 !important; }
 }
 
 /* ============================ RESPONSIVE ============================ */

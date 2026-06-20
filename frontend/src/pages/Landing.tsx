@@ -479,6 +479,48 @@ function PixelSparkle({ s }: { s: Sparkle }) {
   )
 }
 
+/* Pixel-art TARGET + an orange pixel ARROW that flies in from the left and
+   hits the bullseye on a 4s loop (impact flash / ripple synced in landing.css).
+   Concentric crispEdges rings: outer faint gray (--lp-tex / --lp-line via the
+   spec hexes), inner bullseye orange. Sits in a free spot in the math-zone with
+   horizontal room to its LEFT for the arrow's flight. Decorative only. */
+function PixelTarget() {
+  return (
+    <div className="lp-target-wrap" aria-hidden="true">
+      {/* 16×16 grid rendered at 56px — concentric pixel rings */}
+      <svg className="lp-target" width={56} height={56} viewBox="0 0 16 16" shapeRendering="crispEdges">
+        {/* outer ring tips (faint) */}
+        <rect x="6" y="0" width="4" height="2" fill={C.tex} />
+        <rect x="0" y="6" width="2" height="4" fill={C.tex} />
+        <rect x="14" y="6" width="2" height="4" fill={C.tex} />
+        <rect x="6" y="14" width="4" height="2" fill={C.tex} />
+        {/* mid ring (slightly stronger gray) */}
+        <rect x="4" y="2" width="8" height="2" fill={C.line2} />
+        <rect x="2" y="4" width="2" height="8" fill={C.line2} />
+        <rect x="12" y="4" width="2" height="8" fill={C.line2} />
+        <rect x="4" y="12" width="8" height="2" fill={C.line2} />
+        {/* inner soft wash around the bullseye */}
+        <rect x="4" y="4" width="8" height="8" fill={C.soft} />
+        {/* BULLSEYE — orange */}
+        <rect className="lp-bull" x="6" y="6" width="4" height="4" fill={C.accent} />
+      </svg>
+
+      {/* impact ripple ring */}
+      <span className="lp-arrow-ripple" />
+
+      {/* the flying pixel arrow (orange shaft + darker head + light fletching) */}
+      <svg className="lp-arrow-fly" width={44} height={16} viewBox="0 0 22 8" shapeRendering="crispEdges">
+        <rect x="0" y="3" width="14" height="2" fill={C.accent} />
+        <rect x="14" y="3" width="2" height="2" fill={C.accentStrong} />
+        <rect x="16" y="2" width="2" height="4" fill={C.accentStrong} />
+        <rect x="18" y="1" width="2" height="6" fill={C.accentStrong} />
+        <rect x="0" y="1" width="2" height="2" fill={C.accent2} />
+        <rect x="0" y="5" width="2" height="2" fill={C.accent2} />
+      </svg>
+    </div>
+  )
+}
+
 function MathGlyph({ g, i }: { g: Glyph; i: number }) {
   const size = g.isNum ? GLYPH_SIZE[g.depth].num : GLYPH_SIZE[g.depth].sym
   /* expose depth opacity to CSS so the auto-glow can lift to full opacity uniformly */
@@ -519,6 +561,7 @@ function MathZone() {
       {GLYPHS.map((g, i) => (
         <MathGlyph key={g.ch} g={g} i={i} />
       ))}
+      <PixelTarget />
     </div>
   )
 }
