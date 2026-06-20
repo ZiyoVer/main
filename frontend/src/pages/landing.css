@@ -203,32 +203,33 @@
    highlight (--lp-target-hi) catches the light, the bullseye is beveled, and a
    blurred dark ellipse (.lp-target-shadow) is cast beneath the whole disc.
 
-   Geometry: target is a 92px box (16×16 viewBox → 5.75px/cell). The lit
-   bullseye core spans cells 6–10, so its centre = cell (8,8) = 46px from the
+   Geometry: target is a 120px box (16×16 viewBox → 7.5px/cell). The lit
+   bullseye core spans cells 6–10, so its centre = cell (8,8) = 60px from the
    wrap's top-left. The arrow lives in the same wrap, offset so its TIP lands
-   exactly on (46,46). Arrow svg = 72×26 (viewBox 22×8 → 3.273×/3.25×): tip at
-   viewBox x=20 → 65.45px, centre at viewBox y=4 → 13px, hence left:-19.45px /
-   top:33px so the tip rests on the bullseye centre. */
+   exactly on (60,60). Arrow svg = 104×40 (viewBox 26×10 → 4×/cell): the head
+   tapers to a single tip cell whose right edge is viewBox x=25 → 100px, centre
+   at viewBox y=5 → 20px, hence left:-40px / top:40px so the sharpened point
+   rests on the bullseye centre (60 − 100 = −40 ; 60 − 20 = 40). */
 .lp-root .lp-target-wrap {
   position: absolute;
-  top: 24%;
-  left: 46%;
-  width: 92px;
-  height: 92px;
+  top: 22%;
+  left: 45%;
+  width: 120px;
+  height: 120px;
   z-index: 2;          /* sits above the faint glyphs, never under ∫/Σ */
-  perspective: 320px;  /* gives the impact tilt real depth */
+  perspective: 420px;  /* gives the impact tilt real depth (scaled to 120px) */
 }
 /* soft cast shadow beneath the disc — reads as lifted off the page */
 .lp-root .lp-target-shadow {
   position: absolute;
   left: 50%;
-  bottom: -6px;
-  width: 64px;
-  height: 16px;
-  margin-left: -32px;
+  bottom: -8px;
+  width: 84px;
+  height: 21px;
+  margin-left: -42px;
   border-radius: 50%;
   background: radial-gradient(ellipse at center, rgba(10,10,16,.26) 0%, rgba(10,10,16,.12) 55%, transparent 75%);
-  filter: blur(1.5px);
+  filter: blur(2px);
   opacity: .8;
   transform-origin: center;
   animation: k-target-shadow 4s linear infinite;
@@ -249,19 +250,19 @@
 .lp-root .lp-bull-core { animation: k-bull-hit 4s linear infinite; }
 .lp-root .lp-arrow-fly {
   position: absolute;
-  left: -19.45px;      /* tip (viewBox x=20 → 65.45px) rests on bullseye x=46 */
-  top: 33px;           /* arrow centre (viewBox y=4 → 13px) rests on bullseye y=46 */
-  transform: translateX(-240px);
+  left: -40px;         /* tip (viewBox x=25 → 100px) rests on bullseye x=60 */
+  top: 40px;           /* arrow centre (viewBox y=5 → 20px) rests on bullseye y=60 */
+  transform: translateX(-300px);
   opacity: 0;
   animation: k-arrow-fly 4s linear infinite;
 }
 .lp-root .lp-arrow-ripple {
   position: absolute;
-  left: 46px;          /* anchored on the bullseye centre, not the box centre */
-  top: 46px;
-  width: 30px;
-  height: 30px;
-  margin: -15px 0 0 -15px;
+  left: 60px;          /* anchored on the bullseye centre, not the box centre */
+  top: 60px;
+  width: 40px;
+  height: 40px;
+  margin: -20px 0 0 -20px;
   border: 2px solid var(--lp-accent);
   border-radius: 2px;
   opacity: 0;
@@ -276,15 +277,15 @@
 
 /* fast ease-in flight, slam to centre at ~17.5%, tiny recoil, stick, fade */
 @keyframes k-arrow-fly {
-  0%    { transform: translateX(-240px); opacity: 0; }
-  4%    { transform: translateX(-240px); opacity: 0; }
-  7%    { transform: translateX(-216px); opacity: 1; }
+  0%    { transform: translateX(-300px); opacity: 0; }
+  4%    { transform: translateX(-300px); opacity: 0; }
+  7%    { transform: translateX(-272px); opacity: 1; }
   17.5% { transform: translateX(0);      opacity: 1; }
-  19%   { transform: translateX(6px);    opacity: 1; }   /* impact recoil */
+  19%   { transform: translateX(7px);    opacity: 1; }   /* impact recoil */
   21%   { transform: translateX(0);      opacity: 1; }
   58%   { transform: translateX(0);      opacity: 1; }   /* stuck a beat */
   72%   { transform: translateX(0);      opacity: 0; }   /* fade out */
-  100%  { transform: translateX(-240px); opacity: 0; }   /* reset (hidden) */
+  100%  { transform: translateX(-300px); opacity: 0; }   /* reset (hidden) */
 }
 /* bullseye core flash — fires exactly when the arrow arrives (16–23%) */
 @keyframes k-bull-hit {
@@ -301,16 +302,16 @@
     filter: none;
   }
   19% {
-    transform: scale(1.36) translateY(-5px) rotateX(16deg) rotateY(-8deg);
-    filter: drop-shadow(0 0 12px rgba(241,90,36,.85)) drop-shadow(0 0 3px rgba(241,90,36,1));
+    transform: scale(1.36) translateY(-6px) rotateX(16deg) rotateY(-8deg);
+    filter: drop-shadow(0 0 16px rgba(241,90,36,.85)) drop-shadow(0 0 4px rgba(241,90,36,1));
   }
   24% {
-    transform: scale(1.18) translateY(-2px) rotateX(7deg) rotateY(-3deg);
-    filter: drop-shadow(0 0 6px rgba(241,90,36,.5));
+    transform: scale(1.18) translateY(-3px) rotateX(7deg) rotateY(-3deg);
+    filter: drop-shadow(0 0 8px rgba(241,90,36,.5));
   }
   30% {
     transform: scale(1.05) translateY(0) rotateX(0deg) rotateY(0deg);
-    filter: drop-shadow(0 0 3px rgba(241,90,36,.28));
+    filter: drop-shadow(0 0 4px rgba(241,90,36,.28));
   }
   37%, 100% {
     transform: scale(1) translateY(0) rotateX(0deg) rotateY(0deg);

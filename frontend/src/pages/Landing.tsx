@@ -414,15 +414,15 @@ type Glyph = { ch: string; top: number; left: number; depth: GlyphDepth; delay: 
 const GLYPHS: Glyph[] = [
   /* pure-symbol signature set — numbers/equations removed per owner request.
      A few positions were nudged so the cluster stays airy around the enlarged
-     3D target (which now sits ~top:24% / left:46% of the zone) and nothing
-     overlaps it. */
+     3D target (which now sits ~top:22% / left:45% of the zone at 120px) and
+     nothing overlaps it. */
   { ch: '√', top: 4, left: 2, depth: 2, delay: 0 },
   { ch: 'π', top: 2, left: 40, depth: 1, delay: 900 },
   { ch: '∫', top: 28, left: 88, depth: 2, delay: 1800 },
   { ch: 'Σ', top: 62, left: 6, depth: 2, delay: 600 },
   { ch: 'x²', top: 1, left: 76, depth: 1, delay: 2400 },
   { ch: '≈', top: 14, left: 24, depth: 0, delay: 3000 },
-  { ch: '÷', top: 56, left: 70, depth: 0, delay: 1500 },
+  { ch: '÷', top: 62, left: 74, depth: 0, delay: 1500 },
   { ch: '∞', top: 70, left: 40, depth: 1, delay: 300 },
   { ch: 'θ', top: 36, left: 12, depth: 0, delay: 2700 },
   { ch: 'Δ', top: 88, left: 22, depth: 1, delay: 1050 },
@@ -483,14 +483,16 @@ function PixelTarget() {
       {/* soft cast shadow beneath — sells the lift off the page */}
       <span className="lp-target-shadow" />
 
-      {/* 16×16 grid rendered at 92px — pseudo-3D concentric pixel rings.
+      {/* 16×16 grid rendered at 120px — pseudo-3D concentric pixel rings.
+          120/16 = 7.5px per cell; the lit bullseye core (cells 6–10) is centred
+          on cell (8,8) → 60px from the wrap's top-left = the new impact point.
           Three stacked passes give genuine thickness:
             1) EXTRUSION: a darker copy of every ring offset +1/+1 (down-right)
                so the disc reads like it has an extruded side wall.
             2) RINGS: the real faint→gray concentric rings.
             3) HIGHLIGHT: a near-white edge on the top-left cells (lit from
                the upper-left) so the top of the disc catches the light. */}
-      <svg className="lp-target" width={92} height={92} viewBox="0 0 16 16" shapeRendering="crispEdges">
+      <svg className="lp-target" width={120} height={120} viewBox="0 0 16 16" shapeRendering="crispEdges">
         {/* 1 — EXTRUDED SIDE (dark, offset down-right by 1 cell) */}
         <g transform="translate(1 1)" fill={C.targetShade}>
           <rect x="6" y="0" width="4" height="2" />
@@ -540,23 +542,57 @@ function PixelTarget() {
       <span className="lp-arrow-ripple" />
       <span className="lp-arrow-ripple lp-arrow-ripple-2" />
 
-      {/* the flying pixel arrow (orange shaft + darker head + light fletching),
-          carries its own pixel under-shadow so it reads as 3D in flight */}
-      <svg className="lp-arrow-fly" width={72} height={26} viewBox="0 0 22 8" shapeRendering="crispEdges">
-        {/* drop shadow row under the shaft */}
-        <g transform="translate(0 1)" fill={C.targetShade} opacity="0.55">
-          <rect x="0" y="3" width="14" height="2" />
-          <rect x="14" y="3" width="2" height="2" />
-          <rect x="16" y="2" width="2" height="4" />
-          <rect x="18" y="1" width="2" height="6" />
+      {/* the flying pixel arrow — a slender spear (nayza): a long orange shaft,
+          short swept-back accentStrong barbs, and a long acute body that
+          converges into a needle POINT, accent2 bevel catching the light + a
+          accent2 fletching at the tail, plus a pixel under-shadow so it reads
+          as 3D in flight.
+          viewBox 26×10 rendered at 104×40 ⇒ 4px/cell. Centre band straddles y=5
+          (shaft = y4..y6). The needle's rightmost drawn cells (x=23..25) put the
+          visible POINT TIP at viewBox x=25 → 25·4 = 100px, centre y=5 → 20px.
+          With left:-40 / top:40 in landing.css the tip lands on (60,60). */}
+      <svg className="lp-arrow-fly" width={104} height={40} viewBox="0 0 26 10" shapeRendering="crispEdges">
+        {/* drop shadow — a soft copy of the whole spear, offset +1 down */}
+        <g transform="translate(0 1)" fill={C.targetShade} opacity="0.5">
+          <rect x="2" y="4" width="13" height="2" />
+          <rect x="14" y="2" width="3" height="1" />
+          <rect x="14" y="3" width="5" height="1" />
+          <rect x="14" y="4" width="9" height="2" />
+          <rect x="14" y="6" width="5" height="1" />
+          <rect x="14" y="7" width="3" height="1" />
+          <rect x="23" y="4" width="2" height="2" />
         </g>
-        {/* shaft + head + fletching */}
-        <rect x="0" y="3" width="14" height="2" fill={C.accent} />
-        <rect x="14" y="3" width="2" height="2" fill={C.accentStrong} />
-        <rect x="16" y="2" width="2" height="4" fill={C.accentStrong} />
-        <rect x="18" y="1" width="2" height="6" fill={C.accentStrong} />
-        <rect x="0" y="1" width="2" height="2" fill={C.accent2} />
-        <rect x="0" y="5" width="2" height="2" fill={C.accent2} />
+
+        {/* SHAFT (orange) — long + slender, y4..y6 */}
+        <rect x="2" y="4" width="13" height="2" fill={C.accent} />
+
+        {/* HEAD (accentStrong) — short swept-back barbs (y2/y3 + y6/y7) that end
+            early, and a long acute centre body (y4/y5) that runs out to a 2px
+            needle tip (x=23..25). The point juts well past the barbs ⇒ sharp. */}
+        <g fill={C.accentStrong}>
+          {/* upper swept barb */}
+          <rect x="14" y="2" width="3" height="1" />
+          <rect x="14" y="3" width="5" height="1" />
+          {/* long acute centre body */}
+          <rect x="14" y="4" width="9" height="1" />
+          <rect x="14" y="5" width="9" height="1" />
+          {/* lower swept barb */}
+          <rect x="14" y="6" width="5" height="1" />
+          <rect x="14" y="7" width="3" height="1" />
+          {/* converging 2px needle → POINT TIP, right edge viewBox x=25 */}
+          <rect x="23" y="4" width="2" height="2" />
+        </g>
+        {/* a brighter top-left bevel on the head so the point catches light */}
+        <g fill={C.accent2}>
+          <rect x="14" y="2" width="3" height="1" />
+          <rect x="14" y="4" width="6" height="1" />
+        </g>
+
+        {/* FLETCHING (accent2) at the tail */}
+        <rect x="0" y="2" width="2" height="2" fill={C.accent2} />
+        <rect x="0" y="6" width="2" height="2" fill={C.accent2} />
+        <rect x="2" y="3" width="2" height="1" fill={C.accent2} />
+        <rect x="2" y="6" width="2" height="1" fill={C.accent2} />
       </svg>
     </div>
   )
