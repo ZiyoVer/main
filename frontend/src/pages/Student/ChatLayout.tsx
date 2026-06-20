@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, FileText, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, Sun, Moon, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, ArrowUp, BarChart2, User, Calendar, Shield, Sparkles, Clock } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, FileText, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, ArrowUp, BarChart2, User, Calendar, Shield, Sparkles, Clock } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import remarkGfm from 'remark-gfm'
@@ -747,14 +747,6 @@ export default function ChatLayout() {
     const [todoOpen, setTodoOpen] = useState(() => loadStoredTodos(todoStorageKey).length > 0)
     const [showSettings, setShowSettings] = useState(false)
     const [showNotifications, setShowNotifications] = useState(false)
-    const [darkMode, setDarkMode] = useState<boolean>(() => {
-        try {
-            const saved = localStorage.getItem('darkMode')
-            return saved === 'true'
-        } catch {
-            return false
-        }
-    })
     const [publicTests, setPublicTests] = useState<PublicTest[]>([])
     const [myResults, setMyResults] = useState<MyResult[]>([])
     const [progressData, setProgressData] = useState<ProgressData | null>(null)
@@ -895,15 +887,12 @@ export default function ChatLayout() {
         return () => window.removeEventListener('resize', checkWidth)
     }, [])
 
-    // Dark mode — DOM va localStorage bilan sinxronlashtirish
+    // Faqat yorug' rejim — har yuklanishda eski 'dark' sinfi va localStorage flagini tozalaymiz
+    // (avval qorong'i rejimda bo'lgan foydalanuvchilar ham yorug' ko'rsin)
     useEffect(() => {
-        if (darkMode) {
-            document.documentElement.classList.add('dark')
-        } else {
-            document.documentElement.classList.remove('dark')
-        }
-        localStorage.setItem('darkMode', String(darkMode))
-    }, [darkMode])
+        document.documentElement.classList.remove('dark')
+        try { localStorage.removeItem('darkMode') } catch { /* localStorage yo'q bo'lishi mumkin */ }
+    }, [])
 
     useEffect(() => {
         loadChats(); loadProfile(); loadPublicTests(); loadMyResults(); loadProgress(); loadDueFlashcards(); logActivity()
@@ -1385,7 +1374,12 @@ Iltimos, har bir savolni tahlil qilib ber:
     }
 
     async function saveOnboarding(e: React.FormEvent) {
-        e.preventDefault(); setSavingProfile(true)
+        e.preventDefault()
+        // Onboarding faqat oxirgi qadamning "Boshlash" tugmasi bilan saqlanadi.
+        // Date/number input'idan kelgan implicit submit (Enter) oynani erta yopib qo'ymasin.
+        // (Settings formasida showOnboarding=false — bu guard u yerga ta'sir qilmaydi.)
+        if (showOnboarding && obStep !== OB_TOTAL_STEPS) return
+        setSavingProfile(true)
         try {
             const data = {
                 ...onboardingForm,
@@ -2281,7 +2275,19 @@ Iltimos, har bir savolni tahlil qilib ber:
                     </div>
                     <p className="text-center text-xs mb-5" style={{ color: 'var(--text-muted)' }}>{obStep}/{OB_TOTAL_STEPS}</p>
 
-                    <form onSubmit={saveOnboarding} className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <form
+                        onSubmit={saveOnboarding}
+                        onKeyDown={e => {
+                            // Oxirgi qadamdan oldin Enter implicit submit qilib oynani yopmasin.
+                            // Qadam to'g'ri bo'lsa Enter keyingi qadamga o'tkazadi.
+                            if (e.key === 'Enter' && !obIsLastStep) {
+                                e.preventDefault()
+                                if (obStepValid) setObStep(s => s + 1)
+                            }
+                        }}
+                        className="card"
+                        style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}
+                    >
                         {/* Step A — Imtihon turi (tanlash majburiy) */}
                         {obStep === 1 && (
                             <div>
@@ -2498,7 +2504,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                     {/* Akkaunt o'chirish modal */}
                     {showDeleteModal && (
                         <div
-                            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+                            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
                             onClick={e => { if (e.target === e.currentTarget) setShowDeleteModal(false) }}
                         >
                             <div className="card p-6" style={{ maxWidth: '360px', width: '100%' }}>
@@ -2714,28 +2720,6 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             </div>
                                         </section>
 
-                                        {/* ── 4. Ko'rinish ── */}
-                                        <section className="pt-7 space-y-4" style={{ borderTop: '1px solid var(--border)' }}>
-                                            <p className="k-eyebrow">Ko'rinish</p>
-                                            <div className="rounded-2xl p-4 flex items-center justify-between gap-3" style={{ background: 'var(--bg-page)', border: '1px solid var(--border)' }}>
-                                                <div className="flex items-center gap-3">
-                                                    <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                                        {darkMode ? <Moon className="h-4 w-4" style={{ color: 'var(--brand)' }} /> : <Sun className="h-4 w-4" style={{ color: 'var(--brand)' }} />}
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-sm font-semibold">Tungi rejim</p>
-                                                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{darkMode ? 'Qorong‘i rejim yoqilgan' : 'Yorug‘ rejim yoqilgan'}</p>
-                                                    </div>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setDarkMode(!darkMode)}
-                                                    className="btn btn-outline h-9 text-sm px-4"
-                                                >
-                                                    {darkMode ? 'Yorug‘ rejim' : 'Qorong‘i rejim'}
-                                                </button>
-                                            </div>
-                                        </section>
 
                                         {/* ── Footer: Save (primary) + Logout (ghost) ── */}
                                         <div className="pt-7 flex flex-col sm:flex-row gap-3" style={{ borderTop: '1px solid var(--border)' }}>
@@ -2804,17 +2788,6 @@ Iltimos, har bir savolni tahlil qilib ber:
                                 <p className="text-[13px] font-medium truncate">{user?.name}</p>
                             </div>
                             <div className="flex items-center gap-1.5">
-                                <button
-                                    onClick={() => setDarkMode(!darkMode)}
-                                    className="min-w-[58px] h-10 px-2.5 flex flex-col items-center justify-center rounded-xl transition"
-                                    style={{ color: 'var(--text-muted)' }}
-                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
-                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                    title={darkMode ? 'Yorug rejim' : 'Qorong\'i rejim'}
-                                >
-                                    {darkMode ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-                                    <span className="text-[10px] mt-0.5">Rejim</span>
-                                </button>
                                 <button
                                     onClick={() => { void loadNotifications(); setShowNotifications(true) }}
                                     className="min-w-[70px] h-10 px-2.5 flex flex-col items-center justify-center rounded-xl transition relative"
