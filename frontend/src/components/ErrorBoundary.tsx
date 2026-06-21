@@ -49,9 +49,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             return (
                 <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-page)', padding: '20px' }}>
                     <div style={{ textAlign: 'center', maxWidth: '400px' }}>
-                        <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'var(--brand)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
-                            <BrainCircuit style={{ width: '28px', height: '28px', color: 'white' }} />
-                        </div>
+                        <img src="/dtmmax-logo.png" alt="DtmMax" style={{ width: '56px', height: '56px', borderRadius: '16px', objectFit: 'contain', margin: '0 auto 20px', display: 'block' }} />
                         <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '8px' }}>Xatolik yuz berdi</h2>
                         <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '24px', lineHeight: 1.6 }}>
                             Kutilmagan xatolik. Sahifani yangilab ko'ring.

@@ -12,9 +12,7 @@ export default function Privacy() {
                         Orqaga
                     </Link>
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
-                        <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'var(--brand)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <BrainCircuit style={{ width: '16px', height: '16px', color: 'white' }} />
-                        </div>
+                        <img src="/dtmmax-logo.png" alt="DtmMax" style={{ width: '28px', height: '28px', borderRadius: '8px', objectFit: 'contain', display: 'block' }} />
                         <span style={{ fontWeight: 700, fontSize: '16px' }}>DTMMax</span>
                     </div>
                     <div style={{ width: '60px' }} />

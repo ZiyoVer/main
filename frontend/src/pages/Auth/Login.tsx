@@ -67,9 +67,7 @@ export default function Login() {
 
                 {/* Logo */}
                 <div className="flex items-center gap-2 justify-center mb-8">
-                    <div className="h-9 w-9 rounded-xl flex items-center justify-center" style={{ background: 'var(--k-accent-grad)' }}>
-                        <BrainCircuit className="h-5 w-5 text-white" />
-                    </div>
+                    <img src="/dtmmax-logo.png" alt="DtmMax" className="h-9 w-9 rounded-xl flex items-center justify-center" style={{ objectFit: 'contain' }} />
                     <span className="font-bold text-xl tracking-tight">DTM<span className="k-italic">Max</span></span>
                 </div>
 
