@@ -150,26 +150,16 @@ function Button({
   )
 }
 
-/* Brand logo mark — dark rounded square with white "D" */
-function LogoMark({ size = 34, radius = 9, glyph = 16 }: { size?: number; radius?: number; glyph?: number }) {
+/* Brand logo mark — DtmMax kitob + o'sish strelkasi (rasmiy logo) */
+function LogoMark({ size = 34, radius = 9 }: { size?: number; radius?: number; glyph?: number }) {
   return (
-    <div
-      aria-hidden="true"
-      style={{
-        width: size,
-        height: size,
-        borderRadius: radius,
-        background: C.ink,
-        color: '#fff',
-        display: 'grid',
-        placeItems: 'center',
-        fontWeight: 800,
-        fontSize: glyph,
-        flexShrink: 0,
-      }}
-    >
-      D
-    </div>
+    <img
+      src="/dtmmax-logo.png"
+      alt="DtmMax"
+      width={size}
+      height={size}
+      style={{ width: size, height: size, borderRadius: radius, objectFit: 'contain', display: 'block', flexShrink: 0 }}
+    />
   )
 }
 
