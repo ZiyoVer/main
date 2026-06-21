@@ -1862,6 +1862,9 @@ Iltimos, har bir savolni tahlil qilib ber:
 
     // Public test ochish (sidebar dan)
     async function openPublicTest(t: any) {
+        // Testlar ro'yxati overlay'ini darrov yopamiz — aks holda mobil'da test paneli
+        // (fixed inset-0 z-50) overlay (ham z-50) ostida, orqada ochilib qolardi.
+        setOverlayPanel(null)
         setLoadingPublicTest(true)
         void markTestNotificationRead(t.id, t.title)
         try {
