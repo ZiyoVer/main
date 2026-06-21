@@ -979,7 +979,7 @@ export default function TeacherPanel() {
                 <header className="sticky top-0 z-40" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', backdropFilter: 'blur(12px)' }}>
                     <div className="max-w-5xl mx-auto flex items-center justify-between py-2.5 px-5">
                         <div className="flex items-center gap-2">
-                            <img src="/dtmmax-logo.png" alt="DtmMax" className="h-6 w-6 rounded-md flex items-center justify-center" style={{ objectFit: 'contain' }} />
+                            <img src="/dtmmax-logo.png" alt="DtmMax" className="h-8 w-8 rounded-md flex items-center justify-center" style={{ objectFit: 'contain' }} />
                             <span className="text-sm font-bold">DTMMax</span>
                             <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ color: 'var(--text-muted)', background: 'var(--bg-surface)' }}>O'qituvchi</span>
                         </div>

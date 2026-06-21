@@ -151,7 +151,7 @@ function Button({
 }
 
 /* Brand logo mark — DtmMax kitob + o'sish strelkasi (rasmiy logo) */
-function LogoMark({ size = 34, radius = 9 }: { size?: number; radius?: number; glyph?: number }) {
+function LogoMark({ size = 44, radius = 11 }: { size?: number; radius?: number; glyph?: number }) {
   return (
     <img
       src="/dtmmax-logo.png"

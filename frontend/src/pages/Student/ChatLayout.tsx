@@ -2433,7 +2433,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                 >
                     <div className="p-3 flex items-center justify-between h-14 flex-shrink-0" style={{ borderBottom: '1px solid color-mix(in srgb, var(--border) 76%, rgba(15,23,42,0.12) 24%)' }}>
                         <div className="flex items-center gap-2">
-                            <img src="/dtmmax-logo.png" alt="DtmMax" className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ objectFit: 'contain' }} />
+                            <img src="/dtmmax-logo.png" alt="DtmMax" className="h-9 w-9 rounded-lg flex items-center justify-center" style={{ objectFit: 'contain' }} />
                             <span className="text-sm font-bold whitespace-nowrap">DTMMax</span>
                         </div>
                         <button onClick={() => setSideOpen(false)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-muted)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}><X className="h-4 w-4" /></button>
@@ -2845,7 +2845,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                             <div className="h-full flex items-center justify-center relative overflow-hidden" style={{ background: 'var(--bg-page)' }}>
                                 <div className="k-tex-dots absolute inset-0" style={{ zIndex: 0 }} />
                                 <div className="text-center px-4 anim-up relative" style={{ zIndex: 1 }}>
-                                    <img src="/dtmmax-logo.png" alt="DtmMax" className="h-11 w-11 rounded-xl flex items-center justify-center mx-auto mb-3" style={{ objectFit: 'contain' }} />
+                                    <img src="/dtmmax-logo.png" alt="DtmMax" className="h-14 w-14 rounded-xl flex items-center justify-center mx-auto mb-3" style={{ objectFit: 'contain' }} />
                                     <p className="text-base font-bold tracking-tight">AI birinchi xabarni <span className="k-italic">tayyorlayapti</span>...</p>
                                     <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Suhbat ochilgach savolingizni yozishingiz mumkin.</p>
                                 </div>

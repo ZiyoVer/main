@@ -1293,7 +1293,7 @@ export default function AdminPanel() {
             <header className="sticky top-0 z-40" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', backdropFilter: 'blur(12px)' }}>
                 <div className="max-w-6xl mx-auto flex items-center justify-between py-3 px-5">
                     <div className="flex items-center gap-2">
-                        <img src="/dtmmax-logo.png" alt="DtmMax" className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ objectFit: 'contain' }} />
+                        <img src="/dtmmax-logo.png" alt="DtmMax" className="h-9 w-9 rounded-lg flex items-center justify-center" style={{ objectFit: 'contain' }} />
                         <span className="text-sm font-bold">DTMMax</span>
                         <span className="text-[11px] font-medium px-2 py-0.5 rounded-md" style={{ color: 'var(--text-muted)', background: 'var(--bg-surface)' }}>Admin</span>
                     </div>

@@ -364,7 +364,7 @@ export default function TestPage() {
                         <button onClick={() => nav(token ? '/suhbat' : '/')} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                             <ArrowLeft className="h-4 w-4" />
                         </button>
-                        <img src="/dtmmax-logo.png" alt="DtmMax" className="h-6 w-6 rounded-md flex items-center justify-center" style={{ objectFit: 'contain' }} />
+                        <img src="/dtmmax-logo.png" alt="DtmMax" className="h-8 w-8 rounded-md flex items-center justify-center" style={{ objectFit: 'contain' }} />
                         <span className="text-sm font-bold truncate max-w-[200px]">{test?.title}</span>
                     </div>
                     <div className="flex items-center gap-3">
@@ -820,7 +820,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
             <header className="h-12 flex-shrink-0 flex items-center justify-between px-4" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
                 <div className="flex items-center gap-2">
                     <button onClick={() => nav(token ? '/suhbat' : '/')} className="h-7 w-7 flex items-center justify-center rounded-lg" style={{ color: 'var(--text-muted)' }}><ArrowLeft className="h-4 w-4" /></button>
-                    <img src="/dtmmax-logo.png" alt="DtmMax" className="h-5 w-5 rounded-md flex items-center justify-center" style={{ objectFit: 'contain' }} />
+                    <img src="/dtmmax-logo.png" alt="DtmMax" className="h-7 w-7 rounded-md flex items-center justify-center" style={{ objectFit: 'contain' }} />
                     <span className="text-sm font-bold truncate max-w-[180px] sm:max-w-xs">{test?.title}</span>
                     <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold hidden sm:inline-flex" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>DTM</span>
                 </div>
