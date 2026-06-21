@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
+import compression from 'compression'
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
 import dotenv from 'dotenv'
 import path from 'path'
@@ -44,6 +45,9 @@ function getRateLimitKey(req: express.Request): string {
 
 // Railway va boshqa reverse proxy-lar uchun trust proxy
 app.set('trust proxy', 1)
+
+// gzip/brotli kompressiya — API javoblari ~60-70% kichrayadi (mobil 3G uchun katta yutuq)
+app.use(compression())
 
 // Security headers
 app.use(helmet({

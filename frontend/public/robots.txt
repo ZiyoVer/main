@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /$
+Allow: /kirish
+Allow: /royxat
+# Ichki (auth) sahifalar indekslanmasin
+Disallow: /chat
+Disallow: /admin
+Disallow: /teacher
+Disallow: /test
+
+Sitemap: https://www.dtmmax.uz/sitemap.xml
