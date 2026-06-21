@@ -18,13 +18,31 @@ export function normalizeMathText(text: string): string {
 function looksLikeStandaloneMathExpression(text: string): boolean {
     const trimmed = text.trim()
     if (!trimmed || trimmed.includes('$')) return false
-    if (!LATEX_COMMAND_RE.test(trimmed) && !/[=<>+\-*/^_]/.test(trimmed)) return false
+
+    // O'zbekcha matn: "1932-yil", "5-sinf", "2-variant" — defis raqamni so'zga
+    // ulaydi (qo'shimcha), bu MINUS emas. Bunday matnni formula deb hisoblamaymiz.
+    if (/\d\s*[-–—]\s*[a-zA-ZЀ-ӿ]/.test(trimmed)) return false
+
+    // Tabiiy so'z bo'lsa (3+ harfli ketma-ketlik, LaTeX buyrug'idan tashqari) —
+    // bu matn, formula emas. Haqiqiy formulalar $...$ yoki \buyruq bilan yoziladi.
+    const withoutCommands = trimmed.replace(/\\[a-zA-Z]+/g, '')
+    if (/[a-zA-ZЀ-ӿ]{3,}/.test(withoutCommands)) return false
+
+    // Kuchli math signali shart: LaTeX buyrug'i, yuqori/quyi indeks (^ _), tenglik
+    // (= < >), yoki ikki operand orasidagi amal (2+3, a/b). Yolg'iz defis yetarli emas.
+    const hasStrongMath =
+        LATEX_COMMAND_RE.test(trimmed) ||
+        /[=<>^_]/.test(trimmed) ||
+        /[0-9a-zA-Z)]\s*[+\-*/]\s*[0-9a-zA-Z(]/.test(trimmed)
+    if (!hasStrongMath) return false
 
     const residue = trimmed
         .replace(/\\[a-zA-Z]+/g, '')
         .replace(/[0-9\s_^{}()[\]+\-*=<>.,/|:;!?"'`~]+/g, '')
         .trim()
 
+    // Tabiiy so'zlar yuqorida "3+ ketma-ket harf" bilan allaqachon bloklangan;
+    // bu yerda faqat tarqoq o'zgaruvchilar (E=mc^2 → E,m,c) qoladi.
     return residue.length <= 6
 }
 
