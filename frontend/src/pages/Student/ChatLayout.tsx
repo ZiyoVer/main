@@ -2003,19 +2003,36 @@ Iltimos, har bir savolni tahlil qilib ber:
             : questions.length
 
         // Mavzu statistikasini yangilash + XP qo'shish
-        const testSubject = currentChat?.subject || currentChat?.subject2 || profile?.subject || profile?.subject2 || 'Umumiy'
-        fetchApi('/progress/topic', {
-            method: 'POST',
-            body: JSON.stringify({
-                subject: testSubject,
-                topic: currentChat?.title?.split(' ').slice(0, 4).join(' ') || 'Umumiy',
-                correct: score,
-                total: totalQuestionsForScore
-            })
-        }).then(() => loadProgress()).catch(() => { })
+        if (backendSubmitHandled) {
+            // Saqlangan test: backend TopicStat'ni REAL per-mavzu yangiladi — qayta hisoblamaymiz (ikki marta sanash yo'q), faqat progress'ni yangilaymiz
+            loadProgress()
+        } else {
+            // Efemer AI test: backend per-mavzu bilmaydi — chat sarlavhasidan qo'pol yangilaymiz
+            const testSubject = currentChat?.subject || currentChat?.subject2 || profile?.subject || profile?.subject2 || 'Umumiy'
+            fetchApi('/progress/topic', {
+                method: 'POST',
+                body: JSON.stringify({
+                    subject: testSubject,
+                    topic: currentChat?.title?.split(' ').slice(0, 4).join(' ') || 'Umumiy',
+                    correct: score,
+                    total: totalQuestionsForScore
+                })
+            }).then(() => loadProgress()).catch(() => { })
+        }
         logActivity(20) // Test uchun +20 XP
         const hasImages = questions.some((q: any) => q.imageUrl)
-        const summary = `--- YANGI TEST NATIJASI (bu mustaqil test) ---\nJami savol: ${totalQuestionsForScore}\nTo'g'ri javoblar: ${score}/${totalQuestionsForScore}\n\n${results}\n\nFaqat shu ${totalQuestionsForScore} ta savol bo'yicha tahlil qil va qaysi mavzularni qayta o'rganishim kerakligini ayt. Oldingi testlar bilan aralashma.`
+        // Yopiq o'quv halqasi: backend bergan REAL per-mavzu tahlilini AI promptiga qo'shamiz (taxmin emas)
+        const bd: Array<{ topic: string; correct: number; total: number; pct: number }> =
+            Array.isArray(backendSubmitResult?.topicBreakdown) ? backendSubmitResult.topicBreakdown : []
+        const topicAnalysisText = bd.length
+            ? "\n\nMAVZULAR BO'YICHA (real natija):\n" + bd.map((t) => `- ${t.topic}: ${t.correct}/${t.total} (${t.pct}%)`).join('\n')
+            : ''
+        const rec = backendSubmitResult?.recommendation
+        const recText = rec?.focusTopic
+            ? `\n\nENG ZAIF MAVZU: ${rec.focusTopic.topic} (${rec.focusTopic.pct}%).` +
+              (rec?.nextTest?.title ? ` Tavsiya etilgan keyingi test: "${rec.nextTest.title}".` : '')
+            : ''
+        const summary = `--- YANGI TEST NATIJASI (bu mustaqil test) ---\nJami savol: ${totalQuestionsForScore}\nTo'g'ri javoblar: ${score}/${totalQuestionsForScore}\n\n${results}${topicAnalysisText}${recText}\n\nFaqat shu ${totalQuestionsForScore} ta savol bo'yicha tahlil qil. Yuqoridagi MAVZULAR BO'YICHA real natijaga tayanib, qaysi mavzularni qayta o'rganishim kerakligini aniq ayt va eng zaif mavzudan boshlashni tavsiya qil. Oldingi testlar bilan aralashma.`
         const displayMsg = `📊 Test natijasi: ${score}/${totalQuestionsForScore} — ${hasImages ? 'Vision AI tahlil qilmoqda...' : 'AI tahlil qilmoqda...'}`
 
         // Vision AI orqali rasmli savollarni tahlil qilish — DeepSeek tahlilini o'tkazib yuboramiz

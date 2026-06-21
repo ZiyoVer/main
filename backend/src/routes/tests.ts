@@ -41,6 +41,43 @@ function getTimeRemainingSeconds(expiresAt: Date, now = new Date()): number {
     return Math.max(0, Math.ceil((expiresAt.getTime() - now.getTime()) / 1000))
 }
 
+// ---- Zaiflik tahlili (closed learning loop) yordamchilari ----
+// DTM majburiy bloklarining inson-o'qiydigan yorliqlari.
+const DTM_BLOCK_LABELS: Partial<Record<DtmBlockType, string>> = {
+    MANDATORY_LANGUAGE: 'Ona tili',
+    MANDATORY_MATH: 'Majburiy matematika',
+    MANDATORY_HISTORY: "O'zbekiston tarixi",
+}
+
+// TopicStat uchun subject kaliti: testning normalizatsiyalangan fani (yoki 'Umumiy').
+function subjectKeyForTest(test: { subject?: string | null }): string {
+    return normalizeSubject(test.subject) ?? test.subject ?? 'Umumiy'
+}
+
+// Savol uchun mavzu kaliti: avval AI bergan topic, bo'lmasa blockType yorlig'i,
+// bo'lmasa test fani. Ixtisoslik bloklari mos fanga tushadi.
+function topicKeyForQuestion(
+    q: { topic?: string | null; blockType?: DtmBlockType | null },
+    test: { subject?: string | null; subject2?: string | null },
+): string {
+    const t = (q.topic ?? '').trim()
+    if (t) return t
+    const bt = q.blockType ?? 'GENERIC'
+    if (bt === 'SPECIALTY_1') return normalizeSubject(test.subject) ?? test.subject ?? '1-ixtisoslik'
+    if (bt === 'SPECIALTY_2') return normalizeSubject(test.subject2) ?? test.subject2 ?? '2-ixtisoslik'
+    const label = DTM_BLOCK_LABELS[bt]
+    if (label) return label
+    return normalizeSubject(test.subject) ?? test.subject ?? 'Umumiy'
+}
+
+// Har bir savol natijasidan (to'g'ri/jami) hissasi — matching/multipart partial-credit bilan.
+function topicContribution(r: { isCorrect?: boolean; correctSubCount?: number; totalSubs?: number }): { correct: number; total: number } {
+    if (typeof r.totalSubs === 'number' && r.totalSubs > 0) {
+        return { correct: r.correctSubCount || 0, total: r.totalSubs }
+    }
+    return { correct: r.isCorrect ? 1 : 0, total: 1 }
+}
+
 async function ensureTestSession(testId: string, userId: string, timeLimit: number, shareLink?: string | null) {
     const now = new Date()
     const expiresAt = new Date(now.getTime() + timeLimit * 60 * 1000)
@@ -1927,6 +1964,20 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
         })
         const totalForResponse = effectiveTotal
 
+        // ---- Closed learning loop: real testdan per-mavzu agregatsiya ----
+        const subjectKey = subjectKeyForTest(test)
+        const topicAgg = new Map<string, { subject: string; correct: number; total: number }>()
+        for (const r of results as Array<{ questionId: string; isCorrect?: boolean; correctSubCount?: number; totalSubs?: number }>) {
+            const q = test.questions.find((qq) => qq.id === r.questionId)
+            if (!q) continue
+            const topic = topicKeyForQuestion(q, test)
+            const { correct: c, total: tt } = topicContribution(r)
+            const cur = topicAgg.get(topic) || { subject: subjectKey, correct: 0, total: 0 }
+            cur.correct += c
+            cur.total += tt
+            topicAgg.set(topic, cur)
+        }
+
         const attempt = await prisma.$transaction(async (tx) => {
             // Idempotentlik: vaqt-limitsiz testlarda sessiya guard'i yo'q (timeLimitMs === null),
             // shuning uchun double-submit/replay'ni shu yerda to'xtatamiz — bir foydalanuvchi
@@ -2005,6 +2056,16 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
                 }
             })
 
+            // Yopiq o'quv halqasi: zaif mavzular endi REAL testdan to'planadi (oldin faqat chatdan)
+            const practicedAt = new Date()
+            for (const [topic, agg] of topicAgg) {
+                await tx.topicStat.upsert({
+                    where: { userId_subject_topic: { userId: req.user.id, subject: agg.subject, topic } },
+                    update: { correct: { increment: agg.correct }, total: { increment: agg.total }, lastPracticed: practicedAt },
+                    create: { userId: req.user.id, subject: agg.subject, topic, correct: agg.correct, total: agg.total, lastPracticed: practicedAt },
+                })
+            }
+
             if (activeSessionId) {
                 await tx.testSession.update({
                     where: { id: activeSessionId },
@@ -2048,6 +2109,45 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
 
         const computedScore = attempt.computedScore
 
+        // ---- Per-mavzu xatolik tahlili (eng zaif birinchi) ----
+        const topicBreakdown = Array.from(topicAgg.entries())
+            .map(([topic, agg]) => ({
+                topic,
+                subject: agg.subject,
+                correct: agg.correct,
+                total: agg.total,
+                pct: agg.total > 0 ? Math.round((agg.correct / agg.total) * 100) : 0,
+            }))
+            .sort((a, b) => a.pct - b.pct || b.total - a.total)
+
+        // ---- Adaptiv tavsiya: eng zaif mavzu + o'quvchi hali yechmagan keyingi test ----
+        const focusTopic = topicBreakdown.find((t) => t.pct < 100) || topicBreakdown[0] || null
+        let nextTest: { id: string; title: string; shareLink: string } | null = null
+        try {
+            const attempted = await prisma.testAttempt.findMany({
+                where: { userId: req.user.id },
+                select: { testId: true },
+            })
+            const attemptedIds = Array.from(new Set(attempted.map((a) => a.testId)))
+            const where: { isPublic: boolean; approved: boolean; subject?: string; id?: { notIn: string[] } } = {
+                isPublic: true,
+                approved: true,
+            }
+            if (test.subject) where.subject = test.subject
+            if (attemptedIds.length) where.id = { notIn: attemptedIds }
+            nextTest = await prisma.test.findFirst({
+                where,
+                orderBy: { createdAt: 'desc' },
+                select: { id: true, title: true, shareLink: true },
+            })
+        } catch {
+            nextTest = null
+        }
+        const recommendation = {
+            focusTopic: focusTopic ? { topic: focusTopic.topic, subject: focusTopic.subject, pct: focusTopic.pct } : null,
+            nextTest,
+        }
+
         res.json({
             attempt: attempt.attempt,
             score: computedScore.scorePercent,
@@ -2065,7 +2165,9 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
             msBall: normalizedTestType === 'MILLIY_SERTIFIKAT' ? computedScore.rawScore : undefined,
             msMax: normalizedTestType === 'MILLIY_SERTIFIKAT' ? computedScore.scoreMax : undefined,
             results,
-            correctAnswers
+            correctAnswers,
+            topicBreakdown,
+            recommendation
         })
     } catch (e) {
         if (e instanceof AlreadySubmittedError) {
