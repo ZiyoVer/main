@@ -1238,8 +1238,15 @@ type FooterCol = { head: string; label: string; items: string[] }
 const FOOTER_COLS: FooterCol[] = [
   { head: 'Mahsulot', label: 'Mahsulot havolalari', items: ['Imkoniyatlar', 'Fanlar', 'Narxlar'] },
   { head: 'Kompaniya', label: 'Kompaniya havolalari', items: ['Biz haqimizda', 'Aloqa', 'FAQ'] },
-  { head: 'Huquqiy', label: 'Huquqiy havolalar', items: ['Maxfiylik', 'Shartlar'] },
+  { head: 'Huquqiy', label: 'Huquqiy havolalar', items: ['Maxfiylik', 'Shartlar', 'Oferta'] },
 ]
+
+/* Footer yorliqlari → haqiqiy manzillar (anchor yoki sahifa) */
+const FOOTER_HREF: Record<string, string> = {
+  'Imkoniyatlar': '#imkoniyatlar', 'Fanlar': '#imkoniyatlar', 'Narxlar': '#narxlar', 'FAQ': '#faq',
+  'Maxfiylik': '/maxfiylik', 'Shartlar': '/shartlar', 'Oferta': '/oferta',
+}
+const footerHref = (label: string): string => FOOTER_HREF[label] || '#'
 
 function SocialDot({ initial }: { initial: string }) {
   return (
@@ -1275,7 +1282,7 @@ function Footer() {
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {col.items.map((it) => (
                   <li key={it}>
-                    <a href="#" className="lp-link" style={{ fontSize: 14, fontWeight: 500, color: C.gray, textDecoration: 'none' }}>{it}</a>
+                    <a href={footerHref(it)} className="lp-link" style={{ fontSize: 14, fontWeight: 500, color: C.gray, textDecoration: 'none' }}>{it}</a>
                   </li>
                 ))}
               </ul>

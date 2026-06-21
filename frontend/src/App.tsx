@@ -21,6 +21,7 @@ const TeacherPanel = lazy(() => import('./pages/Teacher/TeacherPanel'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 const Terms = lazy(() => import('./pages/Terms'))
 const Privacy = lazy(() => import('./pages/Privacy'))
+const Oferta = lazy(() => import('./pages/Oferta'))
 
 function PageLoader() {
     return (
@@ -144,6 +145,7 @@ function AppContent() {
                     <Route path="/teacher" element={<ProtectedRoute roles={['TEACHER', 'ADMIN']}><TeacherPanel /></ProtectedRoute>} />
                     <Route path="/shartlar" element={<Terms />} />
                     <Route path="/maxfiylik" element={<Privacy />} />
+                    <Route path="/oferta" element={<Oferta />} />
                     <Route path="*" element={<NotFound />} />
                 </Routes>
             </Suspense>
