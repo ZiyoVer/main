@@ -9,7 +9,7 @@ import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole, optionalAuthenticate } from '../middleware/auth'
 import { uploadToS3, getSignedS3Url, resolveStoredS3Url, toStoredS3Ref } from '../utils/s3'
 import { logAdminAction } from '../utils/adminAudit'
-import { getSubjectVariants, normalizeSubject } from '../utils/subjects'
+import { getSubjectVariants, normalizeSubject, categoryForTest } from '../utils/subjects'
 import {
     getDefaultDtmCoefficient,
     getMsGrade,
@@ -805,7 +805,8 @@ router.get('/public', authenticate, async (req: AuthRequest, res) => {
             },
             orderBy: { createdAt: 'desc' }
         })
-        res.json(tests)
+        // Kategoriya: tanlangan fan yoki nom-pattern bo'yicha (frontend chiplari uchun)
+        res.json(tests.map(t => ({ ...t, category: categoryForTest(t) })))
     } catch (e) {
         res.status(500).json({ error: 'Server xatoligi' })
     }

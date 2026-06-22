@@ -23,7 +23,7 @@ import { useIsPro, PRO_PRICE, PRO_PRICE_PERIOD, PRO_STATUS_LABEL, PRO_FEATURES, 
 interface Chat { id: string; title: string; subject?: string; subject2?: string; updatedAt: string }
 interface Msg { id: string; role: string; content: string; createdAt: string }
 interface Profile { onboardingDone: boolean; examType?: 'DTM' | 'MS' | null; subject?: string; subject2?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string; totalTests?: number; avgScore?: number; abilityLevel?: number }
-interface PublicTest { id: string; title: string; shareLink: string; subject?: string; _count?: { questions: number; attempts: number } }
+interface PublicTest { id: string; title: string; shareLink: string; subject?: string; category?: string; _count?: { questions: number; attempts: number } }
 interface MyResult {
     id: string
     testId: string
@@ -743,6 +743,7 @@ export default function ChatLayout() {
     const [profileLoaded, setProfileLoaded] = useState(false)
     const [showOnboarding, setShowOnboarding] = useState(false)
     const [overlayPanel, setOverlayPanel] = useState<'tests' | 'flashcards' | 'progress' | 'pro' | null>(null)
+    const [testCategory, setTestCategory] = useState<string>('all') // testlar bo'limi kategoriya filtri
     const [todoItems, setTodoItems] = useState<TodoItem[]>(() => loadStoredTodos(todoStorageKey))
     const [todoOpen, setTodoOpen] = useState(() => loadStoredTodos(todoStorageKey).length > 0)
     const [showSettings, setShowSettings] = useState(false)
@@ -3463,14 +3464,34 @@ Iltimos, har bir savolni tahlil qilib ber:
                             <div className="flex-1 overflow-y-auto px-5 py-4">
                                 {overlayPanel === 'tests' && (
                                     <div className="space-y-3">
-                                        {publicTests.length === 0 ? (
+                                        {publicTests.length === 0 && (
                                             <div className="flex flex-col items-center justify-center py-16 gap-3">
                                                 <div className="h-16 w-16 rounded-2xl flex items-center justify-center" style={{ background: 'var(--bg-muted)' }}>
                                                     <ClipboardList className="h-8 w-8" style={{ color: 'var(--text-muted)' }} />
                                                 </div>
                                                 <p className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>Hozircha testlar yo'q</p>
                                             </div>
-                                        ) : publicTests.map(t => {
+                                        )}
+                                        {publicTests.length > 0 && (() => {
+                                            const cats = Array.from(new Set(publicTests.map(pt => pt.category || 'Boshqa')))
+                                            return cats.length > 1 ? (
+                                                <div className="flex flex-wrap gap-2 pb-1">
+                                                    {['all', ...cats].map(c => {
+                                                        const active = testCategory === c
+                                                        return (
+                                                            <button key={c} onClick={() => setTestCategory(c)}
+                                                                className="text-xs font-semibold px-3 py-1.5 rounded-full transition"
+                                                                style={active
+                                                                    ? { background: 'var(--brand)', color: 'white' }
+                                                                    : { background: 'var(--bg-muted)', color: 'var(--text-secondary)' }}>
+                                                                {c === 'all' ? 'Hammasi' : c}
+                                                            </button>
+                                                        )
+                                                    })}
+                                                </div>
+                                            ) : null
+                                        })()}
+                                        {publicTests.filter(t => testCategory === 'all' || (t.category || 'Boshqa') === testCategory).map(t => {
                                             const result = myResults.find(r => r.testId === t.id)
                                             return (
                                                 <div key={t.id} className="rounded-2xl p-4 transition" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>

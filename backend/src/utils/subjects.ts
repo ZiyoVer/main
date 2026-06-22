@@ -60,3 +60,36 @@ export function isMandatoryDtmSubject(subject?: string | null): boolean {
     const normalized = normalizeSubject(subject)
     return normalized === 'Ona tili' || normalized === 'Tarix'
 }
+
+// Test nomidan fanni taxmin qilish (subject bo'sh/noaniq bo'lsa fallback).
+// Kalit-so'zlar pastki registrda; birinchi mos kelgan fan qaytadi.
+const SUBJECT_KEYWORDS: Array<[CanonicalSubject, string[]]> = [
+    ['Matematika', ['matematika', 'matem', 'algebra', 'geometr', 'math', 'trigonometr']],
+    ['Fizika', ['fizika', 'fizik', 'physic']],
+    ['Kimyo', ['kimyo', 'ximiy', 'chem']],
+    ['Biologiya', ['biologiya', 'biolog', 'anatomi']],
+    ['Ona tili', ['ona tili', 'ona-tili', "o'zbek tili", 'ozbek tili', 'adabiyot', 'til va adabiyot']],
+    ['Ingliz tili', ['ingliz', 'english', 'inglizcha']],
+    ['Tarix', ['tarix', 'history', 'temur', 'shayboniy']],
+    ['Geografiya', ['geografiya', 'geograf', 'iqlim', 'relyef']],
+]
+
+export function inferSubjectFromTitle(title?: string | null): CanonicalSubject | null {
+    if (!title) return null
+    const t = sanitizeSubject(title).toLowerCase()
+    if (!t) return null
+    for (const [subject, keywords] of SUBJECT_KEYWORDS) {
+        if (keywords.some(k => t.includes(k))) return subject
+    }
+    return null
+}
+
+// Test kategoriyasi: avval tanlangan fan (normallashtirilgan), bo'lmasa nomdan
+// taxmin (pattern), bo'lmasa "Boshqa".
+export function categoryForTest(test: { subject?: string | null; title?: string | null }): string {
+    const norm = normalizeSubject(test.subject)
+    if (norm && isCanonicalSubject(norm)) return norm
+    const inferred = inferSubjectFromTitle(test.title)
+    if (inferred) return inferred
+    return norm || 'Boshqa'
+}
