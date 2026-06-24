@@ -1735,8 +1735,13 @@ Iltimos, har bir savolni tahlil qilib ber:
     // Test panel ochish (todo ni yopadi)
     const handleOpenTest = useCallback((jsonStr: string) => {
         setTodoOpen(false)
+        // AI chat testi efemer (DB da yo'q). Eski public test id'sini tozalamasak,
+        // submit xato qilib /tests/{eskiId}/submit ga ketib "Test sessiyasi topilmadi" (403)
+        // beradi. Shu sababli AI test ochishdan oldin activeTestId/savollarni tozalaymiz.
+        setActiveTestId(null)
+        setActiveTestQuestions([])
         openTestPanel(jsonStr)
-    }, [openTestPanel])
+    }, [openTestPanel, setActiveTestId, setActiveTestQuestions])
 
     // Flashcard panelni ochish
     const handleOpenFlash = useCallback((jsonStr: string) => {
@@ -3574,7 +3579,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                         <p className="font-semibold text-sm" style={{ color: 'var(--danger)' }}>{dueFlashcards.length} ta kartochka takrorlash vaqti keldi</p>
                                                         <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Xotirani mustahkamlash uchun takrorlang</p>
                                                     </div>
-                                                    <button onClick={() => { setOverlayPanel(null); setFlashPanel(dueFlashcards.map(f => ({ front: f.front, back: f.back }))); setFlashIdx(0); setFlashFlipped(false); setFlashIsReview(true) }}
+                                                    <button onClick={() => { setOverlayPanel(null); setFlashPanel(dueFlashcards.map(f => ({ id: f.id, front: f.front, back: f.back }))); setFlashIdx(0); setFlashFlipped(false); setFlashIsReview(true) }}
                                                         className="text-sm font-semibold px-4 py-2 rounded-xl transition"
                                                         style={{ background: 'var(--danger)', color: 'white' }}>
                                                         Boshlash
