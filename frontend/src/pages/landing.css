@@ -1,37 +1,39 @@
 @import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Fraunces:ital,opsz,wght@0,9..144,500;1,9..144,400;1,9..144,500&display=swap');
 
 /* =========================================================================
-   DtmMax — Premium landing (Kelviq aesthetic)
-   White + faint technical grids + bold Hanken Grotesk / italic Fraunces
-   headline + sparing orange accent + pixel icons.
+   DtmMax — Editorial / academic-paper landing (Kelviq brand, merged)
+   Warm PAPER off-white ground + Fraunces serif headlines + restrained orange
+   accent used as editorial rules / one CTA + pixel icons + the signature pixel
+   TARGET + 45° arrow animation. Body stays Hanken Grotesk. Hairlines read as
+   paper rules; generous editorial rhythm.
 
-   SCOPING: every token + the landing font live under `.lp-root` ONLY, so they
+   SCOPING: every token + the landing fonts live under `.lp-root` ONLY, so they
    never leak into the rest of the Amber app (which keeps Plus Jakarta Sans).
    No global body{} / *{} / html{} rules — the app's own index.css owns those.
    ========================================================================= */
 .lp-root {
-  --lp-bg:        #FFFFFF;   /* page */
-  --lp-bg-2:      #FAFAFA;   /* faint alt panels / screenshot well */
-  --lp-soft:      #FFF1EA;   /* indigo wash (rare: stat chip, icon bg) */
-  --lp-ink:       #0A0A0A;   /* headlines, primary text */
-  --lp-gray:      #5B5B66;   /* body */
-  --lp-gray-2:    #8A8A95;   /* captions, footer secondary */
-  --lp-line:      #E8E8EC;   /* hairlines, card borders */
-  --lp-line-2:    #DEDEE4;   /* hover border */
-  --lp-tex:       #DDE0E6;   /* TEXTURE color — dots & plus marks (faint) */
+  --lp-bg:        #FAF8F3;   /* warm paper ground */
+  --lp-bg-2:      #F3EEE4;   /* slightly deeper paper — wells / disabled chips */
+  --lp-soft:      #F6E7DC;   /* warm peach wash (rare: stat avatar, badge, icon bg) */
+  --lp-ink:       #211C16;   /* warm near-black — headlines & primary text */
+  --lp-gray:      #5C544A;   /* warm body */
+  --lp-gray-2:    #8C8478;   /* warm captions, footer secondary */
+  --lp-line:      #E4DDD0;   /* warm hairlines, card borders, paper rules */
+  --lp-line-2:    #D6CDBC;   /* warm hover border */
+  --lp-tex:       #DAD2C4;   /* TEXTURE color — dots & plus marks (warm, faint) */
 
-  --lp-accent:    #F15A24;   /* orange — eyebrow, marks */
-  --lp-accent-strong:#DA4A12;/* CTA active, focus ring */
-  --lp-accent-2:  #FF8A4C;   /* gradient stop 2 */
-  --lp-accent-grad: linear-gradient(135deg, #F15A24 0%, #FF8A4C 100%);
+  --lp-accent:    #E0531F;   /* restrained editorial orange */
+  --lp-accent-strong:#C0410F;/* CTA active, focus ring */
+  --lp-accent-2:  #F5894E;   /* gradient stop 2 / bevel highlight */
+  --lp-accent-grad: linear-gradient(135deg, #E0531F 0%, #F5894E 100%);
 
-  --lp-target-shade: #B9BCC6;/* pixel-target 3D: extruded side-wall shadow gray */
-  --lp-target-hi:    #F3F4F7;/* pixel-target 3D: top-left highlight edge */
+  --lp-target-shade: #C3BAA9;/* pixel-target 3D: warm extruded side-wall shadow */
+  --lp-target-hi:    #FCFAF5;/* pixel-target 3D: warm top-left highlight edge */
 
-  --lp-shadow-card: 0 1px 2px rgba(10,10,16,.04), 0 1px 1px rgba(10,10,16,.03);
-  --lp-shadow-hover: 0 18px 40px -14px rgba(241,90,36,.22), 0 4px 10px -4px rgba(10,10,16,.06);
-  --lp-shadow-cta: 0 6px 20px rgba(241,90,36,.28);
-  --lp-shadow-cta-hover: 0 10px 28px rgba(241,90,36,.38);
+  --lp-shadow-card: 0 1px 2px rgba(33,28,22,.04), 0 1px 1px rgba(33,28,22,.03);
+  --lp-shadow-hover: 0 18px 40px -14px rgba(192,65,15,.16), 0 4px 10px -4px rgba(33,28,22,.07);
+  --lp-shadow-cta: 0 6px 18px rgba(224,83,31,.22);
+  --lp-shadow-cta-hover: 0 10px 26px rgba(224,83,31,.30);
 
   --lp-r-sm:8px; --lp-r-md:11px; --lp-r-lg:16px; --lp-r-xl:20px; /* radii */
   --lp-dur-fast:150ms; --lp-dur:250ms;
@@ -54,6 +56,21 @@
 .lp-root *::before,
 .lp-root *::after { box-sizing: border-box; }
 
+/* ============================ EDITORIAL TYPOGRAPHY ============================
+   The Fraunces serif headlines carry the academic-paper voice: enable the
+   font's optical-size + ligatures + oldstyle proportions so big display sizes
+   render with proper contrast and the figures sit like typeset paper numerals.
+   Applies only to the serif display headings (hero h1 + section h2 + the
+   serif h3 feature titles), never to the Hanken body. */
+.lp-root .lp-h1,
+.lp-root .lp-h2 {
+  font-optical-sizing: auto;
+  font-feature-settings: 'liga' 1, 'kern' 1;
+  text-wrap: balance;
+}
+.lp-root .lp-h1 { font-variation-settings: 'opsz' 132; }
+.lp-root .lp-h2 { font-variation-settings: 'opsz' 96; }
+
 /* ============================ TECHNICAL TEXTURES ============================
    All textures sit behind content at low contrast, pointer-events:none,
    z-index:0; content z-index:1. Colour = --lp-tex #DDE0E6. */
@@ -69,9 +86,9 @@
 
 /* 4-B. Plus-sign grid (SVG-data-URI — the CSS-mask radial method failed in render) */
 .lp-root .lp-tex-plus {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Cg fill='none' stroke='%23DDE0E6' stroke-width='1.2'%3E%3Cpath d='M14 9.5v9 M9.5 14h9'/%3E%3C/g%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Cg fill='none' stroke='%23DAD2C4' stroke-width='1.2'%3E%3Cpath d='M14 9.5v9 M9.5 14h9'/%3E%3C/g%3E%3C/svg%3E");
   background-repeat: repeat;
-  opacity: .6;
+  opacity: .55;
 }
 
 /* 4-C. Hairline rules carry --lp-line (lighter than texture so they read as structure) */
@@ -173,7 +190,7 @@
     color: var(--lp-accent);
     opacity: 1;
     transform: scale(1.14);
-    filter: drop-shadow(0 0 9px rgba(241,90,36,.55)) drop-shadow(0 0 3px rgba(241,90,36,.75));
+    filter: drop-shadow(0 0 9px rgba(224,83,31,.5)) drop-shadow(0 0 3px rgba(224,83,31,.7));
   }
 }
 
@@ -227,7 +244,7 @@
   height: 42px;
   margin-left: -84px;
   border-radius: 50%;
-  background: radial-gradient(ellipse at center, rgba(10,10,16,.26) 0%, rgba(10,10,16,.12) 55%, transparent 75%);
+  background: radial-gradient(ellipse at center, rgba(60,48,34,.24) 0%, rgba(60,48,34,.11) 55%, transparent 75%);
   filter: blur(3px);
   opacity: .8;
   transform-origin: center;
@@ -307,15 +324,15 @@
   }
   19% {
     transform: scale(1.36) translateY(-12px) rotateX(16deg) rotateY(-8deg);
-    filter: drop-shadow(0 0 26px rgba(241,90,36,.85)) drop-shadow(0 0 7px rgba(241,90,36,1));
+    filter: drop-shadow(0 0 26px rgba(224,83,31,.8)) drop-shadow(0 0 7px rgba(224,83,31,1));
   }
   24% {
     transform: scale(1.18) translateY(-6px) rotateX(7deg) rotateY(-3deg);
-    filter: drop-shadow(0 0 13px rgba(241,90,36,.5));
+    filter: drop-shadow(0 0 13px rgba(224,83,31,.45));
   }
   30% {
     transform: scale(1.05) translateY(0) rotateX(0deg) rotateY(0deg);
-    filter: drop-shadow(0 0 7px rgba(241,90,36,.28));
+    filter: drop-shadow(0 0 7px rgba(224,83,31,.26));
   }
   37%, 100% {
     transform: scale(1) translateY(0) rotateX(0deg) rotateY(0deg);
@@ -436,8 +453,8 @@
 /* 768–1023px */
 @media (max-width: 1023px) {
   .lp-root .lp-container { padding-left: 40px !important; padding-right: 40px !important; }
-  .lp-root .lp-h1 { font-size: 56px !important; }
-  .lp-root .lp-h2 { font-size: 38px !important; }
+  .lp-root .lp-h1 { font-size: 58px !important; }
+  .lp-root .lp-h2 { font-size: 40px !important; }
   .lp-root .lp-grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
   .lp-root .lp-grid-3 { grid-template-columns: repeat(2, 1fr) !important; }
   .lp-root .lp-math-zone { width: 340px !important; }
@@ -447,8 +464,8 @@
 /* ≤767px — single column, calm page */
 @media (max-width: 767px) {
   .lp-root .lp-container { padding-left: 24px !important; padding-right: 24px !important; }
-  .lp-root .lp-h1 { font-size: 40px !important; line-height: 1.08 !important; }
-  .lp-root .lp-h2 { font-size: 32px !important; }
+  .lp-root .lp-h1 { font-size: 42px !important; line-height: 1.1 !important; }
+  .lp-root .lp-h2 { font-size: 33px !important; }
   .lp-root .lp-hero-rule { display: none !important; }
   .lp-root .lp-hero-content { padding-left: 0 !important; }
   .lp-root .lp-math-zone { display: none !important; }   /* keep mobile calm — Kelviq stays minimal */

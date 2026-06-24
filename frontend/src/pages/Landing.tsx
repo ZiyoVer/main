@@ -5,36 +5,40 @@ import { useAuthStore } from '@/store/authStore'
 import './landing.css'
 
 /* =========================================================================
-   DtmMax — Premium landing (Kelviq aesthetic), ported from the approved mockup.
-   White + faint technical grids + bold Hanken Grotesk headline with ONE
-   italic-Fraunces accent word + sparing ORANGE accent + pixel-art icons.
-   Tokens + landing font are scoped under `.lp-root` (see landing.css) so they
-   never leak into the Amber app shell. Inline style objects use the spec's
-   exact hex/values. All copy: Uzbek (Latin). TypeScript strict — no `any`.
+   DtmMax — Editorial / academic-paper landing (Kelviq brand, merged).
+   Warm PAPER off-white ground + Fraunces serif headlines (hero + all section
+   headings) with ONE italic accent word + restrained ORANGE accent used as
+   editorial rules / one CTA + pixel-art icons + the signature pixel TARGET +
+   45° arrow animation in the hero math-zone. Body stays Hanken Grotesk for
+   readability. Hairline rules read as paper rules; generous editorial rhythm.
+   Tokens + landing fonts are scoped under `.lp-root` (see landing.css) so they
+   never leak into the Amber app shell. Inline style objects mirror the --lp-*
+   tokens exactly. All copy: Uzbek (Latin). TypeScript strict — no `any`.
    ========================================================================= */
 
 const C = {
-  bg: '#FFFFFF',
-  bg2: '#FAFAFA',
-  soft: '#FFF1EA',
-  ink: '#0A0A0A',
-  gray: '#5B5B66',
-  gray2: '#8A8A95',
-  line: '#E8E8EC',
-  line2: '#DEDEE4',
-  tex: '#DDE0E6',
-  accent: '#F15A24',
-  accentStrong: '#DA4A12',
-  accent2: '#FF8A4C',
-  accentGrad: 'linear-gradient(135deg, #F15A24 0%, #FF8A4C 100%)',
-  /* pixel-target 3D shading: extruded side-shadow gray + top-left highlight */
-  targetShade: '#B9BCC6',  /* darker ring-shadow for the extruded depth layer */
-  targetHi: '#F3F4F7',     /* near-white highlight edge on the top-left rings */
+  bg: '#FAF8F3',      /* warm paper ground */
+  bg2: '#F3EEE4',     /* slightly deeper paper — wells / disabled chips */
+  soft: '#F6E7DC',    /* warm peach wash — rare accent fill (stat avatars, badge) */
+  ink: '#211C16',     /* warm near-black — headlines & primary text on paper */
+  gray: '#5C544A',    /* warm body gray */
+  gray2: '#8C8478',   /* warm captions / footer secondary */
+  line: '#E4DDD0',    /* warm hairline — card borders, paper rules */
+  line2: '#D6CDBC',   /* warm hover border */
+  tex: '#DAD2C4',     /* TEXTURE color — dots & plus marks (warm, faint) */
+  accent: '#E0531F',  /* restrained editorial orange (slightly deepened for paper) */
+  accentStrong: '#C0410F', /* CTA active, focus ring */
+  accent2: '#F5894E', /* gradient stop 2 / bevel highlight */
+  accentGrad: 'linear-gradient(135deg, #E0531F 0%, #F5894E 100%)',
+  /* pixel-target 3D shading: extruded side-shadow + top-left highlight (warm) */
+  targetShade: '#C3BAA9',  /* warm darker ring-shadow for the extruded depth layer */
+  targetHi: '#FCFAF5',     /* warm near-white highlight edge on the top-left rings */
 } as const
 
 const SHADOW = {
-  card: '0 1px 2px rgba(10,10,16,.04), 0 1px 1px rgba(10,10,16,.03)',
-  cta: '0 6px 20px rgba(241,90,36,.28)',
+  /* warm, faint paper-shadows — restrained editorial depth */
+  card: '0 1px 2px rgba(33,28,22,.04), 0 1px 1px rgba(33,28,22,.03)',
+  cta: '0 6px 18px rgba(224,83,31,.22)',
 } as const
 
 const SANS = "'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif"
@@ -51,11 +55,12 @@ const ROUTE_LOGIN = '/kirish'
 /* Atoms                                                                  */
 /* ===================================================================== */
 
-/* The signature mix: a Hanken headline with exactly ONE Fraunces italic word.
-   The italic word stays ink-coloured (Kelviq keeps it in ink, not accent). */
+/* The signature accent: the whole headline is now Fraunces serif, so the ONE
+   accent word is distinguished by italic + the restrained editorial orange — a
+   single warm accent per headline, paper-press style. */
 function Em({ children }: { children: ReactNode }) {
   return (
-    <i style={{ fontFamily: SERIF, fontStyle: 'italic', fontWeight: 500, color: C.ink }}>{children}</i>
+    <i style={{ fontFamily: SERIF, fontStyle: 'italic', fontWeight: 400, color: C.accent }}>{children}</i>
   )
 }
 
@@ -66,17 +71,18 @@ function Eyebrow({ children, align = 'left' }: { children: ReactNode; align?: Ey
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 9,
+        gap: 11,
         justifyContent: align === 'center' ? 'center' : 'flex-start',
-        fontSize: 13,
+        fontFamily: SANS,
+        fontSize: 12.5,
         fontWeight: 600,
-        letterSpacing: '0.08em',
+        letterSpacing: '0.18em',
         textTransform: 'uppercase',
         color: C.accent,
         lineHeight: 1,
       }}
     >
-      <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 2, background: C.accent, flexShrink: 0 }} />
+      <span aria-hidden="true" style={{ width: 18, height: 1, background: C.accent, flexShrink: 0 }} />
       {children}
     </span>
   )
@@ -116,8 +122,8 @@ function Button({
     textDecoration: 'none',
   }
   const variants: Record<BtnVariant, CSSProperties> = {
-    primary: { background: C.accentGrad, color: '#fff', boxShadow: SHADOW.cta },
-    outline: { background: '#fff', color: C.ink, border: `1px solid ${C.line}` },
+    primary: { background: C.accentGrad, color: '#FFFDF9', boxShadow: SHADOW.cta },
+    outline: { background: '#FFFFFF', color: C.ink, border: `1px solid ${C.line2}` },
     ghost: { background: 'transparent', color: C.ink, padding: '11px 8px' },
   }
   return (
@@ -128,16 +134,16 @@ function Button({
       onMouseEnter={(e) => {
         if (variant === 'primary') {
           e.currentTarget.style.transform = 'translateY(-1px)'
-          e.currentTarget.style.boxShadow = '0 10px 28px rgba(241,90,36,.38)'
+          e.currentTarget.style.boxShadow = '0 10px 26px rgba(224,83,31,.30)'
         } else if (variant === 'outline') {
           e.currentTarget.style.transform = 'translateY(-1px)'
-          e.currentTarget.style.borderColor = C.line2
+          e.currentTarget.style.borderColor = C.ink
         }
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = 'translateY(0)'
         if (variant === 'primary') e.currentTarget.style.boxShadow = SHADOW.cta
-        else if (variant === 'outline') e.currentTarget.style.borderColor = C.line
+        else if (variant === 'outline') e.currentTarget.style.borderColor = C.line2
       }}
     >
       {children}
@@ -298,10 +304,10 @@ function SubjectsDropdown() {
             position: 'absolute',
             top: 'calc(100% + 14px)',
             left: 0,
-            background: '#fff',
-            borderRadius: 16,
+            background: '#FFFFFF',
+            borderRadius: 14,
             border: `1px solid ${C.line}`,
-            boxShadow: '0 18px 40px -14px rgba(241,90,36,.22), 0 4px 10px -4px rgba(10,10,16,.06)',
+            boxShadow: '0 18px 40px -14px rgba(192,65,15,.16), 0 4px 10px -4px rgba(33,28,22,.07)',
             padding: 12,
             minWidth: 200,
             zIndex: 60,
@@ -355,7 +361,7 @@ function Nav() {
         position: 'sticky',
         top: 0,
         zIndex: 50,
-        background: 'rgba(255,255,255,.8)',
+        background: 'rgba(250,248,243,.82)',
         backdropFilter: 'blur(10px)',
         WebkitBackdropFilter: 'blur(10px)',
         borderBottom: `1px solid ${scrolled ? C.line : 'transparent'}`,
@@ -702,12 +708,12 @@ function Hero() {
 
           <h1
             className="lp-h1"
-            style={{ fontFamily: SANS, fontSize: 72, fontWeight: 800, letterSpacing: '-0.035em', lineHeight: 1.04, margin: 0, color: C.ink, maxWidth: '14ch' }}
+            style={{ fontFamily: SERIF, fontSize: 76, fontWeight: 500, letterSpacing: '-0.018em', lineHeight: 1.05, margin: 0, color: C.ink, maxWidth: '14ch' }}
           >
             Orzuingizdagi universitet sari <Em>yo'l</Em>
           </h1>
 
-          <p style={{ fontSize: 20, fontWeight: 400, lineHeight: 1.6, color: C.gray, maxWidth: '46ch', margin: '26px 0 0' }}>
+          <p style={{ fontSize: 20, fontWeight: 400, lineHeight: 1.65, color: C.gray, maxWidth: '46ch', margin: '28px 0 0' }}>
             Katta maqsading bor — biz yo'lni aniq qilamiz. Shaxsiy AI repetitor har kuni yoningda: tushuntiradi, mashq beradi va seni qadam-baqadam o'sha orzuga yaqinlashtiradi.
           </p>
 
@@ -753,7 +759,7 @@ function Features() {
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
               <Eyebrow align="center">ORZU SARI YO'L</Eyebrow>
             </div>
-            <h2 className="lp-h2" style={{ fontFamily: SANS, fontSize: 46, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.08, margin: 0, color: C.ink }}>
+            <h2 className="lp-h2" style={{ fontFamily: SERIF, fontSize: 50, fontWeight: 500, letterSpacing: '-0.015em', lineHeight: 1.12, margin: 0, color: C.ink }}>
               Maqsadingga eltadigan <Em>hammasi</Em> shu yerda
             </h2>
             <p style={{ fontSize: 20, lineHeight: 1.6, color: C.gray, maxWidth: '42ch', margin: '20px auto 0' }}>
@@ -772,8 +778,8 @@ function Features() {
                 <div style={{ marginBottom: 18 }}>
                   <PixelIcon name={f.icon} />
                 </div>
-                <h3 style={{ fontFamily: SANS, fontSize: 18, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.3, margin: 0, color: C.ink }}>{f.title}</h3>
-                <p style={{ fontSize: 14.5, lineHeight: 1.55, color: C.gray, margin: '10px 0 0' }}>{f.body}</p>
+                <h3 style={{ fontFamily: SERIF, fontSize: 21, fontWeight: 500, letterSpacing: '-0.005em', lineHeight: 1.25, margin: 0, color: C.ink }}>{f.title}</h3>
+                <p style={{ fontSize: 14.5, lineHeight: 1.6, color: C.gray, margin: '12px 0 0' }}>{f.body}</p>
               </div>
             </Reveal>
           ))}
@@ -830,7 +836,7 @@ function StatNumber({ stat }: { stat: Stat }) {
   }, [stat])
 
   return (
-    <div ref={ref} style={{ fontFamily: SANS, fontSize: 56, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1, color: C.ink }}>
+    <div ref={ref} style={{ fontFamily: SERIF, fontSize: 60, fontWeight: 500, letterSpacing: '-0.01em', lineHeight: 1, color: C.ink }}>
       {display}
     </div>
   )
@@ -878,7 +884,7 @@ function Testimonials() {
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
             <Eyebrow align="center">ULAR ORZUSIGA YETDI</Eyebrow>
           </div>
-          <h2 className="lp-h2" style={{ fontFamily: SANS, fontSize: 46, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.08, margin: 0, color: C.ink }}>
+          <h2 className="lp-h2" style={{ fontFamily: SERIF, fontSize: 50, fontWeight: 500, letterSpacing: '-0.015em', lineHeight: 1.12, margin: 0, color: C.ink }}>
             Sendan oldin <Em>boshlaganlar</Em>
           </h2>
           <p style={{ fontSize: 20, lineHeight: 1.6, color: C.gray, maxWidth: '42ch', margin: '20px auto 0' }}>
@@ -960,7 +966,7 @@ function FaqSection() {
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
             <Eyebrow align="center">KO'P BERILADIGAN SAVOLLAR</Eyebrow>
           </div>
-          <h2 className="lp-h2" style={{ fontFamily: SANS, fontSize: 46, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.08, margin: 0, color: C.ink }}>
+          <h2 className="lp-h2" style={{ fontFamily: SERIF, fontSize: 50, fontWeight: 500, letterSpacing: '-0.015em', lineHeight: 1.12, margin: 0, color: C.ink }}>
             Tez-tez so'raladigan <Em>savollar</Em>
           </h2>
           <p style={{ fontSize: 20, lineHeight: 1.6, color: C.gray, maxWidth: '42ch', margin: '20px auto 0' }}>
@@ -1109,12 +1115,12 @@ function PlanCard({ plan }: { plan: Plan }) {
         </span>
       )}
 
-      <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: plan.highlight ? C.accent : C.gray2 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 600, letterSpacing: '0.16em', textTransform: 'uppercase', color: plan.highlight ? C.accent : C.gray2 }}>
         {plan.name}
       </div>
 
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: '14px 0 0' }}>
-        <span style={{ fontFamily: SANS, fontSize: 44, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1, color: C.ink }}>
+        <span style={{ fontFamily: SERIF, fontSize: 48, fontWeight: 500, letterSpacing: '-0.01em', lineHeight: 1, color: C.ink }}>
           {plan.price}
         </span>
         {plan.period && <span style={{ fontSize: 15, fontWeight: 500, color: C.gray }}>{plan.period}</span>}
@@ -1174,7 +1180,7 @@ function Pricing() {
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
             <Eyebrow align="center">NARXLAR</Eyebrow>
           </div>
-          <h2 className="lp-h2" style={{ fontFamily: SANS, fontSize: 46, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.08, margin: 0, color: C.ink }}>
+          <h2 className="lp-h2" style={{ fontFamily: SERIF, fontSize: 50, fontWeight: 500, letterSpacing: '-0.015em', lineHeight: 1.12, margin: 0, color: C.ink }}>
             Hozir <Em>hammasi</Em> bepul
           </h2>
           <p style={{ fontSize: 20, lineHeight: 1.6, color: C.gray, maxWidth: '44ch', margin: '20px auto 0' }}>
@@ -1213,7 +1219,7 @@ function CtaSection() {
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
               <Eyebrow align="center">ORZUNG SHU YERDAN BOSHLANADI</Eyebrow>
             </div>
-            <h2 className="lp-h2" style={{ fontFamily: SANS, fontSize: 46, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.08, margin: 0, color: C.ink }}>
+            <h2 className="lp-h2" style={{ fontFamily: SERIF, fontSize: 50, fontWeight: 500, letterSpacing: '-0.015em', lineHeight: 1.12, margin: 0, color: C.ink }}>
               Birinchi qadamni <Em>bugun</Em> tashla
             </h2>
             <p style={{ fontSize: 20, lineHeight: 1.6, color: C.gray, maxWidth: '42ch', margin: '20px auto 0' }}>
@@ -1278,7 +1284,7 @@ function Footer() {
           </div>
           {FOOTER_COLS.map((col) => (
             <nav key={col.head} aria-label={col.label}>
-              <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: C.gray2, marginBottom: 16 }}>{col.head}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gray2, marginBottom: 16 }}>{col.head}</div>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {col.items.map((it) => (
                   <li key={it}>
