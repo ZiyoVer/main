@@ -1505,6 +1505,13 @@ router.patch('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), testMuta
         const isAdminEditor = req.user.role === 'ADMIN'
         const approvedAfterEdit = isAdminEditor ? true : !wantsPublicEdit
 
+        // Manba: faqat ADMIN o'zgartira oladi; aks holda mavjud manba o'zgarishsiz qoladi.
+        const reqSourceEdit = String(req.body.source || '')
+        const resolvedSourceEdit: 'OFFICIAL' | 'UNOFFICIAL' | 'AI_PREDICTION' | undefined =
+            (isAdminEditor && (reqSourceEdit === 'OFFICIAL' || reqSourceEdit === 'AI_PREDICTION' || reqSourceEdit === 'UNOFFICIAL'))
+                ? reqSourceEdit
+                : undefined
+
         const updated = await prisma.test.update({
             where: { id: existing.id },
             data: {
@@ -1517,6 +1524,7 @@ router.patch('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), testMuta
                 approvedAt: approvedAfterEdit && wantsPublicEdit && isAdminEditor ? new Date() : null,
                 approvedById: approvedAfterEdit && wantsPublicEdit && isAdminEditor ? req.user.id : null,
                 testType: normalizedTestType,
+                ...(resolvedSourceEdit ? { source: resolvedSourceEdit } : {}),
                 timeLimit: timeLimit || null,
                 questions: {
                     deleteMany: {},

@@ -2453,7 +2453,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                 >
                     <div className="p-3 flex items-center justify-between h-14 flex-shrink-0" style={{ borderBottom: '1px solid color-mix(in srgb, var(--border) 76%, rgba(15,23,42,0.12) 24%)' }}>
                         <div className="flex items-center gap-2">
-                            <img src="/dtmmax-logo.png" alt="DtmMax" className="h-9 w-9 rounded-lg flex items-center justify-center" style={{ objectFit: 'contain' }} />
+                            <img src="/dtmmax-logo.png" alt="DtmMax" className="h-11 w-11 rounded-lg flex items-center justify-center" style={{ objectFit: 'contain' }} />
                             <span className="text-sm font-bold whitespace-nowrap">DTMMax</span>
                         </div>
                         <button onClick={() => setSideOpen(false)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-muted)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}><X className="h-4 w-4" /></button>
@@ -2598,7 +2598,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
                             onClick={e => { if (e.target === e.currentTarget) setShowNotifications(false) }}
                         >
-                            <div className="card" style={{ width: '100%', maxWidth: '560px', maxHeight: 'calc(100dvh - 32px)', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '16px' }}>
+                            <div className="card" style={{ width: '100%', maxWidth: '560px', maxHeight: 'min(620px, calc(100dvh - 32px))', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '16px' }}>
                                 <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                                     <div>
                                         <h2 className="text-base font-bold tracking-tight">Bildirishnomalar</h2>

@@ -157,7 +157,7 @@ function Button({
 }
 
 /* Brand logo mark — DtmMax kitob + o'sish strelkasi (rasmiy logo) */
-function LogoMark({ size = 44, radius = 11 }: { size?: number; radius?: number; glyph?: number }) {
+function LogoMark({ size = 52, radius = 13 }: { size?: number; radius?: number; glyph?: number }) {
   return (
     <img
       src="/dtmmax-logo.png"
@@ -719,7 +719,7 @@ function Hero() {
 
           <div style={{ display: 'flex', gap: 14, marginTop: 34, flexWrap: 'wrap' }} className="lp-cta-actions">
             <Button to={ROUTE_REGISTER} variant="primary" size="lg" arrow>Bepul boshlash</Button>
-            <Button to={ROUTE_REGISTER} variant="outline" size="lg">Demo ko'rish</Button>
+            <Button to={ROUTE_LOGIN} variant="outline" size="lg">Kirish</Button>
           </div>
         </Reveal>
       </div>

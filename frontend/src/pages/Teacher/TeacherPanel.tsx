@@ -148,6 +148,7 @@ interface TeacherTestDetailResponse {
     isPublic: boolean
     timeLimit: number | null
     testType: TestTypeValue
+    source?: 'OFFICIAL' | 'UNOFFICIAL' | 'AI_PREDICTION'
     attemptsCount: number
     questions: Question[]
 }
@@ -277,7 +278,7 @@ function createEmptyQuestion(): Question {
 
 export default function TeacherPanel() {
     const nav = useNavigate()
-    const { logout } = useAuthStore()
+    const { logout, user } = useAuthStore()
     const [tab, setTab] = useState<'create' | 'list'>('list')
     const [tests, setTests] = useState<TeacherTestListItem[]>([])
 
@@ -286,6 +287,7 @@ export default function TeacherPanel() {
     const [subject2, setSubject2] = useState('')
     const [isPublic, setIsPublic] = useState(false)
     const [testType, setTestType] = useState<TestTypeValue>('REGULAR')
+    const [source, setSource] = useState<'OFFICIAL' | 'UNOFFICIAL' | 'AI_PREDICTION'>('UNOFFICIAL') // manba (faqat ADMIN o'zgartiradi)
     const [timeLimit, setTimeLimit] = useState<number>(0)
     const [timeLimitTouched, setTimeLimitTouched] = useState(false)
     const [questions, setQuestions] = useState<Question[]>([createEmptyQuestion()])
@@ -440,6 +442,7 @@ export default function TeacherPanel() {
             setSubject2(detail.subject2 || '')
             setIsPublic(detail.isPublic)
             setTestType(detail.testType)
+            setSource(detail.source ?? 'UNOFFICIAL')
             setTimeLimit(detail.timeLimit || 0)
             setTimeLimitTouched(Boolean(detail.timeLimit))
             setQuestions(detail.questions.length > 0 ? detail.questions : [createEmptyQuestion()])
@@ -782,6 +785,7 @@ export default function TeacherPanel() {
                     subject2: testType === 'DTM_BLOCK' ? subject2 || null : null,
                     isPublic,
                     testType,
+                    source,
                     timeLimit: timeLimit || null,
                     questions: finalQuestions
                 })
@@ -793,6 +797,7 @@ export default function TeacherPanel() {
             setTimeLimitTouched(false)
             setIsPublic(false)
             setTestType('REGULAR')
+            setSource('UNOFFICIAL')
             setSubject2('')
             resetEditorState()
             setAiFile(null); setAiDone(false)
@@ -1187,6 +1192,16 @@ export default function TeacherPanel() {
                                         <input type="checkbox" checked={isPublic} onChange={e => setIsPublic(e.target.checked)} className="w-3.5 h-3.5 rounded" style={{ accentColor: 'var(--brand)' }} />
                                         <span>Public</span>
                                     </label>
+                                    {user?.role === 'ADMIN' && (
+                                        <select value={source} onChange={e => setSource(e.target.value as 'OFFICIAL' | 'UNOFFICIAL' | 'AI_PREDICTION')}
+                                            className="h-9 px-3 rounded-lg text-[13px] outline-none"
+                                            style={{ border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)' }}
+                                            title="Test manbasi (badge)">
+                                            <option value="UNOFFICIAL">Norasmiy</option>
+                                            <option value="OFFICIAL">Rasmiy</option>
+                                            <option value="AI_PREDICTION">AI bashorat</option>
+                                        </select>
+                                    )}
                                 </div>
                                 {testType === 'DTM_BLOCK' && (
                                     <div className="space-y-2">
