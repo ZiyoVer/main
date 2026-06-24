@@ -107,6 +107,19 @@ function ProtectedRoute({ children, roles }: { children: React.ReactNode, roles?
     return <>{children}</>
 }
 
+// Kirgan foydalanuvchi "/" ga kelsa, landing CHIZILISHIDAN OLDIN (sinxron) o'z
+// paneliga yo'naltiramiz. authStore token/user'ni localStorage'dan sinxron o'qiydi,
+// shuning uchun bu yerda darrov hal qilamiz — landing bir lahza miltillab ko'rinmaydi.
+// (Landing lazy bo'lgani uchun yo'naltirilganda uning chunki ham yuklanmaydi.)
+function LandingRoute() {
+    const { token, user } = useAuthStore()
+    if (token && user) {
+        const to = user.role === 'ADMIN' ? '/boshqaruv' : user.role === 'TEACHER' ? '/oqituvchi' : '/suhbat'
+        return <Navigate to={to} replace />
+    }
+    return <Landing />
+}
+
 // Route o'zgarganda ErrorBoundary ni reset qilish — "Sahifani yangilash" ekranidan
 // avtomatik chiqish uchun. resetKey pathname o'zgarganda boundary tozalanadi.
 function AppContent() {
@@ -122,7 +135,7 @@ function AppContent() {
             />
             <Suspense fallback={<PageLoader />}>
                 <Routes>
-                    <Route path="/" element={<Landing />} />
+                    <Route path="/" element={<LandingRoute />} />
                     <Route path="/kirish" element={<Login />} />
                     <Route path="/royxat" element={<Register />} />
                     <Route path="/parolni-tiklash" element={<ForgotPassword />} />
