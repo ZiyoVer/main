@@ -66,6 +66,13 @@ enum DtmBlockType {
   SPECIALTY_2
 }
 
+// Test manbasi — ishonch uchun. OFFICIAL faqat ADMIN tomonidan qo'yiladi (halollik).
+enum SourceType {
+  OFFICIAL        // rasmiy DTM/MS manbasidan
+  UNOFFICIAL      // norasmiy / o'qituvchi tuzgan (default)
+  AI_PREDICTION   // AI tomonidan tahlilga asoslangan bashorat
+}
+
 model StudentProfile {
   id           String   @id @default(uuid())
   userId       String   @unique
@@ -143,6 +150,7 @@ model Test {
   subject     String?
   subject2    String?
   testType    String         @default("REGULAR")
+  source      SourceType     @default(UNOFFICIAL) // manba tegi (OFFICIAL faqat admin)
   timeLimit   Int?           // minutes, null = no limit
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt

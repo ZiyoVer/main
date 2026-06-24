@@ -23,7 +23,15 @@ import { useIsPro, PRO_PRICE, PRO_PRICE_PERIOD, PRO_STATUS_LABEL, PRO_FEATURES, 
 interface Chat { id: string; title: string; subject?: string; subject2?: string; updatedAt: string }
 interface Msg { id: string; role: string; content: string; createdAt: string }
 interface Profile { onboardingDone: boolean; examType?: 'DTM' | 'MS' | null; subject?: string; subject2?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string; totalTests?: number; avgScore?: number; abilityLevel?: number }
-interface PublicTest { id: string; title: string; shareLink: string; subject?: string; category?: string; _count?: { questions: number; attempts: number } }
+interface PublicTest { id: string; title: string; shareLink: string; subject?: string; category?: string; source?: string; _count?: { questions: number; attempts: number } }
+
+/* Test manbasi badge'i — ishonch uchun (Rasmiy / Norasmiy / AI-bashorat). */
+function sourceBadge(source?: string | null): { label: string; bg: string; color: string } | null {
+    if (source === 'OFFICIAL') return { label: 'Rasmiy', bg: 'var(--success-light)', color: 'var(--success)' }
+    if (source === 'AI_PREDICTION') return { label: 'AI bashorat', bg: 'var(--brand-light)', color: 'var(--brand)' }
+    if (source === 'UNOFFICIAL') return { label: 'Norasmiy', bg: 'var(--bg-muted)', color: 'var(--text-muted)' }
+    return null
+}
 interface MyResult {
     id: string
     testId: string
@@ -744,6 +752,7 @@ export default function ChatLayout() {
     const [showOnboarding, setShowOnboarding] = useState(false)
     const [overlayPanel, setOverlayPanel] = useState<'tests' | 'flashcards' | 'progress' | 'pro' | null>(null)
     const [testCategory, setTestCategory] = useState<string>('all') // testlar bo'limi kategoriya filtri
+    const [activeTestSource, setActiveTestSource] = useState<string | null>(null) // ochiq test panelining manbasi (badge uchun)
     const [todoItems, setTodoItems] = useState<TodoItem[]>(() => loadStoredTodos(todoStorageKey))
     const [todoOpen, setTodoOpen] = useState(() => loadStoredTodos(todoStorageKey).length > 0)
     const [showSettings, setShowSettings] = useState(false)
@@ -1740,6 +1749,7 @@ Iltimos, har bir savolni tahlil qilib ber:
         // beradi. Shu sababli AI test ochishdan oldin activeTestId/savollarni tozalaymiz.
         setActiveTestId(null)
         setActiveTestQuestions([])
+        setActiveTestSource(null) // AI chat testi — manba badge'i yo'q
         openTestPanel(jsonStr)
     }, [openTestPanel, setActiveTestId, setActiveTestQuestions])
 
@@ -1908,6 +1918,7 @@ Iltimos, har bir savolni tahlil qilib ber:
             })
             setActiveTestId(t.id)
             setActiveTestQuestions(rawQuestions)
+            setActiveTestSource((data.source as string | undefined) ?? t.source ?? 'UNOFFICIAL')
             if (completedTestIdsRef.current.has(t.id)) {
                 // Avval yechilgan — to'g'ri javoblarni localStorage dan olish
                 try {
@@ -3057,6 +3068,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                     <div className="flex items-center gap-2">
                                         <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--k-accent-grad)' }}><ClipboardList className="h-3.5 w-3.5 text-white" /></div>
                                         <span className="text-sm font-semibold">Test — {questions.length} savol</span>
+                                        {(() => { const b = sourceBadge(activeTestSource); return b ? <span className="text-[10px] px-2 py-0.5 rounded-md font-semibold" style={{ background: b.bg, color: b.color }}>{b.label}</span> : null })()}
                                         {testReadOnly && <span className="text-[10px] px-2 py-0.5 rounded-md font-medium" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>Ko'rish</span>}
                                         {testTimeLeft !== null && (
                                             <span className={`text-sm font-mono tabular-nums ml-1 px-2 py-0.5 rounded-md ${testTimeLeft < 60 ? 'animate-pulse' : ''}`}
@@ -3083,7 +3095,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                     <div className={testPanelMaximized ? 'max-w-3xl mx-auto space-y-5' : 'space-y-5'}>
                                         {questions.map((q: any, i: number) => (
                                             <div key={i} className="card p-5">
-                                                <p className="text-[14px] font-semibold mb-2 leading-relaxed">{i + 1}. <MathText text={q.q} /></p>
+                                                <p className="text-[14px] font-semibold mb-2 leading-relaxed"><span style={{ fontFamily: 'var(--k-serif)', fontStyle: 'italic', fontWeight: 500, color: 'var(--brand)', marginRight: 5 }}>{i + 1}.</span><MathText text={q.q} /></p>
                                                 {q.imageUrl && (
                                                     <div className="mb-4 mt-1">
                                                         <img src={q.imageUrl} alt="Savol rasmi" className="max-w-full rounded-xl border shadow-sm" style={{ borderColor: 'var(--border)', maxHeight: '320px', objectFit: 'contain' }} />
@@ -3508,6 +3520,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                         <div className="flex-1 min-w-0">
                                                             <p className="font-semibold text-sm truncate">{t.title}</p>
                                                             <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{t.subject} • {t._count?.questions ?? 0} savol</p>
+                                                            {(() => { const b = sourceBadge(t.source); return b ? <span className="inline-block text-[10px] px-2 py-0.5 rounded-md font-semibold mt-1.5" style={{ background: b.bg, color: b.color }}>{b.label}</span> : null })()}
                                                             {result && (
                                                                 <div className="mt-2 space-y-2">
                                                                     <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>

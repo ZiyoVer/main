@@ -841,6 +841,7 @@ router.get('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), async (req
             isPublic: test.isPublic,
             timeLimit: test.timeLimit,
             testType: normalizedTestType,
+            source: test.source,
             attemptsCount: test._count.attempts,
             questions: test.questions.map((question) => {
                 const parsedOptions = parseStoredQuestionOptions(question.questionType, question.options)
@@ -1302,6 +1303,13 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
         const wantsPublic = Boolean(isPublic)
         const approvedOnCreate = isAdminCreator ? true : !wantsPublic
 
+        // Manba tegi: faqat ADMIN OFFICIAL/AI_PREDICTION qo'ya oladi; boshqalar → UNOFFICIAL (halollik).
+        const reqSource = String(req.body.source || 'UNOFFICIAL')
+        const resolvedSource: 'OFFICIAL' | 'UNOFFICIAL' | 'AI_PREDICTION' =
+            (isAdminCreator && (reqSource === 'OFFICIAL' || reqSource === 'AI_PREDICTION' || reqSource === 'UNOFFICIAL'))
+                ? reqSource
+                : 'UNOFFICIAL'
+
         const test = await prisma.test.create({
             data: {
                 title,
@@ -1312,6 +1320,7 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
                 approved: approvedOnCreate,
                 approvedAt: approvedOnCreate && wantsPublic ? new Date() : null,
                 approvedById: approvedOnCreate && wantsPublic && isAdminCreator ? req.user.id : null,
+                source: resolvedSource,
                 testType: normalizedTestType,
                 timeLimit: timeLimit || null,
                 creatorId: req.user.id,
