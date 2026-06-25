@@ -54,11 +54,13 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-            styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://cdn.jsdelivr.net'],
+            // Google GSI (accounts.google.com) — "Google bilan kirish" tugmasi uchun
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://accounts.google.com'],
+            styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://cdn.jsdelivr.net', 'https://accounts.google.com'],
             fontSrc: ["'self'", 'https://fonts.gstatic.com', 'https://cdn.jsdelivr.net'],
             imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
-            connectSrc: ["'self'", 'https://api.deepseek.com', 'https://api.openai.com'],
+            connectSrc: ["'self'", 'https://api.deepseek.com', 'https://api.openai.com', 'https://accounts.google.com'],
+            frameSrc: ["'self'", 'https://accounts.google.com'],
             objectSrc: ["'none'"],
             baseUri: ["'self'"],
         }
