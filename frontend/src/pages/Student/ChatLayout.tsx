@@ -2877,7 +2877,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         </div>
                                         <div className="grid grid-cols-1 gap-2.5">
                                             {[
-                                                { icon: <Target className="h-5 w-5" style={{ color: 'var(--brand)' }} />, title: 'Darajamni aniqlash', desc: 'Qisqa test bilan boshlaymiz', prompt: 'Darajamni aniqlash uchun 5 ta qisqa test ber.' },
+                                                { icon: <Target className="h-5 w-5" style={{ color: 'var(--brand)' }} />, title: 'Darajamni aniqlash', desc: 'Diagnostik test bilan baholaymiz', prompt: 'Darajamni aniqlash uchun 15 ta savoldan iborat diagnostik test ber — turli mavzu va qiyinlikda. Yakunida qaysi mavzular kuchli, qaysilari zaif ekanini ko\'rsat.' },
                                                 { icon: <BookOpen className="h-5 w-5" style={{ color: 'var(--brand)' }} />, title: 'Mavzu tushuntirish', desc: 'Qiyin mavzuni tushuntiraman', prompt: 'Qaysi mavzuni tushuntirib berishimni so\'ra.' },
                                                 { icon: <Calendar className="h-5 w-5" style={{ color: 'var(--brand)' }} />, title: 'Bugungi reja', desc: 'Bugun nimani o\'rganaman', prompt: 'Bugun nimadan boshlashim kerak? Qisqa reja tuz.' },
                                                 { icon: <Layers className="h-5 w-5" style={{ color: 'var(--brand)' }} />, title: 'Kartochkalar', desc: 'Eslab qolish uchun', prompt: 'Asosiy mavzudan 10 ta flashcard ber.' },
