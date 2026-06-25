@@ -147,16 +147,7 @@ export default function Login() {
                         </button>
                     </form>
 
-                    {import.meta.env.VITE_GOOGLE_CLIENT_ID && (
-                        <>
-                            <div className="flex items-center gap-3 my-4">
-                                <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-                                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>yoki</span>
-                                <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-                            </div>
-                            <GoogleSignInButton />
-                        </>
-                    )}
+                    <GoogleSignInButton />
                 </div>
 
                 <p className="text-center text-sm mt-5" style={{ color: 'var(--text-secondary)' }}>

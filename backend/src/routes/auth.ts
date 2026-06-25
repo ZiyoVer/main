@@ -292,6 +292,12 @@ router.post('/login', authLimiter, async (req, res) => {
     }
 })
 
+// Public config — frontend runtime'da o'qiydi (build-time VITE_GOOGLE_CLIENT_ID shart emas).
+// Faqat Client ID (maxfiy emas) qaytadi; yo'q bo'lsa null → tugma ko'rinmaydi.
+router.get('/config', (_req, res) => {
+    res.json({ googleClientId: GOOGLE_CLIENT_ID || null })
+})
+
 // Google bilan kirish — frontend GSI'dan ID-token (credential) keladi, biz tekshiramiz.
 // GOOGLE_CLIENT_ID yo'q bo'lsa inert (503). Google email tasdiqlangani uchun emailVerified=true.
 router.post('/google', authLimiter, async (req, res) => {

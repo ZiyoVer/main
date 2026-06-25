@@ -5,10 +5,9 @@ import { useAuthStore } from '@/store/authStore'
 import { fetchApi } from '@/lib/api'
 
 /* Google bilan kirish (Google Identity Services).
-   VITE_GOOGLE_CLIENT_ID o'rnatilmasa — hech narsa render qilmaydi (inert).
-   GSI tugmasi → ID-token → POST /auth/google → login + yo'naltirish. */
-
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined
+   Client ID build-time VITE'dan EMAS — runtime'da backend /auth/config'dan olinadi.
+   Shu sabab faqat 1 ta env kerak (GOOGLE_CLIENT_ID) va build kesh muammosi bo'lmaydi.
+   Client ID bo'lmasa — hech narsa render qilmaydi (na divider, na tugma). */
 
 interface GoogleIdApi {
     accounts: {
@@ -42,16 +41,29 @@ export default function GoogleSignInButton() {
     const nav = useNavigate()
     const { login } = useAuthStore()
     const ref = useRef<HTMLDivElement>(null)
+    const [clientId, setClientId] = useState<string | null>(null)
     const [busy, setBusy] = useState(false)
 
+    // 1) Client ID'ni runtime'da backend'dan ol (build-time VITE shart emas)
     useEffect(() => {
-        if (!GOOGLE_CLIENT_ID) return
+        let cancelled = false
+        fetchApi('/auth/config')
+            .then((cfg: { googleClientId?: string | null }) => {
+                if (!cancelled && cfg?.googleClientId) setClientId(cfg.googleClientId)
+            })
+            .catch(() => { /* config olinmadi — tugma chiqmaydi */ })
+        return () => { cancelled = true }
+    }, [])
+
+    // 2) Client ID kelgach GSI tugmasini chizamiz
+    useEffect(() => {
+        if (!clientId) return
         let cancelled = false
         loadGsi()
             .then(() => {
                 if (cancelled || !window.google?.accounts?.id || !ref.current) return
                 window.google.accounts.id.initialize({
-                    client_id: GOOGLE_CLIENT_ID,
+                    client_id: clientId,
                     callback: async (resp) => {
                         if (!resp.credential) return
                         setBusy(true)
@@ -75,12 +87,21 @@ export default function GoogleSignInButton() {
             })
             .catch(() => { /* GSI yuklanmadi — tugma chiqmaydi */ })
         return () => { cancelled = true }
-    }, [login, nav])
+    }, [clientId, login, nav])
 
-    if (!GOOGLE_CLIENT_ID) return null
+    // Client ID hali yo'q yoki sozlanmagan — na divider, na tugma
+    if (!clientId) return null
+
     return (
-        <div className="w-full flex justify-center" style={{ opacity: busy ? 0.6 : 1, pointerEvents: busy ? 'none' : 'auto' }}>
-            <div ref={ref} className="w-full" style={{ minHeight: 44 }} />
-        </div>
+        <>
+            <div className="flex items-center gap-3 my-4">
+                <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>yoki</span>
+                <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+            </div>
+            <div className="w-full flex justify-center" style={{ opacity: busy ? 0.6 : 1, pointerEvents: busy ? 'none' : 'auto' }}>
+                <div ref={ref} className="w-full" style={{ minHeight: 44 }} />
+            </div>
+        </>
     )
 }
