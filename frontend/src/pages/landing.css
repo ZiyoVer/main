@@ -184,13 +184,15 @@
     color: var(--lp-tex);
     opacity: var(--lp-glyph-op, 1);
     transform: scale(1);
-    filter: none;
+    text-shadow: none;
   }
   6%, 16% {
     color: var(--lp-accent);
     opacity: 1;
     transform: scale(1.14);
-    filter: drop-shadow(0 0 9px rgba(224,83,31,.5)) drop-shadow(0 0 3px rgba(224,83,31,.7));
+    /* text-shadow — filter: drop-shadow'dan ancha arzon (alohida filter-pass yo'q),
+       lekin xuddi shunday yumshoq yog'du beradi → smooth, qotishsiz. */
+    text-shadow: 0 0 7px rgba(224,83,31,.5), 0 0 2px rgba(224,83,31,.7);
   }
 }
 
@@ -256,6 +258,7 @@
   display: block;
   transform-origin: center 70%;   /* pivot low so the disc tips toward viewer */
   transform-style: preserve-3d;
+  will-change: transform, filter;  /* barqaror GPU qatlami — impact pop/glow smooth */
   animation: k-target-hit 4s linear infinite;
 }
 .lp-root .lp-bull {
@@ -275,6 +278,7 @@
   transform-origin: 200px 40px;
   transform: translate(0, 0) rotate(45deg);   /* planted diagonally, tip on (120,120) */
   opacity: 0;
+  will-change: transform, opacity;  /* smooth fly-in (GPU qatlami) */
   animation: k-arrow-fly 4s linear infinite;
 }
 .lp-root .lp-arrow-ripple {
