@@ -2861,13 +2861,41 @@ Iltimos, har bir savolni tahlil qilib ber:
                     {/* Messages */}
                     <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
                         {(!chatId || (messages.length === 0 && !loading && !streaming)) ? (
-                            <div className="h-full flex items-center justify-center relative overflow-hidden" style={{ background: 'var(--bg-page)' }}>
+                            <div className="h-full flex items-center justify-center relative overflow-hidden p-5" style={{ background: 'var(--bg-page)' }}>
                                 <div className="k-tex-dots absolute inset-0" style={{ zIndex: 0 }} />
-                                <div className="text-center px-4 anim-up relative" style={{ zIndex: 1 }}>
-                                    <img src="/dtmmax-logo.png" alt="DtmMax" className="h-14 w-14 rounded-xl flex items-center justify-center mx-auto mb-3" style={{ objectFit: 'contain' }} />
-                                    <p className="text-base font-bold tracking-tight">AI birinchi xabarni <span className="k-italic">tayyorlayapti</span>...</p>
-                                    <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Suhbat ochilgach savolingizni yozishingiz mumkin.</p>
-                                </div>
+                                {(loading || streaming) ? (
+                                    <div className="text-center px-4 anim-up relative" style={{ zIndex: 1 }}>
+                                        <img src="/dtmmax-logo.png" alt="DtmMax" className="h-14 w-14 rounded-xl mx-auto mb-3" style={{ objectFit: 'contain' }} />
+                                        <p className="text-base font-bold tracking-tight">AI <span className="k-italic">tayyorlayapti</span>...</p>
+                                    </div>
+                                ) : (
+                                    <div className="w-full max-w-md anim-up relative" style={{ zIndex: 1 }}>
+                                        <div className="text-center mb-6">
+                                            <img src="/dtmmax-logo.png" alt="DtmMax" className="h-14 w-14 rounded-xl mx-auto mb-3" style={{ objectFit: 'contain' }} />
+                                            <p className="text-xl font-bold" style={{ fontFamily: 'var(--k-serif)', fontWeight: 500 }}>Salom{user?.name ? `, ${user.name}` : ''}! <span className="k-italic">Nimadan</span> boshlaymiz?</p>
+                                            <p className="text-sm mt-1.5" style={{ color: 'var(--text-muted)' }}>Birini tanlang yoki pastga savolingizni yozing.</p>
+                                        </div>
+                                        <div className="grid grid-cols-1 gap-2.5">
+                                            {[
+                                                { icon: <Target className="h-5 w-5" style={{ color: 'var(--brand)' }} />, title: 'Darajamni aniqlash', desc: 'Qisqa test bilan boshlaymiz', prompt: 'Darajamni aniqlash uchun 5 ta qisqa test ber.' },
+                                                { icon: <BookOpen className="h-5 w-5" style={{ color: 'var(--brand)' }} />, title: 'Mavzu tushuntirish', desc: 'Qiyin mavzuni tushuntiraman', prompt: 'Qaysi mavzuni tushuntirib berishimni so\'ra.' },
+                                                { icon: <Calendar className="h-5 w-5" style={{ color: 'var(--brand)' }} />, title: 'Bugungi reja', desc: 'Bugun nimani o\'rganaman', prompt: 'Bugun nimadan boshlashim kerak? Qisqa reja tuz.' },
+                                                { icon: <Layers className="h-5 w-5" style={{ color: 'var(--brand)' }} />, title: 'Kartochkalar', desc: 'Eslab qolish uchun', prompt: 'Asosiy mavzudan 10 ta flashcard ber.' },
+                                            ].map((a, i) => (
+                                                <button key={i} type="button" onClick={() => { void handleSend(a.prompt, []) }}
+                                                    className="text-left rounded-2xl flex items-center gap-3 transition-all"
+                                                    style={{ padding: '14px 16px', border: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+                                                    <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--brand-light)' }}>{a.icon}</div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{a.title}</p>
+                                                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{a.desc}</p>
+                                                    </div>
+                                                    <ArrowUp className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--text-muted)', transform: 'rotate(45deg)' }} />
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div className="max-w-3xl mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-3 sm:space-y-6">
