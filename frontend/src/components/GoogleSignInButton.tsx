@@ -83,6 +83,7 @@ export default function GoogleSignInButton() {
                 window.google.accounts.id.renderButton(ref.current, {
                     type: 'standard', theme: 'outline', size: 'large', width,
                     text: 'continue_with', shape: 'pill', logo_alignment: 'center',
+                    locale: 'uz', // tugma matni o'zbekcha (brauzer tilidan qat'i nazar)
                 })
             })
             .catch(() => { /* GSI yuklanmadi — tugma chiqmaydi */ })
