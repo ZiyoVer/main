@@ -1119,8 +1119,10 @@ Iltimos, har bir savolni tahlil qilib ber:
             if (e.deltaY < 0) userScrolledRef.current = true
         }
         const onScroll = () => {
+            // Pastda bo'lsa — auto-scroll'ga ruxsat; tepaga ko'tarilsa — to'xtatamiz.
+            // (Bevosita scrollTop orqali — touch/telefonda ham ishlaydi, wheel shart emas.)
             const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80
-            if (isNearBottom) userScrolledRef.current = false
+            userScrolledRef.current = !isNearBottom
         }
         el.addEventListener('wheel', onWheel, { passive: true })
         el.addEventListener('scroll', onScroll, { passive: true })
@@ -1525,6 +1527,7 @@ Iltimos, har bir savolni tahlil qilib ber:
         const isCurrentChat = () => chatIdRef.current === captured
         let fullText = '' // local ref — stale closure muammosini oldini olish uchun
         let completed = false
+        let lastStreamFlush = 0 // setStreaming throttle (ms) — har tokenda emas, ~33ms da yangilaymiz (smooth, kam re-render)
         const requestThinkingMode = thinkingModeRef.current
         const requestTodoContext = todoItemsRef.current
         try {
@@ -1565,7 +1568,15 @@ Iltimos, har bir savolni tahlil qilib ber:
                         return true
                     }
                     if (d.thinking) { thinkBuf += d.thinking; if (isCurrentChat()) setThinkingText(thinkBuf) }
-                    if (d.content) { fullText += d.content; if (isCurrentChat()) setStreaming(fullText) }
+                    if (d.content) {
+                        fullText += d.content
+                        // Throttle: og'ir markdown/KaTeX re-render'ni har tokenda emas, ~33ms da bajaramiz.
+                        // (Oxirgi to'liq matn `done`da baribir commit qilinadi — matn yo'qolmaydi.)
+                        if (isCurrentChat()) {
+                            const now = performance.now()
+                            if (now - lastStreamFlush > 33) { lastStreamFlush = now; setStreaming(fullText) }
+                        }
+                    }
                     if (d.done) {
                         completed = true
                         if (isCurrentChat()) {
@@ -3444,9 +3455,9 @@ Iltimos, har bir savolni tahlil qilib ber:
                 {/* ===== OVERLAY PANELS ===== */}
                 {overlayPanel && (
                     <div className="fixed inset-0 z-50 flex" onClick={() => setOverlayPanel(null)}>
-                        <div className="absolute inset-0 k-fade-in" style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(2px)' }} />
+                        <div className="absolute inset-0 k-fade-in" style={{ background: 'rgba(28,24,18,0.34)' }} />
                         <div className="relative ml-auto h-full flex flex-col overflow-hidden k-slide-in-right"
-                            style={{ width: '100%', maxWidth: '680px', background: 'var(--bg-page)', boxShadow: '-8px 0 40px rgba(0,0,0,0.15)' }}
+                            style={{ width: '100%', maxWidth: '680px', background: 'var(--bg-page)', boxShadow: '-16px 0 50px -16px rgba(33,28,22,0.22)' }}
                             onClick={e => e.stopPropagation()}>
 
                             {/* Header */}

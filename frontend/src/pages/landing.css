@@ -161,6 +161,12 @@
      cascades from one element to the next, looping forever. */
   animation: lp-float 7s ease-in-out infinite, lp-glow 8s ease-in-out infinite;
 }
+/* Hero math-zone ekrandan chiqsa render/animatsiyadan to'xtaydi → scroll FPS oshadi.
+   (Absolyut joylashgan dekorativ element; intrinsic-size layout siljishini oldini oladi.) */
+.lp-root .lp-math-zone {
+  content-visibility: auto;
+  contain-intrinsic-size: 512px 360px;
+}
 .lp-root .lp-glyph-ch {
   position: relative;
   z-index: 1;

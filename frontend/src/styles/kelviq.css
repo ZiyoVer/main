@@ -223,11 +223,12 @@
 
 /* Drawer: slide in from the right edge with a gentle opacity rise. */
 @keyframes k-slide-in-right {
-  from { transform: translateX(100%); opacity: .4; }
-  to   { transform: translateX(0);    opacity: 1;  }
+  from { transform: translateX(100%); opacity: .85; }
+  to   { transform: translateX(0);    opacity: 1;   }
 }
 .kelviq .k-slide-in-right {
-  animation: k-slide-in-right 260ms cubic-bezier(0, 0, .2, 1) both;
+  /* yumshoq, premium drawer kirishi — ease-out, fade-pop kam */
+  animation: k-slide-in-right 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
   will-change: transform, opacity;
 }
 
