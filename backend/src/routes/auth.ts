@@ -305,7 +305,7 @@ router.post('/google', authLimiter, async (req, res) => {
         return res.status(503).json({ error: 'Google orqali kirish hali sozlanmagan' })
     }
     try {
-        const { credential } = req.body
+        const { credential, nonce } = req.body
         if (!credential || typeof credential !== 'string') {
             return res.status(400).json({ error: 'Google credential kerak' })
         }
@@ -313,6 +313,10 @@ router.post('/google', authLimiter, async (req, res) => {
         const payload = ticket.getPayload()
         if (!payload?.email || payload.email_verified === false) {
             return res.status(401).json({ error: 'Google email tasdiqlanmadi' })
+        }
+        // Redirect (implicit) oqimida nonce yuboriladi — replay'ga qarshi tekshiramiz.
+        if (typeof nonce === 'string' && nonce && payload.nonce && payload.nonce !== nonce) {
+            return res.status(401).json({ error: 'Google nonce mos kelmadi' })
         }
         const email = payload.email.trim().toLowerCase()
         const name = (payload.name || payload.given_name || email.split('@')[0]).slice(0, 80)
