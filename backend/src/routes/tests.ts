@@ -10,6 +10,7 @@ import { authenticate, AuthRequest, requireRole, optionalAuthenticate } from '..
 import { uploadToS3, getSignedS3Url, resolveStoredS3Url, toStoredS3Ref } from '../utils/s3'
 import { logAdminAction } from '../utils/adminAudit'
 import { getSubjectVariants, normalizeSubject, categoryForTest } from '../utils/subjects'
+import { getEntitlement } from './billing'
 import {
     getDefaultDtmCoefficient,
     getMsGrade,
@@ -842,6 +843,7 @@ router.get('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), async (req
             timeLimit: test.timeLimit,
             testType: normalizedTestType,
             source: test.source,
+            premium: test.premium,
             attemptsCount: test._count.attempts,
             questions: test.questions.map((question) => {
                 const parsedOptions = parseStoredQuestionOptions(question.questionType, question.options)
@@ -897,6 +899,15 @@ router.get('/by-link/:shareLink', optionalAuthenticate, testReadLimiter, async (
             const isOwnerOrAdmin = viewerRole === 'ADMIN' || (viewerId && viewerId === test.creatorId)
             if (!isOwnerOrAdmin) {
                 return res.status(403).json({ error: 'Bu test hali admin tomonidan tasdiqlanmagan' })
+            }
+        }
+
+        // PREMIUM: premium testlar faqat Pro userlarga. Beta'da PRO_ENFORCED=false → getEntitlement
+        // hammага isPro:true qaytaradi (hamma ochiq); to'lov yoqilganda avtomatik gate bo'ladi.
+        if (test.premium) {
+            const ent = req.user ? await getEntitlement(req.user.id) : { isPro: false }
+            if (!ent.isPro) {
+                return res.status(403).json({ error: 'Bu — Premium test. Pro obuna talab qilinadi.', code: 'PRO_REQUIRED' })
             }
         }
 
@@ -1321,6 +1332,7 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
                 approvedAt: approvedOnCreate && wantsPublic ? new Date() : null,
                 approvedById: approvedOnCreate && wantsPublic && isAdminCreator ? req.user.id : null,
                 source: resolvedSource,
+                premium: isAdminCreator && Boolean(req.body.premium), // premium faqat ADMIN joylaydi
                 testType: normalizedTestType,
                 timeLimit: timeLimit || null,
                 creatorId: req.user.id,
@@ -1525,6 +1537,7 @@ router.patch('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), testMuta
                 approvedById: approvedAfterEdit && wantsPublicEdit && isAdminEditor ? req.user.id : null,
                 testType: normalizedTestType,
                 ...(resolvedSourceEdit ? { source: resolvedSourceEdit } : {}),
+                ...(isAdminEditor ? { premium: Boolean(req.body.premium) } : {}), // premiumни faqat admin o'zgartiradi
                 timeLimit: timeLimit || null,
                 questions: {
                     deleteMany: {},
@@ -1821,6 +1834,14 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
         // — tasdiqlanmagan test hali "tirik" emas.)
         if (test.isPublic && !test.approved) {
             return res.status(403).json({ error: 'Bu test hali admin tomonidan tasdiqlanmagan' })
+        }
+
+        // PREMIUM: premium testni faqat Pro user topshira oladi (beta'da hamma ochiq).
+        if (test.premium) {
+            const ent = await getEntitlement(req.user.id)
+            if (!ent.isPro) {
+                return res.status(403).json({ error: 'Bu — Premium test. Pro obuna talab qilinadi.', code: 'PRO_REQUIRED' })
+            }
         }
 
         const timeLimitMs = getTimeLimitMs(test.timeLimit)

@@ -151,6 +151,7 @@ model Test {
   subject2    String?
   testType    String         @default("REGULAR")
   source      SourceType     @default(UNOFFICIAL) // manba tegi (OFFICIAL faqat admin)
+  premium     Boolean        @default(false)      // Pro testlar (yuqori ehtimollik) — faqat ADMIN joylaydi, Pro userlar ochadi
   timeLimit   Int?           // minutes, null = no limit
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt

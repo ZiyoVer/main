@@ -23,7 +23,7 @@ import { useIsPro, PRO_PRICE, PRO_PRICE_PERIOD, PRO_STATUS_LABEL, PRO_FEATURES, 
 interface Chat { id: string; title: string; subject?: string; subject2?: string; updatedAt: string }
 interface Msg { id: string; role: string; content: string; createdAt: string }
 interface Profile { onboardingDone: boolean; examType?: 'DTM' | 'MS' | null; subject?: string; subject2?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string; totalTests?: number; avgScore?: number; abilityLevel?: number }
-interface PublicTest { id: string; title: string; shareLink: string; subject?: string; category?: string; source?: string; _count?: { questions: number; attempts: number } }
+interface PublicTest { id: string; title: string; shareLink: string; subject?: string; category?: string; source?: string; premium?: boolean; _count?: { questions: number; attempts: number } }
 
 /* Test manbasi badge'i — ishonch uchun (Rasmiy / Norasmiy / AI-bashorat). */
 function sourceBadge(source?: string | null): { label: string; bg: string; color: string } | null {
@@ -3490,24 +3490,27 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         )}
                                         {publicTests.length > 0 && (() => {
                                             const cats = Array.from(new Set(publicTests.map(pt => pt.category || 'Boshqa')))
-                                            return cats.length > 1 ? (
+                                            const hasPremium = publicTests.some(pt => pt.premium)
+                                            const chips = ['all', ...(hasPremium ? ['premium'] : []), ...cats]
+                                            return (cats.length > 1 || hasPremium) ? (
                                                 <div className="flex flex-wrap gap-2 pb-1">
-                                                    {['all', ...cats].map(c => {
+                                                    {chips.map(c => {
                                                         const active = testCategory === c
+                                                        const isPrem = c === 'premium'
                                                         return (
                                                             <button key={c} onClick={() => setTestCategory(c)}
-                                                                className="text-xs font-semibold px-3 py-1.5 rounded-full transition"
+                                                                className="text-xs font-semibold px-3 py-1.5 rounded-full transition inline-flex items-center gap-1"
                                                                 style={active
-                                                                    ? { background: 'var(--brand)', color: 'white' }
-                                                                    : { background: 'var(--bg-muted)', color: 'var(--text-secondary)' }}>
-                                                                {c === 'all' ? 'Hammasi' : c}
+                                                                    ? { background: isPrem ? '#B8860B' : 'var(--brand)', color: 'white' }
+                                                                    : { background: 'var(--bg-muted)', color: isPrem ? '#B8860B' : 'var(--text-secondary)' }}>
+                                                                {isPrem && <Sparkles className="h-3 w-3" />}{c === 'all' ? 'Hammasi' : isPrem ? 'Premium' : c}
                                                             </button>
                                                         )
                                                     })}
                                                 </div>
                                             ) : null
                                         })()}
-                                        {publicTests.filter(t => testCategory === 'all' || (t.category || 'Boshqa') === testCategory).map(t => {
+                                        {publicTests.filter(t => testCategory === 'all' ? true : testCategory === 'premium' ? !!t.premium : (t.category || 'Boshqa') === testCategory).map(t => {
                                             const result = myResults.find(r => r.testId === t.id)
                                             return (
                                                 <div key={t.id} className="rounded-2xl p-4 transition" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
@@ -3519,7 +3522,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                         <div className="flex-1 min-w-0">
                                                             <p className="font-semibold text-sm truncate">{t.title}</p>
                                                             <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{t.subject} • {t._count?.questions ?? 0} savol</p>
-                                                            {(() => { const b = sourceBadge(t.source); return b ? <span className="inline-block text-[10px] px-2 py-0.5 rounded-md font-semibold mt-1.5" style={{ background: b.bg, color: b.color }}>{b.label}</span> : null })()}
+                                                            <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                                                {t.premium && <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-semibold" style={{ background: 'rgba(184,134,11,0.13)', color: '#B8860B' }}><Sparkles className="h-2.5 w-2.5" />Premium</span>}
+                                                                {(() => { const b = sourceBadge(t.source); return b ? <span className="inline-block text-[10px] px-2 py-0.5 rounded-md font-semibold" style={{ background: b.bg, color: b.color }}>{b.label}</span> : null })()}
+                                                            </div>
                                                             {result && (
                                                                 <div className="mt-2 space-y-2">
                                                                     <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>

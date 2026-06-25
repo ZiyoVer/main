@@ -149,6 +149,7 @@ interface TeacherTestDetailResponse {
     timeLimit: number | null
     testType: TestTypeValue
     source?: 'OFFICIAL' | 'UNOFFICIAL' | 'AI_PREDICTION'
+    premium?: boolean
     attemptsCount: number
     questions: Question[]
 }
@@ -288,6 +289,7 @@ export default function TeacherPanel() {
     const [isPublic, setIsPublic] = useState(false)
     const [testType, setTestType] = useState<TestTypeValue>('REGULAR')
     const [source, setSource] = useState<'OFFICIAL' | 'UNOFFICIAL' | 'AI_PREDICTION'>('UNOFFICIAL') // manba (faqat ADMIN o'zgartiradi)
+    const [premium, setPremium] = useState(false) // Premium test (faqat ADMIN; Pro userlar ochadi)
     const [timeLimit, setTimeLimit] = useState<number>(0)
     const [timeLimitTouched, setTimeLimitTouched] = useState(false)
     const [questions, setQuestions] = useState<Question[]>([createEmptyQuestion()])
@@ -443,6 +445,7 @@ export default function TeacherPanel() {
             setIsPublic(detail.isPublic)
             setTestType(detail.testType)
             setSource(detail.source ?? 'UNOFFICIAL')
+            setPremium(detail.premium ?? false)
             setTimeLimit(detail.timeLimit || 0)
             setTimeLimitTouched(Boolean(detail.timeLimit))
             setQuestions(detail.questions.length > 0 ? detail.questions : [createEmptyQuestion()])
@@ -786,6 +789,7 @@ export default function TeacherPanel() {
                     isPublic,
                     testType,
                     source,
+                    premium,
                     timeLimit: timeLimit || null,
                     questions: finalQuestions
                 })
@@ -798,6 +802,7 @@ export default function TeacherPanel() {
             setIsPublic(false)
             setTestType('REGULAR')
             setSource('UNOFFICIAL')
+            setPremium(false)
             setSubject2('')
             resetEditorState()
             setAiFile(null); setAiDone(false)
@@ -1201,6 +1206,14 @@ export default function TeacherPanel() {
                                             <option value="OFFICIAL">Rasmiy</option>
                                             <option value="AI_PREDICTION">AI bashorat</option>
                                         </select>
+                                    )}
+                                    {user?.role === 'ADMIN' && (
+                                        <label className="flex items-center gap-2 text-[13px] cursor-pointer select-none h-9 px-3 rounded-lg transition"
+                                            style={{ border: `1px solid ${premium ? '#B8860B' : 'var(--border)'}`, background: premium ? 'rgba(184,134,11,0.10)' : 'var(--bg-card)', color: premium ? '#B8860B' : 'var(--text-secondary)' }}
+                                            title="Premium test — faqat Pro userlar ochadi">
+                                            <input type="checkbox" checked={premium} onChange={e => setPremium(e.target.checked)} className="w-3.5 h-3.5 rounded" style={{ accentColor: '#B8860B' }} />
+                                            <span>Premium ⭐</span>
+                                        </label>
                                     )}
                                 </div>
                                 {testType === 'DTM_BLOCK' && (
