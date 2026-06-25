@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import dns from 'dns/promises'
 import crypto from 'crypto'
+import { OAuth2Client } from 'google-auth-library'
 import rateLimit from 'express-rate-limit'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
@@ -16,6 +17,10 @@ import { logAdminAction } from '../utils/adminAudit'
 
 const router = Router()
 const JWT_SECRET = process.env.JWT_SECRET!
+
+// Google OAuth — GOOGLE_CLIENT_ID o'rnatilmasa inert (endpoint 503 qaytaradi)
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID
+const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null
 const PRESENCE_LOG_INTERVAL_MS = 2 * 60 * 1000
 const PRESENCE_RETENTION_DAYS = 90
 const PRESENCE_CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000
@@ -284,6 +289,53 @@ router.post('/login', authLimiter, async (req, res) => {
     } catch (e) {
         console.error('Login error:', e)
         res.status(500).json({ error: 'Server xatoligi. Qayta urinib ko\'ring.' })
+    }
+})
+
+// Google bilan kirish — frontend GSI'dan ID-token (credential) keladi, biz tekshiramiz.
+// GOOGLE_CLIENT_ID yo'q bo'lsa inert (503). Google email tasdiqlangani uchun emailVerified=true.
+router.post('/google', authLimiter, async (req, res) => {
+    if (!googleClient || !GOOGLE_CLIENT_ID) {
+        return res.status(503).json({ error: 'Google orqali kirish hali sozlanmagan' })
+    }
+    try {
+        const { credential } = req.body
+        if (!credential || typeof credential !== 'string') {
+            return res.status(400).json({ error: 'Google credential kerak' })
+        }
+        const ticket = await googleClient.verifyIdToken({ idToken: credential, audience: GOOGLE_CLIENT_ID })
+        const payload = ticket.getPayload()
+        if (!payload?.email || payload.email_verified === false) {
+            return res.status(401).json({ error: 'Google email tasdiqlanmadi' })
+        }
+        const email = payload.email.trim().toLowerCase()
+        const name = (payload.name || payload.given_name || email.split('@')[0]).slice(0, 80)
+
+        let user = await prisma.user.findUnique({ where: { email } })
+        if (!user) {
+            // Yangi user — Google orqali → parol ishlatilmaydi (random hash), email tasdiqlangan
+            const randomPwd = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10)
+            user = await prisma.user.create({
+                data: { email, name, password: randomPwd, role: 'STUDENT', emailVerified: true }
+            })
+        } else if (!user.emailVerified) {
+            // Mavjud user Google bilan kirsa — email egaligi tasdiqlangani uchun verified qilamiz
+            user = await prisma.user.update({ where: { id: user.id }, data: { emailVerified: true } })
+        }
+
+        if (user.status === 'SUSPENDED') {
+            return res.status(403).json({ error: 'Akkauntingiz bloklangan. Administrator bilan bog\'laning.' })
+        }
+
+        const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' })
+        try { await prisma.visitLog.create({ data: { userId: user.id, action: 'login' } }) } catch { }
+        res.json({
+            token,
+            user: { id: user.id, email: user.email, name: user.name, role: user.role, emailVerified: user.emailVerified }
+        })
+    } catch (e) {
+        console.error('Google auth error:', e)
+        res.status(401).json({ error: 'Google orqali kirish amalga oshmadi' })
     }
 })
 
