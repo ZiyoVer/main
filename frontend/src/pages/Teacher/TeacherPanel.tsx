@@ -1180,7 +1180,7 @@ export default function TeacherPanel() {
                                 <h3 className="text-[13px] font-semibold" style={secondaryText}>Umumiy ma'lumot</h3>
                                 <input placeholder="Test nomi" required value={title} onChange={e => setTitle(e.target.value)}
                                     className="input" />
-                                <div className="flex gap-2">
+                                <div className="flex flex-wrap gap-2">
                                     <select value={subject} onChange={e => setSubject(e.target.value)}
                                         className="input" style={{ flex: 1, cursor: 'pointer' }}>
                                         {SUBJECTS.map(f => <option key={f} value={f}>{f}</option>)}

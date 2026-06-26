@@ -368,7 +368,7 @@ function Nav() {
         transition: 'border-color 240ms ease',
       }}
     >
-      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '20px 56px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '16px clamp(16px, 5vw, 56px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         {/* Left — brand */}
         <a href="#main" className="lp-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 11, textDecoration: 'none' }}>
           <LogoMark />
@@ -836,7 +836,7 @@ function StatNumber({ stat }: { stat: Stat }) {
   }, [stat])
 
   return (
-    <div ref={ref} style={{ fontFamily: SERIF, fontSize: 60, fontWeight: 500, letterSpacing: '-0.01em', lineHeight: 1, color: C.ink }}>
+    <div ref={ref} style={{ fontFamily: SERIF, fontSize: 'clamp(38px, 11vw, 60px)', fontWeight: 500, letterSpacing: '-0.01em', lineHeight: 1, color: C.ink }}>
       {display}
     </div>
   )

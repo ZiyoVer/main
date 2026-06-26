@@ -450,7 +450,7 @@ const MdMessage = memo(({ content, isStreaming }: {
                 const isBlock = className?.includes('language-')
                 return isBlock
                     ? <pre className="rounded-xl p-4 text-[13px] overflow-x-auto my-3 font-mono leading-relaxed" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}><code>{children}</code></pre>
-                    : <code className="px-1.5 py-0.5 rounded-md text-[13px] font-mono" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--brand)' }}>{children}</code>
+                    : <code className="px-1.5 py-0.5 rounded-md text-[13px] font-mono" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--brand)', overflowWrap: 'anywhere' }}>{children}</code>
             },
             blockquote: ({ children }) => <blockquote className="border-l-[3px] pl-4 pr-3 py-2 my-3" style={{ borderColor: 'var(--brand)', background: 'var(--brand-light)', color: 'var(--text-secondary)', borderRadius: '0 0.75rem 0.75rem 0' }}>{children}</blockquote>,
             hr: () => <hr className="my-4" style={{ borderColor: 'var(--border)' }} />,
@@ -3101,7 +3101,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                 style={(testPanelMaximized || isMobile) ? { background: 'var(--bg-card)' } : { width: testWidth, background: 'var(--bg-card)', borderLeft: '1px solid var(--border)' }}>
 
                                 {/* Drag handle */}
-                                {!testPanelMaximized && (
+                                {!testPanelMaximized && !isMobile && (
                                     <div onMouseDown={e => { testDragRef.current = true; e.preventDefault() }}
                                         className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize z-10 transition-colors"
                                         style={{ background: 'transparent' }}
@@ -3111,9 +3111,9 @@ Iltimos, har bir savolni tahlil qilib ber:
 
                                 {/* Panel header */}
                                 <div className="h-14 flex items-center justify-between px-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
-                                    <div className="flex items-center gap-2">
-                                        <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--k-accent-grad)' }}><ClipboardList className="h-3.5 w-3.5 text-white" /></div>
-                                        <span className="text-sm font-semibold">Test — {questions.length} savol</span>
+                                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                                        <div className="h-7 w-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--k-accent-grad)' }}><ClipboardList className="h-3.5 w-3.5 text-white" /></div>
+                                        <span className="text-sm font-semibold truncate">Test — {questions.length} savol</span>
                                         {(() => { const b = sourceBadge(activeTestSource); return b ? <span className="text-[10px] px-2 py-0.5 rounded-md font-semibold" style={{ background: b.bg, color: b.color }}>{b.label}</span> : null })()}
                                         {testReadOnly && <span className="text-[10px] px-2 py-0.5 rounded-md font-medium" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>Ko'rish</span>}
                                         {testTimeLeft !== null && (
@@ -3123,13 +3123,13 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             </span>
                                         )}
                                     </div>
-                                    <div className="flex items-center gap-1">
+                                    <div className="flex items-center gap-1 flex-shrink-0">
                                         {!isMobile && (
                                             <button onClick={() => setTestPanelMaximized(!testPanelMaximized)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                                 {testPanelMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
                                             </button>
                                         )}
-                                        <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setActiveTestId(null); setActiveTestQuestions([]); setTestTimeLeft(null); setRaschFeedback(null) }} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><X className="h-4 w-4" /></button>
+                                        <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setActiveTestId(null); setActiveTestQuestions([]); setTestTimeLeft(null); setRaschFeedback(null) }} className="h-10 w-10 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><X className="h-4 w-4" /></button>
                                     </div>
                                 </div>
 
@@ -3371,7 +3371,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                 style={(flashMaximized || isMobile) ? { background: 'var(--bg-card)' } : { width: flashWidth, background: 'var(--bg-card)', borderLeft: '1px solid var(--border)' }}>
 
                                 {/* Drag handle */}
-                                {!flashMaximized && (
+                                {!flashMaximized && !isMobile && (
                                     <div onMouseDown={e => { flashDragRef.current = true; e.preventDefault() }}
                                         className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize z-10 transition-colors"
                                         style={{ background: 'transparent' }}

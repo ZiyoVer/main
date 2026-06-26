@@ -322,6 +322,18 @@ button:focus-visible {
     font-family: inherit;
 }
 
+/* iOS Safari fokus-zoom oldini olish: mobilда matn maydonlari kamida 16px bo'lsin
+   (16px'dan kichik input fokuslanganda iOS butun sahifani zumlab yuboradi va qaytmaydi).
+   input/textarea/select hammasini qamraydi — inline 13-15px override'larni ham bosadi. */
+@media (max-width: 767px) {
+    input,
+    textarea,
+    select,
+    .input {
+        font-size: 16px !important;
+    }
+}
+
 .input::placeholder {
     color: var(--text-muted);
 }

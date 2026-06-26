@@ -118,10 +118,11 @@ export default function Login() {
                                     type="button"
                                     onClick={() => setShowPw(!showPw)}
                                     style={{
-                                        position: 'absolute', right: '0.75rem', top: '50%',
+                                        position: 'absolute', right: '0.25rem', top: '50%',
                                         transform: 'translateY(-50%)', color: 'var(--text-muted)',
                                         background: 'none', border: 'none', cursor: 'pointer',
-                                        display: 'flex', alignItems: 'center'
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        width: '40px', height: '40px'
                                     }}
                                 >
                                     {showPw
