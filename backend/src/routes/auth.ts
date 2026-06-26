@@ -314,9 +314,13 @@ router.post('/google', authLimiter, async (req, res) => {
         if (!payload?.email || payload.email_verified === false) {
             return res.status(401).json({ error: 'Google email tasdiqlanmadi' })
         }
-        // Redirect (implicit) oqimida nonce yuboriladi — replay'ga qarshi tekshiramiz.
-        if (typeof nonce === 'string' && nonce && payload.nonce && payload.nonce !== nonce) {
-            return res.status(401).json({ error: 'Google nonce mos kelmadi' })
+        // Redirect (implicit) oqimida id_token ichida nonce bo'ladi — replay'ga qarshi
+        // MAJBURIY tekshiramiz: token nonce bilan kelgan bo'lsa, klient ham aynan o'shani
+        // yuborishi shart (yo'qligi tekshiruvni o'chirib qo'ymasligi uchun).
+        if (payload.nonce) {
+            if (typeof nonce !== 'string' || nonce !== payload.nonce) {
+                return res.status(401).json({ error: 'Google nonce mos kelmadi' })
+            }
         }
         const email = payload.email.trim().toLowerCase()
         const name = (payload.name || payload.given_name || email.split('@')[0]).slice(0, 80)

@@ -133,7 +133,7 @@ app.get('/api/health', async (_req, res) => {
     }
 })
 
-app.use('/api/auth', authRoutes)
+app.use('/api/auth', apiLimiter, authRoutes)
 app.use('/api/chat', optionalAuthenticate, apiLimiter, chatRoutes)
 app.use('/api/tests', optionalAuthenticate, apiLimiter, testRoutes)
 app.use('/api/documents', optionalAuthenticate, apiLimiter, docRoutes)

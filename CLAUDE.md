@@ -5,7 +5,7 @@
 DTMMax — O'zbekistonda DTM va Milliy Sertifikat imtihonlariga tayyorlaydigan
 AI-ta'lim platformasi. React + Express + PostgreSQL + DeepSeek AI.
 
-**Domain:** dtmmax.pro | **Deploy:** Railway | **Branch:** main
+**Domain:** www.dtmmax.uz (jonli; dtmmax.uz www'siz hali sozlanmagan) | **Deploy:** Railway | **Branch:** main
 **GitHub:** https://github.com/ZiyoVer/main
 
 ---

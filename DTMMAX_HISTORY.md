@@ -7,7 +7,7 @@ Bu fayl DTMMax platformasining rivojlanish tarixi, qilingan ishlar va rejalashti
 ## Loyiha haqida
 - **Nomi:** DTMMax (oldingi nomlar: msert → BallMax → DTMMax)
 - **Maqsad:** O'zbekistonda DTM va Milliy Sertifikat imtihonlariga AI yordamida tayyorlanish platformasi
-- **Domain:** dtmmax.pro
+- **Domain:** www.dtmmax.uz
 - **Deploy:** Railway (backend + frontend)
 - **GitHub:** https://github.com/ZiyoVer/main
 - **Asoschi:** O'ktam (uktamziyodullayev189@gmail.com)

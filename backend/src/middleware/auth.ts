@@ -81,10 +81,15 @@ export function requireRole(...roles: string[]) {
         try {
             const dbUser = await prisma.user.findUnique({
                 where: { id: req.user.id },
-                select: { role: true }
+                select: { role: true, status: true }
             })
             if (!dbUser || !roles.includes(dbUser.role)) {
                 res.status(403).json({ error: 'Ruxsat yo\'q' })
+                return
+            }
+            // Bloklangan akkaunt — token muddati o'tmasa ham darhol rad etamiz
+            if (dbUser.status === 'SUSPENDED') {
+                res.status(403).json({ error: 'Akkaunt bloklangan' })
                 return
             }
             req.user = { ...req.user, role: dbUser.role }
@@ -112,8 +117,13 @@ export async function requireVerified(req: AuthRequest, res: Response, next: Nex
     try {
         const dbUser = await prisma.user.findUnique({
             where: { id: req.user.id },
-            select: { emailVerified: true }
+            select: { emailVerified: true, status: true }
         })
+        // Bloklangan akkaunt — darhol rad (token muddatini kutmasdan)
+        if (dbUser?.status === 'SUSPENDED') {
+            res.status(403).json({ error: 'Akkaunt bloklangan' })
+            return
+        }
         // FAQAT emailVerified === false bo'lganda bloklaymiz.
         // Legacy foydalanuvchilar (emailVerified null/undefined) bloklanmaydi —
         // email-verify joriy etilishidan oldin ro'yxatdan o'tganlar.

@@ -2,7 +2,13 @@ User-agent: *
 Allow: /$
 Allow: /kirish
 Allow: /royxat
-# Ichki (auth) sahifalar indekslanmasin
+# Ichki (auth) sahifalar indekslanmasin — o'zbekcha asosiy + eski (legacy) yo'llar
+Disallow: /suhbat
+Disallow: /boshqaruv
+Disallow: /oqituvchi
+Disallow: /email-tasdiqlang
+Disallow: /parol-tiklash
+Disallow: /auth/google
 Disallow: /chat
 Disallow: /admin
 Disallow: /teacher

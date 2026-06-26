@@ -1776,20 +1776,25 @@ router.post('/submit-ai', authenticate, submitLimiter, async (req: AuthRequest, 
         if (!results || !Array.isArray(results)) {
             return res.status(400).json({ error: 'results kerak' })
         }
-        // BUG-6: profil yo'q bo'lsa (onboarding o'tkazib yuborilgan) — upsert bilan yaratish
-        const profile = await prisma.studentProfile.upsert({
-            where: { userId: req.user.id },
-            create: { userId: req.user.id, totalTests: 0, avgScore: 0 },
-            update: {}
-        })
+        // Klient yuborgan ball'ni 0–100 oralig'iga cheklaymiz (poisoning oldini olish)
+        const safeScore = Number.isFinite(Number(score)) ? Math.max(0, Math.min(100, Number(score))) : 0
 
-        // AI testlar uchun Rasch yangilanmaydi — faqat statistika
-        await prisma.studentProfile.update({
-            where: { userId: req.user.id },
-            data: {
-                totalTests: { increment: 1 },
-                avgScore: Math.round(((profile.avgScore * profile.totalTests + (score || 0)) / (profile.totalTests + 1)) * 100) / 100
-            }
+        // AI testlar uchun Rasch yangilanmaydi — faqat statistika.
+        // O'qish-o'zgartirish-yozish'ni bitta tranzaksiyada qilamiz — bir vaqtda kelgan
+        // submit'lar avgScore'ni buzmasligi uchun (atomik).
+        await prisma.$transaction(async (tx) => {
+            const profile = await tx.studentProfile.upsert({
+                where: { userId: req.user.id },
+                create: { userId: req.user.id, totalTests: 0, avgScore: 0 },
+                update: {}
+            })
+            await tx.studentProfile.update({
+                where: { userId: req.user.id },
+                data: {
+                    totalTests: { increment: 1 },
+                    avgScore: Math.round(((profile.avgScore * profile.totalTests + safeScore) / (profile.totalTests + 1)) * 100) / 100
+                }
+            })
         })
 
         res.json({ ok: true })
@@ -1825,8 +1830,9 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
         if (!test) return res.status(404).json({ error: 'Test topilmadi' })
         const normalizedTestType = normalizeTestType(test.testType)
 
-        // Student public test yoki valid share-link bilan kirilgan private testni submit qila oladi
-        if (!test.isPublic && req.user?.role === 'STUDENT' && shareLink !== test.shareLink) {
+        // Private testga faqat egasi (creatorId) yoki valid share-link bilan kirilgan
+        // foydalanuvchi submit qila oladi — rol'dan qat'i nazar (begona teacher/admin ham emas).
+        if (!test.isPublic && test.creatorId !== req.user?.id && shareLink !== test.shareLink) {
             return res.status(403).json({ error: 'Bu test uchun ruxsat yo\'q' })
         }
         // MODERATSIYA: student tasdiqlanmagan public testni link orqali topib submit qila olmasin.
@@ -2113,7 +2119,7 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
             }
 
             return { attempt: att, newAbility: computedScore.ability, computedScore }
-        })
+        }, { timeout: 15000, maxWait: 5000 })
 
         // Submit dan keyin to'g'ri javoblarni qaytaramiz (oldin emas!)
         const correctAnswers = test.questions.map(q => {

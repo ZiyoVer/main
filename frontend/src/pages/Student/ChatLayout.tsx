@@ -754,7 +754,11 @@ export default function ChatLayout() {
     const [testCategory, setTestCategory] = useState<string>('all') // testlar bo'limi kategoriya filtri
     const [activeTestSource, setActiveTestSource] = useState<string | null>(null) // ochiq test panelining manbasi (badge uchun)
     const [todoItems, setTodoItems] = useState<TodoItem[]>(() => loadStoredTodos(todoStorageKey))
-    const [todoOpen, setTodoOpen] = useState(() => loadStoredTodos(todoStorageKey).length > 0)
+    const [todoOpen, setTodoOpen] = useState(() => {
+        // Mobilда avto-ochmaymiz — fullscreen panel kirishni to'sib qo'ymasligi uchun
+        const initialMobile = typeof window !== 'undefined' && window.innerWidth < 768
+        return !initialMobile && loadStoredTodos(todoStorageKey).length > 0
+    })
     const [showSettings, setShowSettings] = useState(false)
     const [showNotifications, setShowNotifications] = useState(false)
     const [publicTests, setPublicTests] = useState<PublicTest[]>([])
@@ -967,12 +971,13 @@ export default function ChatLayout() {
     useEffect(() => {
         const params = new URLSearchParams(location.search)
         if (!params.get('analyzeTest')) return
-        const raw = localStorage.getItem('dtmmax_guest_test_result')
-        if (!raw) return
-        let guestData: any
-        try { guestData = JSON.parse(raw) } catch { return }
-        // URL dan flag ni olib tashlaymiz
+        // URL dan flag ni darrov olib tashlaymiz (qayta ishlamasligi uchun)
         window.history.replaceState({}, '', location.pathname)
+        const raw = localStorage.getItem('dtmmax_guest_test_result')
+        // analyzeTest=1 bor, lekin natija yo'q/buzilgan — jim qolmasdan xabar beramiz
+        if (!raw) { toast('Test natijangiz topilmadi — testni qayta yeching yoki yangi suhbat boshlang.'); return }
+        let guestData: any
+        try { guestData = JSON.parse(raw) } catch { toast('Test natijasini o\'qib bo\'lmadi — qayta yeching.'); return }
         localStorage.removeItem('dtmmax_guest_test_result')
 
         const triggerAnalysis = async () => {
@@ -1275,9 +1280,12 @@ Iltimos, har bir savolni tahlil qilib ber:
                 })
             }
         } catch (err: any) {
-            console.error('loadProfile:', err)
+            const is403 = err?.status === 403 || err?.message?.includes('403')
+            const is404 = err?.status === 404 || err?.message?.includes('404')
+            // 403 — admin/o'qituvchi /suhbat'da (profil STUDENT'niki): jim o'tkazamiz, log ham yo'q
+            if (!is403) console.error('loadProfile:', err)
             // Faqat 404 (profil yo'q) da onboarding ko'rsatish — network xatosida emas
-            if (err?.status === 404 || err?.message?.includes('404')) { setObStep(1); setShowOnboarding(true) }
+            if (is404) { setObStep(1); setShowOnboarding(true) }
         } finally {
             setProfileLoaded(true)
         }
@@ -1605,6 +1613,7 @@ Iltimos, har bir savolni tahlil qilib ber:
             if (reader) {
                 try {
                     let sseBuf = '' // chunk chegarasida bo'lingan frame'ni saqlash uchun (cross-read buffer)
+                    let terminalHandled = false // done/error frame ishlangach — oxirgi flush'ni qayta ishlamaslik uchun
                     while (true) {
                         const { done, value } = await reader.read()
                         if (done) break
@@ -1614,12 +1623,12 @@ Iltimos, har bir savolni tahlil qilib ber:
                         sseBuf = lines.pop() ?? '' // oxirgi (tugallanmagan) bo'lakni keyingi o'qishga qoldiramiz
                         for (const line of lines) {
                             const stop = await handleLine(line)
-                            if (stop) { try { await reader.cancel() } catch { } break }
+                            if (stop) { terminalHandled = true; try { await reader.cancel() } catch { } break }
                         }
                         if (streamErrored) break
                     }
                     // Oqim tugadi — bufferda qolgan tugallanmagan frame bo'lsa, oxirgi marta flush qilamiz
-                    if (!streamErrored && sseBuf.startsWith('data: ')) {
+                    if (!streamErrored && !terminalHandled && sseBuf.startsWith('data: ')) {
                         await handleLine(sseBuf)
                     }
                 } finally {
@@ -2855,7 +2864,15 @@ Iltimos, har bir savolni tahlil qilib ber:
                 <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
                     <div className="h-14 flex items-center px-4 gap-2 flex-shrink-0" style={{ borderBottom: '1px solid color-mix(in srgb, var(--border) 74%, rgba(15,23,42,0.12) 26%)' }}>
                         <button onClick={() => setSideOpen(v => !v)} className="h-8 w-8 flex items-center justify-center rounded-lg transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} title="Yonpanel"><Menu className="h-4 w-4" /></button>
-                        <span className="text-sm font-medium truncate flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>{currentChat?.title || ''}</span>
+                        {currentChat?.title ? (
+                            <span className="text-sm font-medium truncate flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>{currentChat.title}</span>
+                        ) : (
+                            // Sarlavha yo'q (yangi/bo'sh chat) — header bo'sh qolmasin, brend ko'rinsin
+                            <span className="flex items-center gap-2 flex-1 min-w-0">
+                                <img src="/dtmmax-logo.png" alt="DtmMax" className="h-6 w-6 flex-shrink-0" style={{ objectFit: 'contain' }} />
+                                <span className="font-bold text-[15px] tracking-tight" style={{ color: 'var(--text-primary)' }}>DTM<span className="k-italic">Max</span></span>
+                            </span>
+                        )}
                     </div>
 
                     {/* Messages */}
@@ -2992,9 +3009,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                     />
                 </div>
 
-                {/* Todo inline panel */}
+                {/* Todo inline panel — mobilда fullscreen (aks holda chat ~40px ga siqiladi) */}
                 {todoOpen && (
-                    <div className="flex flex-col flex-shrink-0" style={{ width: '320px', borderLeft: '1px solid var(--border)', background: 'var(--bg-page)' }}>
+                    <div className={isMobile ? 'fixed inset-0 z-50 flex flex-col' : 'flex flex-col flex-shrink-0'}
+                        style={isMobile ? { background: 'var(--bg-page)' } : { width: '320px', borderLeft: '1px solid var(--border)', background: 'var(--bg-page)' }}>
                         {/* Header */}
                         <div className="h-14 flex items-center justify-between px-5 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                             <p className="text-[15px] font-semibold" style={{ color: 'var(--text-primary)' }}>Reja</p>
@@ -3105,9 +3123,11 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         )}
                                     </div>
                                     <div className="flex items-center gap-1">
-                                        <button onClick={() => setTestPanelMaximized(!testPanelMaximized)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                            {testPanelMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-                                        </button>
+                                        {!isMobile && (
+                                            <button onClick={() => setTestPanelMaximized(!testPanelMaximized)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                                {testPanelMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                                            </button>
+                                        )}
                                         <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setActiveTestId(null); setActiveTestQuestions([]); setTestTimeLeft(null); setRaschFeedback(null) }} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><X className="h-4 w-4" /></button>
                                     </div>
                                 </div>
@@ -3254,9 +3274,11 @@ Iltimos, har bir savolni tahlil qilib ber:
                                     )}
                                 </div>
                                 <div className="flex items-center gap-1">
-                                    <button onClick={() => setEssayMaximized(!essayMaximized)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                        {essayMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-                                    </button>
+                                    {!isMobile && (
+                                        <button onClick={() => setEssayMaximized(!essayMaximized)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                            {essayMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                                        </button>
+                                    )}
                                     <button onClick={() => { setEssayPanel(null) }} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                         <X className="h-4 w-4" />
                                     </button>
@@ -3366,13 +3388,15 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         <span className="text-xs px-1.5 py-0.5 rounded-md" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>{flashIdx + 1}/{flashPanel.length}</span>
                                     </div>
                                     <div className="flex items-center gap-1">
-                                        <button onClick={() => setFlashMaximized(!flashMaximized)}
-                                            className="h-7 w-7 flex items-center justify-center rounded-lg transition"
-                                            style={{ color: 'var(--text-muted)' }}
-                                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
-                                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                            {flashMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-                                        </button>
+                                        {!isMobile && (
+                                            <button onClick={() => setFlashMaximized(!flashMaximized)}
+                                                className="h-7 w-7 flex items-center justify-center rounded-lg transition"
+                                                style={{ color: 'var(--text-muted)' }}
+                                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
+                                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                                {flashMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                                            </button>
+                                        )}
                                         <button onClick={() => { setFlashPanel(null); setFlashMaximized(false); setFlashIsReview(false) }}
                                             className="h-7 w-7 flex items-center justify-center rounded-lg transition"
                                             style={{ color: 'var(--text-muted)' }}

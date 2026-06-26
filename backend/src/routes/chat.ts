@@ -2013,15 +2013,18 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
             // Faqat mazmunli javob bo'lsa saqlaymiz — 3 belgidan kam stray bufer (masalan 1-2 belgi)
             // foydasiz yozuvni yaratmaymiz. Saqlanganda live UI ko'rsatgan [To'xtatildi] markerini
             // qo'shamiz, shunda reload qilinganda matn UI bilan bir xil bo'ladi.
+            // Har user xabari uchun juft assistant yozuvi bo'lsin — abort qisqa bo'lsa ham
+            // placeholder yozamiz (aks holda reload'da "yetim" user xabari qoladi).
             const abortedReply = fullReply.trim()
-            if (abortedReply.length >= 3) {
-                try {
-                    await prisma.message.create({
-                        data: { chatId: chat.id, role: 'assistant', content: fullReply + "\n\n*[To'xtatildi]*" }
-                    })
-                } catch (dbErr) {
-                    console.error('Aborted message save failed:', dbErr)
-                }
+            const abortedContent = abortedReply.length >= 3
+                ? fullReply + "\n\n*[To'xtatildi]*"
+                : "*[To'xtatildi]*"
+            try {
+                await prisma.message.create({
+                    data: { chatId: chat.id, role: 'assistant', content: abortedContent }
+                })
+            } catch (dbErr) {
+                console.error('Aborted message save failed:', dbErr)
             }
             return res.end()
         }

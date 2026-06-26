@@ -6,7 +6,7 @@ DTMMax — O'zbekistonda DTM (Davlat Test Markazi) va Milliy Sertifikat
 imtihonlariga tayyorlaydigan AI-platformasi. Foydalanuvchilar DeepSeek AI
 bilan o'zbek tilida suhbatlashib, testlar yechadi, flashcardlar ishlaydi.
 
-**Domain:** dtmmax.pro
+**Domain:** www.dtmmax.uz
 **Deploy:** Railway
 **Til:** O'zbek (barcha UI, AI javoblar, commit messagelar)
 
@@ -169,8 +169,8 @@ DEEPSEEK_API_KEY=sk-...
 OPENAI_API_KEY=sk-...
 RESEND_API_KEY=re_...
 EMAIL_FROM=DTMMax <noreply@dtmmax.uz>
-FRONTEND_URL=https://dtmmax.pro
-ALLOWED_ORIGINS=https://dtmmax.pro
+FRONTEND_URL=https://www.dtmmax.uz
+ALLOWED_ORIGINS=https://www.dtmmax.uz
 PORT=8080
 ADMIN_EMAIL=admin@dtmmax.uz
 ADMIN_PASSWORD=...

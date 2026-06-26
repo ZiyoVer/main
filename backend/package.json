@@ -32,6 +32,7 @@
         "pdf-parse": "^1.1.1",
         "pdf2pic": "^3.2.0",
         "pdfjs-dist": "^5.5.207",
+        "prisma": "^5.22.0",
         "resend": "^6.9.3",
         "tesseract.js": "^7.0.0",
         "uuid": "^11.1.0"
@@ -46,7 +47,6 @@
         "@types/pdf-parse": "^1.1.5",
         "@types/uuid": "^10.0.0",
         "nodemon": "^3.1.14",
-        "prisma": "^5.22.0",
         "ts-node": "^10.9.2",
         "typescript": "^5.9.3"
     }

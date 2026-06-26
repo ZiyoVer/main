@@ -2,34 +2,28 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { fetchApi } from '@/lib/api'
-import { readGoogleCallback, readGoogleError } from '@/lib/googleAuth'
+import { readGoogleCallback, readGoogleError, startGoogleLogin } from '@/lib/googleAuth'
 
 /* Google redirect oqimining qaytish nuqtasi (/auth/google/callback).
-   URL fragment'dan id_token olinadi → /auth/google'ga yuboriladi → JWT → tizimga kirish. */
+   URL fragment'dan id_token olinadi → /auth/google'ga yuboriladi → JWT → tizimga kirish.
+   Xato bo'lsa — avtomatik yo'naltirmaymiz; foydalanuvchi o'qib, tugma orqali qaror qiladi. */
 
 export default function GoogleCallback() {
     const nav = useNavigate()
     const login = useAuthStore(s => s.login)
     const ran = useRef(false)
     const [err, setErr] = useState<string | null>(null)
+    const [retrying, setRetrying] = useState(false)
 
     useEffect(() => {
         if (ran.current) return
         ran.current = true
 
         const gErr = readGoogleError()
-        if (gErr) {
-            setErr('Google rad etdi: ' + gErr)
-            setTimeout(() => nav('/kirish', { replace: true }), 2500)
-            return
-        }
+        if (gErr) { setErr('Google rad etdi: ' + gErr); return }
 
         const cb = readGoogleCallback()
-        if (!cb) {
-            setErr('Kirish ma\'lumotlari topilmadi yoki muddati o\'tdi.')
-            setTimeout(() => nav('/kirish', { replace: true }), 2500)
-            return
-        }
+        if (!cb) { setErr('Kirish ma\'lumotlari topilmadi yoki muddati o\'tdi.'); return }
 
         fetchApi('/auth/google', {
             method: 'POST',
@@ -43,9 +37,18 @@ export default function GoogleCallback() {
             })
             .catch((e: unknown) => {
                 setErr(e instanceof Error ? e.message : 'Google orqali kirish amalga oshmadi')
-                setTimeout(() => nav('/kirish', { replace: true }), 2500)
             })
     }, [login, nav])
+
+    async function retry() {
+        setRetrying(true)
+        try {
+            const cfg = await fetchApi('/auth/config') as { googleClientId?: string | null }
+            if (cfg?.googleClientId) { startGoogleLogin(cfg.googleClientId); return }
+        } catch { /* config olinmadi — kirish sahifasiga qaytamiz */ }
+        setRetrying(false)
+        nav('/kirish', { replace: true })
+    }
 
     return (
         <div className="kelviq min-h-screen flex flex-col items-center justify-center gap-4 p-5" style={{ background: 'var(--bg-page)' }}>
@@ -60,7 +63,17 @@ export default function GoogleCallback() {
                     <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
                 </>
             ) : (
-                <p className="text-sm text-center" style={{ color: 'var(--danger)' }}>{err}<br />Kirish sahifasiga qaytmoqda…</p>
+                <div className="w-full max-w-sm card text-center" style={{ padding: '1.75rem' }}>
+                    <p className="text-sm mb-4" style={{ color: 'var(--danger)' }}>{err}</p>
+                    <div className="flex flex-col gap-2">
+                        <button onClick={retry} disabled={retrying} className="btn btn-primary" style={{ width: '100%' }}>
+                            {retrying ? 'Yo\'naltirilmoqda…' : 'Qaytadan urinish'}
+                        </button>
+                        <button onClick={() => nav('/kirish', { replace: true })} className="btn" style={{ width: '100%' }}>
+                            Kirish sahifasiga qaytish
+                        </button>
+                    </div>
+                </div>
             )}
         </div>
     )
