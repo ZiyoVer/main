@@ -9,6 +9,7 @@ import rehypeSanitize from 'rehype-sanitize'
 import DOMPurify from 'dompurify'
 import 'katex/dist/katex.min.css'
 import katex from 'katex'
+import { renderMathHtml } from '@/lib/mathRender'
 import toast from 'react-hot-toast'
 import { fetchApi } from '@/lib/api'
 import { parseStructuredJson } from '@/lib/structuredJson'
@@ -90,13 +91,13 @@ function getAttemptMeta(result: MyResult) {
 
 // Test paneli uchun inline KaTeX renderer (ReactMarkdown ishlatmaymiz, tez va engil)
 function MathText({ text }: { text: string }) {
-    const normalized = preprocessMath(text || '')
-    if (!normalized.includes('$')) return <>{text}</>
+    // mathRender.ts'ning aqlli mantig'i: $...$, $$...$$, \[...\], \(...\) VA xom LaTeX'ni
+    // (\frac{1}{6}, \sqrt{2}, grek harflar) avtomatik o'rab render qiladi. Test javoblari
+    // ko'pincha $'siz xom keladi — shu sabab ilgari render bo'lmasdi.
     try {
-        const html = normalized
-            .replace(/\$\$([^$]+)\$\$/g, (_, m) => katex.renderToString(m.trim(), { displayMode: true, throwOnError: false }))
-            .replace(/\$([^$\n]+)\$/g, (_, m) => katex.renderToString(m.trim(), { throwOnError: false }))
-        return <span dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
+        const html = renderMathHtml(text || '', 'inline')
+        if (html === null) return <>{text}</>
+        return <span dangerouslySetInnerHTML={{ __html: html }} />
     } catch { return <>{text}</> }
 }
 
