@@ -119,8 +119,13 @@ export async function requireVerified(req: AuthRequest, res: Response, next: Nex
             where: { id: req.user.id },
             select: { emailVerified: true, status: true }
         })
+        // User o'chirilgan, lekin token hali amal qilyapti — rad etamiz (requireRole kabi)
+        if (!dbUser) {
+            res.status(401).json({ error: 'Foydalanuvchi topilmadi' })
+            return
+        }
         // Bloklangan akkaunt — darhol rad (token muddatini kutmasdan)
-        if (dbUser?.status === 'SUSPENDED') {
+        if (dbUser.status === 'SUSPENDED') {
             res.status(403).json({ error: 'Akkaunt bloklangan' })
             return
         }

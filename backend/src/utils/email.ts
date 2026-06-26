@@ -2,7 +2,8 @@ import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 const FROM = process.env.EMAIL_FROM || 'DTMMax <noreply@dtmmax.uz>'
-const BASE_URL = process.env.FRONTEND_URL || 'https://dtmmax.uz'
+// Fallback jonli www xost (apex dtmmax.uz hali sozlanmagan). FRONTEND_URL Railway'da o'rnatilsin.
+const BASE_URL = process.env.FRONTEND_URL || 'https://www.dtmmax.uz'
 
 export async function sendVerificationEmail(to: string, name: string, token: string) {
     const link = `${BASE_URL}/email-tasdiqlash/${token}`

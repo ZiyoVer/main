@@ -26,11 +26,13 @@ router.get('/me', async (req: any, res) => {
             update: {}
         })
 
-        // Zaif mavzular
+        // Zaif mavzular — KENG oламиз (take:50), aks holda eng zaif (past accuracy, kam
+        // yechilgan) mavzu top-10 total'ga tushmay tushib qoladi. Accuracy bo'yicha saralash
+        // quyida JS'da (computed correct/total) qilinadi.
         const weakTopics = await prisma.topicStat.findMany({
             where: { userId },
             orderBy: [{ total: 'desc' }],
-            take: 10,
+            take: 50,
         })
 
         // So'nggi 10 test natijasi

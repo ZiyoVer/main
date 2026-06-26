@@ -23,6 +23,13 @@ function looksLikeStandaloneMathExpression(text: string): boolean {
     // ulaydi (qo'shimcha), bu MINUS emas. Bunday matnni formula deb hisoblamaymiz.
     if (/\d\s*[-–—]\s*[a-zA-ZЀ-ӿ]/.test(trimmed)) return false
 
+    // Sonli ORALIQ/sana: "1865-1917", "10-15", "3-4 ta", "15-20 ball" — diapazon, formula EMAS.
+    // (Aks holda defis matematik minus bo'lib render bo'lib ketadi: "1865 − 1917".)
+    if (/^\d+\s*[-–—]\s*\d+(\s+[a-zA-ZЀ-ӿ.]+)?$/.test(trimmed)) return false
+
+    // Variant yorlig'i bilan boshlanadi: "A) ...", "B. ..." — MCQ javob matni, formula emas.
+    if (/^[A-DА-Г]\s*[).]/.test(trimmed)) return false
+
     // Tabiiy so'z bo'lsa (3+ harfli ketma-ketlik, LaTeX buyrug'idan tashqari) —
     // bu matn, formula emas. Haqiqiy formulalar $...$ yoki \buyruq bilan yoziladi.
     const withoutCommands = trimmed.replace(/\\[a-zA-Z]+/g, '')
@@ -33,7 +40,7 @@ function looksLikeStandaloneMathExpression(text: string): boolean {
     const hasStrongMath =
         LATEX_COMMAND_RE.test(trimmed) ||
         /[=<>^_]/.test(trimmed) ||
-        /[0-9a-zA-Z)]\s*[+\-*/]\s*[0-9a-zA-Z(]/.test(trimmed)
+        /[0-9a-zA-Z)]\s*[+*/]\s*[0-9a-zA-Z(]/.test(trimmed) // '-' YO'Q: sana oralig'i minus bo'lib qolmasin
     if (!hasStrongMath) return false
 
     const residue = trimmed
