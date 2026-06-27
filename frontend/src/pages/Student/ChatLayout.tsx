@@ -935,40 +935,11 @@ export default function ChatLayout() {
     useEffect(() => {
         if (chatId || !chatsLoaded || !profileLoaded || showOnboarding || autoLandingChatRef.current) return
         autoLandingChatRef.current = true
-
-        const openInitialChat = async () => {
-            if (chats.length > 0) {
-                nav(`/suhbat/${chats[0].id}`, { replace: true })
-                return
-            }
-
-            setCreating(true)
-            try {
-                const data = await fetchApi('/chat/new', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        title: 'Yangi suhbat',
-                        subject: normalizeSubjectValue(profileRef.current?.subject || profile?.subject) || undefined,
-                        subject2: normalizeSubjectValue(profileRef.current?.subject2 || profile?.subject2) || undefined,
-                        forceNew: true
-                    })
-                })
-                await loadChats()
-                setMessages([])
-                setCurrentChat(data)
-                // Auto-greet'ni o'tkazib yuboramiz — yangi user welcome kartalarini (Darajamni
-                // aniqlash ...) ko'rsin, AI salomi ularni almashtirib yubormasin (aktivatsiya).
-                pendingHydrationChatIdRef.current = data.id
-                nav(`/suhbat/${data.id}`, { replace: true })
-            } catch (err) {
-                console.error('openInitialChat:', err)
-                autoLandingChatRef.current = false
-            } finally {
-                setCreating(false)
-            }
-        }
-
-        openInitialChat()
+        // Kirishда auto-navigatsiya/auto-yaratish YO'Q — /suhbat (chatId'siz) welcome
+        // kartalarini (Darajamni aniqlash, Mavzu tushuntirish, Bugungi reja, Kartochkalar)
+        // ko'rsatadi va ular TURADI. Chat faqat user karta bosgan/yozganда (handleSend) lazily
+        // yaratiladi — bo'sh chat to'planmaydi. Eski suhbatlar sidebar'da qoladi.
+        // (Avval eski chatga qaytarib + auto-greet bilan salom yozardi — aktivatsiyani buzardi.)
     }, [chatId, chatsLoaded, profileLoaded, showOnboarding, chats, profile, nav])
 
     // Guest test natijasini AI bilan tahlil qilish — login yoki ro'yxatdan o'tgandan keyin
@@ -1475,15 +1446,10 @@ Iltimos, har bir savolni tahlil qilib ber:
         try {
             const data = await fetchApi(`/chat/${id}/messages`, { signal: controller.signal })
             if (controller.signal.aborted) return
-            let nextMessages = ensureArray<Msg>(data?.messages)
+            const nextMessages = ensureArray<Msg>(data?.messages)
             const nextChat = data?.chat && typeof data.chat === 'object' && !Array.isArray(data.chat) ? data.chat as Chat : null
-            if (nextMessages.length === 0) {
-                const autoGreeting = await requestAutoGreeting(id)
-                if (controller.signal.aborted) return
-                if (autoGreeting) {
-                    nextMessages = [autoGreeting]
-                }
-            }
+            // Auto-greet O'CHIRILDI — bo'sh chatда AI salomi yozmaydi, o'rniga welcome
+            // kartalari (Darajamni aniqlash, Mavzu tushuntirish ...) ko'rinadi va turadi.
             setMessages(nextMessages)
             setCurrentChat(nextChat)
             // Yangi chatga kirganda pastga scroll qilish
