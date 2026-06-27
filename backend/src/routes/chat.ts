@@ -1958,15 +1958,24 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
             try {
                 stream = await chatClient.chat.completions.create(streamOptions) as any
             } catch (rlErr: any) {
-                // 429 (vaqtinchalik rate-limit) — 1.2s kutib BIR marta qayta urinamiz.
-                // Tez-tez bosishда yuzaga keladigan o'tib ketadigan spike'ni o'zi tuzatadi.
-                const st = rlErr?.status ?? 0
-                if (st === 429 || (rlErr?.message || '').toLowerCase().includes('rate limit')) {
-                    await new Promise(r => setTimeout(r, 1200))
-                    stream = await chatClient.chat.completions.create(streamOptions) as any
-                } else {
-                    throw rlErr
+                // 429 (rate-limit) — o'sib boruvchi kutish bilan bir necha marta qayta urinamiz.
+                // GPT fallback yo'q paytida bu yagona resilience (DeepSeek spike'larini yengadi).
+                const isRL = (e: any) => (e?.status ?? 0) === 429 || (e?.message || '').toLowerCase().includes('rate limit')
+                if (!isRL(rlErr)) throw rlErr
+                let lastErr = rlErr
+                let recovered = false
+                for (const delay of [800, 2000, 3500]) {
+                    await new Promise(r => setTimeout(r, delay))
+                    try {
+                        stream = await chatClient.chat.completions.create(streamOptions) as any
+                        recovered = true
+                        break
+                    } catch (e: any) {
+                        lastErr = e
+                        if (!isRL(e)) throw e // boshqa xato — fallback/error blokiga o'tsin
+                    }
                 }
+                if (!recovered) throw lastErr
             }
         } catch (firstErr: any) {
             const status = firstErr?.status ?? 0
