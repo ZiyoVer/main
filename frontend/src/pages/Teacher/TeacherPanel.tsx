@@ -293,6 +293,11 @@ export default function TeacherPanel() {
     const [timeLimit, setTimeLimit] = useState<number>(0)
     const [timeLimitTouched, setTimeLimitTouched] = useState(false)
     const [questions, setQuestions] = useState<Question[]>([createEmptyQuestion()])
+    // Ko'p savolли formada (DTM 90) savollar yopiq ko'rinadi — ochilgan indekslar to'plami.
+    // 6 tadan kam bo'lsa hammasi ochiq (oddiy test). Ko'p bo'lsa — bossangiz ochiladi.
+    const [expandedQ, setExpandedQ] = useState<Set<number>>(new Set())
+    const isQExpanded = (qi: number) => questions.length <= 6 || expandedQ.has(qi)
+    const toggleQ = (qi: number) => setExpandedQ(prev => { const n = new Set(prev); if (n.has(qi)) n.delete(qi); else n.add(qi); return n })
     const [loading, setLoading] = useState(false)
     const [msg, setMsg] = useState('')
     const [copied, setCopied] = useState<string | null>(null)
@@ -1377,7 +1382,11 @@ export default function TeacherPanel() {
                                     {/* Savol header */}
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[12px] font-semibold" style={secondaryText}>Savol {qi + 1}</span>
+                                            <button type="button" onClick={() => toggleQ(qi)} className="flex items-center gap-1 text-[12px] font-semibold" style={secondaryText}>
+                                                {questions.length > 6 && <span style={{ fontSize: 9 }}>{isQExpanded(qi) ? '▾' : '▸'}</span>}
+                                                Savol {qi + 1}
+                                            </button>
+                                            {!isQExpanded(qi) && q.text.trim() && <span className="text-[11px] truncate max-w-[150px]" style={{ color: 'var(--text-muted)' }}>{q.text.trim().slice(0, 38)}</span>}
                                             {/* MCQ / Yozma / Moslashtirish toggle */}
                                             <div className="flex flex-wrap rounded-md overflow-hidden border text-[11px] font-medium" style={{ borderColor: 'var(--border)' }}>
                                                 <button type="button" onClick={() => updateQ(qi, 'questionType', 'mcq')}
@@ -1419,6 +1428,7 @@ export default function TeacherPanel() {
                                             </button>
                                         )}
                                     </div>
+                                    {isQExpanded(qi) && (<>
                                     <div className="relative">
                                         <textarea placeholder="Savol matni ($formula$ yoki \\frac{a}{b} yozsa preview chiqadi)" required={!q.imageUrl} value={q.text} onChange={e => updateQ(qi, 'text', e.target.value)} rows={2}
                                             className="input resize-none w-full pr-12" style={{ height: 'auto', padding: '0.5rem 0.75rem', fontSize: '13px' }} />
@@ -1638,6 +1648,7 @@ export default function TeacherPanel() {
                                         </p>
                                     )}
                                     {q.questionType === 'matching' && <p className="text-[10px]" style={{ color: 'color-mix(in srgb, var(--info) 38%, transparent)' }}>Ko'k = to'g'ri javob · Savol matni = umumiy kontekst (ixtiyoriy)</p>}
+                                    </>)}
                                 </div>
                             ))}
 
