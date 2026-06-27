@@ -2848,7 +2848,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                     {/* Messages */}
                     <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
                         {(!chatId || (messages.length === 0 && !loading && !streaming)) ? (
-                            <div className="h-full flex items-center justify-center relative overflow-hidden p-5" style={{ background: 'var(--bg-page)' }}>
+                            <div className="min-h-full flex flex-col items-center justify-center relative p-5 py-8" style={{ background: 'var(--bg-page)' }}>
                                 <div className="k-tex-dots absolute inset-0" style={{ zIndex: 0 }} />
                                 {(loading || streaming) ? (
                                     <div className="text-center px-4 anim-up relative" style={{ zIndex: 1 }}>
