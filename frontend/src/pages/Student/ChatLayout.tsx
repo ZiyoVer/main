@@ -956,6 +956,9 @@ export default function ChatLayout() {
                 await loadChats()
                 setMessages([])
                 setCurrentChat(data)
+                // Auto-greet'ni o'tkazib yuboramiz — yangi user welcome kartalarini (Darajamni
+                // aniqlash ...) ko'rsin, AI salomi ularni almashtirib yubormasin (aktivatsiya).
+                pendingHydrationChatIdRef.current = data.id
                 nav(`/suhbat/${data.id}`, { replace: true })
             } catch (err) {
                 console.error('openInitialChat:', err)
