@@ -1955,7 +1955,19 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
         let activeModel = model
         let stream: any
         try {
-            stream = await chatClient.chat.completions.create(streamOptions) as any
+            try {
+                stream = await chatClient.chat.completions.create(streamOptions) as any
+            } catch (rlErr: any) {
+                // 429 (vaqtinchalik rate-limit) — 1.2s kutib BIR marta qayta urinamiz.
+                // Tez-tez bosishда yuzaga keladigan o'tib ketadigan spike'ni o'zi tuzatadi.
+                const st = rlErr?.status ?? 0
+                if (st === 429 || (rlErr?.message || '').toLowerCase().includes('rate limit')) {
+                    await new Promise(r => setTimeout(r, 1200))
+                    stream = await chatClient.chat.completions.create(streamOptions) as any
+                } else {
+                    throw rlErr
+                }
+            }
         } catch (firstErr: any) {
             const status = firstErr?.status ?? 0
             const msg = (firstErr?.message || '').toLowerCase()
