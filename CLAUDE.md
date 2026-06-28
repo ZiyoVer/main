@@ -55,7 +55,7 @@ mcp-server/src/index.ts                       ← MCP server
 - **Frontend:** React 19 + Vite 7 + TypeScript + Tailwind v4 + Zustand + KaTeX
 - **Backend:** Express 5 + Prisma 5 + JWT + Resend + DeepSeek/OpenAI SDK
 - **Database:** PostgreSQL — 16 Prisma model
-- **AI:** deepseek-chat (matn), deepseek-reasoner (murakkab), gpt-4o-mini (OCR)
+- **AI:** deepseek-chat (matn), deepseek-reasoner (murakkab), gemini-2.5-flash (vision/OCR + DeepSeek-429 fallback)
 - **Auth:** JWT 7 kun | Rollar: STUDENT, TEACHER, ADMIN
 
 ---
@@ -97,7 +97,7 @@ dtmmax_pub_ans_<id>      ← Public test foydalanuvchi javoblari
 ## Environment (Railway da keraklilar)
 
 ```
-DATABASE_URL, JWT_SECRET, DEEPSEEK_API_KEY, OPENAI_API_KEY,
+DATABASE_URL, JWT_SECRET, DEEPSEEK_API_KEY, GEMINI_API_KEY,
 RESEND_API_KEY, EMAIL_FROM, FRONTEND_URL, ALLOWED_ORIGINS,
-PORT, ADMIN_EMAIL, ADMIN_PASSWORD
+PORT, ADMIN_EMAIL, ADMIN_PASSWORD, GOOGLE_CLIENT_ID
 ```

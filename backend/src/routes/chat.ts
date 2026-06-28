@@ -39,11 +39,15 @@ const chatClient = new OpenAI({
     baseURL: hasDeepseek ? 'https://api.deepseek.com' : undefined,
     apiKey: process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY || ''
 })
-const chatModel = hasDeepseek ? 'deepseek-chat' : 'gpt-4.1-mini'
+const chatModel = hasDeepseek ? 'deepseek-chat' : 'gemini-2.5-flash'
 
-// OpenAI client — rasm tahlili uchun (GPT-4o Vision)
+// Vision (rasm/OCR) + DeepSeek-429 fallback uchun — GEMINI (OpenAI-mos endpoint).
+// gptClient nomi saqlandi (kam o'zgarish), lekin endi Gemini'ga ulanadi.
+const hasGemini = !!process.env.GEMINI_API_KEY
+const VISION_MODEL = 'gemini-2.5-flash'
 const gptClient = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY || ''
+    apiKey: process.env.GEMINI_API_KEY || '',
+    baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/'
 })
 
 // AI Settings — umumiy cache modulidan foydalanamiz (aiSettings.ts bilan shared)
@@ -1077,10 +1081,10 @@ async function createAssistantOnlyGreeting(chat: { id: string; subject: string |
         const status = firstErr?.status ?? 0
         const msg = String(firstErr?.message || '').toLowerCase()
         const isAuthErr = status === 401 || msg.includes('auth') || msg.includes('invalid api key')
-        if (!isAuthErr && hasDeepseek && process.env.OPENAI_API_KEY) {
+        if (!isAuthErr && hasDeepseek && hasGemini) {
             try {
                 const completion = await gptClient.chat.completions.create({
-                    model: 'gpt-4.1-mini',
+                    model: VISION_MODEL,
                     messages: completionMessages,
                     max_tokens: 140,
                     temperature: 0.6
@@ -1786,7 +1790,7 @@ router.post('/:chatId/upload-file', authenticate, requireVerified, uploadSingle,
                 // GPT-4o Vision orqali rasmni to'liq tahlil qilish
                 const base64Image = buffer.toString('base64')
                 const visionResponse = await gptClient.chat.completions.create({
-                    model: 'gpt-4.1',
+                    model: VISION_MODEL,
                     messages: [{
                         role: 'user',
                         content: [
@@ -1936,7 +1940,7 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
         ]
 
         // Model tanlash: thinking=true -> deepseek-reasoner (R1), aks holda deepseek-chat (V3)
-        // Agar umuman DeepSeek ulangan bo'lmasa, gpt-4.1-mini ga fallback qilamiz
+        // Agar umuman DeepSeek ulangan bo'lmasa, Gemini'ga fallback qilamiz
         const model = hasDeepseek ? (thinking ? 'deepseek-reasoner' : 'deepseek-chat') : chatModel
 
         // SSE headers
@@ -2008,13 +2012,13 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
             const msg = (firstErr?.message || '').toLowerCase()
             // Auth xatosi bo'lsa fallback qilmaymiz
             const isAuthErr = status === 401 || msg.includes('auth') || msg.includes('invalid api key')
-            if (!isAuthErr && hasDeepseek && process.env.OPENAI_API_KEY) {
-                // DeepSeek ishlamadi → GPT-4o-mini ga fallback
-                console.warn('DeepSeek xatosi, GPT-4o-mini ga fallback:', firstErr.message)
+            if (!isAuthErr && hasDeepseek && hasGemini) {
+                // DeepSeek ishlamadi → Gemini'ga fallback
+                console.warn('DeepSeek xatosi, Gemini ga fallback:', firstErr.message)
                 activeClient = gptClient
-                activeModel = 'gpt-4.1-mini'
+                activeModel = VISION_MODEL
                 const fallbackOpts = { ...streamOptions, model: activeModel }
-                delete fallbackOpts.temperature // OpenAI uchun ham qo'llaymiz
+                delete fallbackOpts.temperature // Gemini uchun ham qo'llaymiz
                 fallbackOpts.temperature = 0.7
                 stream = await gptClient.chat.completions.create(fallbackOpts) as any
             } else {

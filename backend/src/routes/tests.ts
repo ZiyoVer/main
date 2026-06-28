@@ -265,12 +265,16 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 
 const hasDeepseek = !!process.env.DEEPSEEK_API_KEY
 const aiClient = new OpenAI({
     baseURL: hasDeepseek ? 'https://api.deepseek.com' : undefined,
-    apiKey: process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY || ''
+    apiKey: process.env.DEEPSEEK_API_KEY || process.env.GEMINI_API_KEY || ''
 })
-const aiModel = hasDeepseek ? 'deepseek-chat' : 'gpt-4.1-mini'
+const aiModel = hasDeepseek ? 'deepseek-chat' : 'gemini-2.5-flash'
 
+// Vision (rasm/OCR) uchun — GEMINI (OpenAI-mos endpoint). gptClient nomi saqlandi.
+const hasGemini = !!process.env.GEMINI_API_KEY
+const VISION_MODEL = 'gemini-2.5-flash'
 const gptClient = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY || ''
+    apiKey: process.env.GEMINI_API_KEY || '',
+    baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/'
 })
 
 const QUESTION_GENERATION_MAX_OUTPUT_TOKENS = 8000
@@ -570,7 +574,7 @@ ${jsonFormat}`
 
 async function generateQuestionJson(messages: any[], isVision = false): Promise<string> {
     const client = isVision ? gptClient : aiClient
-    const model = isVision ? 'gpt-4.1' : aiModel
+    const model = isVision ? VISION_MODEL : aiModel
 
     const completion = await client.chat.completions.create({
         model,
@@ -985,7 +989,7 @@ router.post('/generate-from-file', authenticate, requireRole('TEACHER', 'ADMIN')
             const needsVisionPdf = !fullText || fullText.length < 50
 
             if (needsVisionPdf) {
-                if (!process.env.OPENAI_API_KEY) {
+                if (!process.env.GEMINI_API_KEY) {
                     return res.status(400).json({ error: 'Skanerlangan PDF tahlili uchun OpenAI API kalit kerak. Iltimos, OCR qilingan PDF yoki Word fayl yuklang.' })
                 }
 
@@ -1089,7 +1093,7 @@ ${jsonFormat}`
 
         // Rasm tahlili: DeepSeek vision qabul qilmaydi, OpenAI kerak
         const isVision = messages.some(m => Array.isArray(m.content));
-        if (isVision && !process.env.OPENAI_API_KEY) {
+        if (isVision && !process.env.GEMINI_API_KEY) {
             return res.status(400).json({ error: 'Rasm/screenshot tahlili uchun OpenAI API kalit kerak. Iltimos, matnli PDF yoki Word fayl yuklang.' })
         }
         if (messages.length > 0) {
@@ -1612,7 +1616,7 @@ router.post('/analyze-vision', authenticate, async (req: AuthRequest, res) => {
         const imageQs = questions.filter((q: any) => q.imageUrl)
         if (imageQs.length === 0) return res.json({ analysis: null })
 
-        if (!process.env.OPENAI_API_KEY) {
+        if (!process.env.GEMINI_API_KEY) {
             return res.json({ analysis: null })
         }
 
@@ -1643,7 +1647,7 @@ Matematik belgilar va formulalarni LaTeX formatida yoz ($\\frac{a}{b}$, $x^2$, $
         }
 
         const extractResult = await gptClient.chat.completions.create({
-            model: 'gpt-4o',
+            model: VISION_MODEL,
             messages: [{ role: 'user', content: extractContent }],
             max_tokens: 2000,
             temperature: 0.1
@@ -1696,7 +1700,7 @@ router.post('/analyze-result', authenticate, async (req: AuthRequest, res) => {
         const hasImages = questions.some((q: any) => q.imageUrl)
 
         // Rasmli savollar bo'lsa vision AI (GPT-4o — rasmni aniq o'qiydi va matematikani to'g'ri yechadi)
-        if (hasImages && process.env.OPENAI_API_KEY) {
+        if (hasImages && process.env.GEMINI_API_KEY) {
             const imgQs = questions.filter((q: any) => q.imageUrl).slice(0, 10)
             const systemMsg = `Sen tajribali matematika o'qituvchisisiz. O'quvchi test yechdi va natijasini tahlil qilishingiz kerak.
 
@@ -1730,7 +1734,7 @@ QOIDALAR:
             content.push({ type: 'text', text: `\n\nOxirida umumiy xulosa yoz: qaysi mavzularda kuchli, qayerda zaif, nima o'rganish kerak.` })
 
             const completion = await gptClient.chat.completions.create({
-                model: 'gpt-4.1',
+                model: VISION_MODEL,
                 messages: [
                     { role: 'system', content: systemMsg },
                     { role: 'user', content }

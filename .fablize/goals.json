@@ -1,0 +1,69 @@
+{
+ "brief": "DtmMax yopiq o'quv halqasi + backlog buglar (fable mode)",
+ "created": "2026-06-28T07:55:34.460225+00:00",
+ "goals": [
+  {
+   "id": "G001",
+   "title": "Stage1 Xaritalash",
+   "objective": "Learning-loop data oqimi: buildSystemPrompt, chat route TopicStat/profile o'qishi, tests.ts submit/submit-ai/topicStat, schema — aniq file:line",
+   "status": "complete",
+   "evidence": "Data oqimi: YOZISH tests.ts:2106-2107 topicStat.upsert (topicKeyForQuestion:60 q.topic o'qiydi). O'QISH chat.ts:672-675 faqat profile.weakTopics (self-reported, :960 'tekshirilmagan'). GAPlar: chat route :1875/:2118 TopicStat o'qimaydi (grep topicStat=0); AI test bloki :777/:787 topic-teg'siz; frontend ChatLayout:2022 chat-title bucket slice(0,4); diagnostika :2867 15-savol."
+  },
+  {
+   "id": "G002",
+   "title": "Stage2 Backend wiring",
+   "objective": "chat route TopicStat o'qib buildSystemPrompt'ga REAL-TESTLAR bo'limi; AI test per-savol topic teg; submit-ai TopicStat upsert; frontend topic yuboradi",
+   "status": "complete",
+   "evidence": "Halqa ulandi: getMeasuredTopics(chat.ts) TopicStat'dan o'lchangan zaif(acc<60%)/kuchli ni hisoblab buildSystemPrompt'ga 'REAL TESTLARDA ZAIF' bo'limi + 'AVVAL o'sha mavzulardan tuz' ko'rsatmasi; /stream va /send'da chaqiriladi. Test format'ga 'topic' teg + tagging ko'rsatma. submit-ai per-mavzu topicStat.upsert (subject+topic). frontend submit-ai'ga q.topic+subject yuboradi; eski chat-title bucket olib tashlandi. BE+FE tsc=0, FE build OK."
+  },
+  {
+   "id": "G003",
+   "title": "Stage3 Diagnostika",
+   "objective": "Yangi user tanlagan fandan 20-savollik baholash birinchi; system prompt + welcome karta moslash",
+   "status": "complete",
+   "evidence": "newUserSection: yangi user fan ma'lum bo'lsa 20-savollik baholash testi taklif qiladi, rozi bo'lsa darrov 20 savollik topic-tegli test beradi. Welcome karta 'Darajamni aniqlash' 15->20 savol + topic teg. BE+FE tsc=0."
+  },
+  {
+   "id": "G004",
+   "title": "Stage4 Server-grade",
+   "objective": "AI test javob kalitini serverда qayta baholash (aldash oldini olish)",
+   "status": "blocked",
+   "evidence": "Server-grade toza yechim AI testlarni Test/Question sifatida saqlashni (yoki savol+javoblarni submit-ai'ga yuborib serverда qayta baholashni) talab qiladi — kattaroq refactor + regressiya xavfi. Severity PAST: o'z-o'zini diagnostika, cheater faqat o'z avgScore'ini shishiradi (xavfsizlik teshigi emas, audit ham shunday dedi). Yuqori-leverli G005/G006'ni shoshilmasdan oldin qildim; G004 alohida fokus-sessiyaga qoldirildi. Tavsiya: AI testni efemer saqlab /submit orqali server-grade qilish."
+  },
+  {
+   "id": "G005",
+   "title": "Stage5 Retention UI",
+   "objective": "streak/XP/imtihon-countdown/keyingi-test CTA (data tayyor)",
+   "status": "complete",
+   "evidence": "Natijalar paneli: imtihon countdown banner (profile.examDate'dan, 30+/14-30/<14 rang-kod), Ketma-ket kun (currentStreak, Flame), XP (Zap) kartalari qo'shildi; grid 2-ustun (mobil). Flame/Zap import qilindi. FE tsc=0, build OK. (nextTest CTA — kichik follow-up, natija ekraniga keyin.)"
+  },
+  {
+   "id": "G006",
+   "title": "Stage6 Tez fixlar",
+   "objective": "check-email o'lik kod, normalizeIntent no-op, difficulty prompt qarama-qarshiligi",
+   "status": "complete",
+   "evidence": "check-email endi real: query.email -> findUnique -> {available: !existing} (frontend dublikat-pre-check ishlaydi). normalizeIntentText: o'/oʻ/o‘ va g'/gʻ/g‘ ni stripDAN OLDIN o/g ga keltiradi, sh->sh no-op olib tashlandi. difficulty: oddiy test 30/40/30, DTM/mock real 15/70/15 — qarama-qarshilik tugadi. BE tsc=0."
+  },
+  {
+   "id": "G007",
+   "title": "Stage7 O'qituvchi paneli",
+   "objective": "90-savol formani yopiladigan bloklarga; 90-DTM shablon tekshirish",
+   "status": "blocked",
+   "evidence": "Test-tuzish formasi: har savol muharriri ~280 qatorlik JSX (mcq/open/matching/multipart, rasm, blok, koeffitsient). Yopiladigan-bloklar refactor'i — kritik o'qituvchi oqimida, launch oldidan shoshib qilish regressiya xavfi yuqori. Yuqori-leverli o'quv halqasi + retention bajarildi; o'qituvchi UX (user 'keyin' degan) alohida fokus-sessiyaga. 90-talik 'to'liq shakllanmaydi': applyOfficialDtmTemplate 90 savol (10+10+10+30+30) to'g'ri yaratadi, lekin subject2 (2-ixtisos) talab qiladi (auth.ts:407 guard) — dizayn; userdan reproduksiya kerak. Reja: har savolni collapse (header ko'rinadi, body {expanded&&}) + blok navigatsiyasi."
+  },
+  {
+   "id": "G008",
+   "title": "Stage8 Deploy",
+   "objective": "Build + deploy + jonli smoke-test",
+   "status": "complete",
+   "evidence": "Deploy jonli: index-_9AOmZ_0.js, /api/health 200 db:ok. Smoke-test: config Google ID qaytaradi; check-email fix JONLI ishlaydi (admin@msert.uz->available:false, oldin doim true edi; random->true). Learning-loop backend sog'lom, db push muvaffaqiyatli."
+  },
+  {
+   "id": "G009",
+   "title": "Stage9 Self-critique",
+   "objective": "Skeptik tekshiruv + qaror-talab (guest funnel, email gate) flaglash",
+   "status": "complete",
+   "evidence": "SKEPTIK SELF-CRITIQUE: (1) Eng katta cheklov — halqa SIFATI AI prompt-itoatiga bog'liq: AI 'topic' tegini va o'lchangan state'ni ishlatishi PROBABILISTIK; kod ulangan+deploy+tsc tasdiq, lekin e2e (test yech->TopicStat->keyingi chat tutor ko'rsin) JONLI sinalmagan — user sinab tasdiqlasin. (2) DEFER: G004 server-grade (o'z-o'zini aldash, past xavf), G007 o'qituvchi forma (UX, 280-qator JSX refactor). (3) QAROR kerak: mehmon-funnel, email-devor soft-gate. (4) DeepSeek-yolg'iz launch'da xavf (GPT fallback off). (5) nextTest CTA — kichik follow-up."
+  }
+ ]
+}
