@@ -13,6 +13,7 @@ import { renderMathHtml } from '@/lib/mathRender'
 import toast from 'react-hot-toast'
 import { fetchApi } from '@/lib/api'
 import { parseStructuredJson } from '@/lib/structuredJson'
+import GeometryFigure from '@/components/GeometryFigure'
 import { SUBJECTS, normalizeSubjectValue } from '@/constants'
 import { DTM_DIRECTIONS, SCORE_BOUNDS, dtmDirectionByCode, dtmDirectionBySubjects } from '@/constants/dtmDirections'
 import { useAuthStore } from '@/store/authStore'
@@ -58,7 +59,7 @@ interface ProgressData {
     recentTests?: RecentTestItem[]
 }
 
-type StructuredBlockType = 'test' | 'essay' | 'profile-update' | 'flashcard' | 'vocab' | 'formula' | 'todo-done' | 'todo' | null
+type StructuredBlockType = 'test' | 'essay' | 'profile-update' | 'flashcard' | 'vocab' | 'formula' | 'geometry' | 'todo-done' | 'todo' | null
 
 function ensureArray<T>(value: unknown): T[] {
     return Array.isArray(value) ? value as T[] : []
@@ -123,6 +124,7 @@ function detectStructuredBlockType(raw: string, className?: string): StructuredB
     if (lowerClass.includes('language-flashcard')) return 'flashcard'
     if (lowerClass.includes('language-vocab')) return 'vocab'
     if (lowerClass.includes('language-formula')) return 'formula'
+    if (lowerClass.includes('language-geometry')) return 'geometry'
     if (lowerClass.includes('language-todo-done')) return 'todo-done'
     if (lowerClass.includes('language-todo')) return 'todo'
 
@@ -139,6 +141,8 @@ function detectStructuredBlockType(raw: string, className?: string): StructuredB
     }
 
     if (parsed && typeof parsed === 'object') {
+        const obj = parsed as Record<string, unknown>
+        if (obj.type === 'geometry' || 'segments' in obj || 'polygons' in obj || ('points' in obj && ('circles' in obj || 'angles' in obj))) return 'geometry'
         if ('prompt' in parsed) return 'essay'
         if ('weakTopics' in parsed || 'strongTopics' in parsed) return 'profile-update'
         if ('task' in parsed) return 'todo-done'
@@ -434,6 +438,9 @@ const MdMessage = memo(({ content, isStreaming }: {
                             </div>
                         </div>
                     )
+                }
+                if (structuredType === 'geometry') {
+                    return <GeometryFigure raw={jsonStr} />
                 }
                 // IMPORTANT: check todo-done BEFORE todo (language-todo includes language-todo-done)
                 if (structuredType === 'todo-done') {

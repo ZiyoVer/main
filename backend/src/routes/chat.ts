@@ -817,7 +817,7 @@ DTM testida:
 
 ## Structured block tanlash qoidasi
 
-- Bir javobda ko'pi bilan BITTA structured block ishlat: \`\`\`test, \`\`\`todo, \`\`\`flashcard, \`\`\`formula, \`\`\`essay, \`\`\`vocab yoki \`\`\`todo-done
+- Bir javobda ko'pi bilan BITTA structured block ishlat: \`\`\`test, \`\`\`todo, \`\`\`flashcard, \`\`\`formula, \`\`\`geometry, \`\`\`essay, \`\`\`vocab yoki \`\`\`todo-done
 - Oddiy tushuntirish, izoh, farq, misol, yechim so'rovlarida structured block qo'shma
 - Agar structured block ishlatsang, boshqa structured block bilan aralashtirma
 - Structured block user maqsadiga aniq yordam bersagina ishlat; shunchaki imkoniyat bor deb qo'shma
@@ -863,6 +863,22 @@ O'quvchi **formulalar ro'yxatini** so'raganda (masalan: "integral formulalari", 
 - MUHIM: formula ichida backslash \\\\ ikkita yoziladi (JSON escape)
 - Bu formatni FAQAT formulalar ro'yxati berayotganda ishlat
 - Oddiy tushuntirishda formulalarni $...$ inline yoki $$...$$ display formatida yoz
+
+## Geometriya chizmasi formati (MUHIM)
+
+Geometriya masalasini (uchburchak, to'rtburchak, aylana, burchak, trapetsiya h.k.) tushuntirayotganda YOKI o'quvchi "chizib ber", "rasmini ko'rsat", "diagramma" so'raganda — \`\`\`geometry JSON bloki bilan ANIQ chizma ber. Bu blok toza SVG'ga aylanadi va chatda ko'rinadi:
+\`\`\`geometry
+{"title":"To'g'ri burchakli uchburchak","points":{"A":[0,0],"B":[4,0],"C":[0,3]},"polygons":[{"vertices":["A","B","C"]}],"segments":[{"from":"A","to":"B","label":"4"},{"from":"A","to":"C","label":"3"},{"from":"B","to":"C","label":"5"}],"angles":[{"at":"A","type":"right"}]}
+\`\`\`
+Maydonlar:
+- **points**: nuqtalar — nom va [x, y] matematik koordinatasi (y yuqoriga). Masalan {"A":[0,0],"B":[4,0]}. Koordinatalarni masala shartiga mos, mantiqiy tanlab QO'Y (to'g'ri burchak uchun katetlar o'qlar bo'ylab).
+- **segments**: kesmalar — {"from":"A","to":"B","label":"5"}. label ixtiyoriy (tomon uzunligi/nomi).
+- **polygons**: ko'pburchaklar — {"vertices":["A","B","C"]}. Ichi yengil rangda bo'yaladi.
+- **circles**: aylanalar — {"center":"O","r":2} yoki {"cx":0,"cy":0,"r":2}.
+- **angles**: burchaklar — to'g'ri burchak uchun {"at":"A","type":"right"} (kichik kvadrat chiziladi); boshqa burchak uchun {"at":"B","label":"30°"}.
+- **labels**: qo'shimcha yorliq — {"at":"O","text":"markaz"} (ixtiyoriy).
+- Koordinatani O'ZING hisobla — masalan teng tomonli uchburchak balandligi tomon×√3/2. Nuqtalar mantiqan to'g'ri joylashsin, aks holda chizma noto'g'ri ko'rinadi.
+- Chizmadan tashqari tushuntirish/yechimni odatdagidek matn bilan yoz. Bir javobda bitta \`\`\`geometry bloki yetarli.
 
 ## Jadval formati
 
@@ -1058,7 +1074,7 @@ async function createAssistantOnlyGreeting(chat: { id: string; subject: string |
 - Xabar psixologik trigger bo'lsin: o'quvchini qaysi fan/mavzu qiynayotganini yozishga unda.
 - "Bugun qaysi fan yoki mavzu sizni ko'proq qiynayapti?" mazmunidagi savol bilan tugat.
 - "Men siz bilan tushuntirish, mashq va test orqali ishlashga tayyorman" mazmunini tabiiy qo'sh.
-- Structured blocklar (\`\`\`test, \`\`\`todo, \`\`\`flashcard, \`\`\`formula, \`\`\`essay, \`\`\`vocab) chiqarmagin.
+- Structured blocklar (\`\`\`test, \`\`\`todo, \`\`\`flashcard, \`\`\`formula, \`\`\`geometry, \`\`\`essay, \`\`\`vocab) chiqarmagin.
 - "Men yordam bera olaman" kabi umumiy va uzun kirish yozma.
 - Tabiiy, sodda va chatga mos yoz.`
 
@@ -1207,7 +1223,7 @@ const STOP_WORDS = new Set([
     'bir', 'ikkita', 'uchta', 'men', 'sen', 'biz', 'siz', 'ular', 'u', 'o'
 ])
 
-type StructuredTool = 'todo' | 'test' | 'flashcard' | 'formula' | 'essay' | 'vocab'
+type StructuredTool = 'todo' | 'test' | 'flashcard' | 'formula' | 'geometry' | 'essay' | 'vocab'
 
 type ToolIntentAnalysis = {
     normalized: string
@@ -1291,6 +1307,18 @@ function analyzeToolIntent(content: string): ToolIntentAnalysis {
             { phrase: 'memorize', score: 7 },
             { phrase: 'qaytarish', score: 6 },
             { phrase: 'eslab qololmayapman', score: 7 },
+        ],
+        geometry: [
+            { phrase: 'chizib ber', score: 8 },
+            { phrase: 'chizib bering', score: 8 },
+            { phrase: 'rasmini chiz', score: 8 },
+            { phrase: 'rasm chiz', score: 7 },
+            { phrase: 'chizma ber', score: 8 },
+            { phrase: 'chizmasini', score: 7 },
+            { phrase: 'diagramma', score: 8 },
+            { phrase: 'uchburchakni chiz', score: 8 },
+            { phrase: 'geometriya chizma', score: 7 },
+            { phrase: 'figurani chiz', score: 7 },
         ],
         formula: [
             { phrase: 'formulalar', score: 8 },
@@ -1450,7 +1478,7 @@ function extractTodoKeywords(text: string): string[] {
 
 function findAutoDoneTodoTask(content: string, reply: string, todoContext: TodoContextItem[]): string | null {
     if (!Array.isArray(todoContext) || todoContext.length === 0) return null
-    if (/```(?:todo|test|flashcard|essay|formula|vocab)\b/i.test(reply)) return null
+    if (/```(?:todo|test|flashcard|essay|formula|vocab|geometry)\b/i.test(reply)) return null
     if (/```todo-done\b/i.test(reply)) return null
 
     const normalizedContent = normalizeTodoText(content)
