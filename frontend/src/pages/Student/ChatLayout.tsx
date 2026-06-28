@@ -601,9 +601,9 @@ const ChatInputArea = memo(function ChatInputArea({
     }
 
     const QUICK_ACTIONS = [
-        { Icon: ClipboardList, l: 'Test yech', p: "Shu mavzu bo'yicha qisqa test ber. Natijadan keyin zaif joylarimni ham ayting." },
-        { Icon: BookOpen, l: 'Tushuntir', p: 'Shu mavzuni oddiy va tushunarli usulda qayta tushuntiring.' },
-        { Icon: Layers, l: 'Kartochka', p: "Shu mavzuning eng muhim tushunchalari bo'yicha kartochkalar tayyorlang (```flashcard JSON format)." },
+        { Icon: ClipboardList, l: 'Test yech', p: "Qisqa test ber. Hozir mavzu noaniq bo'lsa — qaysi mavzudan test berishimni so'ra. Natijadan keyin zaif joylarimni ayt." },
+        { Icon: BookOpen, l: 'Tushuntir', p: "Mavzuni oddiy va tushunarli usulda tushuntir. Mavzu noaniq bo'lsa — qaysi mavzuni tushuntirishimni so'ra." },
+        { Icon: Layers, l: 'Kartochka', p: "Eng muhim tushunchalardan 10 ta flashcard tayyorla. Mavzu noaniq bo'lsa — qaysi mavzudan ekanini so'ra." },
     ]
 
     return (
