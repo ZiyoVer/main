@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, FileText, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, ArrowUp, BarChart2, User, Calendar, Shield, Sparkles, Clock } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, FileText, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, ArrowUp, BarChart2, User, Calendar, Shield, Sparkles, Clock, Flame, Zap } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import remarkGfm from 'remark-gfm'
@@ -2012,23 +2012,10 @@ Iltimos, har bir savolni tahlil qilib ber:
             ? backendSubmitResult.total
             : questions.length
 
-        // Mavzu statistikasini yangilash + XP qo'shish
-        if (backendSubmitHandled) {
-            // Saqlangan test: backend TopicStat'ni REAL per-mavzu yangiladi — qayta hisoblamaymiz (ikki marta sanash yo'q), faqat progress'ni yangilaymiz
-            loadProgress()
-        } else {
-            // Efemer AI test: backend per-mavzu bilmaydi — chat sarlavhasidan qo'pol yangilaymiz
-            const testSubject = currentChat?.subject || currentChat?.subject2 || profile?.subject || profile?.subject2 || 'Umumiy'
-            fetchApi('/progress/topic', {
-                method: 'POST',
-                body: JSON.stringify({
-                    subject: testSubject,
-                    topic: currentChat?.title?.split(' ').slice(0, 4).join(' ') || 'Umumiy',
-                    correct: score,
-                    total: totalQuestionsForScore
-                })
-            }).then(() => loadProgress()).catch(() => { })
-        }
+        // Mavzu statistikasini yangilash + XP. TopicStat endi per-MAVZU yoziladi:
+        // saqlangan test → backend /submit; efemer AI test → /submit-ai (pastda, q.topic bilan).
+        // Eski "chat sarlavha bucket" olib tashlandi (ma'nosiz + ikki marta sanardi).
+        loadProgress()
         logActivity(20) // Test uchun +20 XP
         const hasImages = questions.some((q: any) => q.imageUrl)
         // Yopiq o'quv halqasi: backend bergan REAL per-mavzu tahlilini AI promptiga qo'shamiz (taxmin emas)
@@ -2186,12 +2173,13 @@ Iltimos, har bir savolni tahlil qilib ber:
                         difficulty: typeof q.difficulty === 'number' && Number.isFinite(q.difficulty)
                             ? q.difficulty
                             : Math.round(fallbackDifficulty * 100) / 100,
-                        isCorrect: testAnswers[i] === q.correct
+                        isCorrect: testAnswers[i] === q.correct,
+                        topic: typeof q.topic === 'string' ? q.topic : '' // yopiq halqa: per-mavzu TopicStat
                     }
                 })
                 await fetchApi('/tests/submit-ai', {
                     method: 'POST',
-                    body: JSON.stringify({ score: scorePercent, totalQuestions: questions.length, results: raschResults })
+                    body: JSON.stringify({ score: scorePercent, totalQuestions: questions.length, results: raschResults, subject: currentChat?.subject || currentChat?.subject2 || profile?.subject || 'Umumiy' })
                 })
                 markAiTestCompleted(aiKey)
                 loadProfile()
@@ -2864,7 +2852,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         </div>
                                         <div className="grid grid-cols-1 gap-2.5">
                                             {[
-                                                { icon: <Target className="h-5 w-5" style={{ color: 'var(--brand)' }} />, title: 'Darajamni aniqlash', desc: 'Diagnostik test bilan baholaymiz', prompt: 'Darajamni aniqlash uchun 15 ta savoldan iborat diagnostik test ber — turli mavzu va qiyinlikda. Yakunida qaysi mavzular kuchli, qaysilari zaif ekanini ko\'rsat.' },
+                                                { icon: <Target className="h-5 w-5" style={{ color: 'var(--brand)' }} />, title: 'Darajamni aniqlash', desc: 'Diagnostik test bilan baholaymiz', prompt: 'Darajamni aniqlash uchun 20 ta savoldan iborat diagnostik baholash testi ber — turli mavzu va qiyinlikda, har savolga aniq mavzu (topic) teg bilan. Yakunida qaysi mavzular kuchli, qaysilari zaif ekanini ko\'rsat.' },
                                                 { icon: <BookOpen className="h-5 w-5" style={{ color: 'var(--brand)' }} />, title: 'Mavzu tushuntirish', desc: 'Qiyin mavzuni tushuntiraman', prompt: 'Qaysi mavzuni tushuntirib berishimni so\'ra.' },
                                                 { icon: <Calendar className="h-5 w-5" style={{ color: 'var(--brand)' }} />, title: 'Bugungi reja', desc: 'Bugun nimani o\'rganaman', prompt: 'Bugun nimadan boshlashim kerak? Qisqa reja tuz.' },
                                                 { icon: <Layers className="h-5 w-5" style={{ color: 'var(--brand)' }} />, title: 'Kartochkalar', desc: 'Eslab qolish uchun', prompt: 'Asosiy mavzudan 10 ta flashcard ber.' },
@@ -3647,9 +3635,27 @@ Iltimos, har bir savolni tahlil qilib ber:
 
                                 {overlayPanel === 'progress' && (
                                     <div className="space-y-4">
+                                        {/* Imtihon countdown — DTM yaqin uchun urgency (rang: 30+ ko'k, 14-30 sariq, <14 qizil) */}
+                                        {(() => {
+                                            if (!profile?.examDate) return null
+                                            const d = Math.ceil((new Date(profile.examDate).getTime() - Date.now()) / 86400000)
+                                            if (!Number.isFinite(d) || d < 0) return null
+                                            const c = d > 30 ? '#2563eb' : d > 14 ? '#ea580c' : '#dc2626'
+                                            return (
+                                                <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: `color-mix(in srgb, ${c} 10%, var(--bg-card))`, border: `1px solid color-mix(in srgb, ${c} 30%, transparent)` }}>
+                                                    <Calendar className="h-6 w-6 flex-shrink-0" style={{ color: c }} />
+                                                    <div>
+                                                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Imtihongacha</p>
+                                                        <p className="text-xl font-bold" style={{ color: c }}>{d} kun qoldi</p>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })()}
                                         {/* Stats grid */}
-                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                             {[
+                                                { label: 'Ketma-ket kun', value: progressData?.currentStreak ?? 0, icon: <Flame className="h-5 w-5" />, color: '#ea580c' },
+                                                { label: 'XP', value: progressData?.xp ?? 0, icon: <Zap className="h-5 w-5" />, color: '#f59e0b' },
                                                 { label: 'Yechilgan testlar', value: myResults.length, icon: <ClipboardList className="h-5 w-5" />, color: 'var(--brand)' },
                                                 { label: "O'rtacha ball", value: `${Math.round(progressData?.avgScore ?? 0)}%`, icon: <Trophy className="h-5 w-5" />, color: '#10b981' },
                                                 { label: 'Kartochkalar', value: `${reviewedFlashcards}/${totalFlashcards || 0}`, icon: <Brain className="h-5 w-5" />, color: 'var(--brand)' },

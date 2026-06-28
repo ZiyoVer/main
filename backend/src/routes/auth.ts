@@ -253,8 +253,12 @@ router.post('/register', authLimiter, async (req, res) => {
 // Email mavjudligini tekshirish (register step 1 uchun)
 router.get('/check-email', authLimiter, async (req, res) => {
     try {
-        res.json({ available: true })
+        const email = String(req.query.email || '').trim().toLowerCase()
+        if (!email) return res.json({ available: true })
+        const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } })
+        res.json({ available: !existing })
     } catch {
+        // Xato bo'lsa bloklamaymiz — ro'yxatdan o'tishda baribir dublikat tekshiriladi
         res.json({ available: true })
     }
 })

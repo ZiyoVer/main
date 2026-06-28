@@ -1772,16 +1772,29 @@ O'zbek tilida yoz. Matematik formulalar uchun KaTeX ($...$ formatda) ishlat.`
 // AI test natijasi — faqat avgScore/totalTests yangilash (Rasch YO'Q — AI testlar ability o'zgartirmasin)
 router.post('/submit-ai', authenticate, submitLimiter, async (req: AuthRequest, res) => {
     try {
-        const { score, totalQuestions, results } = req.body
+        const { score, totalQuestions, results, subject } = req.body
         if (!results || !Array.isArray(results)) {
             return res.status(400).json({ error: 'results kerak' })
         }
         // Klient yuborgan ball'ni 0–100 oralig'iga cheklaymiz (poisoning oldini olish)
         const safeScore = Number.isFinite(Number(score)) ? Math.max(0, Math.min(100, Number(score))) : 0
 
-        // AI testlar uchun Rasch yangilanmaydi — faqat statistika.
-        // O'qish-o'zgartirish-yozish'ni bitta tranzaksiyada qilamiz — bir vaqtda kelgan
-        // submit'lar avgScore'ni buzmasligi uchun (atomik).
+        // YOPIQ O'QUV HALQASI: AI test natijalarini per-MAVZU TopicStat'ga yozamiz, shunda
+        // chat-tutor real zaif mavzularni ko'radi (oldin ma'nosiz chat-sarlavha bucket'iga tushardi).
+        const subjectKey = normalizeSubject(typeof subject === 'string' ? subject : '') ?? (typeof subject === 'string' && subject.trim() ? subject.trim() : 'Umumiy')
+        const topicAgg = new Map<string, { correct: number; total: number }>()
+        for (const r of results) {
+            const topic = typeof r?.topic === 'string' ? r.topic.trim() : ''
+            if (!topic) continue
+            const { correct, total } = topicContribution(r)
+            const cur = topicAgg.get(topic) || { correct: 0, total: 0 }
+            cur.correct += correct
+            cur.total += total
+            topicAgg.set(topic, cur)
+        }
+
+        // AI testlar uchun Rasch yangilanmaydi — faqat statistika + TopicStat.
+        // Atomik tranzaksiya: bir vaqtda kelgan submit'lar avgScore'ni buzmasin.
         await prisma.$transaction(async (tx) => {
             const profile = await tx.studentProfile.upsert({
                 where: { userId: req.user.id },
@@ -1795,9 +1808,17 @@ router.post('/submit-ai', authenticate, submitLimiter, async (req: AuthRequest, 
                     avgScore: Math.round(((profile.avgScore * profile.totalTests + safeScore) / (profile.totalTests + 1)) * 100) / 100
                 }
             })
-        })
+            const practicedAt = new Date()
+            for (const [topic, agg] of topicAgg) {
+                await tx.topicStat.upsert({
+                    where: { userId_subject_topic: { userId: req.user.id, subject: subjectKey, topic } },
+                    update: { correct: { increment: agg.correct }, total: { increment: agg.total }, lastPracticed: practicedAt },
+                    create: { userId: req.user.id, subject: subjectKey, topic, correct: agg.correct, total: agg.total, lastPracticed: practicedAt },
+                })
+            }
+        }, { timeout: 15000 })
 
-        res.json({ ok: true })
+        res.json({ ok: true, topicsTracked: topicAgg.size })
     } catch (e) {
         console.error(e)
         res.status(500).json({ error: 'Server xatoligi' })

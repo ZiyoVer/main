@@ -648,7 +648,25 @@ O'quvchi mock test savollari yuklasa YOKI "qaysi mavzular ko'p chiqadi?", "niman
 - O'quvchi maqsad balliga yetishi uchun qaysi mavzular muhimroq ekanini doim hisobga ol`
 }
 
-function buildSystemPrompt(profile: any, subject?: string, subject2?: string | null, extraRules?: string, ov: Record<string, string> = {}, isFirstMessage = false): string {
+// O'quvchining REAL testlardan o'lchangan zaif/kuchli mavzulari (self-reported emas).
+type MeasuredTopics = { weak: { topic: string; subject: string; accuracy: number; total: number }[]; strong: { topic: string }[] }
+
+// TopicStat'dan o'lchangan zaif (accuracy<60%) va kuchli (>=80%) mavzularni hisoblaydi.
+// total>=2 filtri shovqinni kamaytiradi; weakest accuracy bo'yicha saralanadi.
+async function getMeasuredTopics(userId: string): Promise<MeasuredTopics> {
+    try {
+        const stats = await prisma.topicStat.findMany({ where: { userId, total: { gte: 2 } }, orderBy: [{ total: 'desc' }], take: 80 })
+        const withAcc = stats.map(s => ({ topic: s.topic, subject: s.subject, total: s.total, accuracy: s.total > 0 ? s.correct / s.total : 0 }))
+        const weak = withAcc.filter(s => s.accuracy < 0.6).sort((a, b) => a.accuracy - b.accuracy).slice(0, 6)
+        const strong = withAcc.filter(s => s.accuracy >= 0.8).sort((a, b) => b.accuracy - a.accuracy).slice(0, 4).map(s => ({ topic: s.topic }))
+        return { weak, strong }
+    } catch (e) {
+        console.warn('getMeasuredTopics failed:', e)
+        return { weak: [], strong: [] }
+    }
+}
+
+function buildSystemPrompt(profile: any, subject?: string, subject2?: string | null, extraRules?: string, ov: Record<string, string> = {}, isFirstMessage = false, measured?: MeasuredTopics): string {
     // Toshkent vaqti (UTC+5)
     const now = new Date(Date.now() + 5 * 60 * 60 * 1000)
     const tashkentHour = now.getUTCHours()
@@ -769,17 +787,18 @@ Test so'ralganda FAQAT \`\`\`test JSON formatida ber:
 - Mavzuga oid test → KAMIDA 10 ta savol
 
 🔴 SAVOLLAR TARTIBI — DOIM OSONDAN QIYINGA:
-- Birinchi 30%: oson (asosiy ta'riflar, sodda misollar)
-- O'rtadagi 40%: o'rta (qo'llash, tushunish)
-- Oxirgi 30%: qiyin (aralash, trap, amaliy)
+- Oddiy MASHQ testi (oddiy "test ber"): Birinchi 30% oson · o'rtadagi 40% o'rta · oxirgi 30% qiyin (o'sib boruvchi).
+- DTM/MOCK ("DTM uslubida", "DTM variantida"): REAL imtihon nisbati — ~15% oson · 70% o'rta · 15% qiyin (haqiqiy DTM'ga moslab, ortiqcha qiyin qilma).
 
 \`\`\`test
-[{"q":"Savol?","a":"A variant","b":"B variant","c":"C variant","d":"D variant","correct":"a"}]
+[{"q":"Savol?","a":"A variant","b":"B variant","c":"C variant","d":"D variant","correct":"a","topic":"Kvadrat tenglamalar"}]
 \`\`\`
 - correct: to'g'ri javob harfi (a/b/c/d)
+- topic: har savolning ANIQ mavzusi (masalan "Kvadrat tenglamalar", "Present Perfect", "Amir Temur davri") — zaiflik tahlili va adaptiv tavsiya shunga tayanadi, BO'SH qoldirma
 - Test JSON dan keyin matn yozma — o'quvchi interaktiv yechadi
 - HECH QACHON oddiy A) B) C) D) formatda test berma
 - 3-5 ta yoki 7-8 ta savol bilan test berish QATTIQ TAQIQLANGAN!
+- ⚡ ADAPTIV: agar yuqorida "REAL TESTLARDA ZAIF" mavzular ko'rsatilgan bo'lsa — test va mashqlarni AVVAL O'SHA mavzulardan tuz. Bu o'lchangan ma'lumot — havodan/tasodifan tuzma.
 
 ### DTM test formati (maxsus)
 Agar o'quvchi aniq "DTM test", "DTM uslubida", "DTM variantida" deb so'rasa — testga quyidagi qo'shimcha metadata qo'sh:
@@ -930,7 +949,7 @@ Bu o'quvchi bilan BIRINCHI marta gaplashyapsan. U platformani BILMAYDI va nimada
 1. ${greeting} bilan iliq boshla.
 2. O'zingni QISQA tanishtir: "Men sening shaxsiy AI repetitoringman — tushuntiraman, test beraman, zaif mavzularingni topaman va reja tuzaman."
 3. DARROV bitta aniq, qiziqarli BIRINCHI QADAM taklif qil (ko'p variant berma — bitta taklif):
-   - Fan ma'lum bo'lsa: "Keling, ${subject || 'shu fandan'} 3 ta qisqa savol bilan darajangizni ko'ramiz — tayyormisiz?"
+   - Fan ma'lum bo'lsa: "Keling, ${subject || 'shu fandan'} darajangizni 20 savollik qisqa baholash testi bilan aniqlaymiz — shunda qaysi mavzular zaifligini aniq bilib, aynan shularga moslab ishlaymiz. Tayyormisiz?" — o'quvchi rozi bo'lsa DARHOL 20 savollik \`\`\`test ber (turli mavzu va qiyinlikda, HAR savolga aniq "topic" teg bilan, shunda zaiflik tahlili ishlaydi).
    - Fan noma'lum bo'lsa: bitta qisqa yo'naltiruvchi savol — "Qaysi imtihon: DTM yoki Milliy Sertifikat? Qaysi fandan boshlaymiz?"
 4. Iliq, qisqa, taklifkor bo'l — uzun matn yoki uzun ro'yxat yozma.
 5. O'quvchi rozi bo'lsa yoki fan/mavzu aytsa — DARHOL \`\`\`test yoki tushuntirish bilan boshla, ortiqcha savol berma.` : ''
@@ -957,7 +976,12 @@ Sen — o'quvchining SHU YERDAGI repetitorisan. HECH QACHON o'quvchini "borib da
 ${[
             subject ? `**Fan:** ${subject}` : '',
             daysLeft ? `**Imtihon:** ${daysLeft}` : '',
-            weakTopics.length > 0 ? `**Zaif deb o'ylaydi:** ${weakTopics.join(', ')} (bu o'quvchining o'z fikri — hali tekshirilmagan)` : '',
+            measured && measured.weak.length > 0
+                ? `**REAL TESTLARDA ZAIF (o'lchangan — ENG ISHONCHLI ma'lumot):** ${measured.weak.map(w => `${w.topic} (${Math.round(w.accuracy * 100)}% — ${w.total} savol)`).join(', ')}`
+                : '',
+            measured && measured.strong.length > 0
+                ? `**Real testlarda kuchli:** ${measured.strong.map(s => s.topic).join(', ')}` : '',
+            weakTopics.length > 0 ? `**Zaif deb o'ylaydi (taxmin):** ${weakTopics.join(', ')} (o'quvchining o'z fikri — testlar bilan tekshir)` : '',
             strongTopics.length > 0 ? `**Kuchli deb o'ylaydi:** ${strongTopics.join(', ')}` : '',
             profile?.targetScore ? `**Maqsad:** ${profile.targetScore} ball` : '',
             profile?.concerns ? `**Tashvishi:** ${profile.concerns}` : '',
@@ -1194,10 +1218,11 @@ type ToolIntentAnalysis = {
 function normalizeIntentText(text: string): string {
     return String(text || '')
         .toLowerCase()
-        .replace(/['`"ʼ’‘]/g, '')
-        .replace(/o‘/g, 'o')
-        .replace(/g‘/g, 'g')
-        .replace(/sh/g, 'sh')
+        // Avval o'/oʻ/o‘ va g'/gʻ/g‘ ni o/g ga keltiramiz — apostrof STRIPDAN OLDIN
+        // (aks holda ‘ allaqachon o'chib, bu replace'lar no-op bo'lib qolardi)
+        .replace(/o['`ʼ’‘ʻ]/g, 'o')
+        .replace(/g['`ʼ’‘ʻ]/g, 'g')
+        .replace(/['`"ʼ’‘ʻ]/g, '')
         .replace(/\s+/g, ' ')
         .trim()
 }
@@ -1898,7 +1923,8 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
         const toolIntentSection = buildToolIntentGuidance(content)
         const retentionSection = buildRetentionGuidance(content, pendingTodoContext.length > 0, isFirstMessage)
 
-        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, chat.subject2 || undefined, aiSettings.extraRules, aiSettings.promptOverrides, isFirstMessage) + ragSection + todoSection + toolIntentSection + retentionSection
+        const measured = await getMeasuredTopics(req.user.id)
+        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, chat.subject2 || undefined, aiSettings.extraRules, aiSettings.promptOverrides, isFirstMessage, measured) + ragSection + todoSection + toolIntentSection + retentionSection
 
         // DeepSeek image_url qabul qilmaydi — OCR matni content ichida keladi
         const currentUserContent: any = content
@@ -2127,7 +2153,8 @@ router.post('/:chatId/send', authenticate, requireVerified, async (req: AuthRequ
         const toolIntentSection = buildToolIntentGuidance(content)
         const isFirstMessage = history.length <= 1
         const retentionSection = buildRetentionGuidance(content, false, isFirstMessage)
-        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, chat.subject2 || undefined, aiSettings.extraRules, aiSettings.promptOverrides, isFirstMessage) + ragSection + toolIntentSection + retentionSection
+        const measured = await getMeasuredTopics(req.user.id)
+        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, chat.subject2 || undefined, aiSettings.extraRules, aiSettings.promptOverrides, isFirstMessage, measured) + ragSection + toolIntentSection + retentionSection
 
 
         const msgs: any[] = [
