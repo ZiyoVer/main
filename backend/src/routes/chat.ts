@@ -2034,9 +2034,13 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
             const msg = (firstErr?.message || '').toLowerCase()
             // Auth xatosi bo'lsa fallback qilmaymiz
             const isAuthErr = status === 401 || msg.includes('auth') || msg.includes('invalid api key')
+            // 402 / "insufficient balance" = DeepSeek puli tugadi → Gemini chatda uzilishsiz davom etadi
+            const isBalanceErr = status === 402 || msg.includes('insufficient balance') || msg.includes('insufficient_quota') || msg.includes('payment required')
             if (!isAuthErr && hasDeepseek && hasGemini) {
-                // DeepSeek ishlamadi → Gemini'ga fallback
-                console.warn('DeepSeek xatosi, Gemini ga fallback:', firstErr.message)
+                // DeepSeek ishlamadi (rate-limit yoki balans tugashi) → Gemini'ga fallback
+                console.warn(isBalanceErr
+                    ? '⚠️ DeepSeek BALANSI TUGADI → Gemini chatda davom etmoqda (uzilishsiz). DeepSeek hisobini to\'ldiring.'
+                    : 'DeepSeek xatosi, Gemini ga fallback:', firstErr.message)
                 activeClient = gptClient
                 activeModel = VISION_MODEL
                 const fallbackOpts = { ...streamOptions, model: activeModel }
