@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast'
 import { useAuthStore } from './store/authStore'
 import { fetchApi } from './lib/api'
 import ErrorBoundary from './components/ErrorBoundary'
+import EmailVerifyBanner from './components/EmailVerifyBanner'
 
 // Lazy loading — katta komponentlar kerak bo'lgandagina yuklanadi (bundle size -40%)
 const Landing = lazy(() => import('./pages/Landing'))
@@ -101,11 +102,11 @@ function ProtectedRoute({ children, roles }: { children: React.ReactNode, roles?
     if (checking) return <PageLoader />
     if (!token || !user) return <Navigate to="/kirish" state={{ from: location.pathname }} replace />
     if (roles && !roles.includes(user.role)) return <Navigate to="/" replace />
-    // STUDENT email tasdiqlamagan bo'lsa — bloklash ekraniga. === false: undefined/legacy bloklanmaydi.
-    // Avval serverdan qayta tekshiramiz (needsVerifyRecheck) — stale localStorage bilan bloklanmasin.
+    // SOFT-GATE: email tasdiqlamagan o'quvchini ENDI BLOKLAMAYMIZ — platformaga kiradi,
+    // ichkarida diqqat tortuvchi banner (EmailVerifyBanner) tasdiqlashga undaydi (odam qotib qolmaydi).
+    // Avval serverdan holatni yangilaymiz (needsVerifyRecheck) — banner to'g'ri ko'rinishi uchun.
     if (needsVerifyRecheck) return <PageLoader />
-    if (user.role === 'STUDENT' && user.emailVerified === false) return <Navigate to="/email-tasdiqlang" replace />
-    return <>{children}</>
+    return <><EmailVerifyBanner />{children}</>
 }
 
 // Kirgan foydalanuvchi "/" ga kelsa, landing CHIZILISHIDAN OLDIN (sinxron) o'z

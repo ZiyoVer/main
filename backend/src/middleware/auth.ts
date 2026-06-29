@@ -114,6 +114,10 @@ export async function requireVerified(req: AuthRequest, res: Response, next: Nex
         next()
         return
     }
+    // SOFT-GATE (default): email tasdiqlash MAJBURLANMAYDI — tasdiqlanmaganlar ham
+    // platformaga kiradi, frontend banner orqali eslatadi (odam qotib qolmaydi).
+    // Hard-gate kerak bo'lsa Railway'da EMAIL_VERIFICATION_ENFORCED=true qo'y.
+    const enforced = process.env.EMAIL_VERIFICATION_ENFORCED === 'true'
     try {
         const dbUser = await prisma.user.findUnique({
             where: { id: req.user.id },
@@ -124,15 +128,13 @@ export async function requireVerified(req: AuthRequest, res: Response, next: Nex
             res.status(401).json({ error: 'Foydalanuvchi topilmadi' })
             return
         }
-        // Bloklangan akkaunt — darhol rad (token muddatini kutmasdan)
+        // Bloklangan akkaunt — har doim darhol rad (soft-gate'da ham ban ishlaydi)
         if (dbUser.status === 'SUSPENDED') {
             res.status(403).json({ error: 'Akkaunt bloklangan' })
             return
         }
-        // FAQAT emailVerified === false bo'lganda bloklaymiz.
-        // Legacy foydalanuvchilar (emailVerified null/undefined) bloklanmaydi —
-        // email-verify joriy etilishidan oldin ro'yxatdan o'tganlar.
-        if (dbUser && dbUser.emailVerified === false) {
+        // Email tasdiqlanmagan — FAQAT enforced rejimda bloklaymiz. Legacy (null/undefined) bloklanmaydi.
+        if (enforced && dbUser.emailVerified === false) {
             // code: frontend buni oddiy 403 dan ajratishi uchun (api.ts shu kodga tayanadi)
             res.status(403).json({ error: 'Email tasdiqlanmagan', code: 'EMAIL_NOT_VERIFIED' })
             return
