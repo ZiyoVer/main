@@ -33,22 +33,28 @@ const upload = multer({
 const router = Router()
 
 
-// DeepSeek yoki OpenAI orqali text/chat qismini boshqarish
-const hasDeepseek = !!process.env.DEEPSEEK_API_KEY
-const chatClient = new OpenAI({
-    baseURL: hasDeepseek ? 'https://api.deepseek.com' : undefined,
-    apiKey: process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY || ''
-})
-const chatModel = hasDeepseek ? 'deepseek-chat' : 'gemini-2.5-flash'
-
-// Vision (rasm/OCR) + DeepSeek-429 fallback uchun — GEMINI (OpenAI-mos endpoint).
-// gptClient nomi saqlandi (kam o'zgarish), lekin endi Gemini'ga ulanadi.
+// ASOSIY AI: Gemini 3.5 Flash (chat + vision). DeepSeek — ZAXIRA (Gemini xato bersa uzilish bo'lmasin).
 const hasGemini = !!process.env.GEMINI_API_KEY
-const VISION_MODEL = 'gemini-2.5-flash'
-const gptClient = new OpenAI({
+const hasDeepseek = !!process.env.DEEPSEEK_API_KEY
+const CHAT_MODEL = 'gemini-3.5-flash'
+const VISION_MODEL = 'gemini-3.5-flash'
+
+// Gemini OpenAI-mos endpoint — asosiy chat + vision
+const geminiClient = new OpenAI({
     apiKey: process.env.GEMINI_API_KEY || '',
     baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/'
 })
+// DeepSeek — faqat ZAXIRA (Gemini ishlamasa avtomatik o'tadi)
+const deepseekClient = new OpenAI({
+    baseURL: 'https://api.deepseek.com',
+    apiKey: process.env.DEEPSEEK_API_KEY || ''
+})
+
+// Eski nomlar saqlanadi (kam o'zgarish): chatClient/gptClient endi Gemini'ga ishora qiladi.
+// Gemini kaliti yo'q bo'lsa (edge), DeepSeek'ga tushadi.
+const chatClient = hasGemini ? geminiClient : deepseekClient
+const chatModel = hasGemini ? CHAT_MODEL : 'deepseek-chat'
+const gptClient = geminiClient // vision — har doim Gemini
 
 // AI Settings — umumiy cache modulidan foydalanamiz (aiSettings.ts bilan shared)
 async function getAISettings(): Promise<AISettingsData> {
@@ -1098,10 +1104,11 @@ async function createAssistantOnlyGreeting(chat: { id: string; subject: string |
         const status = firstErr?.status ?? 0
         const msg = String(firstErr?.message || '').toLowerCase()
         const isAuthErr = status === 401 || msg.includes('auth') || msg.includes('invalid api key')
-        if (!isAuthErr && hasDeepseek && hasGemini) {
+        // Gemini (asosiy) ishlamadi → DeepSeek zaxiraga
+        if (!isAuthErr && hasGemini && hasDeepseek) {
             try {
-                const completion = await gptClient.chat.completions.create({
-                    model: VISION_MODEL,
+                const completion = await deepseekClient.chat.completions.create({
+                    model: 'deepseek-chat',
                     messages: completionMessages,
                     max_tokens: 140,
                     temperature: 0.6
@@ -1970,9 +1977,10 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
             { role: 'user', content: currentUserContent }
         ]
 
-        // Model tanlash: thinking=true -> deepseek-reasoner (R1), aks holda deepseek-chat (V3)
+        // Model tanlash: ASOSIY Gemini 3.5 Flash (thinking ham shu modelda — ichki fikrlaydi).
+        // Gemini kaliti yo'q bo'lsa DeepSeek (thinking -> reasoner).
         // Agar umuman DeepSeek ulangan bo'lmasa, Gemini'ga fallback qilamiz
-        const model = hasDeepseek ? (thinking ? 'deepseek-reasoner' : 'deepseek-chat') : chatModel
+        const model = hasGemini ? CHAT_MODEL : (hasDeepseek ? (thinking ? 'deepseek-reasoner' : 'deepseek-chat') : CHAT_MODEL)
 
         // SSE headers
         res.setHeader('Content-Type', 'text/event-stream')
@@ -2041,21 +2049,21 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
         } catch (firstErr: any) {
             const status = firstErr?.status ?? 0
             const msg = (firstErr?.message || '').toLowerCase()
-            // Auth xatosi bo'lsa fallback qilmaymiz
+            // Auth xatosi bo'lsa fallback qilmaymiz (konfiguratsiya muammosi — yashirmaymiz)
             const isAuthErr = status === 401 || msg.includes('auth') || msg.includes('invalid api key')
-            // 402 / "insufficient balance" = DeepSeek puli tugadi → Gemini chatda uzilishsiz davom etadi
-            const isBalanceErr = status === 402 || msg.includes('insufficient balance') || msg.includes('insufficient_quota') || msg.includes('payment required')
-            if (!isAuthErr && hasDeepseek && hasGemini) {
-                // DeepSeek ishlamadi (rate-limit yoki balans tugashi) → Gemini'ga fallback
-                console.warn(isBalanceErr
-                    ? '⚠️ DeepSeek BALANSI TUGADI → Gemini chatda davom etmoqda (uzilishsiz). DeepSeek hisobini to\'ldiring.'
-                    : 'DeepSeek xatosi, Gemini ga fallback:', firstErr.message)
-                activeClient = gptClient
-                activeModel = VISION_MODEL
+            // Gemini rate-limit/kvota tugashi (429 / RESOURCE_EXHAUSTED / quota) — zaxiraga o'tamiz
+            const isQuotaErr = status === 429 || msg.includes('rate limit') || msg.includes('resource_exhausted') || msg.includes('quota')
+            // ASOSIY (Gemini) ishlamadi → DeepSeek ZAXIRAga o'tamiz (uzilish bo'lmaydi)
+            if (!isAuthErr && hasGemini && hasDeepseek) {
+                console.warn(isQuotaErr
+                    ? '⚠️ Gemini kvotasi/limiti → DeepSeek zaxiraga o\'tildi (uzilishsiz).'
+                    : 'Gemini xatosi → DeepSeek zaxiraga fallback:', firstErr.message)
+                activeClient = deepseekClient
+                activeModel = 'deepseek-chat'
                 const fallbackOpts = { ...streamOptions, model: activeModel }
-                delete fallbackOpts.temperature // Gemini uchun ham qo'llaymiz
+                delete fallbackOpts.temperature
                 fallbackOpts.temperature = 0.7
-                stream = await gptClient.chat.completions.create(fallbackOpts) as any
+                stream = await deepseekClient.chat.completions.create(fallbackOpts) as any
             } else {
                 throw firstErr
             }
