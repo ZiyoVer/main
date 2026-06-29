@@ -1798,13 +1798,18 @@ router.post('/submit-ai', authenticate, submitLimiter, async (req: AuthRequest, 
         // YOPIQ O'QUV HALQASI: AI test natijalarini per-MAVZU TopicStat'ga yozamiz, shunda
         // chat-tutor real zaif mavzularni ko'radi (oldin ma'nosiz chat-sarlavha bucket'iga tushardi).
         const subjectKey = normalizeSubject(typeof subject === 'string' ? subject : '') ?? (typeof subject === 'string' && subject.trim() ? subject.trim() : 'Umumiy')
+        // Poisoning blast-radiusni cheklash: real diagnostika <=90 savol, <=~25 mavzu.
+        // (To'liq himoya — server-side baholash — keyinroq alohida tuzatiladi.)
+        const MAX_RESULTS = 120
+        const MAX_TOPICS = 50
         const topicAgg = new Map<string, { correct: number; total: number }>()
-        for (const r of results) {
+        for (const r of results.slice(0, MAX_RESULTS)) {
             const topic = normalizeTopicKey(typeof r?.topic === 'string' ? r.topic : '')
-            if (!topic) continue
-            // Klient yuborgan son'larni cheklaymiz: total>0 butun, correct 0..total (accuracy>1 bo'lmasin)
+            if (!topic || topic.length > 80) continue
+            if (!topicAgg.has(topic) && topicAgg.size >= MAX_TOPICS) continue
+            // Klient yuborgan son'larni cheklaymiz: total 1..50 butun, correct 0..total (accuracy>1 bo'lmasin)
             const contrib = topicContribution(r)
-            const safeTotal = Math.max(0, Math.floor(contrib.total))
+            const safeTotal = Math.max(0, Math.min(50, Math.floor(contrib.total)))
             if (safeTotal === 0) continue
             const safeCorrect = Math.max(0, Math.min(safeTotal, Math.floor(contrib.correct)))
             const cur = topicAgg.get(topic) || { correct: 0, total: 0 }
