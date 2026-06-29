@@ -997,7 +997,7 @@ export default function ChatLayout() {
         // YANGI O'QUVCHI (hali chati yo'q + fani bor + onboarding tugagan) → AI shaxsiy,
         // motivatsion salom bilan boshlasin (welcome kartochkalar o'rniga). Faqat chats.length===0:
         // eski chatlari borlarga TEGMAYMIZ (aktivatsiya bug'idan xoli). Aks holда welcome kartalar.
-        if (chats.length === 0 && profile?.subject && profile?.onboardingDone) {
+        if (chats.length === 0 && profile?.subject) {
             void startNewUserGreeting()
         }
     }, [chatId, chatsLoaded, profileLoaded, showOnboarding, chats, profile, nav])
@@ -2959,29 +2959,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                                     </div>
                                 ) : (
                                     <div className="w-full max-w-md anim-up relative" style={{ zIndex: 1 }}>
-                                        <div className="text-center mb-6">
+                                        <div className="text-center">
                                             <img src="/dtmmax-logo.png" alt="DtmMax" className="h-14 w-14 rounded-xl mx-auto mb-3" style={{ objectFit: 'contain' }} />
-                                            <p className="text-xl font-bold" style={{ fontFamily: 'var(--k-serif)', fontWeight: 500 }}>Salom{user?.name ? `, ${user.name}` : ''}! <span className="k-italic">Nimadan</span> boshlaymiz?</p>
-                                            <p className="text-sm mt-1.5" style={{ color: 'var(--text-muted)' }}>Birini tanlang yoki pastga savolingizni yozing.</p>
-                                        </div>
-                                        <div className="grid grid-cols-1 gap-2.5">
-                                            {[
-                                                { icon: <Target className="h-5 w-5" style={{ color: 'var(--brand)' }} />, title: 'Darajamni aniqlash', desc: 'Diagnostik test bilan baholaymiz', prompt: 'Darajamni aniqlash uchun 20 ta savoldan iborat diagnostik baholash testi ber — turli mavzu va qiyinlikda, har savolga aniq mavzu (topic) teg bilan. Yakunida qaysi mavzular kuchli, qaysilari zaif ekanini ko\'rsat.' },
-                                                { icon: <BookOpen className="h-5 w-5" style={{ color: 'var(--brand)' }} />, title: 'Mavzu tushuntirish', desc: 'Qiyin mavzuni tushuntiraman', prompt: 'Qaysi mavzuni tushuntirib berishimni so\'ra.' },
-                                                { icon: <Calendar className="h-5 w-5" style={{ color: 'var(--brand)' }} />, title: 'Bugungi reja', desc: 'Bugun nimani o\'rganaman', prompt: 'Bugun nimadan boshlashim kerak? Qisqa reja tuz.' },
-                                                { icon: <Layers className="h-5 w-5" style={{ color: 'var(--brand)' }} />, title: 'Kartochkalar', desc: 'Eslab qolish uchun', prompt: 'Asosiy mavzudan 10 ta flashcard ber.' },
-                                            ].map((a, i) => (
-                                                <button key={i} type="button" onClick={() => { void handleSend(a.prompt, []) }}
-                                                    className="text-left rounded-2xl flex items-center gap-3 transition-all"
-                                                    style={{ padding: '14px 16px', border: '1px solid var(--border)', background: 'var(--bg-card)' }}>
-                                                    <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--brand-light)' }}>{a.icon}</div>
-                                                    <div className="min-w-0 flex-1">
-                                                        <p className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{a.title}</p>
-                                                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{a.desc}</p>
-                                                    </div>
-                                                    <ArrowUp className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--text-muted)', transform: 'rotate(45deg)' }} />
-                                                </button>
-                                            ))}
+                                            <p className="text-xl font-bold" style={{ fontFamily: 'var(--k-serif)', fontWeight: 500 }}>Salom{user?.name ? `, ${user.name}` : ''}! <span className="k-italic">Birga</span> ishlaymiz.</p>
+                                            <p className="text-sm mt-2" style={{ color: 'var(--text-muted)' }}>Savolingizni pastga yozing — tushuntiraman, test beraman, reja tuzaman.</p>
                                         </div>
                                     </div>
                                 )}
