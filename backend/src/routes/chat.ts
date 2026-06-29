@@ -2129,8 +2129,11 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
         const errMsg = e?.message || 'Noma\'lum xato'
         // To'liq xato ma'lumotini loglaymiz (Railway dashboard da ko'rinadi)
         console.error('STREAM ERROR | status:', status, '| type:', e?.constructor?.name, '| msg:', errMsg)
-        const isRateLimit = status === 429 || errMsg.includes('429') || errMsg.toLowerCase().includes('rate limit')
-        const isAuth = status === 401 || errMsg.includes('401') || errMsg.toLowerCase().includes('auth') || errMsg.toLowerCase().includes('invalid api key')
+        const lowerErr = errMsg.toLowerCase()
+        // Gemini 429 ba'zan raqamsiz "RESOURCE_EXHAUSTED"/"quota" deb keladi — uni ham rate-limit deb tanaymiz
+        const isRateLimit = status === 429 || errMsg.includes('429') || lowerErr.includes('rate limit')
+            || lowerErr.includes('resource_exhausted') || lowerErr.includes('quota') || lowerErr.includes('exhausted')
+        const isAuth = status === 401 || errMsg.includes('401') || lowerErr.includes('auth') || lowerErr.includes('invalid api key')
         const userMsg = isRateLimit
             ? 'AI yuklanmoqda, biroz kuting va qayta urinib ko\'ring.'
             : isAuth
