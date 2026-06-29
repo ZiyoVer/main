@@ -2370,27 +2370,25 @@ Iltimos, har bir savolni tahlil qilib ber:
     const obSelectedDirection = obDirectionCode ? dtmDirectionByCode(obDirectionCode) : undefined
 
     // Birinchi marta onboarding qadamlari: 1=imtihon turi, 2=fan(lar), 3=sana (ixtiyoriy), 4=maqsad ball
-    const OB_TOTAL_STEPS = 4
+    const OB_TOTAL_STEPS = 3
     const obIsLastStep = obStep === OB_TOTAL_STEPS
     // Har bir qadam "Davom etish"ni qachon ochishini belgilaydi
     const obStepValid =
         obStep === 1 ? onboardingForm.examType !== '' :
-        obStep === 2 ? (onboardingForm.examType === 'DTM' ? (!!obDirectionCode && !obDtmPairInvalid) : !!onboardingForm.subject) :
-        obStep === 4 ? !obScoreErr :
-        true // sana (3) ixtiyoriy
+        obStep === 2 ? (onboardingForm.examType === 'DTM' ? (!!onboardingForm.subject && !!onboardingForm.subject2) : !!onboardingForm.subject) :
+        obStep === 3 ? !obScoreErr :
+        true
 
     // Onboarding — suhbat uslubidagi, bitta-savol-bir-ekran (editorial)
     if (showOnboarding) {
         const obQuestion =
             obStep === 1 ? `${user?.name ? `Salom, ${user.name}! ` : 'Avval tanishaylik. '}Qaysi imtihonga tayyorlanyapsiz?`
-                : obStep === 2 ? (onboardingForm.examType === 'DTM' ? "Zo'r! Endi yo'nalishingizni tanlaymiz." : "Zo'r! Qaysi fandan tayyorlanasiz?")
-                    : obStep === 3 ? "Imtihoningiz qachon bo'ladi?"
-                        : "Maqsadingiz — necha ball?"
+                : obStep === 2 ? (onboardingForm.examType === 'DTM' ? "Zo'r! Qaysi 2 fandan tayyorlanasiz?" : "Zo'r! Qaysi fandan tayyorlanasiz?")
+                    : "Maqsadingiz — necha ball?"
         const obHint =
             obStep === 1 ? 'Shu asosda AI ustozingiz sizga moslashadi.'
-                : obStep === 3 ? "Ixtiyoriy — bilsangiz, rejani sanaga moslaymiz."
-                    : obStep === 4 ? `Ixtiyoriy — ${obScoreBounds.min}–${obScoreBounds.max} oralig'ida.`
-                        : ''
+                : obStep === 3 ? `Ixtiyoriy — ${obScoreBounds.min}–${obScoreBounds.max} oralig'ida.`
+                    : ''
         return (
             <div className="kelviq flex items-center justify-center p-5" style={{ background: 'var(--bg-page)', minHeight: '100dvh' }}>
                 <div className="w-full max-w-md">
@@ -2444,22 +2442,24 @@ Iltimos, har bir savolni tahlil qilib ber:
                                 </div>
                             )}
 
-                            {/* Step 2 — Fan(lar) */}
+                            {/* Step 2 — Fan(lar): DTM uchun 2 MUSTAQIL fan (juft emas), MS uchun 1 fan */}
                             {obStep === 2 && (
                                 onboardingForm.examType === 'DTM' ? (
-                                    <div>
-                                        <select value={obDirectionCode} onChange={e => handleObDirectionChange(e.target.value)} className="input" style={{ cursor: 'pointer', height: 52 }}>
-                                            <option value="">— Yo'nalishni tanlang —</option>
-                                            {DTM_DIRECTIONS.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
-                                        </select>
-                                        {obDtmPairInvalid && (
-                                            <p className="text-xs mt-2" style={{ color: 'var(--danger)' }}>
-                                                Avvalgi tanlovingiz ({onboardingForm.subject} – {onboardingForm.subject2}) rasmiy yo'nalishlarda yo'q. Qayta tanlang.
-                                            </p>
-                                        )}
-                                        {obSelectedDirection?.faculties?.length ? (
-                                            <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>{obSelectedDirection.faculties.join(', ')}</p>
-                                        ) : null}
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="text-xs font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>1-fan</label>
+                                            <select value={onboardingForm.subject} onChange={e => setOnboardingForm(prev => ({ ...prev, subject: e.target.value }))} className="input" style={{ cursor: 'pointer', height: 52 }}>
+                                                <option value="">— Tanlang —</option>
+                                                {SUBJECTS.map(f => <option key={f} value={f}>{f}</option>)}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>2-fan</label>
+                                            <select value={onboardingForm.subject2} onChange={e => setOnboardingForm(prev => ({ ...prev, subject2: e.target.value }))} className="input" style={{ cursor: 'pointer', height: 52 }}>
+                                                <option value="">— Tanlang —</option>
+                                                {SUBJECTS.filter(f => f !== onboardingForm.subject).map(f => <option key={f} value={f}>{f}</option>)}
+                                            </select>
+                                        </div>
                                     </div>
                                 ) : (
                                     <select value={onboardingForm.subject} onChange={e => setOnboardingForm(prev => ({ ...prev, subject: e.target.value }))} className="input" style={{ cursor: 'pointer', height: 52 }}>
@@ -2468,13 +2468,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                                 )
                             )}
 
-                            {/* Step 3 — Imtihon sanasi */}
+                            {/* Step 3 — Maqsad ball (imtihon sanasi olib tashlandi) */}
                             {obStep === 3 && (
-                                <input type="date" value={onboardingForm.examDate} onChange={e => setOnboardingForm(prev => ({ ...prev, examDate: e.target.value }))} className="input" style={{ height: 52 }} />
-                            )}
-
-                            {/* Step 4 — Maqsad ball */}
-                            {obStep === 4 && (
                                 <div>
                                     <input
                                         type="number"

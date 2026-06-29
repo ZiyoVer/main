@@ -188,13 +188,8 @@ router.post('/register', authLimiter, async (req, res) => {
         const normalizedExamDate = parseOptionalExamDate(examDate)
         const normalizedTargetScore = validateTargetScore(targetScore, normalizedExamType)
 
-        // DTM ixtisos fanlari faqat rasmiy yo'nalish jadvalidagi juftlikdan bo'lishi mumkin
-        // (profile.ts dagi PUT bilan bir xil qoida — register orqali bypass bo'lmasligi uchun)
-        if (normalizedExamType === 'DTM' && normalizedSubject && normalizedSubject2) {
-            if (!isValidDtmPair(normalizedSubject, normalizedSubject2)) {
-                throw new Error('Bu fanlar juftligi DTM yo\'nalishlarida mavjud emas')
-            }
-        }
+        // DTM ixtisos fanlari ENDI MUSTAQIL tanlanadi — yo'nalish juftligi majburlanmaydi
+        // (o'quvchi 1-fan va 2-fanni erkin tanlaydi, masalan Matematika + Kimyo).
 
         const user = await prisma.user.create({
             data: {

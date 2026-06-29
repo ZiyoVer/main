@@ -62,12 +62,8 @@ router.put('/', authenticate, requireRole('STUDENT'), requireVerified, async (re
         const normalizedExamType = parseOptionalExamType(examType)
         const normalizedTargetScore = validateTargetScore(targetScore, normalizedExamType)
 
-        // DTM ixtisos fanlari faqat rasmiy yo'nalish jadvalidagi juftlikdan bo'lishi mumkin
-        if (normalizedExamType === 'DTM' && normalizedSubject && normalizedSubject2) {
-            if (!isValidDtmPair(normalizedSubject, normalizedSubject2)) {
-                throw new Error('Bu fanlar juftligi DTM yo\'nalishlarida mavjud emas')
-            }
-        }
+        // DTM ixtisos fanlari ENDI MUSTAQIL tanlanadi (yo'nalish juftligi majburlanmaydi) —
+        // o'quvchi 1-fan va 2-fanni erkin tanlaydi (masalan Matematika + Kimyo).
         const normalizedExamDate = parseOptionalExamDate(examDate)
         const normalizedStudyHours = parseOptionalStudyHours(studyHoursPerDay)
         const normalizedConcerns = clampText(concerns, 'concerns')
