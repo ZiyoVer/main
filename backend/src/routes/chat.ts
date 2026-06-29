@@ -659,7 +659,11 @@ O'quvchi mock test savollari yuklasa YOKI "qaysi mavzular ko'p chiqadi?", "niman
 }
 
 // O'quvchining REAL testlardan o'lchangan zaif/kuchli mavzulari (self-reported emas).
-type MeasuredTopics = { weak: { topic: string; subject: string; accuracy: number; total: number }[]; strong: { topic: string }[] }
+type MeasuredTopics = {
+    weak: { topic: string; subject: string; accuracy: number; total: number }[]
+    strong: { topic: string }[]
+    recent: { topic: string; daysAgo: number }[] // so'nggi o'tilgan mavzular (AI eslatib turishi uchun)
+}
 
 // TopicStat'dan o'lchangan zaif (accuracy<60%) va kuchli (>=80%) mavzularni hisoblaydi.
 // total>=1: birinchi 20-savollik diagnostikadan keyin ham halqa ochilsin (avval total>=2
@@ -670,10 +674,17 @@ async function getMeasuredTopics(userId: string): Promise<MeasuredTopics> {
         const withAcc = stats.map(s => ({ topic: s.topic, subject: s.subject, total: s.total, accuracy: s.total > 0 ? s.correct / s.total : 0 }))
         const weak = withAcc.filter(s => s.accuracy < 0.6).sort((a, b) => a.accuracy - b.accuracy).slice(0, 6)
         const strong = withAcc.filter(s => s.accuracy >= 0.8).sort((a, b) => b.accuracy - a.accuracy).slice(0, 4).map(s => ({ topic: s.topic }))
-        return { weak, strong }
+        // So'nggi o'tilgan mavzular — "kecha shu mavzuni o'tgandik" deb eslatish uchun (ona kabi g'amxo'rlik)
+        const now = Date.now()
+        const recent = stats
+            .filter(s => s.lastPracticed)
+            .sort((a, b) => (b.lastPracticed as Date).getTime() - (a.lastPracticed as Date).getTime())
+            .slice(0, 5)
+            .map(s => ({ topic: s.topic, daysAgo: Math.max(0, Math.floor((now - (s.lastPracticed as Date).getTime()) / 86400000)) }))
+        return { weak, strong, recent }
     } catch (e) {
         console.warn('getMeasuredTopics failed:', e)
-        return { weak: [], strong: [] }
+        return { weak: [], strong: [], recent: [] }
     }
 }
 
@@ -1008,6 +1019,12 @@ Sen — o'quvchining SHU YERDAGI repetitorisan. HECH QACHON o'quvchini "borib da
 - Mavzuni qayta o'rganish kerak bo'lsa → "Keling, shu mavzuni hozir birga ko'ramiz" deb O'ZING qisqa tushuntir, so'ng \`\`\`test yoki \`\`\`flashcard bilan mustahkamla.
 - "O'qib chiqing / takrorlang" deb javobni yakunlama — har javob o'quvchini keyingi qadamga SHU platforma ichida yetaklasin (tushuntirish, mashq, mini-test yoki reja).
 
+## SHAXSIY G'AMXO'RLIK — ona kabi (muhim)
+Sen o'quvchining shaxsiy ustozisan — uni BOSHQARIB, ESLATIB turasan, yolg'iz qoldirmaysan:
+- Pastdagi "SO'NGGI O'TILGAN MAVZULAR"дan foydalanib, mos joyда tabiiy esла: "Kecha biz [mavzu]ni o'tgandik — bugun uni mustahkamlaymizmi?" O'quvchi eslatmasa ham, o'tilganlarni BILGAN holda davom et.
+- O'quvchi nima qilishni bilmasa yoki yo'qotib qo'ysa — SEN aniq keyingi qadamni taklif qil (mavzu, mashq, test, reja). Hech qachon havoda qoldirma — onaday g'amxo'r bo'l.
+- LEKIN MAJBURLAMA: agar o'quvchi "yo'q, bu kerak emas" yoki "boshqa narsa qilaman" desa — uning fikrini HURMAT qil, qarshi turma, u xohlagan yo'lдan yordam ber. G'amxo'r, lekin bosim o'tkazmaydigan ustoz.
+
 ## O'quvchi haqida
 ${[
             subject ? `**Fan:** ${subject}` : '',
@@ -1017,6 +1034,8 @@ ${[
                 : '',
             measured && measured.strong.length > 0
                 ? `**Real testlarda kuchli:** ${measured.strong.map(s => s.topic).join(', ')}` : '',
+            measured && measured.recent.length > 0
+                ? `**SO'NGGI O'TILGAN MAVZULAR (eslatib turish uchun):** ${measured.recent.map(r => `${r.topic} (${r.daysAgo === 0 ? 'bugun' : r.daysAgo === 1 ? 'kecha' : r.daysAgo + ' kun oldin'})`).join(', ')}` : '',
             weakTopics.length > 0 ? `**Zaif deb o'ylaydi (taxmin):** ${weakTopics.join(', ')} (o'quvchining o'z fikri — testlar bilan tekshir)` : '',
             strongTopics.length > 0 ? `**Kuchli deb o'ylaydi:** ${strongTopics.join(', ')}` : '',
             profile?.targetScore ? `**Maqsad:** ${profile.targetScore} ball` : '',
