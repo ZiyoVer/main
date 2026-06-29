@@ -1683,8 +1683,10 @@ Iltimos, har bir savolni tahlil qilib ber:
     }
 
     function stopGeneration() {
+        // FAQAT abort qilamiz — abortRef.current'ni NULL QILMAYMIZ.
+        // Stream cleanup `if (abortRef.current === controller)` orqali loading'ni false qiladi;
+        // bu yerda null qilsak, o'sha shart buzilib loading=true qotib qoladi (stop ishlamagandek ko'rinadi).
         abortRef.current?.abort()
-        abortRef.current = null
     }
 
     const handleSend = useCallback(async (text: string, files: AttachedFile[]) => {

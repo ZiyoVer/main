@@ -4,6 +4,7 @@ import { BrainCircuit, Eye, EyeOff } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 import GoogleSignInButton from '@/components/GoogleSignInButton'
+import BackToLanding from '@/components/BackToLanding'
 
 export default function Login() {
     const nav = useNavigate()
@@ -63,6 +64,8 @@ export default function Login() {
                 aria-hidden="true"
                 style={{ position: 'absolute', inset: 0, zIndex: 0 }}
             />
+
+            <BackToLanding />
 
             <div className="w-full max-w-sm anim-up" style={{ position: 'relative', zIndex: 1 }}>
 
