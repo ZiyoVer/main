@@ -2003,9 +2003,15 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
         if (model === 'deepseek-reasoner') {
             streamOptions.max_tokens = 8192
         } else {
-            // GPT yoki oddiy V3 model
+            // Gemini yoki oddiy V3 model
             streamOptions.max_tokens = aiSettings.maxTokens
             streamOptions.temperature = aiSettings.temperature
+        }
+        // TEZLIK: Gemini 3.5 Flash "fikrlovchi" model — ichki mulohaza birinchi token
+        // kechikishini oshiradi. reasoning_effort=low -> kam fikrlash -> sezilarli tezroq
+        // (OpenAI-mos qatlam buni Gemini thinking_level'iga o'giradi). DeepSeek'ga yubormaymiz.
+        if (model.startsWith('gemini')) {
+            streamOptions.reasoning_effort = 'low'
         }
 
         // Foydalanuvchi xabarini AI chaqiruvidan OLDIN saqlaymiz — agar AI provayder
@@ -2061,6 +2067,7 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
                 activeClient = deepseekClient
                 activeModel = 'deepseek-chat'
                 const fallbackOpts = { ...streamOptions, model: activeModel }
+                delete fallbackOpts.reasoning_effort // DeepSeek bu parametrni tushunmaydi
                 delete fallbackOpts.temperature
                 fallbackOpts.temperature = 0.7
                 stream = await deepseekClient.chat.completions.create(fallbackOpts) as any
