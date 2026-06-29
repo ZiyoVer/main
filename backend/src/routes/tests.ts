@@ -61,7 +61,7 @@ function topicKeyForQuestion(
     q: { topic?: string | null; blockType?: DtmBlockType | null },
     test: { subject?: string | null; subject2?: string | null },
 ): string {
-    const t = (q.topic ?? '').trim()
+    const t = normalizeTopicKey(q.topic)
     if (t) return t
     const bt = q.blockType ?? 'GENERIC'
     if (bt === 'SPECIALTY_1') return normalizeSubject(test.subject) ?? test.subject ?? '1-ixtisoslik'
@@ -113,6 +113,18 @@ function normalizeOpenAnswer(text: string | null | undefined): string {
         .replace(/\s+/g, ' ')
         .replace(/[’`]/g, '\'')
         .toLowerCase()
+}
+
+// YOPIQ HALQA: mavzu kalitini birxillashtirish — "Kvadrat tenglamalar" /
+// "kvadrat tenglamalar." / "Kvadrat  tenglamalar" bitta TopicStat qatoriga tushsin.
+// Aks holda har variant alohida qator bo'lib total>= porogga yetmaydi (halqa ochilmaydi).
+function normalizeTopicKey(raw: string | null | undefined): string {
+    return (raw || '')
+        .toLowerCase()
+        .replace(/[`´ʼ’‘ʻ]/g, '\'')   // apostrof variantlari -> bitta
+        .replace(/\s+/g, ' ')
+        .replace(/[.,;:!?]+$/u, '')     // oxiridagi tinish belgilari
+        .trim()
 }
 
 function parseAcceptedAnswers(text: string | null | undefined): string[] {
@@ -1788,12 +1800,16 @@ router.post('/submit-ai', authenticate, submitLimiter, async (req: AuthRequest, 
         const subjectKey = normalizeSubject(typeof subject === 'string' ? subject : '') ?? (typeof subject === 'string' && subject.trim() ? subject.trim() : 'Umumiy')
         const topicAgg = new Map<string, { correct: number; total: number }>()
         for (const r of results) {
-            const topic = typeof r?.topic === 'string' ? r.topic.trim() : ''
+            const topic = normalizeTopicKey(typeof r?.topic === 'string' ? r.topic : '')
             if (!topic) continue
-            const { correct, total } = topicContribution(r)
+            // Klient yuborgan son'larni cheklaymiz: total>0 butun, correct 0..total (accuracy>1 bo'lmasin)
+            const contrib = topicContribution(r)
+            const safeTotal = Math.max(0, Math.floor(contrib.total))
+            if (safeTotal === 0) continue
+            const safeCorrect = Math.max(0, Math.min(safeTotal, Math.floor(contrib.correct)))
             const cur = topicAgg.get(topic) || { correct: 0, total: 0 }
-            cur.correct += correct
-            cur.total += total
+            cur.correct += safeCorrect
+            cur.total += safeTotal
             topicAgg.set(topic, cur)
         }
 

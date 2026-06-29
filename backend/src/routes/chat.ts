@@ -656,10 +656,11 @@ O'quvchi mock test savollari yuklasa YOKI "qaysi mavzular ko'p chiqadi?", "niman
 type MeasuredTopics = { weak: { topic: string; subject: string; accuracy: number; total: number }[]; strong: { topic: string }[] }
 
 // TopicStat'dan o'lchangan zaif (accuracy<60%) va kuchli (>=80%) mavzularni hisoblaydi.
-// total>=2 filtri shovqinni kamaytiradi; weakest accuracy bo'yicha saralanadi.
+// total>=1: birinchi 20-savollik diagnostikadan keyin ham halqa ochilsin (avval total>=2
+// edi — diagnostikada har mavzu ko'pincha 1 savol olib, butun tahlil chetlab o'tilardi).
 async function getMeasuredTopics(userId: string): Promise<MeasuredTopics> {
     try {
-        const stats = await prisma.topicStat.findMany({ where: { userId, total: { gte: 2 } }, orderBy: [{ total: 'desc' }], take: 80 })
+        const stats = await prisma.topicStat.findMany({ where: { userId, total: { gte: 1 } }, orderBy: [{ total: 'desc' }], take: 80 })
         const withAcc = stats.map(s => ({ topic: s.topic, subject: s.subject, total: s.total, accuracy: s.total > 0 ? s.correct / s.total : 0 }))
         const weak = withAcc.filter(s => s.accuracy < 0.6).sort((a, b) => a.accuracy - b.accuracy).slice(0, 6)
         const strong = withAcc.filter(s => s.accuracy >= 0.8).sort((a, b) => b.accuracy - a.accuracy).slice(0, 4).map(s => ({ topic: s.topic }))
@@ -798,7 +799,7 @@ Test so'ralganda FAQAT \`\`\`test JSON formatida ber:
 [{"q":"Savol?","a":"A variant","b":"B variant","c":"C variant","d":"D variant","correct":"a","topic":"Kvadrat tenglamalar"}]
 \`\`\`
 - correct: to'g'ri javob harfi (a/b/c/d)
-- topic: har savolning ANIQ mavzusi (masalan "Kvadrat tenglamalar", "Present Perfect", "Amir Temur davri") — zaiflik tahlili va adaptiv tavsiya shunga tayanadi, BO'SH qoldirma
+- topic: har savolning ANIQ mavzusi (masalan "Kvadrat tenglamalar", "Present Perfect", "Amir Temur davri") — zaiflik tahlili va adaptiv tavsiya shunga tayanadi, BO'SH qoldirma. Bir mavzuni DOIM bir xil yozilishda yoz (katta-kichik harf yoki imlo farqi bo'lmasin), aks holda statistika parchalanadi
 - Test JSON dan keyin matn yozma — o'quvchi interaktiv yechadi
 - HECH QACHON oddiy A) B) C) D) formatda test berma
 - 3-5 ta yoki 7-8 ta savol bilan test berish QATTIQ TAQIQLANGAN!
@@ -969,7 +970,7 @@ Bu o'quvchi bilan BIRINCHI marta gaplashyapsan. U platformani BILMAYDI va nimada
 1. ${greeting} bilan iliq boshla.
 2. O'zingni QISQA tanishtir: "Men sening shaxsiy AI repetitoringman — tushuntiraman, test beraman, zaif mavzularingni topaman va reja tuzaman."
 3. DARROV bitta aniq, qiziqarli BIRINCHI QADAM taklif qil (ko'p variant berma — bitta taklif):
-   - Fan ma'lum bo'lsa: "Keling, ${subject || 'shu fandan'} darajangizni 20 savollik qisqa baholash testi bilan aniqlaymiz — shunda qaysi mavzular zaifligini aniq bilib, aynan shularga moslab ishlaymiz. Tayyormisiz?" — o'quvchi rozi bo'lsa DARHOL 20 savollik \`\`\`test ber (turli mavzu va qiyinlikda, HAR savolga aniq "topic" teg bilan, shunda zaiflik tahlili ishlaydi).
+   - Fan ma'lum bo'lsa: "Keling, ${subject || 'shu fandan'} darajangizni 20 savollik qisqa baholash testi bilan aniqlaymiz — shunda qaysi mavzular zaifligini aniq bilib, aynan shularga moslab ishlaymiz. Tayyormisiz?" — o'quvchi rozi bo'lsa DARHOL 20 savollik \`\`\`test ber. MUHIM: 20 savolni 6-8 ta MAVZUGA bo'l — har mavzudan 2-4 savol, turli qiyinlikda; HAR savolga aniq "topic" teg ber va bir mavzuni DOIM bir xil yoz. Shunda har mavzu bo'yicha zaiflik ishonchli o'lchanadi.
    - Fan noma'lum bo'lsa: bitta qisqa yo'naltiruvchi savol — "Qaysi imtihon: DTM yoki Milliy Sertifikat? Qaysi fandan boshlaymiz?"
 4. Iliq, qisqa, taklifkor bo'l — uzun matn yoki uzun ro'yxat yozma.
 5. O'quvchi rozi bo'lsa yoki fan/mavzu aytsa — DARHOL \`\`\`test yoki tushuntirish bilan boshla, ortiqcha savol berma.` : ''
