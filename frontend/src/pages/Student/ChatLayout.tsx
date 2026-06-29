@@ -124,6 +124,21 @@ function buildTestReviewMd(data: any): string {
     return lines.join('\n')
 }
 
+// Yuklanish yozuvini so'rov mazmuniga moslab tanlaydi ("Yozmoqda" emas, "Test tuzmoqda" kabi).
+function getLoadingLabel(messages: { role: string; content: string }[]): string {
+    const lastUser = [...messages].reverse().find(m => m.role === 'user')
+    const t = (lastUser?.content || '').toLowerCase()
+    if (!t) return 'Yozmoqda...'
+    if (/\btest\b|sinov|baholash|daraja|savol ber|mashq|quiz|variant|imtihon/.test(t)) return 'Test tuzmoqda...'
+    if (/kartochka|flash\s?card|yodla/.test(t)) return 'Kartochkalar tayyorlanmoqda...'
+    if (/reja|jadval|\bplan\b|checklist|bugun nima|qayerdan boshla/.test(t)) return 'Reja tuzmoqda...'
+    if (/chiz|diagramma|geometr|piramida|figura/.test(t)) return 'Chizma chizmoqda...'
+    if (/formula/.test(t)) return 'Formulalar tayyorlanmoqda...'
+    if (/insho|essay|writing|task\s?[12]/.test(t)) return 'Topshiriq tayyorlanmoqda...'
+    if (/lug‘|lug'|so‘z|so'z boyligi|vocab/.test(t)) return "So'zlar tanlanmoqda..."
+    return 'Yozmoqda...'
+}
+
 // Test paneli uchun inline KaTeX renderer (ReactMarkdown ishlatmaymiz, tez va engil)
 function MathText({ text }: { text: string }) {
     // mathRender.ts'ning aqlli mantig'i: $...$, $$...$$, \[...\], \(...\) VA xom LaTeX'ni
@@ -2988,7 +3003,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                 )}
                                 {loading && !streaming && !thinkingText && (
                                     <div className="flex py-1">
-                                        <span className="ai-generating"><span className="ai-star">✳</span> Yozmoqda...</span>
+                                        <span className="ai-generating"><span className="ai-star">✳</span> {getLoadingLabel(messages)}</span>
                                     </div>
                                 )}
                                 {loading && thinkingText && !streaming && (
