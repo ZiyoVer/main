@@ -90,6 +90,40 @@ function getAttemptMeta(result: MyResult) {
     return `${result.score}%`
 }
 
+// Yechilgan testni markdown sharh sifatida tuzadi (savol + sening javobing + to'g'ri javob ✅/❌).
+// Tahlil bilan birga ko'rsatiladi — shunda o'quvchi testini YO'QOTMAYDI.
+function buildTestReviewMd(data: any): string {
+    const qs = Array.isArray(data?.questions) ? data.questions : []
+    if (qs.length === 0) return ''
+    const lines: string[] = [`### 📝 Yechgan testingiz — ${data?.score ?? '?'}/${data?.total ?? qs.length} to'g'ri`]
+    qs.forEach((q: any, i: number) => {
+        const text = String(q?.text || `Savol ${i + 1}`).trim()
+        // Moslashtirish / multi-part yozma — sub-javoblar bilan
+        if ((q?.questionType === 'matching' || q?.questionType === 'multipart_open') && Array.isArray(q?.subAnswers)) {
+            lines.push(`\n**${i + 1}.** ${text}`)
+            q.subAnswers.forEach((sa: any, si: number) => {
+                const ok = String(sa?.studentAnswer || '').trim().toLowerCase() === String(sa?.correctAnswer || '').trim().toLowerCase()
+                lines.push(`- ${ok ? '✅' : '❌'} ${sa?.label || si + 1}. ${sa?.subText || ''} — Siz: ${sa?.studentAnswer || '—'}${ok ? '' : ` · To'g'ri: ${sa?.correctAnswer || '—'}`}`)
+            })
+            return
+        }
+        // Oddiy A/B/C/D test
+        const sa = String(q?.studentAnswer || '').trim().toLowerCase()
+        const ca = String(q?.correctAnswer || '').trim().toLowerCase()
+        const ok = !!sa && sa === ca
+        const optText = (k: string) => (q?.[k] ? String(q[k]) : '')
+        const label = (k: string) => (k ? `${k.toUpperCase()}) ${optText(k)}`.trim() : '—')
+        lines.push(`\n**${i + 1}.** ${text}`)
+        if (ok) {
+            lines.push(`- ✅ To'g'ri javob berdingiz: **${label(sa)}**`)
+        } else {
+            lines.push(`- ❌ Sizning javobingiz: ${sa ? label(sa) : 'belgilanmagan'}`)
+            lines.push(`- ✅ To'g'ri javob: **${label(ca)}**`)
+        }
+    })
+    return lines.join('\n')
+}
+
 // Test paneli uchun inline KaTeX renderer (ReactMarkdown ishlatmaymiz, tez va engil)
 function MathText({ text }: { text: string }) {
     // mathRender.ts'ning aqlli mantig'i: $...$, $$...$$, \[...\], \(...\) VA xom LaTeX'ni
@@ -979,6 +1013,8 @@ export default function ChatLayout() {
                 localStorage.setItem('dtmmax_analysis_chat_id', chatData.id)
 
                 const displayText = `📊 "${guestData.title}" testi tahlili (${guestData.score}/${guestData.total} to'g'ri)`
+                // Test YO'QOLMASIN: tahlil bilan birga yechilgan testning sharhini ham ko'rsatamiz
+                const reviewMd = buildTestReviewMd(guestData)
 
                 try {
                     const analysisRes = await fetchApi('/tests/analyze-result', {
@@ -992,7 +1028,8 @@ export default function ChatLayout() {
                         })
                     })
                     if (analysisRes?.analysis) {
-                        nav(`/suhbat/${chatData.id}`, { state: { pendingAnalysis: { preComputed: analysisRes.analysis, displayText } } })
+                        const assistantContent = reviewMd ? `${reviewMd}\n\n---\n\n${analysisRes.analysis}` : analysisRes.analysis
+                        nav(`/suhbat/${chatData.id}`, { state: { pendingAnalysis: { preComputed: assistantContent, displayText } } })
                         return
                     }
                 } catch (e) {
