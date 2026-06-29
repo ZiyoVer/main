@@ -10,7 +10,7 @@ type Ref = string | number[]
 
 interface GeoData {
     points?: Record<string, number[]>
-    segments?: Array<{ from: Ref; to: Ref; label?: string }>
+    segments?: Array<{ from: Ref; to: Ref; label?: string; dashed?: boolean }>
     polygons?: Array<{ vertices: Ref[]; fill?: boolean }>
     circles?: Array<{ center?: Ref; cx?: number; cy?: number; r: number; label?: string }>
     angles?: Array<{ at: Ref; type?: string; label?: string; value?: string }>
@@ -141,7 +141,7 @@ export default function GeometryFigure({ raw }: { raw: string }) {
     segs.forEach(s => {
         const a = S(s.from); const b = S(s.to)
         if (!a || !b) return
-        els.push(<line key={`ln${key++}`} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={stroke} strokeWidth={1.6} strokeLinecap="round" />)
+        els.push(<line key={`ln${key++}`} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={stroke} strokeWidth={1.6} strokeLinecap="round" {...(s.dashed ? { strokeDasharray: '5 4' } : {})} />)
         if (s.label) {
             const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2
             // Kesmaga PERPENDIKULYAR, markazdan tashqari tomonga sur (kesma ustiga tushmasin)
