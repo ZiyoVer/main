@@ -1453,7 +1453,8 @@ Iltimos, har bir savolni tahlil qilib ber:
             setShowOnboarding(false)
             await loadProfile()
             toast.success('Profil muvaffaqiyatli saqlandi!')
-            // Birinchi marta onboarding — avtomatik chat ochamiz
+            // Birinchi marta onboarding — chat ochib, AI SHAXSIY HISSIY SALOMni yozadi (DB'ga saqlanadi).
+            // Avval auto-greet CHAQIRILMASDI -> yangi user bo'sh chat ko'rardi (salom yo'q). Endi chaqiramiz.
             if (!profile?.onboardingDone) {
                 const firstChat = await fetchApi('/chat/new', {
                     method: 'POST',
@@ -1463,10 +1464,9 @@ Iltimos, har bir savolni tahlil qilib ber:
                         subject2: onboardingForm.subject2 || undefined
                     })
                 })
+                await requestAutoGreeting(firstChat.id) // AI hissiy salomni generatsiya qilib DB'ga yozadi
                 await loadChats()
-                setMessages([])
-                setCurrentChat(firstChat)
-                nav(`/suhbat/${firstChat.id}`)
+                nav(`/suhbat/${firstChat.id}`) // remount -> loadMessages saqlangan salomni yuklaydi
             }
         } catch (err) { console.error('saveOnboarding:', err) }
         setSavingProfile(false)
