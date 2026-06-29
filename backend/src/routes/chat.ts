@@ -1073,17 +1073,30 @@ async function createAssistantOnlyGreeting(chat: { id: string; subject: string |
     })
     const aiSettings = await getAISettings()
     const firstName = getFirstName(user.name)
-    // TOKEN TEJASH: salom uchun to'liq (~12k token) system prompt SHART EMAS —
-    // 1-2 jumlalik salomga atigi shu kichik ko'rsatma yetadi (98% token tejaladi).
-    const subjectLabel = chat.subject || profile?.subject || ''
-    const systemPrompt = `Sen DTMMax platformasining AI o'qituvchisisan — O'zbekiston DTM va Milliy Sertifikat imtihonlariga tayyorlaysan. O'zbek tilida, samimiy va sodda yoz.
+    // SHAXSIY + HISSIY birinchi salom — registratsiya state'idan (ism, imtihon, fanlar) foydalanadi.
+    const examLabel = profile?.examType === 'MS' ? 'Milliy Sertifikat' : profile?.examType === 'DTM' ? 'DTM' : ''
+    const subj1 = chat.subject || profile?.subject || ''
+    const subj2 = chat.subject2 || profile?.subject2 || ''
+    const subjectsLine = [subj1, subj2].filter(Boolean).join(' va ')
+    const systemPrompt = `Sen DTMMax platformasining AI o'qituvchisisan — O'zbekiston imtihonlariga tayyorlaysan. DOIM o'zbek tilida yoz.
 
-## AUTO GREETING (ichki ko'rsatma)
-- Bu yangi bo'sh chat — o'quvchiga SEN birinchi bo'lib yozasan.
-- Faqat 1-2 qisqa jumla yoz.${firstName ? ` ${firstName} ismini ishlatishing mumkin.` : ''}${subjectLabel ? ` O'quvchining tanlagan fani: ${subjectLabel}.` : ''}
-- Xabar o'quvchini qaysi fan/mavzu qiynayotganini yozishga undasin va "Bugun qaysi mavzu sizni ko'proq qiynayapti?" mazmunidagi savol bilan tugasin.
-- "Tushuntirish, mashq va test orqali ishlashga tayyorman" mazmunini tabiiy qo'sh.
-- Hech qanday structured blok (test, todo, flashcard, formula, geometry, essay, vocab) chiqarma. Umumiy uzun kirish yozma.`
+## YANGI O'QUVCHIGA BIRINCHI XABAR — SHAXSIY VA HISSIY (juda muhim)
+Bu o'quvchi endi ro'yxatdan o'tdi. Sen unga BIRINCHI bo'lib yozasan — iliq, shaxsiy va KUCHLI MOTIVATSION ohangда (ustoz + psixolog kabi). Maqsad: o'quvchini hissiy jihatdan ushlab qolish, "ha, men buni qilaman" degan his uyg'otish.
+
+O'quvchi ma'lumotlari (ALBATTA ishlatib, shaxsiy qil):
+- Ism: ${firstName || "noma'lum"}
+- Imtihon: ${examLabel || 'imtihon'}
+- Fan(lar): ${subjectsLine || 'tanlagan fani'}
+
+Xabaring (tabiiy, 2-3 qisqa abzas):
+1. Ism bilan iliq salom + "${examLabel || 'imtihon'} uchun ${subjectsLine || 'shu fan'}ga BIRGA tayyorlanamiz" deb shaxsiy boshla.
+2. O'zingni shaxsiy ustoz sifatida tanishtir: har kuni sen bilan ishlayman, zaif mavzularingni topaman, reja tuzaman, boshqarib boraman.
+3. HISSIY MOTIVATSIYA (eng muhim, samimiy — klişe EMAS): jiddiy, yurakdan gap. Masalan oila oldida yuzni yorug' qilish, maksimal ball, har kuni birga jiddiy ishlash, bir kun tayyorlanib keyin tashlab ketmaslik — birga bo'lsak natija chiqaramiz. O'quvchi "men yolg'iz emasman, bu mendan kutilyapti" deb his qilsin.
+4. Yakunida diagnostikani taklif qil: "Boshlash uchun avval bilimingni qisqa test bilan tekshiramiz — ${subjectsLine || 'fanlaringdan'}. Tayyormisan?" deb javobini kut.
+
+QOIDALAR:
+- Hech qanday structured blok (test, todo, flashcard...) CHIQARMA — faqat matn. Test keyin, o'quvchi rozi bo'lganда beriladi.
+- 3 qisqa abzasдan oshmasin, lekin hissiyot KUCHLI bo'lsin. Quruq/rasmiy emas — samimiy.`
 
     const completionMessages = [
         { role: 'system' as const, content: systemPrompt },
@@ -1093,12 +1106,14 @@ async function createAssistantOnlyGreeting(chat: { id: string; subject: string |
     let reply = ''
 
     try {
-        const completion = await chatClient.chat.completions.create({
+        const greetOpts: any = {
             model: chatModel,
             messages: completionMessages,
-            max_tokens: 140,
-            temperature: Math.min(aiSettings.temperature, 0.6)
-        }, { timeout: 30000 })
+            max_tokens: 700,
+            temperature: 0.7
+        }
+        if (chatModel.startsWith('gemini')) greetOpts.reasoning_effort = 'low'
+        const completion = await chatClient.chat.completions.create(greetOpts, { timeout: 30000 })
         reply = completion.choices[0]?.message?.content?.trim() || ''
     } catch (firstErr: any) {
         const status = firstErr?.status ?? 0
@@ -1110,8 +1125,8 @@ async function createAssistantOnlyGreeting(chat: { id: string; subject: string |
                 const completion = await deepseekClient.chat.completions.create({
                     model: 'deepseek-chat',
                     messages: completionMessages,
-                    max_tokens: 140,
-                    temperature: 0.6
+                    max_tokens: 700,
+                    temperature: 0.7
                 }, { timeout: 30000 })
                 reply = completion.choices[0]?.message?.content?.trim() || ''
             } catch (fallbackErr) {

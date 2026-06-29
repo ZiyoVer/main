@@ -994,11 +994,12 @@ export default function ChatLayout() {
     useEffect(() => {
         if (chatId || !chatsLoaded || !profileLoaded || showOnboarding || autoLandingChatRef.current) return
         autoLandingChatRef.current = true
-        // Kirishда auto-navigatsiya/auto-yaratish YO'Q — /suhbat (chatId'siz) welcome
-        // kartalarini (Darajamni aniqlash, Mavzu tushuntirish, Bugungi reja, Kartochkalar)
-        // ko'rsatadi va ular TURADI. Chat faqat user karta bosgan/yozganда (handleSend) lazily
-        // yaratiladi — bo'sh chat to'planmaydi. Eski suhbatlar sidebar'da qoladi.
-        // (Avval eski chatga qaytarib + auto-greet bilan salom yozardi — aktivatsiyani buzardi.)
+        // YANGI O'QUVCHI (hali chati yo'q + fani bor + onboarding tugagan) → AI shaxsiy,
+        // motivatsion salom bilan boshlasin (welcome kartochkalar o'rniga). Faqat chats.length===0:
+        // eski chatlari borlarga TEGMAYMIZ (aktivatsiya bug'idan xoli). Aks holда welcome kartalar.
+        if (chats.length === 0 && profile?.subject && profile?.onboardingDone) {
+            void startNewUserGreeting()
+        }
     }, [chatId, chatsLoaded, profileLoaded, showOnboarding, chats, profile, nav])
 
     // Guest test natijasini AI bilan tahlil qilish — login yoki ro'yxatdan o'tgandan keyin
@@ -1495,6 +1496,30 @@ Iltimos, har bir savolni tahlil qilib ber:
             console.error('requestAutoGreeting:', err)
         }
         return null
+    }
+
+    // YANGI O'QUVCHI: chat yaratib, AI shaxsiy+motivatsion salom yozadi (DB'ga saqlanadi),
+    // so'ng chatga o'tamiz — remount'дан keyin loadMessages saqlangan salomni yuklaydi.
+    async function startNewUserGreeting() {
+        setLoading(true)
+        try {
+            const data = await fetchApi('/chat/new', {
+                method: 'POST',
+                body: JSON.stringify({
+                    title: 'Tayyorgarlik',
+                    subject: normalizeSubjectValue(profile?.subject) || undefined,
+                    subject2: normalizeSubjectValue(profile?.subject2) || undefined,
+                    forceNew: true
+                })
+            })
+            await requestAutoGreeting(data.id) // AI salomini generatsiya qilib DB'ga yozadi
+            await loadChats()
+            nav(`/suhbat/${data.id}`)
+        } catch (e) {
+            console.error('startNewUserGreeting:', e)
+            autoLandingChatRef.current = false
+            setLoading(false)
+        }
     }
 
     async function loadMessages(id: string) {
