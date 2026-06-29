@@ -4,8 +4,14 @@ const EMBEDDING_MODEL = process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-
 const MAX_EMBEDDING_INPUT_CHARS = 6000
 const EMBEDDING_BATCH_SIZE = 32
 
-const embeddingClient = process.env.OPENAI_API_KEY
-    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+// MUHIM: OpenAI embeddings DEFAULT O'CHIQ. OpenAI kvotasi tugagan paytda 429 + Retry-After
+// chat javobидан OLDINGI searchRAGContext'ni uzoq osiltirib, "Yozmoqda..." abadiy qotib qolardi.
+// O'chiq paytda RAG keyword/recent rejimda ishlaydi (OpenAI'ga murojaat YO'Q).
+// Semantik RAG kerak bo'lsa: ishlaydigan OPENAI_API_KEY + EMBEDDINGS_ENABLED=true qo'ying.
+// maxRetries:0 + qisqa timeout — yoqilgan holatda ham o'lik kalit osiltirmasin.
+const embeddingsEnabled = process.env.EMBEDDINGS_ENABLED === 'true'
+const embeddingClient = (embeddingsEnabled && process.env.OPENAI_API_KEY)
+    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0, timeout: 8000 })
     : null
 
 export function hasEmbeddingClient() {
