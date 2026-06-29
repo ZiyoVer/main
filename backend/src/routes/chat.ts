@@ -33,28 +33,28 @@ const upload = multer({
 const router = Router()
 
 
-// ASOSIY AI: Gemini 3.5 Flash (chat + vision). DeepSeek — ZAXIRA (Gemini xato bersa uzilish bo'lmasin).
+// ASOSIY AI: DeepSeek (chat + test/essay/flashcard — structured bloklarni ISHONCHLI va tez beradi).
+// Gemini 3.5 Flash — FAQAT vision (rasm/OCR) + DeepSeek-429/balans ZAXIRA.
+// (Gemini 3.5 Flash chatда ```test/```essay bloklarini ishonchli bermadi — DeepSeek beradi.)
 const hasGemini = !!process.env.GEMINI_API_KEY
 const hasDeepseek = !!process.env.DEEPSEEK_API_KEY
-const CHAT_MODEL = 'gemini-3.5-flash'
 const VISION_MODEL = 'gemini-3.5-flash'
 
-// Gemini OpenAI-mos endpoint — asosiy chat + vision
+// Gemini OpenAI-mos endpoint — vision + zaxira
 const geminiClient = new OpenAI({
     apiKey: process.env.GEMINI_API_KEY || '',
     baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/'
 })
-// DeepSeek — faqat ZAXIRA (Gemini ishlamasa avtomatik o'tadi)
+// DeepSeek — asosiy matn/chat
 const deepseekClient = new OpenAI({
     baseURL: 'https://api.deepseek.com',
     apiKey: process.env.DEEPSEEK_API_KEY || ''
 })
 
-// Eski nomlar saqlanadi (kam o'zgarish): chatClient/gptClient endi Gemini'ga ishora qiladi.
-// Gemini kaliti yo'q bo'lsa (edge), DeepSeek'ga tushadi.
-const chatClient = hasGemini ? geminiClient : deepseekClient
-const chatModel = hasGemini ? CHAT_MODEL : 'deepseek-chat'
-const gptClient = geminiClient // vision — har doim Gemini
+// chatClient/chatModel ASOSIY = DeepSeek (key bo'lsa). gptClient = Gemini (vision + 429 fallback).
+const chatClient = hasDeepseek ? deepseekClient : geminiClient
+const chatModel = hasDeepseek ? 'deepseek-chat' : 'gemini-3.5-flash'
+const gptClient = geminiClient
 
 // AI Settings — umumiy cache modulidan foydalanamiz (aiSettings.ts bilan shared)
 async function getAISettings(): Promise<AISettingsData> {
@@ -1138,15 +1138,16 @@ QOIDALAR:
         const status = firstErr?.status ?? 0
         const msg = String(firstErr?.message || '').toLowerCase()
         const isAuthErr = status === 401 || msg.includes('auth') || msg.includes('invalid api key')
-        // Gemini (asosiy) ishlamadi → DeepSeek zaxiraga
-        if (!isAuthErr && hasGemini && hasDeepseek) {
+        // DeepSeek (asosiy) ishlamadi → Gemini zaxiraga
+        if (!isAuthErr && hasDeepseek && hasGemini) {
             try {
-                const completion = await deepseekClient.chat.completions.create({
-                    model: 'deepseek-chat',
+                const completion = await gptClient.chat.completions.create({
+                    model: VISION_MODEL,
                     messages: completionMessages,
                     max_tokens: 700,
-                    temperature: 0.7
-                }, { timeout: 30000 })
+                    temperature: 0.7,
+                    reasoning_effort: 'low'
+                } as any, { timeout: 30000 })
                 reply = completion.choices[0]?.message?.content?.trim() || ''
             } catch (fallbackErr) {
                 console.error('auto-greet fallback xatosi:', fallbackErr)
@@ -2014,7 +2015,7 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
         // Model tanlash: ASOSIY Gemini 3.5 Flash (thinking ham shu modelda — ichki fikrlaydi).
         // Gemini kaliti yo'q bo'lsa DeepSeek (thinking -> reasoner).
         // Agar umuman DeepSeek ulangan bo'lmasa, Gemini'ga fallback qilamiz
-        const model = hasGemini ? CHAT_MODEL : (hasDeepseek ? (thinking ? 'deepseek-reasoner' : 'deepseek-chat') : CHAT_MODEL)
+        const model = hasDeepseek ? (thinking ? 'deepseek-reasoner' : 'deepseek-chat') : 'gemini-3.5-flash'
 
         // SSE headers
         res.setHeader('Content-Type', 'text/event-stream')
@@ -2091,20 +2092,20 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
             const msg = (firstErr?.message || '').toLowerCase()
             // Auth xatosi bo'lsa fallback qilmaymiz (konfiguratsiya muammosi — yashirmaymiz)
             const isAuthErr = status === 401 || msg.includes('auth') || msg.includes('invalid api key')
-            // Gemini rate-limit/kvota tugashi (429 / RESOURCE_EXHAUSTED / quota) — zaxiraga o'tamiz
-            const isQuotaErr = status === 429 || msg.includes('rate limit') || msg.includes('resource_exhausted') || msg.includes('quota')
-            // ASOSIY (Gemini) ishlamadi → DeepSeek ZAXIRAga o'tamiz (uzilish bo'lmaydi)
-            if (!isAuthErr && hasGemini && hasDeepseek) {
-                console.warn(isQuotaErr
-                    ? '⚠️ Gemini kvotasi/limiti → DeepSeek zaxiraga o\'tildi (uzilishsiz).'
-                    : 'Gemini xatosi → DeepSeek zaxiraga fallback:', firstErr.message)
-                activeClient = deepseekClient
-                activeModel = 'deepseek-chat'
+            // DeepSeek 429 (rate-limit) yoki 402 (balans tugashi) — Gemini zaxiraga o'tamiz
+            const isBalanceErr = status === 402 || msg.includes('insufficient balance') || msg.includes('insufficient_quota') || msg.includes('payment required')
+            // ASOSIY (DeepSeek) ishlamadi → Gemini ZAXIRAga o'tamiz (uzilish bo'lmaydi)
+            if (!isAuthErr && hasDeepseek && hasGemini) {
+                console.warn(isBalanceErr
+                    ? '⚠️ DeepSeek balansi tugadi → Gemini zaxiraga o\'tildi (uzilishsiz).'
+                    : 'DeepSeek xatosi → Gemini zaxiraga fallback:', firstErr.message)
+                activeClient = gptClient
+                activeModel = VISION_MODEL
                 const fallbackOpts = { ...streamOptions, model: activeModel }
-                delete fallbackOpts.reasoning_effort // DeepSeek bu parametrni tushunmaydi
+                fallbackOpts.reasoning_effort = 'low' // Gemini tezligi uchun
                 delete fallbackOpts.temperature
                 fallbackOpts.temperature = 0.7
-                stream = await deepseekClient.chat.completions.create(fallbackOpts) as any
+                stream = await gptClient.chat.completions.create(fallbackOpts) as any
             } else {
                 throw firstErr
             }

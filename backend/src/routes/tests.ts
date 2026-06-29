@@ -274,7 +274,7 @@ const testReadLimiter = rateLimit({
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } })
 
-// ASOSIY: Gemini 3.5 Flash (test generatsiya + vision). DeepSeek — zaxira.
+// ASOSIY: DeepSeek (test generatsiya — JSON bloklarni ishonchli beradi). Gemini — FAQAT vision (rasm/OCR).
 const hasGemini = !!process.env.GEMINI_API_KEY
 const hasDeepseek = !!process.env.DEEPSEEK_API_KEY
 const VISION_MODEL = 'gemini-3.5-flash'
@@ -287,10 +287,10 @@ const deepseekClient = new OpenAI({
     baseURL: 'https://api.deepseek.com',
     apiKey: process.env.DEEPSEEK_API_KEY || ''
 })
-// aiClient/gptClient eski nomlar — endi Gemini'ga ishora. Gemini kaliti yo'q bo'lsa DeepSeek.
-const aiClient = hasGemini ? geminiClient : deepseekClient
-const aiModel = hasGemini ? 'gemini-3.5-flash' : 'deepseek-chat'
-const gptClient = geminiClient // vision — har doim Gemini
+// aiClient/aiModel ASOSIY = DeepSeek (key bo'lsa). gptClient = Gemini (vision).
+const aiClient = hasDeepseek ? deepseekClient : geminiClient
+const aiModel = hasDeepseek ? 'deepseek-chat' : 'gemini-3.5-flash'
+const gptClient = geminiClient // vision (OCR) — Gemini
 
 const QUESTION_GENERATION_MAX_OUTPUT_TOKENS = 8000
 const QUESTION_GENERATION_MAX_TOTAL = 90

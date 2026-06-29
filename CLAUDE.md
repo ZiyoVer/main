@@ -55,7 +55,7 @@ mcp-server/src/index.ts                       ← MCP server
 - **Frontend:** React 19 + Vite 7 + TypeScript + Tailwind v4 + Zustand + KaTeX
 - **Backend:** Express 5 + Prisma 5 + JWT + Resend + DeepSeek/OpenAI SDK
 - **Database:** PostgreSQL — 16 Prisma model
-- **AI:** gemini-3.5-flash (ASOSIY — chat + test generatsiya + vision/OCR), deepseek-chat (ZAXIRA/fallback)
+- **AI:** deepseek-chat (ASOSIY — chat + test/essay/flashcard generatsiya), gemini-3.5-flash (vision/OCR + DeepSeek-429/balans zaxira)
 - **Auth:** JWT 7 kun | Rollar: STUDENT, TEACHER, ADMIN
 
 ---
