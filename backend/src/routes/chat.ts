@@ -1057,26 +1057,17 @@ async function createAssistantOnlyGreeting(chat: { id: string; subject: string |
     })
     const aiSettings = await getAISettings()
     const firstName = getFirstName(user.name)
-    const systemPrompt = buildSystemPrompt(
-        profile,
-        chat.subject || profile?.subject || undefined,
-        chat.subject2 || profile?.subject2 || undefined,
-        aiSettings.extraRules,
-        aiSettings.promptOverrides,
-        true
-    ) + `
+    // TOKEN TEJASH: salom uchun to'liq (~12k token) system prompt SHART EMAS —
+    // 1-2 jumlalik salomga atigi shu kichik ko'rsatma yetadi (98% token tejaladi).
+    const subjectLabel = chat.subject || profile?.subject || ''
+    const systemPrompt = `Sen DTMMax platformasining AI o'qituvchisisan — O'zbekiston DTM va Milliy Sertifikat imtihonlariga tayyorlaysan. O'zbek tilida, samimiy va sodda yoz.
 
 ## AUTO GREETING (ichki ko'rsatma)
-- Bu yangi bo'sh chat.
-- O'quvchiga SEN birinchi bo'lib yozasan.
-- Faqat 1-2 qisqa jumla yoz.
-- ${firstName} ismini ishlatishing mumkin.
-- Xabar psixologik trigger bo'lsin: o'quvchini qaysi fan/mavzu qiynayotganini yozishga unda.
-- "Bugun qaysi fan yoki mavzu sizni ko'proq qiynayapti?" mazmunidagi savol bilan tugat.
-- "Men siz bilan tushuntirish, mashq va test orqali ishlashga tayyorman" mazmunini tabiiy qo'sh.
-- Structured blocklar (\`\`\`test, \`\`\`todo, \`\`\`flashcard, \`\`\`formula, \`\`\`geometry, \`\`\`essay, \`\`\`vocab) chiqarmagin.
-- "Men yordam bera olaman" kabi umumiy va uzun kirish yozma.
-- Tabiiy, sodda va chatga mos yoz.`
+- Bu yangi bo'sh chat — o'quvchiga SEN birinchi bo'lib yozasan.
+- Faqat 1-2 qisqa jumla yoz.${firstName ? ` ${firstName} ismini ishlatishing mumkin.` : ''}${subjectLabel ? ` O'quvchining tanlagan fani: ${subjectLabel}.` : ''}
+- Xabar o'quvchini qaysi fan/mavzu qiynayotganini yozishga undasin va "Bugun qaysi mavzu sizni ko'proq qiynayapti?" mazmunidagi savol bilan tugasin.
+- "Tushuntirish, mashq va test orqali ishlashga tayyorman" mazmunini tabiiy qo'sh.
+- Hech qanday structured blok (test, todo, flashcard, formula, geometry, essay, vocab) chiqarma. Umumiy uzun kirish yozma.`
 
     const completionMessages = [
         { role: 'system' as const, content: systemPrompt },
@@ -1918,11 +1909,13 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
 
         const savedUserContent = displayText?.trim() || content
 
-        // Oldingi xabarlar — eng YANGI 80 ta (desc + reverse = to'g'ri tartib)
+        // Oldingi xabarlar — eng YANGI 20 ta (desc + reverse = to'g'ri tartib).
+        // TOKEN TEJASH: 80 ta history har xabarda 20-40k input token edi; o'quv holati
+        // baribir DB'da (TopicStat) saqlanadi, suhbat uchun 20 ta (10 almashinuv) yetarli.
         const historyRaw = await prisma.message.findMany({
             where: { chatId: chat.id },
             orderBy: { createdAt: 'desc' },
-            take: 80
+            take: 20
         })
         const history = historyRaw.reverse()
         const isFirstMessage = history.length === 0
@@ -2167,11 +2160,13 @@ router.post('/:chatId/send', authenticate, requireVerified, async (req: AuthRequ
             data: { chatId: chat.id, role: 'user', content }
         })
 
-        const history = await prisma.message.findMany({
+        // Eng YANGI 20 ta (desc+take+reverse = xronologik). TOKEN TEJASH + uzun chatda
+        // eski 80 emas, yangi kontekst yuboriladi.
+        const history = (await prisma.message.findMany({
             where: { chatId: chat.id },
-            orderBy: { createdAt: 'asc' },
-            take: 80
-        })
+            orderBy: { createdAt: 'desc' },
+            take: 20
+        })).reverse()
 
         const profile = await prisma.studentProfile.findUnique({
             where: { userId: req.user.id }
