@@ -38,7 +38,7 @@ const router = Router()
 // (Gemini 3.5 Flash chatда ```test/```essay bloklarini ishonchli bermadi — DeepSeek beradi.)
 const hasGemini = !!process.env.GEMINI_API_KEY
 const hasDeepseek = !!process.env.DEEPSEEK_API_KEY
-const VISION_MODEL = 'gemini-3.5-flash'
+const VISION_MODEL = 'gemini-2.5-flash'
 
 // Gemini OpenAI-mos endpoint — vision + zaxira
 const geminiClient = new OpenAI({
@@ -53,7 +53,7 @@ const deepseekClient = new OpenAI({
 
 // chatClient/chatModel ASOSIY = DeepSeek (key bo'lsa). gptClient = Gemini (vision + 429 fallback).
 const chatClient = hasDeepseek ? deepseekClient : geminiClient
-const chatModel = hasDeepseek ? 'deepseek-chat' : 'gemini-3.5-flash'
+const chatModel = hasDeepseek ? 'deepseek-chat' : 'gemini-2.5-flash'
 const gptClient = geminiClient
 
 // AI Settings — umumiy cache modulidan foydalanamiz (aiSettings.ts bilan shared)
@@ -2015,7 +2015,7 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
         // Model tanlash: ASOSIY Gemini 3.5 Flash (thinking ham shu modelda — ichki fikrlaydi).
         // Gemini kaliti yo'q bo'lsa DeepSeek (thinking -> reasoner).
         // Agar umuman DeepSeek ulangan bo'lmasa, Gemini'ga fallback qilamiz
-        const model = hasDeepseek ? (thinking ? 'deepseek-reasoner' : 'deepseek-chat') : 'gemini-3.5-flash'
+        const model = hasDeepseek ? (thinking ? 'deepseek-reasoner' : 'deepseek-chat') : 'gemini-2.5-flash'
 
         // SSE headers
         res.setHeader('Content-Type', 'text/event-stream')

@@ -984,10 +984,14 @@ export default function ChatLayout() {
         // chatId ref'ini sinxronlash — stream guard'lari shu ref'ga tayanadi
         chatIdRef.current = chatId
         // Boshqa chatga o'tilganda davom etayotgan SSE stream'ni bekor qilamiz,
-        // aks holda javob noto'g'ri chatga yozilib qoladi
+        // aks holda javob noto'g'ri chatga yozilib qoladi. abortRef null qilingani uchun
+        // stream cleanup loading'ni tiklamaydi -> bu yerda O'ZIMIZ tiklaymiz (komponent remount bo'lmaydi).
         if (abortRef.current) {
             abortRef.current.abort()
             abortRef.current = null
+            setLoading(false)
+            setStreaming('')
+            setThinkingText('')
         }
         if (chatId) loadMessages(chatId)
     }, [chatId])
@@ -1499,7 +1503,9 @@ Iltimos, har bir savolni tahlil qilib ber:
     }
 
     // YANGI O'QUVCHI: chat yaratib, AI shaxsiy+motivatsion salom yozadi (DB'ga saqlanadi),
-    // so'ng chatga o'tamiz — remount'дан keyin loadMessages saqlangan salomni yuklaydi.
+    // so'ng chatga o'tamiz. chatId effekti loadMessages bilan saqlangan salomni yuklaydi.
+    // MUHIM: /suhbat <-> /suhbat/:id navda komponent REMOUNT bo'lmaydi (App.tsx bir xil element,
+    // key yo'q) -> loading'ni O'ZIMIZ false qilishimiz shart, aks holda kompozer qotib qoladi.
     async function startNewUserGreeting() {
         setLoading(true)
         try {
@@ -1518,6 +1524,7 @@ Iltimos, har bir savolni tahlil qilib ber:
         } catch (e) {
             console.error('startNewUserGreeting:', e)
             autoLandingChatRef.current = false
+        } finally {
             setLoading(false)
         }
     }
@@ -2500,7 +2507,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                             )}
                         </div>
                         {obStep === 3 && (
-                            <button type="button" onClick={() => { setOnboardingForm(prev => ({ ...prev, examDate: '' })); setObStep(4) }} className="btn btn-ghost" style={{ width: '100%' }}>O'tkazib yuborish</button>
+                            // Ball ixtiyoriy — "O'tkazib yuborish" onboardingni YAKUNLAYDI (oldin setObStep(4) dead-end edi)
+                            <button type="submit" disabled={savingProfile} className="btn btn-ghost" style={{ width: '100%' }}>O'tkazib yuborish</button>
                         )}
                     </form>
                 </div>
@@ -2775,20 +2783,25 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 </div>
                                             </div>
                                             {onboardingForm.examType === 'DTM' ? (
-                                                <div>
-                                                    <label className="text-xs font-medium flex items-center gap-2 mb-1" style={{ color: 'var(--text-muted)' }}>
-                                                        <BookOpen className="h-3.5 w-3.5" />
-                                                        Yo'nalish (fanlar majmuasi)
-                                                    </label>
-                                                    <select value={obDirectionCode} onChange={e => handleObDirectionChange(e.target.value)} className="input text-sm h-10" style={{ cursor: 'pointer' }}>
-                                                        <option value="">— Yo'nalishni tanlang —</option>
-                                                        {DTM_DIRECTIONS.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
-                                                    </select>
-                                                    {obDtmPairInvalid && (
-                                                        <p className="text-xs mt-1.5" style={{ color: 'var(--danger)' }}>
-                                                            Avvalgi tanlovingiz ({onboardingForm.subject} – {onboardingForm.subject2}) rasmiy yo'nalishlarda yo'q. Iltimos, yo'nalishni qayta tanlang.
-                                                        </p>
-                                                    )}
+                                                <div className="space-y-2.5">
+                                                    <div>
+                                                        <label className="text-xs font-medium flex items-center gap-2 mb-1" style={{ color: 'var(--text-muted)' }}>
+                                                            <BookOpen className="h-3.5 w-3.5" /> 1-fan
+                                                        </label>
+                                                        <select value={onboardingForm.subject} onChange={e => setOnboardingForm(f => ({ ...f, subject: e.target.value }))} className="input text-sm h-10" style={{ cursor: 'pointer' }}>
+                                                            <option value="">— Tanlang —</option>
+                                                            {SUBJECTS.map(f => <option key={f} value={f}>{f}</option>)}
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-xs font-medium flex items-center gap-2 mb-1" style={{ color: 'var(--text-muted)' }}>
+                                                            <BookOpen className="h-3.5 w-3.5" /> 2-fan
+                                                        </label>
+                                                        <select value={onboardingForm.subject2} onChange={e => setOnboardingForm(f => ({ ...f, subject2: e.target.value }))} className="input text-sm h-10" style={{ cursor: 'pointer' }}>
+                                                            <option value="">— Tanlang —</option>
+                                                            {SUBJECTS.filter(f => f !== onboardingForm.subject).map(f => <option key={f} value={f}>{f}</option>)}
+                                                        </select>
+                                                    </div>
                                                 </div>
                                             ) : (
                                                 <div>
@@ -2833,7 +2846,7 @@ Iltimos, har bir savolni tahlil qilib ber:
 
                                         {/* ── Footer: Save (primary) + Logout (ghost) ── */}
                                         <div className="pt-7 flex flex-col sm:flex-row gap-3" style={{ borderTop: '1px solid var(--border)' }}>
-                                            <button type="submit" disabled={savingProfile || !!obScoreErr || obDtmPairInvalid} className="btn btn-primary h-10 text-sm px-5 flex-1">
+                                            <button type="submit" disabled={savingProfile || !!obScoreErr} className="btn btn-primary h-10 text-sm px-5 flex-1">
                                                 {savingProfile ? 'Saqlanmoqda...' : 'Saqlash'}
                                             </button>
                                             <button type="button" onClick={() => { setShowSettings(false); localStorage.removeItem(essayDraftKey); logout() }} className="btn btn-outline h-10 text-sm px-5 flex-1">

@@ -277,7 +277,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 
 // ASOSIY: DeepSeek (test generatsiya — JSON bloklarni ishonchli beradi). Gemini — FAQAT vision (rasm/OCR).
 const hasGemini = !!process.env.GEMINI_API_KEY
 const hasDeepseek = !!process.env.DEEPSEEK_API_KEY
-const VISION_MODEL = 'gemini-3.5-flash'
+const VISION_MODEL = 'gemini-2.5-flash'
 
 const geminiClient = new OpenAI({
     apiKey: process.env.GEMINI_API_KEY || '',
@@ -289,7 +289,7 @@ const deepseekClient = new OpenAI({
 })
 // aiClient/aiModel ASOSIY = DeepSeek (key bo'lsa). gptClient = Gemini (vision).
 const aiClient = hasDeepseek ? deepseekClient : geminiClient
-const aiModel = hasDeepseek ? 'deepseek-chat' : 'gemini-3.5-flash'
+const aiModel = hasDeepseek ? 'deepseek-chat' : 'gemini-2.5-flash'
 const gptClient = geminiClient // vision (OCR) — Gemini
 
 const QUESTION_GENERATION_MAX_OUTPUT_TOKENS = 8000
@@ -1731,8 +1731,28 @@ Nega to'g'ri javob ${String(correctAnswer).toUpperCase()} ekanini soddagina tush
             temperature: 0.4,
         }
         if (aiModel.startsWith('gemini')) completionOpts.reasoning_effort = 'low'
-        const completion = await aiClient.chat.completions.create(completionOpts)
-        const explanation = completion.choices[0]?.message?.content?.trim() || ''
+        let explanation = ''
+        try {
+            const completion = await aiClient.chat.completions.create(completionOpts)
+            explanation = completion.choices[0]?.message?.content?.trim() || ''
+        } catch (primaryErr: any) {
+            // DeepSeek 429/balans tugashi → Gemini zaxiraga (chat.ts kabi) — tugma 500 bermasin
+            const st = primaryErr?.status ?? 0
+            const m = String(primaryErr?.message || '').toLowerCase()
+            const isAuthErr = st === 401 || m.includes('auth') || m.includes('invalid api key')
+            if (!isAuthErr && hasGemini && aiModel.startsWith('deepseek')) {
+                const completion = await geminiClient.chat.completions.create({
+                    model: VISION_MODEL,
+                    messages: [{ role: 'user', content: prompt }],
+                    max_tokens: 500,
+                    temperature: 0.4,
+                    reasoning_effort: 'low',
+                } as any)
+                explanation = completion.choices[0]?.message?.content?.trim() || ''
+            } else {
+                throw primaryErr
+            }
+        }
         if (!explanation) return res.status(502).json({ error: 'Tushuntirib bo\'lmadi' })
         res.json({ explanation })
     } catch (e) {
