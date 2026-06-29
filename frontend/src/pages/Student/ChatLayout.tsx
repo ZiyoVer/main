@@ -810,6 +810,9 @@ export default function ChatLayout() {
     const [overlayPanel, setOverlayPanel] = useState<'tests' | 'flashcards' | 'progress' | 'pro' | null>(null)
     const [testCategory, setTestCategory] = useState<string>('all') // testlar bo'limi kategoriya filtri
     const [activeTestSource, setActiveTestSource] = useState<string | null>(null) // ochiq test panelining manbasi (badge uchun)
+    // Test review: xato javob ostidagi per-savol AI tushuntirishi (panel ichida, mobil uchun)
+    const [explanations, setExplanations] = useState<Record<number, string>>({})
+    const [explLoading, setExplLoading] = useState<number | null>(null)
     const [todoItems, setTodoItems] = useState<TodoItem[]>(() => loadStoredTodos(todoStorageKey))
     const [todoOpen, setTodoOpen] = useState(() => {
         // Mobilда avto-ochmaymiz — fullscreen panel kirishni to'sib qo'ymasligi uchun
@@ -2011,6 +2014,31 @@ Iltimos, har bir savolni tahlil qilib ber:
 
     // Har render da ref ni yangilaymiz — stale closure muammosini hal qilish uchun
     submitTestPanelRef.current = () => { void submitTestPanel() }
+
+    // Yangi test ochilganda eski tushuntirishlarni tozalaymiz (indeks bo'yicha aralashmasin)
+    useEffect(() => { setExplanations({}); setExplLoading(null) }, [testPanel])
+
+    // Xato javob uchun AI tushuntirishini olib, panel ichida ko'rsatamiz
+    async function explainQuestion(i: number, q: any) {
+        if (explLoading !== null || explanations[i]) return
+        setExplLoading(i)
+        try {
+            const data = await fetchApi('/tests/explain', {
+                method: 'POST',
+                body: JSON.stringify({
+                    question: q.q, a: q.a, b: q.b, c: q.c, d: q.d,
+                    studentAnswer: testAnswers[i] || '', correctAnswer: q.correct,
+                    subject: profile?.subject || ''
+                })
+            })
+            if (data?.explanation) setExplanations(prev => ({ ...prev, [i]: data.explanation }))
+            else toast.error('Tushuntirib bo\'lmadi, qayta urinib ko\'ring')
+        } catch {
+            toast.error('Tushuntirib bo\'lmadi, qayta urinib ko\'ring')
+        } finally {
+            setExplLoading(null)
+        }
+    }
 
     async function submitTestPanel() {
         if (!testPanel) return
@@ -3217,6 +3245,22 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                                 </button>
                                                             )
                                                         })}
+                                                    </div>
+                                                )}
+                                                {testSubmitted && q.questionType !== 'open' && q.correct && testAnswers[i] !== q.correct && (
+                                                    <div className="mt-3">
+                                                        {explanations[i] ? (
+                                                            <div className="text-[12.5px] leading-relaxed px-3.5 py-2.5 rounded-xl" style={{ background: 'var(--brand-light)', color: 'var(--text-secondary)' }}>
+                                                                <span className="font-semibold inline-flex items-center gap-1 mr-1" style={{ color: 'var(--brand)' }}><Lightbulb className="h-3.5 w-3.5" /> Izoh:</span>
+                                                                <MathText text={explanations[i]} />
+                                                            </div>
+                                                        ) : (
+                                                            <button type="button" onClick={() => explainQuestion(i, q)} disabled={explLoading !== null}
+                                                                className="text-[12px] font-semibold inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition disabled:opacity-50"
+                                                                style={{ color: 'var(--brand)', background: 'var(--brand-light)' }}>
+                                                                <Lightbulb className="h-3.5 w-3.5" /> {explLoading === i ? 'Tushuntirilmoqda...' : 'Nega xato? AI tushuntirsin'}
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>

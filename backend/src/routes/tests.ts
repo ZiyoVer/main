@@ -1707,6 +1707,40 @@ Javoblar O'zbek tilida, KaTeX formulalar bilan ($\\frac{a}{b}$ formatida) bo'lsi
 })
 
 // Test natijasini AI bilan tahlil qilish (TestPage uchun)
+// Bitta savolni QISQA tushuntirish — test panel review'da xato javob ostidagi "Nega xato?" tugmasi uchun.
+router.post('/explain', authenticate, async (req: AuthRequest, res) => {
+    try {
+        const { question, studentAnswer, correctAnswer, subject } = req.body
+        if (!question || !correctAnswer) return res.status(400).json({ error: 'question va correctAnswer kerak' })
+        const opts = (['a', 'b', 'c', 'd'] as const)
+            .map(k => (req.body[k] ? `${k.toUpperCase()}) ${req.body[k]}` : null))
+            .filter(Boolean).join('\n')
+        const prompt = `Quyidagi ${subject || ''} test savolini QISQA tushuntir (o'zbek tilida, 2-4 jumla):
+
+Savol: ${question}
+${opts}
+
+O'quvchining javobi: ${String(studentAnswer || '—').toUpperCase()}
+To'g'ri javob: ${String(correctAnswer || '—').toUpperCase()}
+
+Nega to'g'ri javob ${String(correctAnswer).toUpperCase()} ekanini soddagina tushuntir va o'quvchining xatosini qisqa ko'rsat. Faqat tushuntirish — kirish/yakun gapsiz. Formulani $...$ ichida yoz.`
+        const completionOpts: any = {
+            model: aiModel,
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: 500,
+            temperature: 0.4,
+        }
+        if (aiModel.startsWith('gemini')) completionOpts.reasoning_effort = 'low'
+        const completion = await aiClient.chat.completions.create(completionOpts)
+        const explanation = completion.choices[0]?.message?.content?.trim() || ''
+        if (!explanation) return res.status(502).json({ error: 'Tushuntirib bo\'lmadi' })
+        res.json({ explanation })
+    } catch (e) {
+        console.error('explain xato:', e)
+        res.status(500).json({ error: 'Tushuntirishda xatolik' })
+    }
+})
+
 router.post('/analyze-result', authenticate, async (req: AuthRequest, res) => {
     try {
         const { title, subject, score, total, questions } = req.body
