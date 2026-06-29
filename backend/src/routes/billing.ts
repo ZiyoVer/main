@@ -1,25 +1,31 @@
 import { Router } from 'express'
+import crypto from 'crypto'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest } from '../middleware/auth'
 
 /* =========================================================================
-   DtmMax — To'lov / obuna (SCAFFOLDING)
+   DtmMax — To'lov / obuna (OCTO agregator)
    ---------------------------------------------------------------------------
-   Bu modul to'lov POYDEVORI: entitlement hisobi, /status va provider-agnostik
-   /webhook skeleti. AMALDA to'lov yoqilishi quyidagilarni kutadi:
-     - To'lov agregatori (Octo/Multicard) hisobi + SANDBOX kalit
-     - BILLING_WEBHOOK_SECRET env o'rnatilishi
-     - Tanlangan agregator protokoli bo'yicha imzo/payload tekshiruvi (pastdagi TODO)
-   Kalit yo'q bo'lsa webhook INERT (503) — production'da xavfsiz, hech narsa o'zgarmaydi.
+   Oqim:
+     1) Frontend  -> POST /api/billing/checkout  (auth)  -> Octo pay URL qaytadi
+     2) User Octo sahifasida to'laydi
+     3) Octo -> POST /api/billing/octo/notify (webhook) -> obuna faollashadi
+   Kalit yo'q bo'lsa (OCTO_SHOP_ID/OCTO_SECRET) endpointlar INERT (503) — xavfsiz.
 
-   GATING: PRO_ENFORCED !== 'true' bo'lsa, hamma uchun Pro ochiq (hozirgi beta holati).
-   Frontend useIsPro() shu /status ga keyin ulanadi; hozircha xulq-atvor o'zgarmaydi.
+   Kerakli env (Octo MChJ onboarding'idan keyin):
+     OCTO_SHOP_ID, OCTO_SECRET, OCTO_NOTIFY_SECRET (webhook unique_key — Octo beradi),
+     OCTO_TEST=true (sandbox), PRO_PRICE_UZS (default 35000), FRONTEND_URL.
+
+   GATING: PRO_ENFORCED !== 'true' bo'lsa hamma uchun Pro ochiq (beta). To'lovni
+   yoqish = OCTO_* env + PRO_ENFORCED=true. Frontend useIsPro() /status ga ulanadi.
    ========================================================================= */
 
 const router = Router()
 
 const PRO_ENFORCED = process.env.PRO_ENFORCED === 'true'
 const PRO_PRICE_UZS = Number(process.env.PRO_PRICE_UZS || 35000)
+const OCTO_PREPARE_URL = 'https://secure.octo.uz/prepare_payment'
+const MONTH_MS = 30 * 24 * 60 * 60 * 1000
 
 export interface Entitlement {
     isPro: boolean
@@ -46,7 +52,7 @@ export async function getEntitlement(userId: string): Promise<Entitlement> {
     }
 }
 
-/** Express middleware: enforcement yoqilgan bo'lsa Pro talab qiladi (hozircha hech qayerda ishlatilmaydi). */
+/** Express middleware: enforcement yoqilgan bo'lsa Pro talab qiladi. */
 export async function requirePro(req: AuthRequest, res: import('express').Response, next: import('express').NextFunction) {
     try {
         if (!PRO_ENFORCED) return next()
@@ -61,47 +67,168 @@ export async function requirePro(req: AuthRequest, res: import('express').Respon
     }
 }
 
+/** Obunani 30 kunga ochish yoki uzaytirish (provider-agnostik). */
+async function extendProSubscription(userId: string, provider: string) {
+    const now = new Date()
+    const active = await prisma.subscription.findFirst({
+        where: { userId, status: 'ACTIVE', expiresAt: { gt: now } },
+        orderBy: { expiresAt: 'desc' },
+    })
+    const base = active?.expiresAt && active.expiresAt > now ? active.expiresAt : now
+    const expiresAt = new Date(base.getTime() + MONTH_MS)
+    return active
+        ? prisma.subscription.update({ where: { id: active.id }, data: { expiresAt, provider, status: 'ACTIVE' } })
+        : prisma.subscription.create({
+            data: { userId, plan: 'PRO', status: 'ACTIVE', startedAt: now, expiresAt, provider },
+        })
+}
+
 /** Joriy foydalanuvchining obuna holati. */
 router.get('/status', authenticate, async (req: AuthRequest, res) => {
     try {
-        const ent = await getEntitlement(req.user.id)
+        const ent = await getEntitlement(req.user!.id)
         res.json({ ...ent, priceUzs: PRO_PRICE_UZS })
     } catch {
         res.status(500).json({ error: 'Server xatoligi' })
     }
 })
 
+interface OctoPrepareResponse {
+    error?: number
+    errMessage?: string | null
+    data?: { octo_pay_url?: string; octo_payment_UUID?: string; status?: string }
+}
+
 /**
- * Provider webhook (Octo/Multicard) — to'lov tasdig'i shu yerda keladi.
- * Kalit sozlanmaган bo'lsa INERT. Sozlangach: imzoni tekshir → Payment'ni
- * idempotent yozib (providerTxnId unique) → Subscription'ni faollashtir.
+ * To'lovni boshlash — Octo prepare_payment chaqiradi, checkout URL qaytaradi.
+ * Frontend qaytgan payUrl'ga redirect qiladi.
+ */
+router.post('/checkout', authenticate, async (req: AuthRequest, res) => {
+    try {
+        const shopId = Number(process.env.OCTO_SHOP_ID || 0)
+        const secret = process.env.OCTO_SECRET || ''
+        if (!shopId || !secret) return res.status(503).json({ error: 'billing_not_configured' })
+        if (!req.user) return res.status(401).json({ error: 'Avval kiring' })
+
+        // shop_transaction_id — biz generatsiya qilamiz, webhook shu bo'yicha topadi (idempotentlik kaliti)
+        const shopTxnId = `dtmmax_${req.user.id}_${Date.now()}`
+        await prisma.payment.create({
+            data: { userId: req.user.id, amount: PRO_PRICE_UZS, currency: 'UZS', status: 'CREATED', provider: 'octo', providerTxnId: shopTxnId },
+        })
+
+        const notifyUrl = `${req.protocol}://${req.get('host')}/api/billing/octo/notify`
+        const returnUrl = `${process.env.FRONTEND_URL || 'https://www.dtmmax.uz'}/pro/natija?tx=${encodeURIComponent(shopTxnId)}`
+        const initTime = new Date().toISOString().slice(0, 19).replace('T', ' ') // "YYYY-MM-DD HH:mm:ss"
+
+        const payload = {
+            octo_shop_id: shopId,
+            octo_secret: secret,
+            shop_transaction_id: shopTxnId,
+            auto_capture: true,
+            test: process.env.OCTO_TEST === 'true',
+            init_time: initTime,
+            user_data: { user_id: req.user.id },
+            total_sum: PRO_PRICE_UZS,
+            currency: 'UZS',
+            description: 'DTMMax Pro obuna (1 oy)',
+            payment_methods: [{ method: 'bank_card' }, { method: 'uzcard' }, { method: 'humo' }],
+            return_url: returnUrl,
+            notify_url: notifyUrl,
+            language: 'uz',
+            ttl: 15,
+        }
+
+        const r = await fetch(OCTO_PREPARE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        })
+        const data = (await r.json()) as OctoPrepareResponse
+        const payUrl = data?.data?.octo_pay_url
+        if (!payUrl) {
+            console.error('octo prepare_payment xato:', JSON.stringify(data))
+            return res.status(502).json({ error: 'payment_init_failed', detail: data?.errMessage || null })
+        }
+
+        // octo_payment_UUID'ni kuzatuv uchun saqlaymiz
+        await prisma.payment.update({
+            where: { providerTxnId: shopTxnId },
+            data: { meta: JSON.stringify({ octo_payment_UUID: data?.data?.octo_payment_UUID || null }) },
+        }).catch(() => undefined)
+
+        res.json({ payUrl, shopTransactionId: shopTxnId })
+    } catch (e) {
+        console.error('checkout xato:', e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+/**
+ * Octo webhook (notify_url) — to'lov natijasi shu yerga keladi.
+ * Imzo: sha1(unique_key + octo_payment_UUID + status). Muvaffaqiyat -> obuna 30 kun.
+ */
+router.post('/octo/notify', async (req, res) => {
+    const notifySecret = process.env.OCTO_NOTIFY_SECRET || process.env.OCTO_SECRET || ''
+    if (!notifySecret) return res.status(503).json({ error: 'billing_not_configured' })
+    try {
+        const body = (req.body || {}) as Record<string, unknown>
+        const uuid = String(body.octo_payment_UUID || '')
+        const status = String(body.status || '')
+        const shopTxnId = String(body.shop_transaction_id || '')
+        const signature = String(body.signature || '')
+        if (!uuid || !shopTxnId) return res.status(400).json({ error: 'invalid_payload' })
+
+        // MUHIM: imzo formulasi Octo hujjatiga ko'ra sha1(unique_key+uuid+status).
+        // Sandbox'da TASDIQLA — agar mos kelmasa Octo notify hujjatidagi aniq tartibga
+        // moslang. Vaqtincha sinash uchun OCTO_VERIFY_SIGNATURE=false qo'yib bo'ladi.
+        const expected = crypto.createHash('sha1').update(`${notifySecret}${uuid}${status}`).digest('hex')
+        const verifyOn = process.env.OCTO_VERIFY_SIGNATURE !== 'false'
+        if (verifyOn && signature !== expected) {
+            console.warn('octo notify imzo mos emas — kutilgan:', expected, '| kelgan:', signature)
+            return res.status(401).json({ error: 'bad_signature' })
+        }
+
+        const payment = await prisma.payment.findUnique({ where: { providerTxnId: shopTxnId } })
+        if (!payment) return res.status(404).json({ error: 'payment_not_found' })
+        if (payment.status === 'PAID') return res.json({ ok: true, idempotent: true })
+
+        const paid = status === 'succeeded'
+        if (!paid) {
+            await prisma.payment.update({ where: { providerTxnId: shopTxnId }, data: { status: 'FAILED', meta: JSON.stringify(body) } })
+            return res.json({ ok: true })
+        }
+
+        const sub = await extendProSubscription(payment.userId, 'octo')
+        await prisma.payment.update({
+            where: { providerTxnId: shopTxnId },
+            data: { status: 'PAID', subscriptionId: sub.id, meta: JSON.stringify(body) },
+        })
+        res.json({ ok: true })
+    } catch (e) {
+        console.error('octo notify xato:', e)
+        res.status(500).json({ error: 'server_error' })
+    }
+})
+
+/**
+ * Umumiy provider webhook (eski skelet — boshqa agregator uchun zaxira).
+ * BILLING_WEBHOOK_SECRET sozlanmagan bo'lsa INERT.
  */
 router.post('/webhook', async (req, res) => {
     const secret = process.env.BILLING_WEBHOOK_SECRET
-    if (!secret) {
-        // Hali sozlanmagan — production'da xavfsiz no-op.
-        return res.status(503).json({ error: 'billing_not_configured' })
-    }
+    if (!secret) return res.status(503).json({ error: 'billing_not_configured' })
     try {
-        // TODO(agregator): tanlangan provider (Octo/Multicard) imzo/auth tekshiruvi.
-        // Hozircha oddiy umumiy-sir sarlavhasi orqali himoya (sandbox uchun).
-        const provided = req.header('x-webhook-secret')
-        if (provided !== secret) {
+        if (req.header('x-webhook-secret') !== secret) {
             return res.status(401).json({ error: 'unauthorized' })
         }
-
-        // Normalizatsiyalangan payload (real provider maydonlari TODO bilan moslanadi):
         const body = (req.body || {}) as Record<string, unknown>
         const providerTxnId = String(body.transactionId || body.id || '')
         const userId = String(body.userId || '')
         const amount = Number(body.amount || PRO_PRICE_UZS)
         const provider = String(body.provider || 'octo')
         const paid = body.status === 'paid' || body.status === 'success'
-        if (!providerTxnId || !userId) {
-            return res.status(400).json({ error: 'invalid_payload' })
-        }
+        if (!providerTxnId || !userId) return res.status(400).json({ error: 'invalid_payload' })
 
-        // Idempotentlik: bir tranzaksiya bir marta qayta ishlanadi.
         const existing = await prisma.payment.findUnique({ where: { providerTxnId } })
         if (existing) return res.json({ ok: true, idempotent: true })
 
@@ -112,25 +239,10 @@ router.post('/webhook', async (req, res) => {
             return res.json({ ok: true })
         }
 
-        // To'lov muvaffaqiyatli → obunani 1 oyga faollashtir/uzaytir.
-        const now = new Date()
-        const active = await prisma.subscription.findFirst({
-            where: { userId, status: 'ACTIVE', expiresAt: { gt: now } },
-            orderBy: { expiresAt: 'desc' },
-        })
-        const base = active?.expiresAt && active.expiresAt > now ? active.expiresAt : now
-        const expiresAt = new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000)
-
-        const sub = active
-            ? await prisma.subscription.update({ where: { id: active.id }, data: { expiresAt, provider, status: 'ACTIVE' } })
-            : await prisma.subscription.create({
-                data: { userId, plan: 'PRO', status: 'ACTIVE', startedAt: now, expiresAt, provider },
-            })
-
+        const sub = await extendProSubscription(userId, provider)
         await prisma.payment.create({
             data: { userId, subscriptionId: sub.id, amount, provider, providerTxnId, status: 'PAID', meta: JSON.stringify(body) },
         })
-
         res.json({ ok: true })
     } catch (e) {
         console.error('billing webhook:', e)
