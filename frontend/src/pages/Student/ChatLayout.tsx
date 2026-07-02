@@ -3660,6 +3660,35 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             </div>
                                         )}
                                         {publicTests.length > 0 && (() => {
+                                            // Ishlanganlik: backend natijasi YOKI lokal belgi (by-link ham hisobga olinadi)
+                                            const isDone = (t: PublicTest) => myResults.some(r => r.testId === t.id) || completedTestIdsRef.current.has(t.id)
+                                            const doneCount = publicTests.filter(isDone).length
+                                            const donePct = Math.round((doneCount / publicTests.length) * 100)
+                                            return (
+                                                <div className="rounded-2xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                                    <div className="flex items-center justify-between gap-3 mb-2.5">
+                                                        <p className="text-[13px] font-bold" style={{ color: 'var(--text-primary)' }}>
+                                                            Ishlangan: <span style={{ color: donePct === 100 ? '#10b981' : 'var(--brand)' }}>{doneCount}/{publicTests.length}</span>
+                                                        </p>
+                                                        {weakTopicSummary && (
+                                                            <button
+                                                                onClick={() => {
+                                                                    setOverlayPanel(null)
+                                                                    void handleSend(`Mening zaif mavzularim: ${weakTopicSummary}. Shu mavzularni bugun o'rganish uchun qisqa reja tuzing va asosiy tushunchalarni tushuntiring.`, [])
+                                                                }}
+                                                                className="text-[11px] font-semibold px-3 py-1.5 rounded-xl transition flex-shrink-0"
+                                                                style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
+                                                                Zaif mavzularni o'rganish
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-muted)' }}>
+                                                        <div className="h-full rounded-full transition-all" style={{ width: `${donePct}%`, background: donePct === 100 ? '#10b981' : 'var(--k-accent-grad, var(--brand))' }} />
+                                                    </div>
+                                                </div>
+                                            )
+                                        })()}
+                                        {publicTests.length > 0 && (() => {
                                             const cats = Array.from(new Set(publicTests.map(pt => pt.category || 'Boshqa')))
                                             const hasPremium = publicTests.some(pt => pt.premium)
                                             const chips = ['all', ...(hasPremium ? ['premium'] : []), ...cats]
@@ -3681,67 +3710,78 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 </div>
                                             ) : null
                                         })()}
-                                        {publicTests.filter(t => testCategory === 'all' ? true : testCategory === 'premium' ? !!t.premium : (t.category || 'Boshqa') === testCategory).map(t => {
-                                            const result = myResults.find(r => r.testId === t.id)
-                                            return (
-                                                <div key={t.id} className="rounded-2xl p-4 transition" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                                    <div className="flex items-start gap-3">
-                                                        <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                                                            style={{ background: result ? 'rgba(16,185,129,0.12)' : 'color-mix(in srgb, var(--brand) 10%, transparent)' }}>
-                                                            {result ? <CheckCircle className="h-5 w-5" style={{ color: '#10b981' }} /> : <ClipboardList className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
-                                                        </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="font-semibold text-sm truncate">{t.title}</p>
-                                                            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{t.subject} • {t._count?.questions ?? 0} savol</p>
-                                                            <div className="flex flex-wrap gap-1.5 mt-1.5">
-                                                                {t.premium && <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-semibold" style={{ background: 'rgba(184,134,11,0.13)', color: '#B8860B' }}><Sparkles className="h-2.5 w-2.5" />Premium</span>}
-                                                                {(() => { const b = sourceBadge(t.source); return b ? <span className="inline-block text-[10px] px-2 py-0.5 rounded-md font-semibold" style={{ background: b.bg, color: b.color }}>{b.label}</span> : null })()}
+                                        {publicTests
+                                            .filter(t => testCategory === 'all' ? true : testCategory === 'premium' ? !!t.premium : (t.category || 'Boshqa') === testCategory)
+                                            // Ishlanmaganlar YUQORIDA (keyingi ish aniq ko'rinsin), ishlanganlar pastda
+                                            .slice()
+                                            .sort((a, b) => {
+                                                const da = myResults.some(r => r.testId === a.id) || completedTestIdsRef.current.has(a.id) ? 1 : 0
+                                                const db = myResults.some(r => r.testId === b.id) || completedTestIdsRef.current.has(b.id) ? 1 : 0
+                                                return da - db
+                                            })
+                                            .map(t => {
+                                                const result = myResults.find(r => r.testId === t.id)
+                                                const done = !!result || completedTestIdsRef.current.has(t.id)
+                                                return (
+                                                    <div key={t.id} className="rounded-2xl p-4 transition"
+                                                        style={{
+                                                            background: 'var(--bg-card)',
+                                                            border: done ? '1px solid rgba(16,185,129,0.35)' : '1px solid var(--border)',
+                                                            borderLeft: done ? '3px solid #10b981' : '3px solid var(--brand)',
+                                                            opacity: done ? 0.92 : 1,
+                                                        }}>
+                                                        <div className="flex items-start gap-3">
+                                                            <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                                                                style={{ background: done ? 'rgba(16,185,129,0.12)' : 'color-mix(in srgb, var(--brand) 10%, transparent)' }}>
+                                                                {done ? <CheckCircle className="h-5 w-5" style={{ color: '#10b981' }} /> : <ClipboardList className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
                                                             </div>
-                                                            {result && (
-                                                                <div className="mt-2 space-y-2">
-                                                                    <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                                                                        {(() => {
-                                                                            const summary = getAttemptSummary(result)
-                                                                            return `${summary.correctCount}/${summary.answeredCount || t._count?.questions || 0} to'g'ri (${summary.percent}%)`
-                                                                        })()}
-                                                                    </p>
-                                                                    {weakTopicSummary && (
-                                                                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                                                                            Zaif: {weakTopicSummary}
-                                                                        </p>
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                    <p className="font-semibold text-sm truncate">{t.title}</p>
+                                                                    {done && (
+                                                                        <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold flex-shrink-0" style={{ background: 'rgba(16,185,129,0.12)', color: '#10b981' }}>
+                                                                            <CheckCircle className="h-2.5 w-2.5" /> Ishlangan
+                                                                        </span>
                                                                     )}
                                                                 </div>
-                                                            )}
-                                                        </div>
-                                                        {result ? (
+                                                                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{t.subject} • {t._count?.questions ?? 0} savol</p>
+                                                                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                                                    {t.premium && <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-semibold" style={{ background: 'rgba(184,134,11,0.13)', color: '#B8860B' }}><Sparkles className="h-2.5 w-2.5" />Premium</span>}
+                                                                    {(() => { const b = sourceBadge(t.source); return b ? <span className="inline-block text-[10px] px-2 py-0.5 rounded-md font-semibold" style={{ background: b.bg, color: b.color }}>{b.label}</span> : null })()}
+                                                                </div>
+                                                                {result && (
+                                                                    <p className="text-xs mt-2" style={{ color: 'var(--text-secondary)' }}>
+                                                                        {(() => {
+                                                                            const summary = getAttemptSummary(result)
+                                                                            return `${summary.correctCount}/${summary.answeredCount || t._count?.questions || 0} to'g'ri`
+                                                                        })()}
+                                                                    </p>
+                                                                )}
+                                                            </div>
                                                             <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                                                                <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: 'rgba(16,185,129,0.12)', color: '#10b981' }}>
-                                                                    {getAttemptSummary(result).percent}%
-                                                                </span>
-                                                                {weakTopicSummary && (
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            setOverlayPanel(null)
-                                                                            void handleSend(`Mening zaif mavzularim: ${weakTopicSummary}. Shu mavzularni bugun o'rganish uchun qisqa reja tuzing va asosiy tushunchalarni tushuntiring.`, [])
-                                                                        }}
-                                                                        className="text-[11px] font-semibold px-3 py-1.5 rounded-xl transition"
-                                                                        style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}
-                                                                    >
-                                                                        Zaif mavzuni o'rganish
+                                                                {result && (
+                                                                    <span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: 'rgba(16,185,129,0.12)', color: '#10b981' }}>
+                                                                        {getAttemptSummary(result).percent}%
+                                                                    </span>
+                                                                )}
+                                                                {done ? (
+                                                                    <button onClick={() => { void openPublicTest(t) }}
+                                                                        className="text-xs font-semibold px-3 py-1.5 rounded-xl transition"
+                                                                        style={{ background: 'var(--bg-muted)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>
+                                                                        Ko'rish
+                                                                    </button>
+                                                                ) : (
+                                                                    <button onClick={() => { void openPublicTest(t) }}
+                                                                        className="text-xs font-semibold px-3 py-1.5 rounded-xl transition"
+                                                                        style={{ background: 'var(--brand)', color: 'white' }}>
+                                                                        Boshlash
                                                                     </button>
                                                                 )}
                                                             </div>
-                                                        ) : (
-                                                            <button onClick={() => { void openPublicTest(t) }}
-                                                                className="text-xs font-semibold px-3 py-1.5 rounded-xl transition flex-shrink-0"
-                                                                style={{ background: 'var(--brand)', color: 'white' }}>
-                                                                Boshlash
-                                                            </button>
-                                                        )}
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            )
-                                        })}
+                                                )
+                                            })}
                                     </div>
                                 )}
 
