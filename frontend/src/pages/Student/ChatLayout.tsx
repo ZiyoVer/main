@@ -857,6 +857,7 @@ export default function ChatLayout() {
     // Test review: xato javob ostidagi per-savol AI tushuntirishi (panel ichida, mobil uchun)
     const [explanations, setExplanations] = useState<Record<number, string>>({})
     const [explLoading, setExplLoading] = useState<number | null>(null)
+    const [checkoutLoading, setCheckoutLoading] = useState(false)
     const [todoItems, setTodoItems] = useState<TodoItem[]>(() => {
         // HAMMASI bajarilgan eski reja bilan boshlanmaymiz — u "bir ko'rinib yo'qolib" (auto-close
         // 1.5s) foydalanuvchini chalg'itardi. Toza boshlaymiz (storage keyingi effektda tozalanadi).
@@ -1871,6 +1872,24 @@ Iltimos, har bir savolni tahlil qilib ber:
             if (success) logActivity(5)
         }
     }, [chatId, loading, profile])
+
+    // Octo orqali Pro to'lovini boshlash — checkout URL'ga yo'naltiradi
+    async function startProCheckout() {
+        if (checkoutLoading) return
+        setCheckoutLoading(true)
+        try {
+            const data = await fetchApi('/billing/checkout', { method: 'POST', silent: true })
+            if (data?.payUrl) {
+                window.location.href = data.payUrl // Octo to'lov sahifasiga
+                return
+            }
+            toast.error("To'lov boshlanmadi — qayta urinib ko'ring")
+        } catch (e: any) {
+            if (e?.status === 503) toast.error("To'lov tizimi hali to'liq sozlanmagan (OCTO kalitlari)")
+            else toast.error(e?.message || "To'lov boshlanmadi — qayta urinib ko'ring")
+        }
+        setCheckoutLoading(false)
+    }
 
     async function deleteChat(id: string, e: React.MouseEvent) {
         e.stopPropagation()
@@ -4076,19 +4095,20 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 ))}
                                             </ul>
 
-                                            {/* CTA — to'lovni TAQLID QILMAYDI: disabled "Tez kunda" */}
+                                            {/* CTA — Octo checkout (kalitlar sozlanmagan bo'lsa backend 503 -> toast) */}
                                             <button
                                                 type="button"
-                                                disabled
-                                                aria-disabled="true"
-                                                className="mt-4 w-full h-10 rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-1.5"
-                                                style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)', border: '1px solid var(--border)', cursor: 'not-allowed' }}
-                                                title="To'lov tizimi tez kunda ulanadi"
+                                                onClick={() => { void startProCheckout() }}
+                                                disabled={checkoutLoading}
+                                                className="mt-4 w-full h-10 rounded-xl text-sm font-bold inline-flex items-center justify-center gap-1.5 transition disabled:opacity-60"
+                                                style={{ background: 'var(--k-accent-grad, var(--brand))', color: '#fff', boxShadow: 'var(--k-shadow-cta, none)' }}
                                             >
-                                                <Clock className="h-4 w-4" /> Tez kunda
+                                                {checkoutLoading
+                                                    ? <>Yo'naltirilmoqda...</>
+                                                    : <><Sparkles className="h-4 w-4" /> Pro sotib olish — {PRO_PRICE} {PRO_PRICE_PERIOD}</>}
                                             </button>
                                             <p className="text-[11px] mt-2 text-center" style={{ color: 'var(--text-muted)' }}>
-                                                To'lov hali ishga tushmagan — hozircha Pro ham bepul.
+                                                Octo orqali xavfsiz to'lov (Uzcard · Humo · Visa). Beta davrida Pro baribir hammaga ochiq.
                                             </p>
                                         </div>
 

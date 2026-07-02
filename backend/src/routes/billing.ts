@@ -163,6 +163,19 @@ router.post('/checkout', authenticate, async (req: AuthRequest, res) => {
     }
 })
 
+/** To'lovdan qaytgach (/pro/natija) holatni ko'rsatish uchun — faqat o'z to'lovi. */
+router.get('/payment/:txnId', authenticate, async (req: AuthRequest, res) => {
+    try {
+        const txnId = String(req.params.txnId || '')
+        if (!txnId) return res.status(400).json({ error: 'txnId kerak' })
+        const p = await prisma.payment.findUnique({ where: { providerTxnId: txnId } })
+        if (!p || p.userId !== req.user!.id) return res.status(404).json({ error: 'To\'lov topilmadi' })
+        res.json({ status: p.status, amount: p.amount, currency: p.currency, createdAt: p.createdAt })
+    } catch {
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
 /**
  * Octo webhook (notify_url) — to'lov natijasi shu yerga keladi.
  * Imzo: sha1(unique_key + octo_payment_UUID + status). Muvaffaqiyat -> obuna 30 kun.

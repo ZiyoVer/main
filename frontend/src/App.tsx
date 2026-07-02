@@ -15,6 +15,7 @@ const ForgotPassword = lazy(() => import('./pages/Auth/ForgotPassword'))
 const ResetPassword = lazy(() => import('./pages/Auth/ResetPassword'))
 const EmailVerify = lazy(() => import('./pages/Auth/EmailVerify'))
 const VerifyEmailNotice = lazy(() => import('./pages/Auth/VerifyEmailNotice'))
+const ProResult = lazy(() => import('./pages/ProResult'))
 const GoogleCallback = lazy(() => import('./pages/Auth/GoogleCallback'))
 const ChatLayout = lazy(() => import('./pages/Student/ChatLayout'))
 const TestPage = lazy(() => import('./pages/Student/TestPage'))
@@ -146,6 +147,7 @@ function AppContent() {
                     <Route path="/email-tasdiqlang" element={<VerifyEmailNotice />} />
                     <Route path="/auth/google/callback" element={<GoogleCallback />} />
                     {/* O'zbek tilidagi asosiy routelar */}
+                    <Route path="/pro/natija" element={<ProtectedRoute><ProResult /></ProtectedRoute>} />
                     <Route path="/suhbat" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
                     <Route path="/suhbat/:chatId" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
                     <Route path="/oqituvchi" element={<ProtectedRoute roles={['TEACHER', 'ADMIN']}><TeacherPanel /></ProtectedRoute>} />
