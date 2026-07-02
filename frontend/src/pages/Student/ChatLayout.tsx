@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, FileText, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, ArrowUp, BarChart2, User, Calendar, Shield, Sparkles, Clock, Flame, Zap } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, FileText, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, ArrowUp, ArrowDown, BarChart2, User, Calendar, Shield, Sparkles, Clock, Flame, Zap, Copy } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import remarkGfm from 'remark-gfm'
@@ -715,7 +715,7 @@ const ChatInputArea = memo(function ChatInputArea({
             )}
             <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
                 <input ref={fileInputRef} type="file" multiple accept=".pdf,.doc,.docx,.txt,image/*" className="hidden" onChange={handleFileSelect} />
-                <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-card)', border: '1.5px solid var(--border-strong)', boxShadow: '0 1px 4px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.03)' }}>
+                <div className="rounded-2xl overflow-hidden chat-input-box" style={{ background: 'var(--bg-card)', border: '1.5px solid var(--border-strong)', boxShadow: '0 1px 4px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.03)', transition: 'border-color 0.15s, box-shadow 0.15s' }}>
                     {/* Attached files */}
                     {attachedFiles.length > 0 && (
                         <div className="flex flex-wrap gap-2 px-4 pt-3">
@@ -858,6 +858,7 @@ export default function ChatLayout() {
     const [explanations, setExplanations] = useState<Record<number, string>>({})
     const [explLoading, setExplLoading] = useState<number | null>(null)
     const [checkoutLoading, setCheckoutLoading] = useState(false)
+    const [showScrollDown, setShowScrollDown] = useState(false) // uzun suhbatda "pastga" tugmasi
     const [todoItems, setTodoItems] = useState<TodoItem[]>(() => {
         // HAMMASI bajarilgan eski reja bilan boshlanmaymiz — u "bir ko'rinib yo'qolib" (auto-close
         // 1.5s) foydalanuvchini chalg'itardi. Toza boshlaymiz (storage keyingi effektda tozalanadi).
@@ -3063,7 +3064,12 @@ Iltimos, har bir savolni tahlil qilib ber:
                     </div>
 
                     {/* Messages */}
-                    <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
+                    <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
+                        onScroll={e => {
+                            const el = e.currentTarget
+                            const far = el.scrollHeight - el.scrollTop - el.clientHeight > 350
+                            setShowScrollDown(prev => prev === far ? prev : far)
+                        }}>
                         {(!chatId || (messages.length === 0 && !loading && !streaming)) ? (
                             <div className="min-h-full flex flex-col items-center justify-center relative p-5 py-8" style={{ background: 'var(--bg-page)' }}>
                                 <div className="k-tex-dots absolute inset-0" style={{ zIndex: 0 }} />
@@ -3102,7 +3108,16 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 ) : m.content}
                                             </div>
                                         ) : (
-                                            <div className="bubble-ai"><MdMessage content={m.content} /></div>
+                                            <div className="ai-msg-row msg-group">
+                                                <img src="/dtmmax-logo.png" alt="" aria-hidden="true" className="ai-avatar" />
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="bubble-ai"><MdMessage content={m.content} /></div>
+                                                    <button type="button" className="msg-copy-btn"
+                                                        onClick={() => { navigator.clipboard?.writeText(m.content).then(() => toast.success('Nusxalandi')).catch(() => toast.error("Nusxalab bo'lmadi")) }}>
+                                                        <Copy className="h-3 w-3" /> Nusxalash
+                                                    </button>
+                                                </div>
+                                            </div>
                                         )}
                                     </div>
                                 ))}
@@ -3119,7 +3134,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                                     </div>
                                 )}
                                 {streaming && (
-                                    <div className="flex">
+                                    <div className="flex ai-msg-row">
+                                        <img src="/dtmmax-logo.png" alt="" aria-hidden="true" className="ai-avatar" />
                                         <div className="bubble-ai w-full sm:w-auto">
                                             <MdMessage content={streaming} isStreaming={true} />
                                             {/```test/.test(streaming) && !/```test[\s\S]*?```/.test(streaming) && (
@@ -3158,6 +3174,17 @@ Iltimos, har bir savolni tahlil qilib ber:
                                 {loading && thinkingText && !streaming && (
                                     <div className="flex py-1">
                                         <span className="ai-generating"><span className="ai-star">✳</span> Fikrlamoqda...</span>
+                                    </div>
+                                )}
+                                {/* Uzun suhbatda pastga tushish tugmasi (sticky, joy egallamaydi) */}
+                                {showScrollDown && (
+                                    <div className="sticky bottom-3 h-0 flex justify-end pr-1 z-10">
+                                        <button type="button" aria-label="Pastga tushish"
+                                            onClick={() => { const el = scrollRef.current; if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }) }}
+                                            className="h-9 w-9 -mt-11 rounded-full flex items-center justify-center transition hover:scale-105"
+                                            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: '0 4px 12px rgba(0,0,0,0.12)', color: 'var(--text-secondary)' }}>
+                                            <ArrowDown className="h-4 w-4" />
+                                        </button>
                                     </div>
                                 )}
                             </div>

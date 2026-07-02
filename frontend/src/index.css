@@ -423,15 +423,66 @@ button:focus-visible {
 
 .bubble-user {
     background-color: #EDE8DA;
-    border: 1px solid rgba(15, 23, 42, 0.04);
-    border-radius: 0.82rem;
-    padding: 0.5rem 0.78rem;
+    border: 1px solid rgba(15, 23, 42, 0.05);
+    /* Zamonaviy chat ko'rinishi: pastki-o'ng burchak "dumli" */
+    border-radius: 1rem 1rem 0.3rem 1rem;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    padding: 0.55rem 0.85rem;
     max-width: 68%;
     font-size: 0.875rem;
-    line-height: 1.5;
+    line-height: 1.55;
     color: #111111;
     word-break: break-word;
     overflow-wrap: break-word;
+}
+
+/* ---- Chat UI sayqallari ---- */
+/* AI xabari qatori: brand avatar + kontent */
+.ai-msg-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    min-width: 0;
+    flex: 1;
+}
+.ai-avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    flex-shrink: 0;
+    margin-top: 3px;
+    object-fit: contain;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 2px;
+}
+/* Nusxalash tugmasi — faqat xabar ustiga kelganda ko'rinadi */
+.msg-copy-btn {
+    opacity: 0;
+    transition: opacity 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 8px;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    margin-top: 2px;
+}
+.msg-group:hover .msg-copy-btn { opacity: 1; }
+.msg-copy-btn:hover { background: var(--bg-surface); color: var(--text-primary); }
+@media (max-width: 640px) {
+    .msg-copy-btn { opacity: 0.65; } /* mobilda hover yo'q — doim biroz ko'rinadi */
+    .ai-avatar { width: 22px; height: 22px; }
+}
+/* Input konteyner fokus halqasi */
+.chat-input-box:focus-within {
+    border-color: color-mix(in srgb, var(--brand) 55%, var(--border-strong)) !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 10%, transparent), 0 1px 4px rgba(0, 0, 0, 0.07) !important;
 }
 
 /* Chat image thumbnail */
