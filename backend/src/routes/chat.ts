@@ -9,6 +9,7 @@ import { Prisma } from '@prisma/client'
 import { aiSettingsCache, aiSettingsCacheTime, AI_SETTINGS_TTL, setAISettingsCache, AISettingsData } from '../utils/aiSettingsCache'
 import { cosineSimilarity, createEmbedding, createEmbeddings, parseEmbedding, serializeEmbedding } from '../utils/embeddings'
 import { getSubjectVariants, normalizeSubject } from '../utils/subjects'
+import { uploadToS3, getSignedS3Url } from '../utils/s3'
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -1837,6 +1838,7 @@ router.post('/:chatId/upload-file', authenticate, requireVerified, uploadSingle,
 
         let extractedText = ''
         let fileType = 'other'
+        let imageUrl: string | null = null
 
         if (mimetype === 'application/pdf') {
             fileType = 'pdf'
@@ -1855,6 +1857,16 @@ router.post('/:chatId/upload-file', authenticate, requireVerified, uploadSingle,
             // Check max 10MB limits
             if (buffer.length > 10 * 1024 * 1024) {
                 return res.status(400).json({ error: 'Rasm hajmi juda katta (10MB dan oshmasligi kerak)' })
+            }
+
+            // Rasmni S3'ga saqlaymiz — chatda rasmning O'ZI ko'rinishi uchun URL qaytaramiz.
+            // Saqlash xato bersa ham OCR davom etadi (imageUrl'siz, faqat matn).
+            try {
+                const s3Name = `${Date.now()}-${originalname.replace(/\s+/g, '-')}`
+                const s3Result = await uploadToS3(buffer, s3Name, 'chat', mimetype)
+                imageUrl = await getSignedS3Url(s3Result.key)
+            } catch (s3Err: any) {
+                console.warn('Chat rasm S3 saqlash xatosi (davom etamiz):', s3Err?.message)
             }
 
             try {
@@ -1896,7 +1908,7 @@ router.post('/:chatId/upload-file', authenticate, requireVerified, uploadSingle,
             extractedText = extractedText.substring(0, 15000) + '\n...(fayl qisqartirildi)'
         }
 
-        res.json({ text: extractedText, fileName: originalname, fileType })
+        res.json({ text: extractedText, fileName: originalname, fileType, imageUrl })
     } catch (e: any) {
         console.error('File upload error:', e.message)
         res.status(500).json({ error: 'Fayl o\'qib bo\'lmadi' })

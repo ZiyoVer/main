@@ -514,7 +514,7 @@ const MdMessage = memo(({ content, isStreaming }: {
     )
 })
 
-type AttachedFile = { id: string; name: string; text: string; type: string; previewUrl?: string }
+type AttachedFile = { id: string; name: string; text: string; type: string; previewUrl?: string; url?: string | null; uploading?: boolean }
 
 const TODO_STORAGE_PREFIX = 'dtmmax_todo_items_v1'
 
@@ -589,10 +589,22 @@ const ChatInputArea = memo(function ChatInputArea({
                 return
             }
         }
+        // DARROV preview chip qo'shamiz — rasm xira (blur) bo'lib yuklanayotgani KO'RINADI
+        const optimistic: AttachedFile[] = filesToUpload.map(file => ({
+            id: `up-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            name: file.name,
+            text: '',
+            type: file.type.startsWith('image/') ? 'image' : 'other',
+            previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
+            uploading: true,
+        }))
+        setAttachedFiles(prev => [...prev, ...optimistic])
         setUploadingFile(true)
-        try {
-            const token = localStorage.getItem('token')
-            const newAttachments = await Promise.all(filesToUpload.map(async (file) => {
+        const token = localStorage.getItem('token')
+        // Har fayl ALOHIDA yuklanadi — bittasi yiqilsa qolganlari yo'qolmaydi
+        await Promise.all(optimistic.map(async (chip, i) => {
+            const file = filesToUpload[i]
+            try {
                 const formData = new FormData()
                 formData.append('file', file)
                 const res = await fetch(`/api/chat/${targetChatId}/upload-file`, {
@@ -600,17 +612,22 @@ const ChatInputArea = memo(function ChatInputArea({
                     headers: { Authorization: `Bearer ${token}` },
                     body: formData
                 })
-                const data = await res.json()
-                const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined
-                return { id: Math.random().toString(), name: file.name, text: data.text, type: data.fileType, previewUrl }
-            }))
-            setAttachedFiles(prev => [...prev, ...newAttachments])
-            // Upload tugagach textarea ga focus qaytaramiz — Enter ishlashi uchun
-            setTimeout(() => textareaRef.current?.focus(), 50)
-        } catch (e: any) {
-            toast.error('Fayl yuklashda xato: ' + (e?.message || "Qayta urinib ko'ring"))
-        }
+                const data = await res.json().catch(() => ({}))
+                // Server rad etsa (400/413/500) chip "yuklandi" bo'lib qolmasin (avval jim 'undefined' ketardi)
+                if (!res.ok || !data?.text) throw new Error(data?.error || 'Fayl qayta ishlanmadi')
+                setAttachedFiles(prev => prev.map(f => f.id === chip.id
+                    ? { ...f, text: data.text, type: data.fileType || f.type, url: data.imageUrl || null, uploading: false }
+                    : f))
+            } catch (e: any) {
+                // Xato — chip olib tashlanadi va sababi AYTILADI (jim qolmaydi)
+                setAttachedFiles(prev => prev.filter(f => f.id !== chip.id))
+                if (chip.previewUrl) URL.revokeObjectURL(chip.previewUrl)
+                toast.error(`${file.name}: ${e?.message || "yuklab bo'lmadi"}`)
+            }
+        }))
         setUploadingFile(false)
+        // Upload tugagach textarea ga focus qaytaramiz — Enter ishlashi uchun
+        setTimeout(() => textareaRef.current?.focus(), 50)
     }
 
     async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -647,13 +664,25 @@ const ChatInputArea = memo(function ChatInputArea({
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault()
         if ((!input.trim() && attachedFiles.length === 0) || loading) return
+        // Rasm hali yuklanayotgan bo'lsa — kutish kerakligini AYTAMIZ (jim emas)
+        if (attachedFiles.some(f => f.uploading)) {
+            toast('Rasm hali yuklanmoqda — bir soniya kuting', { icon: '⏳' })
+            return
+        }
         const text = input.trim()
         const files = [...attachedFiles]
         files.forEach(f => { if (f.previewUrl) blobUrlsRef.current.push(f.previewUrl) })
         setInput('')
         setAttachedFiles([])
         if (textareaRef.current) textareaRef.current.style.height = 'auto'
-        onSend(text, files)
+        // Yuborish muvaffaqiyatsiz bo'lsa (masalan chat yaratilmadi) yozilgan matnni QAYTARAMIZ —
+        // avval matn butunlay yo'qolardi
+        void Promise.resolve(onSend(text, files) as unknown).then(result => {
+            if (result === false) {
+                setInput(text)
+                setAttachedFiles(files)
+            }
+        })
     }
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -699,12 +728,19 @@ const ChatInputArea = memo(function ChatInputArea({
                                         <X className="h-2.5 w-2.5" />
                                     </button>
                                     {file.previewUrl ? (
-                                        <img src={file.previewUrl} alt={file.name} className="w-full h-full object-cover rounded-[8px]" />
+                                        <img src={file.previewUrl} alt={file.name} className="w-full h-full object-cover rounded-[8px] transition-all duration-300"
+                                            style={file.uploading ? { filter: 'blur(2px) brightness(0.75)' } : undefined} />
                                     ) : (
                                         <>
-                                            <FileText className="h-5 w-5 mb-0.5" style={{ color: 'var(--brand)' }} />
+                                            <FileText className="h-5 w-5 mb-0.5" style={{ color: 'var(--brand)', opacity: file.uploading ? 0.4 : 1 }} />
                                             <span className="text-[9px] w-full truncate text-center" style={{ color: 'var(--text-muted)' }}>{file.name.substring(0, 8)}…</span>
                                         </>
+                                    )}
+                                    {/* Yuklanayotganda: xira rasm ustida aylanuvchi spinner */}
+                                    {file.uploading && (
+                                        <div className="absolute inset-0 flex items-center justify-center rounded-[8px]">
+                                            <div className="h-5 w-5 border-2 rounded-full animate-spin" style={{ borderColor: 'rgba(255,255,255,0.9)', borderTopColor: 'transparent' }} />
+                                        </div>
                                     )}
                                 </div>
                             ))}
@@ -1803,7 +1839,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                 targetChatId = data.id
             } catch (err) {
                 console.error('Chat yaratishda xato:', err)
-                return
+                toast.error("Xabar yuborilmadi — internetni tekshirib qayta urinib ko'ring")
+                return false // handleSubmit yozilgan matnni qaytaradi (yo'qolmaydi)
             }
         }
 
@@ -1812,7 +1849,11 @@ Iltimos, har bir savolni tahlil qilib ber:
             let displayText = ''
             files.forEach(file => {
                 promptText += `📎 **${file.name}** faylidan:\n\n${file.text}\n\n`
-                displayText += `📎 **[${file.type === 'image' ? 'Rasm' : 'Fayl'}: ${file.name}]** `
+                // Rasm bo'lsa — chat xabarida RASMNING O'ZI ko'rinadi (markdown img, bubble render qiladi).
+                // URL bo'lmasa (S3 xato) eski matn formatiga tushamiz.
+                displayText += file.type === 'image' && file.url
+                    ? `![${file.name}](${file.url}) `
+                    : `📎 **[${file.type === 'image' ? 'Rasm' : 'Fayl'}: ${file.name}]** `
             })
             if (text) { promptText += `\n\n${text}`; displayText += `\n\n${text}` }
             setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: displayText.trim(), createdAt: new Date().toISOString() }])
