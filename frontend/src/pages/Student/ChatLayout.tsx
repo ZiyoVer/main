@@ -857,11 +857,17 @@ export default function ChatLayout() {
     // Test review: xato javob ostidagi per-savol AI tushuntirishi (panel ichida, mobil uchun)
     const [explanations, setExplanations] = useState<Record<number, string>>({})
     const [explLoading, setExplLoading] = useState<number | null>(null)
-    const [todoItems, setTodoItems] = useState<TodoItem[]>(() => loadStoredTodos(todoStorageKey))
+    const [todoItems, setTodoItems] = useState<TodoItem[]>(() => {
+        // HAMMASI bajarilgan eski reja bilan boshlanmaymiz — u "bir ko'rinib yo'qolib" (auto-close
+        // 1.5s) foydalanuvchini chalg'itardi. Toza boshlaymiz (storage keyingi effektda tozalanadi).
+        const stored = loadStoredTodos(todoStorageKey)
+        return stored.length > 0 && stored.every(item => item.done) ? [] : stored
+    })
     const [todoOpen, setTodoOpen] = useState(() => {
-        // Mobilда avto-ochmaymiz — fullscreen panel kirishni to'sib qo'ymasligi uchun
+        // Mobilда avto-ochmaymiz — fullscreen panel kirishni to'sib qo'ymasligi uchun.
+        // Faqat BAJARILMAGAN band bo'lsagina ochamiz (tugagan reja flash bermasin).
         const initialMobile = typeof window !== 'undefined' && window.innerWidth < 768
-        return !initialMobile && loadStoredTodos(todoStorageKey).length > 0
+        return !initialMobile && loadStoredTodos(todoStorageKey).some(item => !item.done)
     })
     const [showSettings, setShowSettings] = useState(false)
     const [showNotifications, setShowNotifications] = useState(false)
