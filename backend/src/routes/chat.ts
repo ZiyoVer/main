@@ -1098,67 +1098,19 @@ async function createAssistantOnlyGreeting(chat: { id: string; subject: string |
     const subj1 = chat.subject || profile?.subject || ''
     const subj2 = chat.subject2 || profile?.subject2 || ''
     const subjectsLine = [subj1, subj2].filter(Boolean).join(' va ')
-    const systemPrompt = `Sen DTMMax platformasining AI o'qituvchisisan — O'zbekiston imtihonlariga tayyorlaysan. DOIM o'zbek tilida yoz.
+    // DETERMINISTIK HISSIY SALOM — AI'ga ishonmaymiz (sifati o'zgarib turardi, kuchsiz chiqardi).
+    // Qo'lda yozilgan kuchli matn: ism + imtihon + fanlar bilan shaxsiy, ustoz+psixolog ohangida.
+    // Afzalliklari: har doim bir xil kuchli sifat, bir zumda (API kutish yo'q), xarajatsiz.
+    const nameCall = firstName ? `${firstName}` : "Do'stim"
+    const examText = examLabel || 'imtihoning'
+    const subjText = subjectsLine || 'tanlagan faning'
+    const safeReply = `**${nameCall}, xush kelibsan!** 🎓
 
-## YANGI O'QUVCHIGA BIRINCHI XABAR — SHAXSIY VA HISSIY (juda muhim)
-Bu o'quvchi endi ro'yxatdan o'tdi. Sen unga BIRINCHI bo'lib yozasan — iliq, shaxsiy va KUCHLI MOTIVATSION ohangда (ustoz + psixolog kabi). Maqsad: o'quvchini hissiy jihatdan ushlab qolish, "ha, men buni qilaman" degan his uyg'otish.
+Bugundan boshlab sen bilan **${examText}ga birga tayyorlanamiz** — ${subjText}dan. Men sening shaxsiy ustozingman: har kuni birga ishlaymiz, zaif mavzularingni aniq topamiz, senga mos reja tuzamiz va men seni qadam-baqadam boshqarib boraman. Sen endi yolg'iz emassan.
 
-O'quvchi ma'lumotlari (ALBATTA ishlatib, shaxsiy qil):
-- Ism: ${firstName || "noma'lum"}
-- Imtihon: ${examLabel || 'imtihon'}
-- Fan(lar): ${subjectsLine || 'tanlagan fani'}
+Kelishib olaylik, jiddiy: **sen uyingdagilarning yuzisan.** Bu ${examText}dan maksimal ball olishing va ularning oldida yuzingni yorug' qilishing kerak. Buning siri bitta — bugun boshlab, ertaga tashlab ketmaslik. Har kuni ozgina bo'lsa ham birga ishlasak, natija ALBATTA keladi. Men senga ishonaman — endi sen ham o'zingga ishon. 💪
 
-Xabaring (tabiiy, 2-3 qisqa abzas):
-1. Ism bilan iliq salom + "${examLabel || 'imtihon'} uchun ${subjectsLine || 'shu fan'}ga BIRGA tayyorlanamiz" deb shaxsiy boshla.
-2. O'zingni shaxsiy ustoz sifatida tanishtir: har kuni sen bilan ishlayman, zaif mavzularingni topaman, reja tuzaman, boshqarib boraman.
-3. HISSIY MOTIVATSIYA (eng muhim, samimiy — klişe EMAS): jiddiy, yurakdan gap. Masalan oila oldida yuzni yorug' qilish, maksimal ball, har kuni birga jiddiy ishlash, bir kun tayyorlanib keyin tashlab ketmaslik — birga bo'lsak natija chiqaramiz. O'quvchi "men yolg'iz emasman, bu mendan kutilyapti" deb his qilsin.
-4. Yakunida diagnostikani taklif qil: "Boshlash uchun avval bilimingni qisqa test bilan tekshiramiz — ${subjectsLine || 'fanlaringdan'}. Tayyormisan?" deb javobini kut.
-
-QOIDALAR:
-- Hech qanday structured blok (test, todo, flashcard...) CHIQARMA — faqat matn. Test keyin, o'quvchi rozi bo'lganда beriladi.
-- 3 qisqa abzasдan oshmasin, lekin hissiyot KUCHLI bo'lsin. Quruq/rasmiy emas — samimiy.`
-
-    const completionMessages = [
-        { role: 'system' as const, content: systemPrompt },
-        { role: 'user' as const, content: `${firstName} yangi suhbatni ochdi va hali savol yozmadi. Unga birinchi assistant xabarini yoz.` }
-    ]
-
-    let reply = ''
-
-    try {
-        const greetOpts: any = {
-            model: chatModel,
-            messages: completionMessages,
-            max_tokens: 700,
-            temperature: 0.7
-        }
-        if (chatModel.startsWith('gemini')) greetOpts.reasoning_effort = 'low'
-        const completion = await chatClient.chat.completions.create(greetOpts, { timeout: 30000 })
-        reply = completion.choices[0]?.message?.content?.trim() || ''
-    } catch (firstErr: any) {
-        const status = firstErr?.status ?? 0
-        const msg = String(firstErr?.message || '').toLowerCase()
-        const isAuthErr = status === 401 || msg.includes('auth') || msg.includes('invalid api key')
-        // DeepSeek (asosiy) ishlamadi → Gemini zaxiraga
-        if (!isAuthErr && hasDeepseek && hasGemini) {
-            try {
-                const completion = await gptClient.chat.completions.create({
-                    model: VISION_MODEL,
-                    messages: completionMessages,
-                    max_tokens: 700,
-                    temperature: 0.7,
-                    reasoning_effort: 'low'
-                } as any, { timeout: 30000 })
-                reply = completion.choices[0]?.message?.content?.trim() || ''
-            } catch (fallbackErr) {
-                console.error('auto-greet fallback xatosi:', fallbackErr)
-            }
-        } else {
-            console.error('auto-greet xatosi:', firstErr)
-        }
-    }
-
-    const safeReply = reply || getAutoGreetingFallback(user.name)
+Boshlaymizmi? Avval bilimingni tekshirib olamiz — **${subjText}dan qisqa baholash testi** beraman, shunda qayerdan boshlashimizni aniq bilamiz. Tayyor bo'lsang **"boshla"** deb yoz!`
     const saved = await prisma.message.create({
         data: { chatId: chat.id, role: 'assistant', content: safeReply }
     })
@@ -1864,7 +1816,8 @@ router.post('/:chatId/upload-file', authenticate, requireVerified, uploadSingle,
             try {
                 const s3Name = `${Date.now()}-${originalname.replace(/\s+/g, '-')}`
                 const s3Result = await uploadToS3(buffer, s3Name, 'chat', mimetype)
-                imageUrl = await getSignedS3Url(s3Result.key)
+                // 7 kun (AWS signed URL maksimumi) — default 1 soat edi, chat tarixida rasm tez o'lardi
+                imageUrl = await getSignedS3Url(s3Result.key, 7 * 24 * 60 * 60)
             } catch (s3Err: any) {
                 console.warn('Chat rasm S3 saqlash xatosi (davom etamiz):', s3Err?.message)
             }
@@ -1982,7 +1935,9 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
             take: 20
         })
         const history = historyRaw.reverse()
-        const isFirstMessage = history.length === 0
+        // "Birinchi xabar" = o'quvchi hali BIRINCHI marta yozmoqda (auto-salom tarixda bo'lsa ham).
+        // Shunda "boshla" javobiga diagnostika ko'rsatmalari (newUserSection) hali ham amal qiladi.
+        const isFirstMessage = history.filter(m => m.role === 'user').length === 0
         const titleSrc = displayText?.trim() || content
 
         // Profile olish
@@ -2257,7 +2212,8 @@ router.post('/:chatId/send', authenticate, requireVerified, async (req: AuthRequ
             ? `\n\n--- RASMIY MANBA KONTEKSTI (faqat ma'lumot uchun) ---\n${ragContext}\n--- MANBA KONTEKSTI TUGADI ---`
             : ''
         const toolIntentSection = buildToolIntentGuidance(content)
-        const isFirstMessage = history.length <= 1
+        // history joriy user xabarini ham o'z ichiga oladi — birinchi USER xabari bo'lsa true
+        const isFirstMessage = history.filter(m => m.role === 'user').length <= 1
         const retentionSection = buildRetentionGuidance(content, false, isFirstMessage)
         const measured = await getMeasuredTopics(req.user.id)
         const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, chat.subject2 || undefined, aiSettings.extraRules, aiSettings.promptOverrides, isFirstMessage, measured) + ragSection + toolIntentSection + retentionSection

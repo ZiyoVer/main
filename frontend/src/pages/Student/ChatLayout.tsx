@@ -1860,7 +1860,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                 // URL bo'lmasa (S3 xato) eski matn formatiga tushamiz.
                 displayText += file.type === 'image' && file.url
                     ? `![${file.name}](${file.url}) `
-                    : `📎 **[${file.type === 'image' ? 'Rasm' : 'Fayl'}: ${file.name}]** `
+                    : `📎 ${file.type === 'image' ? 'Rasm' : 'Fayl'}: ${file.name} ` // user bubble oddiy matn — ** ko'rsatmaydi
             })
             if (text) { promptText += `\n\n${text}`; displayText += `\n\n${text}` }
             setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: displayText.trim(), createdAt: new Date().toISOString() }])

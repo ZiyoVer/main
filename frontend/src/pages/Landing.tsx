@@ -708,19 +708,21 @@ function Hero() {
 
           <h1
             className="lp-h1"
-            style={{ fontFamily: SERIF, fontSize: 76, fontWeight: 500, letterSpacing: '-0.018em', lineHeight: 1.05, margin: 0, color: C.ink, maxWidth: '14ch' }}
+            style={{ fontFamily: SERIF, fontSize: 76, fontWeight: 500, letterSpacing: '-0.018em', lineHeight: 1.05, margin: 0, color: C.ink, maxWidth: '15ch' }}
           >
-            Orzuingizdagi universitet sari <Em>yo'l</Em>
+            DTMga shaxsiy <Em>AI ustoz</Em> bilan tayyorlan
           </h1>
 
           <p style={{ fontSize: 20, fontWeight: 400, lineHeight: 1.65, color: C.gray, maxWidth: '46ch', margin: '28px 0 0' }}>
-            Katta maqsading bor — biz yo'lni aniq qilamiz. Shaxsiy AI repetitor har kuni yoningda: tushuntiradi, mashq beradi va seni qadam-baqadam o'sha orzuga yaqinlashtiradi.
+            Bepul boshlaysan: AI darajangni test bilan aniqlaydi, zaif mavzularingni topadi va har kuni shaxsiy reja bilan boshqarib boradi — maksimal ball sari.
           </p>
 
           <div style={{ display: 'flex', gap: 14, marginTop: 34, flexWrap: 'wrap' }} className="lp-cta-actions">
             <Button to={ROUTE_REGISTER} variant="primary" size="lg" arrow>Bepul boshlash</Button>
-            <Button to={ROUTE_LOGIN} variant="outline" size="lg">Kirish</Button>
           </div>
+          <p style={{ fontSize: 13, fontWeight: 500, color: C.gray, margin: '14px 0 0' }}>
+            Karta shart emas · 1 daqiqada boshlanadi · DTM va Milliy Sertifikat
+          </p>
         </Reveal>
       </div>
 
@@ -1075,8 +1077,8 @@ const PLANS: Plan[] = [
       'Chuqur analitika — kengaytirilgan zaiflik va progress tahlili',
       'Cheksiz va ustuvor yordam',
     ],
-    cta: 'Tez kunda',
-    ctaDisabled: true,
+    cta: "Boshlash — beta'da bepul",
+    to: ROUTE_REGISTER,
     highlight: true,
     badge: "Beta'da bepul ochiq",
   },
@@ -1243,7 +1245,8 @@ function CtaSection() {
 type FooterCol = { head: string; label: string; items: string[] }
 const FOOTER_COLS: FooterCol[] = [
   { head: 'Mahsulot', label: 'Mahsulot havolalari', items: ['Imkoniyatlar', 'Fanlar', 'Narxlar'] },
-  { head: 'Kompaniya', label: 'Kompaniya havolalari', items: ['Biz haqimizda', 'Aloqa', 'FAQ'] },
+  // O'lik ('#') havolalar ishonchni yemiradi — real sahifasi borlargina qoladi
+  { head: 'Kompaniya', label: 'Kompaniya havolalari', items: ['FAQ'] },
   { head: 'Huquqiy', label: 'Huquqiy havolalar', items: ['Maxfiylik', 'Shartlar', 'Oferta'] },
 ]
 
@@ -1297,11 +1300,7 @@ function Footer() {
         </div>
         <div style={{ borderTop: `1px solid ${C.line}`, marginTop: 48, paddingTop: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
           <span style={{ fontSize: 13, fontWeight: 500, color: C.gray2 }}>© 2026 DtmMax</span>
-          <div style={{ display: 'flex', gap: 18 }}>
-            <SocialDot initial="TG" />
-            <SocialDot initial="IG" />
-            <SocialDot initial="YT" />
-          </div>
+          {/* Ijtimoiy tarmoq ikonkalari real havolalar tayyor bo'lganda qaytariladi (o'lik '#' ishonchni yemiradi) */}
         </div>
       </div>
     </footer>
