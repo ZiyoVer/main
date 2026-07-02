@@ -12,7 +12,7 @@ import katex from 'katex'
 import { renderMathHtml } from '@/lib/mathRender'
 import toast from 'react-hot-toast'
 import { fetchApi } from '@/lib/api'
-import { parseStructuredJson } from '@/lib/structuredJson'
+import { parseStructuredJson, extractStructuredPayload } from '@/lib/structuredJson'
 import GeometryFigure from '@/components/GeometryFigure'
 import { SUBJECTS, normalizeSubjectValue } from '@/constants'
 import { DTM_DIRECTIONS, SCORE_BOUNDS, dtmDirectionByCode, dtmDirectionBySubjects } from '@/constants/dtmDirections'
@@ -227,7 +227,7 @@ const MdMessage = memo(({ content, isStreaming }: {
     content: string
     isStreaming?: boolean
 }) => {
-    const { onOpenTest, onProfileUpdate, onOpenFlash, onOpenEssay, onSetTodo, onMarkTodoDoneByTask } = useChatContext()
+    const { onOpenTest, onProfileUpdate, onOpenFlash, onOpenEssay, onSetTodo, onMarkTodoDoneByTask, isAiTestDone } = useChatContext()
     const processedContent = preprocessMath(content)
     return (
         <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeSanitize, rehypeKatex]} components={{
@@ -254,35 +254,41 @@ const MdMessage = memo(({ content, isStreaming }: {
                     const qCount = Array.isArray(parsedQuestions) ? parsedQuestions.length : 0
                     // 0 savol bo'lsa ko'rsatmaymiz — hali to'liq yuklanmagan
                     if (qCount === 0) return null
+                    // Yechilgan test — karta "Natijani ko'rish" bo'ladi (o'quvchi testni qayta topa oladi)
+                    const done = !isStreaming && isAiTestDone(jsonStr)
                     return (
-                        <div className="my-3 rounded-2xl overflow-hidden" style={{
+                        <div className="my-3 rounded-2xl overflow-hidden" style={done ? {
+                            background: 'linear-gradient(135deg, rgba(16,185,129,0.10) 0%, rgba(16,185,129,0.04) 100%)',
+                            border: '1.5px solid rgba(16,185,129,0.35)',
+                        } : {
                             background: 'linear-gradient(135deg, color-mix(in srgb, var(--brand) 10%, transparent) 0%, color-mix(in srgb, var(--brand) 4%, transparent) 100%)',
                             border: '1.5px solid color-mix(in srgb, var(--brand) 30%, transparent)',
                         }}>
                             <div className="p-4">
                                 <div className="flex items-center justify-between gap-3">
                                     <div className="flex items-center gap-3 min-w-0">
-                                        <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--k-accent-grad)' }}>
-                                            <ClipboardList className="h-5 w-5 text-white" />
+                                        <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: done ? '#10b981' : 'var(--k-accent-grad)' }}>
+                                            {done ? <CheckCircle className="h-5 w-5 text-white" /> : <ClipboardList className="h-5 w-5 text-white" />}
                                         </div>
                                         <div className="min-w-0">
                                             <div className="flex items-center gap-2 flex-wrap">
-                                                <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Test tayyor!</p>
-                                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--brand)', color: '#fff' }}>
+                                                <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{done ? 'Test yechilgan' : 'Test tayyor!'}</p>
+                                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: done ? '#10b981' : 'var(--brand)', color: '#fff' }}>
                                                     {qCount} ta savol
                                                 </span>
                                             </div>
+                                            {done && <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Javoblaringiz va izohlar saqlangan</p>}
                                         </div>
                                     </div>
                                     {!isStreaming && (
                                         <button
                                             onClick={() => onOpenTest(jsonStr)}
                                             className="flex-shrink-0 h-9 px-4 rounded-xl text-[13px] font-bold text-white flex items-center gap-2 transition-all"
-                                            style={{ background: 'var(--k-accent-grad)' }}
+                                            style={{ background: done ? '#10b981' : 'var(--k-accent-grad)' }}
                                             onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
                                             onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
                                         >
-                                            <BookOpen className="h-4 w-4" /> Boshlash
+                                            {done ? <><CheckCircle className="h-4 w-4" /> Natijani ko'rish</> : <><BookOpen className="h-4 w-4" /> Boshlash</>}
                                         </button>
                                     )}
                                 </div>
@@ -2424,6 +2430,17 @@ Iltimos, har bir savolni tahlil qilib ber:
     // useMemo: context value ni stabillashtirish — har render da yangi {} yaratilmaydi.
     // Bu MdMessage/TodoBlockMount ni keraksiz qayta mount qilishdan saqlab, X tugmasini tuzatadi
     // va streaming vaqtida sayt qotishini ham hal qiladi.
+    // Chat kartasi tugallangan AI testni bilishi uchun — useTestPanel bilan BIR XIL kalit mantiq
+    const isAiTestDone = useCallback((jsonStr: string) => {
+        try {
+            const normalized = extractStructuredPayload(jsonStr)
+            const parsed = parseStructuredJson<unknown[]>(normalized)
+            if (!Array.isArray(parsed) || parsed.length === 0) return false
+            const aiKey = JSON.stringify(parsed).substring(0, 500)
+            return completedAiTestsRef.current.has(aiKey)
+        } catch { return false }
+    }, [])
+
     const chatContextValue = useMemo(() => ({
         onOpenTest: handleOpenTest,
         onProfileUpdate: handleProfileUpdate,
@@ -2431,7 +2448,8 @@ Iltimos, har bir savolni tahlil qilib ber:
         onOpenEssay: handleOpenEssay,
         onSetTodo: handleSetTodo,
         onMarkTodoDoneByTask: markTodoDoneByTask,
-    }), [handleOpenTest, handleProfileUpdate, handleOpenFlash, handleOpenEssay, handleSetTodo, markTodoDoneByTask])
+        isAiTestDone,
+    }), [handleOpenTest, handleProfileUpdate, handleOpenFlash, handleOpenEssay, handleSetTodo, markTodoDoneByTask, isAiTestDone])
 
     // ── Onboarding/profil formasi uchun derived qiymatlar (ikkala forma ham shu state bilan) ──
     // examType bo'yicha ball chegaralari (DTM 1..189, MS 0..75; bo'sh bo'lsa DTM — eng qattiq)

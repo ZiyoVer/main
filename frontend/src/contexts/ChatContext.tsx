@@ -18,6 +18,8 @@ interface ChatContextValue {
   onOpenEssay: (data: EssayPanel) => void
   onSetTodo: (items: Omit<TodoItem, 'id' | 'done'>[]) => void
   onMarkTodoDoneByTask: (taskName: string) => void
+  // Chat test kartasi tugallangan AI test uchun "Natijani ko'rish" ko'rsatishi uchun
+  isAiTestDone: (jsonStr: string) => boolean
 }
 
 const ChatContext = createContext<ChatContextValue>({
@@ -27,6 +29,7 @@ const ChatContext = createContext<ChatContextValue>({
   onOpenEssay: () => {},
   onSetTodo: () => {},
   onMarkTodoDoneByTask: () => {},
+  isAiTestDone: () => false,
 })
 
 export const useChatContext = () => useContext(ChatContext)
