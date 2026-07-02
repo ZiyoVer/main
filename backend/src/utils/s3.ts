@@ -17,7 +17,8 @@ function envAny(...names: string[]): string {
 const S3_ACCESS_KEY = envAny('S3_ACCESS_KEY', 'ACCESS_KEY_ID', 'AWS_ACCESS_KEY_ID')
 const S3_SECRET_KEY = envAny('S3_SECRET_KEY', 'SECRET_ACCESS_KEY', 'AWS_SECRET_ACCESS_KEY')
 const s3Endpoint = envAny('S3_ENDPOINT', 'ENDPOINT', 'AWS_ENDPOINT_URL_S3', 'AWS_ENDPOINT_URL') || 'https://s3.eu-central-2.wasabisys.com'
-const s3Region = envAny('S3_REGION', 'REGION', 'AWS_REGION') || 'us-east-1'
+// Railway Bucket va ko'p S3-mos xizmatlar (R2 h.k.) region uchun 'auto' ishlatadi
+const s3Region = envAny('S3_REGION', 'REGION', 'AWS_REGION') || 'auto'
 
 /** Storage sozlanganmi (kalitlar bormi) — endpointlar 503 berish uchun tekshiradi. */
 export const isStorageConfigured = !!(S3_ACCESS_KEY && S3_SECRET_KEY)
