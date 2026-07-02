@@ -559,10 +559,12 @@ interface ChatInputAreaProps {
     onStop: () => void
     blobUrlsRef: React.MutableRefObject<string[]>
     messagesCount: number
+    // chatId yo'q bo'lsa (yangi suhbat) chat yaratib id qaytaradi — paste/rasm shu holatda ham ishlasin
+    onEnsureChat: () => Promise<string | null>
 }
 
 const ChatInputArea = memo(function ChatInputArea({
-    chatId, loading, thinkingMode, setThinkingMode, onSend, onStop, blobUrlsRef, messagesCount
+    chatId, loading, thinkingMode, setThinkingMode, onSend, onStop, blobUrlsRef, messagesCount, onEnsureChat
 }: ChatInputAreaProps) {
     const [input, setInput] = useState('')
     const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
@@ -578,9 +580,14 @@ const ChatInputArea = memo(function ChatInputArea({
     }, [])
 
     async function uploadFiles(filesToUpload: File[]) {
-        if (!chatId) {
-            toast.error('Avval yangi suhbat boshlang')
-            return
+        // chatId yo'q (yangi suhbat/welcome) — avval chat yaratamiz, paste/rasm shu holatda ham ishlaydi
+        let targetChatId = chatId
+        if (!targetChatId) {
+            targetChatId = (await onEnsureChat()) || undefined
+            if (!targetChatId) {
+                toast.error("Suhbat ochilmadi — qayta urinib ko'ring")
+                return
+            }
         }
         setUploadingFile(true)
         try {
@@ -588,7 +595,7 @@ const ChatInputArea = memo(function ChatInputArea({
             const newAttachments = await Promise.all(filesToUpload.map(async (file) => {
                 const formData = new FormData()
                 formData.append('file', file)
-                const res = await fetch(`/api/chat/${chatId}/upload-file`, {
+                const res = await fetch(`/api/chat/${targetChatId}/upload-file`, {
                     method: 'POST',
                     headers: { Authorization: `Bearer ${token}` },
                     body: formData
@@ -619,7 +626,8 @@ const ChatInputArea = memo(function ChatInputArea({
     }
 
     async function handlePaste(e: React.ClipboardEvent) {
-        if (!chatId || loading || uploadingFile) return
+        // chatId'siz ham ishlaydi (uploadFiles o'zi chat yaratadi) — avval JIM chiqib ketardi
+        if (loading || uploadingFile) return
         const items = Array.from(e.clipboardData.items)
         const imageItems = items.filter(item => item.type.startsWith('image/'))
         if (!imageItems.length) return
@@ -1738,6 +1746,31 @@ Iltimos, har bir savolni tahlil qilib ber:
         // bu yerda null qilsak, o'sha shart buzilib loading=true qotib qoladi (stop ishlamagandek ko'rinadi).
         abortRef.current?.abort()
     }
+
+    // Paste/rasm yuklash uchun: chatId yo'q bo'lsa (welcome/yangi suhbat) chat yaratib id qaytaradi.
+    // Bu bo'lmasa paste jim ishlamasdi — foydalanuvchi screenshot yubora olmasdi.
+    const ensureChatForUpload = useCallback(async (): Promise<string | null> => {
+        if (chatId) return chatId
+        try {
+            const data = await fetchApi('/chat/new', {
+                method: 'POST',
+                body: JSON.stringify({
+                    title: 'Yangi suhbat',
+                    subject: normalizeSubjectValue(profile?.subject) || undefined,
+                    subject2: normalizeSubjectValue(profile?.subject2) || undefined,
+                    forceNew: true
+                })
+            })
+            await loadChats()
+            pendingHydrationChatIdRef.current = data.id
+            setCurrentChat(data)
+            nav(`/suhbat/${data.id}`)
+            return data.id
+        } catch (err) {
+            console.error('ensureChatForUpload:', err)
+            return null
+        }
+    }, [chatId, profile?.subject, profile?.subject2]) // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleSend = useCallback(async (text: string, files: AttachedFile[]) => {
         if (loading) return
@@ -3067,6 +3100,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                         onStop={stopGeneration}
                         blobUrlsRef={blobUrlsRef}
                         messagesCount={messages.length}
+                        onEnsureChat={ensureChatForUpload}
                     />
                 </div>
 

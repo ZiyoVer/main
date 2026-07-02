@@ -817,7 +817,7 @@ Test so'ralganda FAQAT \`\`\`test JSON formatida ber:
 \`\`\`
 - correct: to'g'ri javob harfi (a/b/c/d)
 - topic: har savolning ANIQ mavzusi (masalan "Kvadrat tenglamalar", "Present Perfect", "Amir Temur davri") — zaiflik tahlili va adaptiv tavsiya shunga tayanadi, BO'SH qoldirma. Bir mavzuni DOIM bir xil yozilishda yoz (katta-kichik harf yoki imlo farqi bo'lmasin), aks holda statistika parchalanadi
-- Test JSON dan keyin matn yozma — o'quvchi interaktiv yechadi
+- Test JSON dan keyin HECH QANDAY matn YOZMA. Ayniqsa "javoblaringizni yozing", "javoblarni quyidagi tartibda yozing (a, b, c...)" kabi ko'rsatmalar QAT'IYAN TAQIQLANGAN — test alohida interaktiv panelda ochiladi, o'quvchi javobni O'SHA YERDA belgilaydi va tizim O'ZI avtomatik tekshiradi. Chatga javob yozdirish YO'Q.
 - HECH QACHON oddiy A) B) C) D) formatda test berma
 - 3-5 ta yoki 7-8 ta savol bilan test berish QATTIQ TAQIQLANGAN!
 - ⚡ ADAPTIV: agar yuqorida "REAL TESTLARDA ZAIF" mavzular ko'rsatilgan bo'lsa — test va mashqlarni AVVAL O'SHA mavzulardan tuz. Bu o'lchangan ma'lumot — havodan/tasodifan tuzma.
