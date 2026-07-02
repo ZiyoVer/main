@@ -7,7 +7,7 @@ import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
 import { DtmBlockType } from '@prisma/client'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole, optionalAuthenticate } from '../middleware/auth'
-import { uploadToS3, getSignedS3Url, resolveStoredS3Url, toStoredS3Ref } from '../utils/s3'
+import { uploadToS3, getSignedS3Url, resolveStoredS3Url, toStoredS3Ref, isStorageConfigured } from '../utils/s3'
 import { logAdminAction } from '../utils/adminAudit'
 import { getSubjectVariants, normalizeSubject, categoryForTest } from '../utils/subjects'
 import { getEntitlement } from './billing'
@@ -1602,6 +1602,11 @@ router.post('/upload-image', authenticate, requireRole('TEACHER', 'ADMIN'), uplo
         if (!req.file.mimetype.startsWith('image/')) {
             return res.status(400).json({ error: 'Faqat rasm fayllari yuklanadi' })
         }
+        // Storage (Railway Bucket / S3) sozlanmagan bo'lsa — aniq xabar (umumiy 500 chalg'itadi).
+        if (!isStorageConfigured) {
+            console.error('upload-image: storage kalitlari sozlanmagan (Bucket ulanmagan)')
+            return res.status(503).json({ error: 'Rasm saqlash hali sozlanmagan (Bucket ulanmagan). Administrator bilan bog\'laning.' })
+        }
 
         // s3 ga yuklash
         const fileName = `${Date.now()}-${req.file.originalname.replace(/\s+/g, '-')}`
@@ -1615,9 +1620,9 @@ router.post('/upload-image', authenticate, requireRole('TEACHER', 'ADMIN'), uplo
             imageUrl: toStoredS3Ref(s3Result.key),
             key: s3Result.key
         })
-    } catch (e) {
-        console.error('Image upload error:', e)
-        res.status(500).json({ error: 'Rasm yuklashda xatolik yuz berdi' })
+    } catch (e: any) {
+        console.error('Image upload error:', e?.message || e)
+        res.status(500).json({ error: `Rasm yuklashda xatolik: ${e?.name === 'CredentialsProviderError' || /credential|access.?key|signature/i.test(String(e?.message)) ? 'S3 kaliti noto\'g\'ri' : 'saqlash xizmati javob bermadi'}` })
     }
 })
 

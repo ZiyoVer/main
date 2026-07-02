@@ -71,6 +71,7 @@ interface Question {
     text: string; imageUrl?: string | null; options: string[]; correctIdx: number
     questionType: 'mcq' | 'open' | 'matching' | 'multipart_open'; correctText?: string
     imagePreviewUrl?: string | null
+    imageUploading?: boolean          // rasm yuklanmoqda (spinner + disable uchun)
     matchingAnswers?: string[]       // A–F shared answer bank
     matchingSubQuestions?: MatchingSubQ[]  // each sub-question + correct answer idx
     multipartSubQuestions?: MultipartOpenSubQ[]
@@ -495,25 +496,24 @@ export default function TeacherPanel() {
         }
     }
 
-    async function uploadQuestionImage(qi: number, file: File) {
+    // Faylni serverga yuklaydi (compress qilingan yoki original). Xatoni YUQORIGA uzatadi
+    // (handleImageUpload uni toast bilan ko'rsatadi) — avval catch ichida qayta chaqirilib,
+    // ikkinchi xato JIM yo'qolardi.
+    async function uploadQuestionImage(qi: number, file: File): Promise<void> {
         const formData = new FormData()
         formData.append('image', file)
         const uploaded = await uploadFile('/tests/upload-image', formData)
+        if (!uploaded?.imageUrl) throw new Error('Server rasm manzilini qaytarmadi')
         setQuestions(prev => prev.map((q, i) => i === qi ? {
             ...q,
             imageUrl: uploaded.imageUrl,
-            imagePreviewUrl: uploaded.url
+            imagePreviewUrl: uploaded.url || q.imagePreviewUrl, // signed URL kelmasa lokal preview qoladi
         } : q))
     }
 
-    async function handleImageUpload(qi: number, file: File) {
-        const MAX_SIZE = 10 * 1024 * 1024 // 10MB
-        if (file.size > MAX_SIZE) {
-            toast.error('Rasm hajmi 10MB dan oshmasligi kerak')
-            return
-        }
+    // Rasmni JPEG'ga compress qiladi (max 1200px). Xato bo'lsa null — chaqiruvchi originalni yuboradi.
+    async function compressImage(file: File): Promise<File | null> {
         try {
-            // Canvas orqali compress: max 1200px, JPEG 0.82 — ~100-300KB ga tushadi
             const bitmap = await createImageBitmap(file)
             const MAX_DIM = 1200
             const scale = Math.min(1, MAX_DIM / Math.max(bitmap.width, bitmap.height))
@@ -522,15 +522,44 @@ export default function TeacherPanel() {
             const canvas = document.createElement('canvas')
             canvas.width = w
             canvas.height = h
-            canvas.getContext('2d')!.drawImage(bitmap, 0, 0, w, h)
-            const compressedBlob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82))
-            const uploadableFile = compressedBlob
-                ? new File([compressedBlob], `${file.name.replace(/\.[^.]+$/, '')}.jpg`, { type: 'image/jpeg' })
-                : file
-            await uploadQuestionImage(qi, uploadableFile)
-        } catch {
-            await uploadQuestionImage(qi, file)
+            const ctx = canvas.getContext('2d')
+            if (!ctx) return null
+            ctx.drawImage(bitmap, 0, 0, w, h)
+            const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82))
+            return blob ? new File([blob], `${file.name.replace(/\.[^.]+$/, '')}.jpg`, { type: 'image/jpeg' }) : null
+        } catch { return null }
+    }
+
+    async function handleImageUpload(qi: number, file: File) {
+        const MAX_SIZE = 10 * 1024 * 1024 // 10MB
+        if (!file.type.startsWith('image/')) { toast.error('Faqat rasm fayllari (PNG, JPG) qo\'yiladi'); return }
+        if (file.size > MAX_SIZE) { toast.error('Rasm hajmi 10MB dan oshmasligi kerak'); return }
+
+        // 1) DARROV lokal preview ko'rsatamiz (xira, spinner bilan) — o'qituvchi yuklanayotganini KO'RADI
+        const localPreview = URL.createObjectURL(file)
+        setQuestions(prev => prev.map((q, i) => i === qi
+            ? { ...q, imagePreviewUrl: localPreview, imageUploading: true }
+            : q))
+
+        // 2) Compress (ixtiyoriy) → yuklash. Compress bo'lmasa original bilan urinamiz.
+        const compressed = await compressImage(file)
+        try {
+            await uploadQuestionImage(qi, compressed || file)
+        } catch (e: any) {
+            // Xato — endi JIM emas: aniq sabab ko'rsatiladi (masalan S3 sozlanmagan bo'lsa)
+            setQuestions(prev => prev.map((q, i) => i === qi
+                ? { ...q, imagePreviewUrl: null, imageUploading: false }
+                : q))
+            URL.revokeObjectURL(localPreview)
+            const reason = e?.status === 401 ? 'ruxsat tugagan — qayta kiring'
+                : e?.status === 403 ? 'faqat o\'qituvchi/admin rasm yuklaydi'
+                : e?.data?.error || e?.message || 'server xatosi'
+            toast.error(`Rasm yuklanmadi: ${reason}`)
+            return
         }
+        // 3) Muvaffaqiyat — spinnerni o'chiramiz (imagePreviewUrl uploadQuestionImage ichida signed URL bo'ldi)
+        setQuestions(prev => prev.map((q, i) => i === qi ? { ...q, imageUploading: false } : q))
+        URL.revokeObjectURL(localPreview)
     }
 
     function updateQ(idx: number, field: string, value: any) {
@@ -1432,21 +1461,30 @@ export default function TeacherPanel() {
                                     <div className="relative">
                                         <textarea placeholder="Savol matni ($formula$ yoki \\frac{a}{b} yozsa preview chiqadi)" required={!q.imageUrl} value={q.text} onChange={e => updateQ(qi, 'text', e.target.value)} rows={2}
                                             className="input resize-none w-full pr-12" style={{ height: 'auto', padding: '0.5rem 0.75rem', fontSize: '13px' }} />
-                                        <label className="absolute right-2 top-2 p-1.5 rounded-md cursor-pointer transition hover:bg-slate-100 dark:hover:bg-slate-800"
+                                        <label className={`absolute right-2 top-2 p-1.5 rounded-md transition hover:bg-slate-100 dark:hover:bg-slate-800 ${q.imageUploading ? 'cursor-wait opacity-60' : 'cursor-pointer'}`}
                                             title="Rasm yuklash yoki Ctrl+V (Paste) orqali kiritish">
-                                            <input type="file" accept="image/*" className="hidden" onChange={e => {
+                                            <input type="file" accept="image/*" className="hidden" disabled={q.imageUploading} onChange={e => {
                                                 if (e.target.files?.[0]) handleImageUpload(qi, e.target.files[0]);
                                                 e.target.value = ''
                                             }} />
-                                            <Image className="h-4 w-4" style={{ color: 'var(--brand)' }} />
+                                            {q.imageUploading
+                                                ? <div className="h-4 w-4 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--brand)', borderTopColor: 'transparent' }} />
+                                                : <Image className="h-4 w-4" style={{ color: 'var(--brand)' }} />}
                                         </label>
                                     </div>
                                     {(q.imagePreviewUrl || q.imageUrl) && (
                                         <div className="relative inline-block mt-2">
-                                            <img src={q.imagePreviewUrl || q.imageUrl || ''} alt="Savol rasmi" className="max-h-32 rounded-lg border shadow-sm" style={{ borderColor: 'var(--border)' }} />
-                                            <button type="button" onClick={() => setQuestions(prev => prev.map((question, i) => i === qi ? { ...question, imageUrl: null, imagePreviewUrl: null } : question))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition shadow-md">
-                                                <X className="h-3 w-3" />
-                                            </button>
+                                            <img src={q.imagePreviewUrl || q.imageUrl || ''} alt="Savol rasmi" className="max-h-32 rounded-lg border shadow-sm transition-all" style={{ borderColor: 'var(--border)', filter: q.imageUploading ? 'blur(2px) brightness(0.8)' : undefined }} />
+                                            {q.imageUploading && (
+                                                <div className="absolute inset-0 flex items-center justify-center">
+                                                    <div className="h-6 w-6 border-2 rounded-full animate-spin" style={{ borderColor: '#fff', borderTopColor: 'transparent' }} />
+                                                </div>
+                                            )}
+                                            {!q.imageUploading && (
+                                                <button type="button" onClick={() => setQuestions(prev => prev.map((question, i) => i === qi ? { ...question, imageUrl: null, imagePreviewUrl: null } : question))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition shadow-md">
+                                                    <X className="h-3 w-3" />
+                                                </button>
+                                            )}
                                         </div>
                                     )}
                                     <MathPreview text={q.text} />

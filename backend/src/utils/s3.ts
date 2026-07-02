@@ -3,22 +3,40 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { v4 as uuid } from 'uuid'
 import path from 'path'
 
-if (!process.env.S3_ACCESS_KEY || !process.env.S3_SECRET_KEY) {
-    console.warn('⚠️ S3 credentials topilmadi, yuklashlar ishlamasligi mumkin')
+// Env o'zgaruvchisini bir nechta nom variantidan o'qiydi — Railway Bucket ACCESS_KEY_ID/
+// SECRET_ACCESS_KEY/BUCKET/ENDPOINT/REGION beradi, AWS SDK esa AWS_* kutadi, bizniki S3_*.
+// Shu tufayli qaysi nom bilan ulansa ham ishlaydi (sozlash osonlashadi).
+function envAny(...names: string[]): string {
+    for (const n of names) {
+        const v = process.env[n]
+        if (v && v.trim()) return v.trim()
+    }
+    return ''
 }
 
-const s3Endpoint = process.env.S3_ENDPOINT || 'https://s3.eu-central-2.wasabisys.com'
+const S3_ACCESS_KEY = envAny('S3_ACCESS_KEY', 'ACCESS_KEY_ID', 'AWS_ACCESS_KEY_ID')
+const S3_SECRET_KEY = envAny('S3_SECRET_KEY', 'SECRET_ACCESS_KEY', 'AWS_SECRET_ACCESS_KEY')
+const s3Endpoint = envAny('S3_ENDPOINT', 'ENDPOINT', 'AWS_ENDPOINT_URL_S3', 'AWS_ENDPOINT_URL') || 'https://s3.eu-central-2.wasabisys.com'
+const s3Region = envAny('S3_REGION', 'REGION', 'AWS_REGION') || 'us-east-1'
+
+/** Storage sozlanganmi (kalitlar bormi) — endpointlar 503 berish uchun tekshiradi. */
+export const isStorageConfigured = !!(S3_ACCESS_KEY && S3_SECRET_KEY)
+
+if (!isStorageConfigured) {
+    console.warn('⚠️ S3/Bucket kalitlari topilmadi (S3_ACCESS_KEY/S3_SECRET_KEY yoki Railway Bucket ACCESS_KEY_ID) — rasm yuklash ishlamaydi')
+}
+
 const s3 = new S3Client({
-    region: process.env.S3_REGION || 'eu-central-2',
+    region: s3Region,
     endpoint: s3Endpoint,
     credentials: {
-        accessKeyId: process.env.S3_ACCESS_KEY || '',
-        secretAccessKey: process.env.S3_SECRET_KEY || ''
+        accessKeyId: S3_ACCESS_KEY,
+        secretAccessKey: S3_SECRET_KEY
     },
-    forcePathStyle: true // Wasabi uchun kerak
+    forcePathStyle: true // S3-mos xizmatlar (Railway Bucket / Wasabi / MinIO) uchun path-style
 })
 
-const BUCKET = process.env.S3_BUCKET || 'dtmmax'
+const BUCKET = envAny('S3_BUCKET', 'BUCKET', 'AWS_S3_BUCKET', 'BUCKET_NAME') || 'dtmmax'
 const S3_REF_PREFIX = 's3key:'
 
 function getBaseUrl(): string {
