@@ -99,5 +99,13 @@ dtmmax_pub_ans_<id>      ← Public test foydalanuvchi javoblari
 ```
 DATABASE_URL, JWT_SECRET, DEEPSEEK_API_KEY, GEMINI_API_KEY,
 RESEND_API_KEY, EMAIL_FROM, FRONTEND_URL, ALLOWED_ORIGINS,
-PORT, ADMIN_EMAIL, ADMIN_PASSWORD, GOOGLE_CLIENT_ID
+PORT, ADMIN_EMAIL, ADMIN_PASSWORD, GOOGLE_CLIENT_ID,
+# Rasm saqlash (SAVOL + CHAT RASMLARI) — Railway Bucket "sorted-toolbox" (S3-mos):
+S3_ACCESS_KEY, S3_SECRET_KEY, S3_BUCKET, S3_ENDPOINT, S3_REGION=auto,
+# To'lov (Octo):
+OCTO_SHOP_ID, OCTO_SECRET
 ```
+
+> **Rasm saqlash:** Railway Bucket (S3-mos, private). Kod `s3.ts` env'ni bir nechta
+> nom variantida o'qiydi (S3_* | Railway ACCESS_KEY_ID/... | AWS_*). Region = `auto`.
+> Eski Wasabi o'lik (hisob inactive) — qaytib ishlatma. Rasmlar o'quvchiga signed URL bilan beriladi.
