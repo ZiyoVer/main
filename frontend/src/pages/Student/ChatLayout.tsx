@@ -879,6 +879,10 @@ export default function ChatLayout() {
     const userScrolledRef = useRef(false)
     const blobUrlsRef = useRef<string[]>([])
     const abortRef = useRef<AbortController | null>(null)
+    // Faol stream QAYSI chatga tegishli — chatId effekti faqat BOSHQA chat stream'ini bekor qilsin.
+    // (Birinchi xabarda handleSend chat yaratib nav qiladi -> effekt endigina boshlangan stream'ni
+    // o'ldirardi -> "salom yozsam javob kelmayapti, qayta yozish kerak" bug'i.)
+    const streamChatIdRef = useRef<string | null>(null)
     const chatIdRef = useRef<string | undefined>(chatId)
     const profileRef = useRef<Profile | null>(null)
     const [testsLoading, setTestsLoading] = useState(false)
@@ -994,7 +998,10 @@ export default function ChatLayout() {
         // Boshqa chatga o'tilganda davom etayotgan SSE stream'ni bekor qilamiz,
         // aks holda javob noto'g'ri chatga yozilib qoladi. abortRef null qilingani uchun
         // stream cleanup loading'ni tiklamaydi -> bu yerda O'ZIMIZ tiklaymiz (komponent remount bo'lmaydi).
-        if (abortRef.current) {
+        // MUHIM: faqat BOSHQA chatga tegishli stream'ni bekor qilamiz — birinchi xabarda
+        // handleSend yangi chat yaratib nav qiladi va stream AYNAN shu chat uchun boshlanadi;
+        // uni o'ldirsak "salom yozsam javob kelmayapti" bug'i qaytadi.
+        if (abortRef.current && streamChatIdRef.current !== chatId) {
             abortRef.current.abort()
             abortRef.current = null
             setLoading(false)
@@ -1601,6 +1608,7 @@ Iltimos, har bir savolni tahlil qilib ber:
         }
         const controller = new AbortController()
         abortRef.current = controller
+        streamChatIdRef.current = targetChatId // bu stream qaysi chatga tegishli (effekt guard'i uchun)
         // Stream boshlanganda joriy chat id'ni qotirib olamiz — agar foydalanuvchi
         // oqim davomida boshqa chatga o'tsa, javobni noto'g'ri chatga yozmaymiz
         const captured = targetChatId
