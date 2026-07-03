@@ -622,6 +622,49 @@ function MathGlyph({ g, i }: { g: Glyph; i: number }) {
   )
 }
 
+/* HERO 3D — suzuvchi "189 ball" mahsulot kartasi (eski pixel-target o'rniga).
+   Perspective + preserve-3d qatlamlar: 3D egilgan karta, ball halqasi (SVG arc),
+   oldida chiqib turgan chiplar. Brend ranglari. Faqat dekorativ (aria-hidden). */
+function Hero3D() {
+  return (
+    <div className="lp3d-scene" aria-hidden="true">
+      <span className="lp3d-shadow" />
+      <div className="lp3d-float">
+        <div className="lp3d-stage">
+          <div className="lp3d-card-back" />
+          <div className="lp3d-card">
+            <div className="lp3d-head">
+              <span className="lp3d-avatar">AI</span>
+              <span className="lp3d-bubble">Bugun 9/10 — zo'r! 💪</span>
+            </div>
+            <div className="lp3d-ringwrap">
+              <div className="lp3d-ring">
+                <svg viewBox="0 0 132 132">
+                  <defs>
+                    <linearGradient id="lp3dGrad" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0" stopColor={C.accent} />
+                      <stop offset="1" stopColor={C.accent2} />
+                    </linearGradient>
+                  </defs>
+                  <circle className="lp3d-ring-track" cx="66" cy="66" r="56" />
+                  <circle className="lp3d-ring-arc" cx="66" cy="66" r="56" />
+                </svg>
+                <div className="lp3d-ring-center">
+                  <span className="lp3d-score">189</span>
+                  <span className="lp3d-score-sub">ball / 189</span>
+                </div>
+              </div>
+            </div>
+            <div className="lp3d-foot">Maksimal ball sari — har kuni</div>
+          </div>
+          <span className="lp3d-chip lp3d-chip-test"><span className="lp3d-chip-dot" />Test 9/10</span>
+          <span className="lp3d-chip lp3d-chip-formula">x²−5x+6</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function MathZone() {
   return (
     <div
@@ -635,7 +678,7 @@ function MathZone() {
       {GLYPHS.map((g, i) => (
         <MathGlyph key={g.ch} g={g} i={i} />
       ))}
-      <PixelTarget />
+      <Hero3D />
     </div>
   )
 }

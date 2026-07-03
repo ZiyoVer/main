@@ -489,3 +489,100 @@
   .lp-root .lp-cta-actions > * { width: 100% !important; justify-content: center !important; }
   .lp-root .lp-footer-cols { grid-template-columns: 1fr 1fr !important; }
 }
+
+/* =====================================================================
+   HERO 3D — suzuvchi "189 ball" mahsulot kartasi (eski pixel-target o'rniga).
+   Perspective + preserve-3d qatlamlar: karta 3D egilgan, yumshoq suzadi,
+   oldida chiqib turgan chip va ball halqasi. Brend ranglari (orange/paper).
+   ===================================================================== */
+.lp-root .lp3d-scene {
+  position: absolute; top: 6%; left: 44%;
+  width: 300px; height: 340px;
+  transform: translateX(-50%);
+  perspective: 1150px;
+  z-index: 3; pointer-events: none;
+}
+.lp-root .lp3d-float { width: 100%; height: 100%; animation: lp3d-bob 5.5s ease-in-out infinite; }
+.lp-root .lp3d-stage {
+  position: relative; width: 100%; height: 100%;
+  transform-style: preserve-3d;
+  animation: lp3d-tilt 11s ease-in-out infinite;
+}
+.lp-root .lp3d-shadow {
+  position: absolute; left: 50%; bottom: -30px; width: 210px; height: 30px;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at center, rgba(33,28,22,.20), transparent 72%);
+  filter: blur(7px);
+  animation: lp3d-shadow 5.5s ease-in-out infinite;
+}
+.lp-root .lp3d-card-back {
+  position: absolute; inset: 0; border-radius: 22px;
+  background: var(--lp-bg-2); border: 1px solid var(--lp-line);
+  transform: translateZ(-46px) translate(18px, 16px);
+}
+.lp-root .lp3d-card {
+  position: absolute; inset: 0; border-radius: 22px; padding: 20px;
+  background: linear-gradient(158deg, #fff 0%, var(--lp-bg-2) 135%);
+  border: 1px solid var(--lp-line);
+  box-shadow: var(--lp-shadow-hover), inset 0 1px 0 rgba(255,255,255,.75);
+  transform-style: preserve-3d;
+  display: flex; flex-direction: column;
+}
+.lp-root .lp3d-head { display: flex; align-items: center; gap: 9px; }
+.lp-root .lp3d-avatar {
+  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+  background: var(--lp-accent-grad);
+  box-shadow: 0 4px 12px -3px rgba(224,83,31,.5);
+  display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 14px;
+  transform: translateZ(20px);
+}
+.lp-root .lp3d-bubble {
+  font-size: 11.5px; font-weight: 600; color: var(--lp-gray);
+  background: var(--lp-bg); border: 1px solid var(--lp-line);
+  padding: 6px 10px; border-radius: 10px 10px 10px 3px;
+}
+.lp-root .lp3d-ringwrap {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  transform: translateZ(14px);
+}
+.lp-root .lp3d-ring { position: relative; width: 132px; height: 132px; }
+.lp-root .lp3d-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.lp-root .lp3d-ring-track { fill: none; stroke: var(--lp-line); stroke-width: 9; }
+.lp-root .lp3d-ring-arc {
+  fill: none; stroke: url(#lp3dGrad); stroke-width: 9; stroke-linecap: round;
+  stroke-dasharray: 351.9; stroke-dashoffset: 351.9;
+  animation: lp3d-draw 2.4s cubic-bezier(.22,1,.36,1) .3s forwards;
+}
+.lp-root .lp3d-ring-center {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; line-height: 1;
+}
+.lp-root .lp3d-score { font-family: 'Fraunces', Georgia, serif; font-weight: 600; font-size: 40px; color: var(--lp-ink); letter-spacing: -.02em; }
+.lp-root .lp3d-score-sub { font-size: 10.5px; font-weight: 700; letter-spacing: .04em; color: var(--lp-accent-strong); margin-top: 3px; text-transform: uppercase; }
+.lp-root .lp3d-foot { font-size: 11px; font-weight: 600; color: var(--lp-gray-2); text-align: center; }
+.lp-root .lp3d-chip {
+  position: absolute; display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 700; padding: 6px 11px; border-radius: 999px;
+  background: #fff; border: 1px solid var(--lp-line); box-shadow: 0 8px 20px -8px rgba(33,28,22,.28);
+}
+.lp-root .lp3d-chip-test { left: -26px; bottom: 40px; color: #0e8f5e; transform: translateZ(62px); }
+.lp-root .lp3d-chip-dot { width: 7px; height: 7px; border-radius: 50%; background: #10b981; }
+.lp-root .lp3d-chip-formula {
+  right: -22px; top: 30px; transform: translateZ(52px);
+  font-family: 'Fraunces', Georgia, serif; font-style: italic; color: var(--lp-ink); font-weight: 500;
+}
+@keyframes lp3d-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
+@keyframes lp3d-tilt {
+  0%,100% { transform: rotateY(-20deg) rotateX(8deg); }
+  50%     { transform: rotateY(-11deg) rotateX(5deg); }
+}
+@keyframes lp3d-shadow { 0%,100% { transform: translateX(-50%) scale(1); opacity: .55; } 50% { transform: translateX(-50%) scale(.86); opacity: .38; } }
+@keyframes lp3d-draw { to { stroke-dashoffset: 26; } }  /* ~92% arc */
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-root .lp3d-float, .lp-root .lp3d-stage, .lp-root .lp3d-shadow { animation: none !important; }
+  .lp-root .lp3d-ring-arc { animation: none !important; stroke-dashoffset: 26 !important; }
+}
+@media (max-width: 980px) {
+  .lp-root .lp3d-scene { display: none !important; }  /* mobil sokin qoladi (brend) */
+}
