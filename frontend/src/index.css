@@ -805,8 +805,11 @@ button:focus-visible {
 }
 
 /* Delay helpers */
+/* MUHIM: avval fadeUp (16px pastdan sakrash, 0.4s) edi — har sahifa almashishda
+   kontent "qimirlab" chiqayotgandek his berardi (lazy-load spinner milt etishi
+   bilan qo'shilib). Endi faqat yumshoq opacity fade — siljish YO'Q, tez va silliq. */
 .anim-up {
-    animation: fadeUp 0.4s ease-out both;
+    animation: fadeIn 0.22s ease-out both;
 }
 
 .anim-in {

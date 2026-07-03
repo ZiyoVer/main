@@ -27,14 +27,26 @@ const Privacy = lazy(() => import('./pages/Privacy'))
 const Oferta = lazy(() => import('./pages/Oferta'))
 
 function PageLoader() {
+    // Spinner 250ms KECHIKIB chiqadi: tez sahifa almashishlarda (chunk keshda)
+    // spinner "milt" etmaydi — sahifalar orasida g'alati qimirlash yo'qoladi.
+    // Sekin yuklanishda (birinchi kirish, sust tarmoq) spinner baribir ko'rinadi.
+    const [show, setShow] = useState(false)
+    useEffect(() => {
+        const t = setTimeout(() => setShow(true), 250)
+        return () => clearTimeout(t)
+    }, [])
     return (
         <div className="h-screen w-full flex items-center justify-center" style={{ background: 'var(--bg-main)' }}>
-            <div style={{
-                width: '36px', height: '36px', border: '3px solid var(--border)',
-                borderTopColor: 'var(--brand)', borderRadius: '50%',
-                animation: 'spin 0.8s linear infinite'
-            }} />
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+            {show && (
+                <>
+                    <div style={{
+                        width: '36px', height: '36px', border: '3px solid var(--border)',
+                        borderTopColor: 'var(--brand)', borderRadius: '50%',
+                        animation: 'spin 0.8s linear infinite'
+                    }} />
+                    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                </>
+            )}
         </div>
     )
 }
