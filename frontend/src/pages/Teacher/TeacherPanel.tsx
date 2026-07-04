@@ -63,6 +63,14 @@ function formatAcceptedAnswerHint(text: string) {
         .join(' / ')
 }
 
+// 's3key:' ko'rinishidagi xom ref brauzerda ochilmaydi — <img> uchun signed/lokal
+// preview'ni afzal ko'ramiz, xom ref bo'lsa null qaytaramiz (singan rasm chiqmasin)
+function displayableImageSrc(previewUrl?: string | null, rawUrl?: string | null): string | null {
+    if (previewUrl) return previewUrl
+    if (rawUrl && !rawUrl.startsWith('s3key:')) return rawUrl
+    return null
+}
+
 interface MatchingSubQ { text: string; correctIdx: number }
 interface MultipartOpenSubQ { label: string; text: string; correctText: string }
 type TestTypeValue = 'REGULAR' | 'DTM_BLOCK' | 'MILLIY_SERTIFIKAT'
@@ -73,6 +81,12 @@ interface Question {
     questionType: 'mcq' | 'open' | 'matching' | 'multipart_open'; correctText?: string
     imagePreviewUrl?: string | null
     imageUploading?: boolean          // rasm yuklanmoqda (spinner + disable uchun)
+    optionImages?: (string | null)[]          // variant rasmlari ('s3key:' ref, options bilan indeks-mos) — API ga YUBORILADI
+    optionImagePreviews?: (string | null)[]   // signed URL preview'lar — klient-only, API ga yuborilmaydi
+    optionImageUploading?: number | null      // hozir yuklanayotgan variant indeksi — klient-only
+    solutionImageUrl?: string | null          // yechim rasmi ('s3key:' ref) — API ga YUBORILADI
+    solutionImagePreviewUrl?: string | null   // signed URL preview — klient-only
+    solutionImageUploading?: boolean          // klient-only
     matchingAnswers?: string[]       // A–F shared answer bank
     matchingSubQuestions?: MatchingSubQ[]  // each sub-question + correct answer idx
     multipartSubQuestions?: MultipartOpenSubQ[]
@@ -153,7 +167,9 @@ interface TeacherTestDetailResponse {
     source?: 'OFFICIAL' | 'UNOFFICIAL' | 'AI_PREDICTION'
     premium?: boolean
     attemptsCount: number
-    questions: Array<Omit<Question, 'uid'>>
+    // Server ref ('s3key:') + signed preview maydonlarini yuboradi, lekin klient-only
+    // yuklanish flaglarini (imageUploading/optionImageUploading/solutionImageUploading) yubormaydi
+    questions: Array<Omit<Question, 'uid' | 'imageUploading' | 'optionImageUploading' | 'solutionImageUploading'>>
 }
 
 interface AttemptDetailItem {
@@ -469,9 +485,19 @@ export default function TeacherPanel() {
             setPremium(detail.premium ?? false)
             setTimeLimit(detail.timeLimit || 0)
             setTimeLimitTouched(Boolean(detail.timeLimit))
-            // Serverdan kelgan savollarga klient-kalit (uid) beramiz — React key barqaror bo'lsin
+            // Serverdan kelgan savollarga klient-kalit (uid) beramiz — React key barqaror bo'lsin.
+            // Rasm maydonlari: xom ref (imageUrl/optionImages/solutionImageUrl) payload uchun saqlanadi,
+            // signed preview'lar (imagePreviewUrl/optionImagePreviews/solutionImagePreviewUrl) ko'rsatish uchun
             setQuestions(detail.questions.length > 0
-                ? detail.questions.map(question => ({ ...question, uid: nextQuestionUid() }))
+                ? detail.questions.map(question => ({
+                    ...question,
+                    uid: nextQuestionUid(),
+                    imagePreviewUrl: question.imagePreviewUrl ?? null,
+                    optionImages: question.optionImages ?? undefined,
+                    optionImagePreviews: question.optionImagePreviews ?? undefined,
+                    solutionImageUrl: question.solutionImageUrl ?? null,
+                    solutionImagePreviewUrl: question.solutionImagePreviewUrl ?? null
+                }))
                 : [createEmptyQuestion()])
             setTab('create')
             setMsg('')
@@ -578,6 +604,85 @@ export default function TeacherPanel() {
         // 3) Muvaffaqiyat — spinnerni o'chiramiz (imagePreviewUrl uploadQuestionImage ichida signed URL bo'ldi)
         setQuestions(prev => prev.map((q, i) => i === qi ? { ...q, imageUploading: false } : q))
         URL.revokeObjectURL(localPreview)
+    }
+
+    // Variant/yechim rasmlari uchun umumiy klient-tomon tekshiruv (faqat rasm, ≤10MB)
+    function validateImageFile(file: File): boolean {
+        if (!file.type.startsWith('image/')) { toast.error('Faqat rasm fayllari (PNG, JPG) qo\'yiladi'); return false }
+        if (file.size > 10 * 1024 * 1024) { toast.error('Rasm hajmi 10MB dan oshmasligi kerak'); return false }
+        return true
+    }
+
+    // Yuklash xatosining sababini o'qituvchiga tushunarli matnga aylantiradi
+    function uploadErrorReason(e: unknown): string {
+        const err = e as { status?: number; data?: { error?: string } | null; message?: string }
+        if (err?.status === 401) return 'ruxsat tugagan — qayta kiring'
+        if (err?.status === 403) return 'faqat o\'qituvchi/admin rasm yuklaydi'
+        return err?.data?.error || err?.message || 'server xatosi'
+    }
+
+    // Compress → serverga yuklash. ref ('s3key:' — payload uchun) + preview (signed URL) qaytaradi
+    async function uploadImageToServer(file: File): Promise<{ ref: string; preview: string | null }> {
+        const compressed = await compressImage(file)
+        const formData = new FormData()
+        formData.append('image', compressed || file)
+        const uploaded = await uploadFile('/tests/upload-image', formData)
+        if (!uploaded?.imageUrl) throw new Error('Server rasm manzilini qaytarmadi')
+        return { ref: uploaded.imageUrl, preview: uploaded.url || null }
+    }
+
+    // Variant (option) rasmini yuklaydi. Savol INDEKS emas, uid orqali topiladi —
+    // yuklash async, orada savol o'chirilsa indekslar suriladi va noto'g'ri savolga yozilardi
+    async function handleOptionImageUpload(uid: string, oi: number, file: File) {
+        if (!validateImageFile(file)) return
+        setQuestions(prev => prev.map(q => q.uid === uid ? { ...q, optionImageUploading: oi } : q))
+        try {
+            const { ref, preview } = await uploadImageToServer(file)
+            setQuestions(prev => prev.map(q => {
+                if (q.uid !== uid) return q
+                // Massivlar options bilan indeks-mos bo'lishi shart — uzunlikni tenglashtiramiz
+                const optionImages = q.options.map((_, j) => q.optionImages?.[j] ?? null)
+                const optionImagePreviews = q.options.map((_, j) => q.optionImagePreviews?.[j] ?? null)
+                if (oi < optionImages.length) {
+                    optionImages[oi] = ref
+                    optionImagePreviews[oi] = preview
+                }
+                return { ...q, optionImages, optionImagePreviews, optionImageUploading: null }
+            }))
+        } catch (e) {
+            setQuestions(prev => prev.map(q => q.uid === uid ? { ...q, optionImageUploading: null } : q))
+            toast.error(`Variant rasmi yuklanmadi: ${uploadErrorReason(e)}`)
+        }
+    }
+
+    function removeOptionImage(uid: string, oi: number) {
+        setQuestions(prev => prev.map(q => {
+            if (q.uid !== uid) return q
+            const optionImages = q.options.map((_, j) => (j === oi ? null : q.optionImages?.[j] ?? null))
+            const optionImagePreviews = q.options.map((_, j) => (j === oi ? null : q.optionImagePreviews?.[j] ?? null))
+            return { ...q, optionImages, optionImagePreviews }
+        }))
+    }
+
+    // Yechim rasmini yuklaydi (o'quvchiga test topshirilgandan keyin ko'rsatiladi)
+    async function handleSolutionImageUpload(uid: string, file: File) {
+        if (!validateImageFile(file)) return
+        setQuestions(prev => prev.map(q => q.uid === uid ? { ...q, solutionImageUploading: true } : q))
+        try {
+            const { ref, preview } = await uploadImageToServer(file)
+            setQuestions(prev => prev.map(q => q.uid === uid
+                ? { ...q, solutionImageUrl: ref, solutionImagePreviewUrl: preview, solutionImageUploading: false }
+                : q))
+        } catch (e) {
+            setQuestions(prev => prev.map(q => q.uid === uid ? { ...q, solutionImageUploading: false } : q))
+            toast.error(`Yechim rasmi yuklanmadi: ${uploadErrorReason(e)}`)
+        }
+    }
+
+    function removeSolutionImage(uid: string) {
+        setQuestions(prev => prev.map(q => q.uid === uid
+            ? { ...q, solutionImageUrl: null, solutionImagePreviewUrl: null }
+            : q))
     }
 
     function updateQ(idx: number, field: string, value: any) {
@@ -757,7 +862,8 @@ export default function TeacherPanel() {
         // Auto-fill empty options or text if there's an image
         const finalQuestions = questions.map(q => {
             if (q.questionType === 'open') {
-                return { ...q, text: q.text?.trim() || (q.imageUrl ? ' ' : ''), options: [], correctIdx: -1 }
+                // optionImages faqat MCQ uchun — tur almashtirilgan bo'lsa eski massiv yuborilmasin
+                return { ...q, text: q.text?.trim() || (q.imageUrl ? ' ' : ''), options: [], correctIdx: -1, optionImages: undefined }
             }
             if (q.questionType === 'multipart_open') {
                 const multipartPayload = {
@@ -767,7 +873,7 @@ export default function TeacherPanel() {
                         correctText: subQuestion.correctText
                     }))
                 }
-                return { ...q, text: q.text?.trim() || (q.imageUrl ? ' ' : ''), options: JSON.stringify(multipartPayload) as any, correctIdx: -1 }
+                return { ...q, text: q.text?.trim() || (q.imageUrl ? ' ' : ''), options: JSON.stringify(multipartPayload) as any, correctIdx: -1, optionImages: undefined }
             }
             if (q.questionType === 'matching') {
                 // Serialize matching data into options JSON
@@ -775,7 +881,7 @@ export default function TeacherPanel() {
                     answers: q.matchingAnswers || [],
                     subQuestions: q.matchingSubQuestions || []
                 }
-                return { ...q, text: q.text?.trim() || (q.imageUrl ? ' ' : ''), options: JSON.stringify(matchingPayload) as any, correctIdx: -1 }
+                return { ...q, text: q.text?.trim() || (q.imageUrl ? ' ' : ''), options: JSON.stringify(matchingPayload) as any, correctIdx: -1, optionImages: undefined }
             }
             const newOpts = [...(q.options || ['', '', '', ''])]
             for (let j = 0; j < 4; j++) {
@@ -783,7 +889,10 @@ export default function TeacherPanel() {
                     newOpts[j] = String.fromCharCode(65 + j)
                 }
             }
-            return { ...q, text: q.text?.trim() || (q.imageUrl ? ' ' : ''), options: newOpts }
+            // optionImages options bilan indeks-mos qoladi: newOpts tartibi q.options bilan bir xil,
+            // faqat bo'sh matnlar to'ldiriladi. Uzunlikni baribir tenglashtirib yuboramiz.
+            const alignedOptionImages = q.optionImages ? newOpts.map((_, j) => q.optionImages?.[j] ?? null) : undefined
+            return { ...q, text: q.text?.trim() || (q.imageUrl ? ' ' : ''), options: newOpts, optionImages: alignedOptionImages }
         })
 
         for (let i = 0; i < finalQuestions.length; i++) {
@@ -854,7 +963,17 @@ export default function TeacherPanel() {
                     premium,
                     timeLimit: timeLimit || null,
                     // uid va boshqa klient-only maydonlar API ga yuborilmaydi
-                    questions: finalQuestions.map(({ uid: _uid, imagePreviewUrl: _preview, imageUploading: _uploading, ...apiQuestion }) => apiQuestion)
+                    // (optionImages va solutionImageUrl — 's3key:' ref'lar — payloadda QOLADI)
+                    questions: finalQuestions.map(({
+                        uid: _uid,
+                        imagePreviewUrl: _preview,
+                        imageUploading: _uploading,
+                        optionImagePreviews: _optPreviews,
+                        optionImageUploading: _optUploading,
+                        solutionImagePreviewUrl: _solPreview,
+                        solutionImageUploading: _solUploading,
+                        ...apiQuestion
+                    }) => apiQuestion)
                 })
             })
             setMsg('success')
@@ -1060,6 +1179,40 @@ export default function TeacherPanel() {
     const cardStyle = { background: 'var(--bg-card)', border: '1px solid var(--border)' }
     const mutedText = { color: 'var(--text-muted)' }
     const secondaryText = { color: 'var(--text-secondary)' }
+
+    // Yechim rasmi bloki (MCQ va yozma savollar uchun bir xil) — savol uid orqali yangilanadi
+    function renderSolutionImageControl(q: Question) {
+        const src = displayableImageSrc(q.solutionImagePreviewUrl, q.solutionImageUrl)
+        return (
+            <div className="mt-2 space-y-1">
+                <p className="text-[11px] font-medium" style={secondaryText}>Yechim rasmi (ixtiyoriy)</p>
+                <p className="text-[10px]" style={mutedText}>O'quvchiga test topshirilgandan keyin ko'rsatiladi</p>
+                {q.solutionImageUploading ? (
+                    <div className="flex items-center gap-1.5 text-[11px]" style={mutedText}>
+                        <div className="h-3.5 w-3.5 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--brand)', borderTopColor: 'transparent' }} />
+                        Yuklanmoqda...
+                    </div>
+                ) : (src || q.solutionImageUrl) ? (
+                    <div className="relative inline-block">
+                        <img src={src || ''} alt="Yechim rasmi" className="max-h-16 rounded border" style={{ borderColor: 'var(--border)' }} />
+                        <button type="button" onClick={() => removeSolutionImage(q.uid)}
+                            className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600 transition shadow-md">
+                            <X className="h-2.5 w-2.5" />
+                        </button>
+                    </div>
+                ) : (
+                    <label className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border cursor-pointer transition text-[11px] hover:bg-slate-100 dark:hover:bg-slate-800"
+                        style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }} title="Yechim rasmini yuklash">
+                        <input type="file" accept="image/*" className="hidden" onChange={e => {
+                            if (e.target.files?.[0]) handleSolutionImageUpload(q.uid, e.target.files[0])
+                            e.target.value = ''
+                        }} />
+                        <Image className="h-3.5 w-3.5" style={{ color: 'var(--brand)' }} /> Rasm tanlash
+                    </label>
+                )}
+            </div>
+        )
+    }
 
     return (
         <div className="kelviq">
@@ -1519,7 +1672,7 @@ export default function TeacherPanel() {
                                     </div>
                                     {(q.imagePreviewUrl || q.imageUrl) && (
                                         <div className="relative inline-block mt-2">
-                                            <img src={q.imagePreviewUrl || q.imageUrl || ''} alt="Savol rasmi" className="max-h-32 rounded-lg border shadow-sm transition-all" style={{ borderColor: 'var(--border)', filter: q.imageUploading ? 'blur(2px) brightness(0.8)' : undefined }} />
+                                            <img src={displayableImageSrc(q.imagePreviewUrl, q.imageUrl) || ''} alt="Savol rasmi" className="max-h-32 rounded-lg border shadow-sm transition-all" style={{ borderColor: 'var(--border)', filter: q.imageUploading ? 'blur(2px) brightness(0.8)' : undefined }} />
                                             {q.imageUploading && (
                                                 <div className="absolute inset-0 flex items-center justify-center">
                                                     <div className="h-6 w-6 border-2 rounded-full animate-spin" style={{ borderColor: '#fff', borderTopColor: 'transparent' }} />
@@ -1575,6 +1728,7 @@ export default function TeacherPanel() {
                                             />
                                             {q.correctText?.trim() && <p className="text-[10px]" style={{ color: 'var(--success)' }}>Qabul qilinadigan variantlar: {formatAcceptedAnswerHint(q.correctText)}</p>}
                                             <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Katta-kichik harf farq qilmaydi · Matematik formulalar uchun oddiy yozing: 1/2, sqrt(2) · Har yangi qatordagi matn alohida to'g'ri javob hisoblanadi</p>
+                                            {renderSolutionImageControl(q)}
                                         </div>
                                     ) : q.questionType === 'multipart_open' ? (
                                         <div className="space-y-3">
@@ -1711,19 +1865,52 @@ export default function TeacherPanel() {
                                         </div>
                                     ) : (
                                         /* MCQ variantlari */
+                                        <>
                                         <div className="grid grid-cols-2 gap-2">
                                             {q.options.map((o, oi) => (
                                                 <div key={oi} className="space-y-1.5">
-                                                    <label className="flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition"
-                                                        style={q.correctIdx === oi ? { border: '1px solid color-mix(in srgb, var(--success) 40%, transparent)', background: 'color-mix(in srgb, var(--success) 6%, transparent)' } : { border: '1px solid var(--border)' }}>
-                                                        <input type="radio" name={`correct-${q.uid}`} checked={q.correctIdx === oi} onChange={() => updateQ(qi, 'correctIdx', oi)} className="w-3 h-3 flex-shrink-0" style={{ accentColor: 'var(--success)' }} />
-                                                        <input placeholder={`Variant ${String.fromCharCode(65 + oi)}`} required={!q.imageUrl} value={o} onChange={e => updateQ(qi, `opt${oi}`, e.target.value)}
-                                                            className="flex-1 bg-transparent outline-none text-[13px] min-w-0" />
-                                                    </label>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <label className="flex flex-1 min-w-0 items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition"
+                                                            style={q.correctIdx === oi ? { border: '1px solid color-mix(in srgb, var(--success) 40%, transparent)', background: 'color-mix(in srgb, var(--success) 6%, transparent)' } : { border: '1px solid var(--border)' }}>
+                                                            <input type="radio" name={`correct-${q.uid}`} checked={q.correctIdx === oi} onChange={() => updateQ(qi, 'correctIdx', oi)} className="w-3 h-3 flex-shrink-0" style={{ accentColor: 'var(--success)' }} />
+                                                            <input placeholder={`Variant ${String.fromCharCode(65 + oi)}`} required={!q.imageUrl} value={o} onChange={e => updateQ(qi, `opt${oi}`, e.target.value)}
+                                                                className="flex-1 bg-transparent outline-none text-[13px] min-w-0" />
+                                                        </label>
+                                                        {/* Variant rasmi: yuklanish holati / yuklash tugmasi (rasm bo'lsa pastda thumbnail) */}
+                                                        {q.optionImageUploading === oi ? (
+                                                            <div className="flex items-center gap-1 text-[10px] flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
+                                                                <div className="h-3 w-3 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--brand)', borderTopColor: 'transparent' }} />
+                                                                Yuklanmoqda...
+                                                            </div>
+                                                        ) : !(q.optionImagePreviews?.[oi] || q.optionImages?.[oi]) && (
+                                                            <label className="p-1.5 rounded-md cursor-pointer transition flex-shrink-0 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                                                title={`Variant ${String.fromCharCode(65 + oi)} uchun rasm yuklash`}>
+                                                                <input type="file" accept="image/*" className="hidden"
+                                                                    disabled={q.optionImageUploading != null}
+                                                                    onChange={e => {
+                                                                        if (e.target.files?.[0]) handleOptionImageUpload(q.uid, oi, e.target.files[0])
+                                                                        e.target.value = ''
+                                                                    }} />
+                                                                <Image className="h-3.5 w-3.5" style={{ color: 'var(--brand)' }} />
+                                                            </label>
+                                                        )}
+                                                    </div>
+                                                    {(q.optionImagePreviews?.[oi] || q.optionImages?.[oi]) && (
+                                                        <div className="relative inline-block">
+                                                            <img src={displayableImageSrc(q.optionImagePreviews?.[oi], q.optionImages?.[oi]) || ''} alt={`Variant ${String.fromCharCode(65 + oi)} rasmi`}
+                                                                className="max-h-16 rounded border" style={{ borderColor: 'var(--border)' }} />
+                                                            <button type="button" onClick={() => removeOptionImage(q.uid, oi)}
+                                                                className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600 transition shadow-md">
+                                                                <X className="h-2.5 w-2.5" />
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                     <MathPreview text={o} />
                                                 </div>
                                             ))}
                                         </div>
+                                        {renderSolutionImageControl(q)}
+                                        </>
                                     )}
                                     {q.questionType !== 'open' && q.questionType !== 'matching' && q.questionType !== 'multipart_open' && (
                                         <p className="text-[10px]" style={{ color: 'var(--border-strong)' }}>

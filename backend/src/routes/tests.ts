@@ -317,8 +317,10 @@ interface IncomingCreateQuestion {
     text?: string
     imageUrl?: string | null
     options?: string[] | string
+    optionImages?: unknown // (string|null)[] — MCQ variant rasmlari (s3key: ref'lar)
     correctIdx?: number
     correctText?: string | null
+    solutionImageUrl?: unknown // yechim rasmi (s3key: ref)
     questionType?: string
     difficulty?: number
     blockType?: DtmBlockType | string | null
@@ -439,6 +441,44 @@ function parseStoredQuestionOptions(questionType: string | null | undefined, raw
         if (questionType === 'multipart_open') return { subQuestions: [] }
         return []
     }
+}
+
+// ── Variant/yechim rasmlari (FAZA 3) ─────────────────────────────────────────
+// optionImages DB'da options bilan PARALLEL JSON massiv: ["s3key:...", null, ...]
+const MAX_IMAGE_REF_LENGTH = 500
+
+function parseStoredOptionImages(raw?: string | null): (string | null)[] {
+    if (!raw) return []
+    try {
+        const parsed = JSON.parse(raw)
+        return Array.isArray(parsed)
+            ? parsed.map((value) => (typeof value === 'string' && value.trim() ? value.trim() : null))
+            : []
+    } catch {
+        return []
+    }
+}
+
+function sanitizeIncomingImageRef(value: unknown): string | null {
+    return typeof value === 'string' && value.trim() && value.length <= MAX_IMAGE_REF_LENGTH ? value.trim() : null
+}
+
+// Klientdan kelgan variant-rasm massivi: options soniga qirqiladi, har element tozalanadi;
+// birorta rasm bo'lmasa null (DB'da ortiqcha "[null,null,...]" saqlamaymiz)
+function sanitizeIncomingOptionImages(value: unknown, optionCount: number): string | null {
+    if (!Array.isArray(value) || optionCount <= 0) return null
+    const cleaned: (string | null)[] = []
+    for (let i = 0; i < optionCount; i++) {
+        cleaned.push(sanitizeIncomingImageRef(value[i]))
+    }
+    return cleaned.some((v) => v !== null) ? JSON.stringify(cleaned) : null
+}
+
+// O'qish yo'llari uchun: saqlangan ref'larni signed URL'ga aylantiradi (rasm bo'lmasa null)
+async function resolveStoredOptionImages(raw?: string | null): Promise<(string | null)[] | null> {
+    const refs = parseStoredOptionImages(raw)
+    if (refs.length === 0 || !refs.some((r) => r !== null)) return null
+    return Promise.all(refs.map((ref) => (ref ? resolveStoredS3Url(ref) : Promise.resolve(null))))
 }
 
 function buildQuestionGeneratorSystemPrompt() {
@@ -865,24 +905,20 @@ router.get('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), async (req
 
         const normalizedTestType = normalizeTestType(test.testType)
 
-        res.json({
-            id: test.id,
-            title: test.title,
-            description: test.description,
-            subject: test.subject,
-            subject2: test.subject2,
-            isPublic: test.isPublic,
-            timeLimit: test.timeLimit,
-            testType: normalizedTestType,
-            source: test.source,
-            premium: test.premium,
-            attemptsCount: test._count.attempts,
-            questions: test.questions.map((question) => {
+        // 3.6: tahrirlash preview'i uchun rasm ref'lari signed URL bilan BIRGA qaytadi —
+        // imageUrl (xom ref) saqlash uchun qoladi, *PreviewUrl esa <img> ko'rsatish uchun.
+        const detailQuestions = await Promise.all(test.questions.map(async (question) => {
                 const parsedOptions = parseStoredQuestionOptions(question.questionType, question.options)
+                const optionImageRefs = parseStoredOptionImages(question.optionImages)
                 return {
                     id: question.id,
                     text: question.text,
                     imageUrl: question.imageUrl,
+                    imagePreviewUrl: await resolveStoredS3Url(question.imageUrl),
+                    optionImages: optionImageRefs.length > 0 ? optionImageRefs : undefined,
+                    optionImagePreviews: (await resolveStoredOptionImages(question.optionImages)) || undefined,
+                    solutionImageUrl: question.solutionImageUrl,
+                    solutionImagePreviewUrl: await resolveStoredS3Url(question.solutionImageUrl),
                     questionType: question.questionType,
                     correctIdx: question.correctIdx,
                     correctText: question.correctText,
@@ -897,7 +933,21 @@ router.get('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), async (req
                             ? getDefaultDtmCoefficient(normalizeDtmBlockType(question.blockType), test.subject)
                             : null)
                 }
-            })
+            }))
+
+        res.json({
+            id: test.id,
+            title: test.title,
+            description: test.description,
+            subject: test.subject,
+            subject2: test.subject2,
+            isPublic: test.isPublic,
+            timeLimit: test.timeLimit,
+            testType: normalizedTestType,
+            source: test.source,
+            premium: test.premium,
+            attemptsCount: test._count.attempts,
+            questions: detailQuestions
         })
     } catch (e) {
         console.error(e)
@@ -915,7 +965,7 @@ router.get('/by-link/:shareLink', optionalAuthenticate, testReadLimiter, async (
         const test = await prisma.test.findUnique({
             where: { shareLink },
             include: {
-                questions: { orderBy: { orderIdx: 'asc' }, select: { id: true, text: true, imageUrl: true, options: true, orderIdx: true, questionType: true } },
+                questions: { orderBy: { orderIdx: 'asc' }, select: { id: true, text: true, imageUrl: true, options: true, optionImages: true, orderIdx: true, questionType: true } },
                 creator: { select: { name: true } }
             }
         })
@@ -947,6 +997,10 @@ router.get('/by-link/:shareLink', optionalAuthenticate, testReadLimiter, async (
         // aks holda o'quvchi devtools orqali barcha javoblarni ko'ra oladi
         const sanitizedQuestions = await Promise.all(test.questions.map(async (q: any) => {
             const resolvedImageUrl = await resolveStoredS3Url(q.imageUrl)
+            // FAZA 3: variant rasmlari — o'quvchiga signed URL massivi ketadi (xom ref emas)
+            const resolvedOptionImages = await resolveStoredOptionImages(q.optionImages)
+            const { optionImages: _rawOptionImages, ...qRest } = q
+            const base = { ...qRest, imageUrl: resolvedImageUrl, ...(resolvedOptionImages ? { optionImages: resolvedOptionImages } : {}) }
             if (q.questionType === 'matching' && q.options) {
                 try {
                     const parsed = JSON.parse(q.options as string)
@@ -954,8 +1008,8 @@ router.get('/by-link/:shareLink', optionalAuthenticate, testReadLimiter, async (
                         answers: parsed.answers || [],
                         subQuestions: (parsed.subQuestions || []).map((sq: any) => ({ text: sq.text }))
                     }
-                    return { ...q, imageUrl: resolvedImageUrl, options: JSON.stringify(sanitized) }
-                } catch { return { ...q, imageUrl: resolvedImageUrl } }
+                    return { ...base, options: JSON.stringify(sanitized) }
+                } catch { return base }
             }
             if (q.questionType === 'multipart_open' && q.options) {
                 try {
@@ -966,10 +1020,10 @@ router.get('/by-link/:shareLink', optionalAuthenticate, testReadLimiter, async (
                             text: subQuestion.text
                         }))
                     }
-                    return { ...q, imageUrl: resolvedImageUrl, options: JSON.stringify(sanitized) }
-                } catch { return { ...q, imageUrl: resolvedImageUrl } }
+                    return { ...base, options: JSON.stringify(sanitized) }
+                } catch { return base }
             }
-            return { ...q, imageUrl: resolvedImageUrl }
+            return base
         }))
         let timeWindow: {
             serverStartedAt?: string
@@ -1234,6 +1288,11 @@ router.post('/:testId/questions', authenticate, requireRole('TEACHER', 'ADMIN'),
                        : questionType === 'multipart_open' ? (typeof options === 'string' ? options : JSON.stringify(options))
                        : questionType === 'matching' ? (typeof options === 'string' ? options : JSON.stringify(options))
                        : JSON.stringify(options),
+                // FAZA 3: variant/yechim rasmlari
+                optionImages: (questionType === 'open' || questionType === 'matching' || questionType === 'multipart_open')
+                    ? null
+                    : sanitizeIncomingOptionImages(req.body.optionImages, Array.isArray(options) ? options.length : 0),
+                solutionImageUrl: sanitizeIncomingImageRef(req.body.solutionImageUrl),
                 correctIdx: (questionType === 'open' || questionType === 'matching' || questionType === 'multipart_open') ? -1 : (correctIdx ?? 0),
                 orderIdx: orderIdx || 0,
                 difficulty: difficulty || 0.0,
@@ -1390,6 +1449,11 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
                                : questionType === 'multipart_open' ? (typeof q.options === 'string' ? q.options : JSON.stringify(q.options))
                                : questionType === 'matching' ? (typeof q.options === 'string' ? q.options : JSON.stringify(q.options))
                                : JSON.stringify(q.options),
+                        // FAZA 3: variant rasmlari faqat MCQ'da; yechim rasmi hamma turda mumkin
+                        optionImages: (questionType === 'open' || questionType === 'matching' || questionType === 'multipart_open')
+                            ? null
+                            : sanitizeIncomingOptionImages(q.optionImages, Array.isArray(q.options) ? q.options.length : 0),
+                        solutionImageUrl: sanitizeIncomingImageRef(q.solutionImageUrl),
                         correctIdx: (questionType === 'open' || questionType === 'matching' || questionType === 'multipart_open') ? -1 : (q.correctIdx ?? 0),
                         correctText: questionType === 'open' ? (q.correctText?.trim() || null) : null,
                         questionType,
@@ -1591,6 +1655,11 @@ router.patch('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), testMuta
                                 : questionType === 'multipart_open' ? (typeof q.options === 'string' ? q.options : JSON.stringify(q.options))
                                     : questionType === 'matching' ? (typeof q.options === 'string' ? q.options : JSON.stringify(q.options))
                                         : JSON.stringify(q.options),
+                            // FAZA 3: variant/yechim rasmlari (create bilan bir xil mantiq)
+                            optionImages: (questionType === 'open' || questionType === 'matching' || questionType === 'multipart_open')
+                                ? null
+                                : sanitizeIncomingOptionImages(q.optionImages, Array.isArray(q.options) ? q.options.length : 0),
+                            solutionImageUrl: sanitizeIncomingImageRef(q.solutionImageUrl),
                             correctIdx: (questionType === 'open' || questionType === 'matching' || questionType === 'multipart_open') ? -1 : (q.correctIdx ?? 0),
                             correctText: questionType === 'open' ? (q.correctText?.trim() || null) : null,
                             questionType,
@@ -2385,13 +2454,16 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
         }, { timeout: 15000, maxWait: 5000 })
 
         // Submit dan keyin to'g'ri javoblarni qaytaramiz (oldin emas!)
-        const correctAnswers = test.questions.map(q => {
+        const correctAnswers = await Promise.all(test.questions.map(async q => {
+            // FAZA 3: yechim rasmi faqat submitdan KEYIN, signed URL bilan
+            const solutionImageUrl = await resolveStoredS3Url((q as any).solutionImageUrl)
             if ((q as any).questionType === 'matching') {
                 let matchingData: any = { subQuestions: [] }
                 try { matchingData = JSON.parse(q.options as string) } catch { }
                 return {
                     id: q.id, correctIdx: -1, questionType: 'matching',
-                    matchingCorrect: (matchingData.subQuestions || []).map((sq: any) => sq.correctIdx)
+                    matchingCorrect: (matchingData.subQuestions || []).map((sq: any) => sq.correctIdx),
+                    solutionImageUrl
                 }
             }
             if ((q as any).questionType === 'multipart_open') {
@@ -2405,15 +2477,17 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
                         label: String(subQuestion.label || String.fromCharCode(65 + subIndex)),
                         text: String(subQuestion.text || ''),
                         correctText: String(subQuestion.correctText || '')
-                    }))
+                    })),
+                    solutionImageUrl
                 }
             }
             return {
                 id: q.id, correctIdx: q.correctIdx,
                 correctText: (q as any).questionType === 'open' ? (q as any).correctText : undefined,
-                questionType: (q as any).questionType || 'mcq'
+                questionType: (q as any).questionType || 'mcq',
+                solutionImageUrl
             }
-        })
+        }))
 
         const computedScore = attempt.computedScore
 

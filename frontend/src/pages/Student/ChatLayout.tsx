@@ -27,7 +27,14 @@ import { useIsPro, PRO_PRICE, PRO_PRICE_PERIOD, PRO_STATUS_LABEL, PRO_FEATURES, 
 interface Chat { id: string; title: string; subject?: string; subject2?: string; updatedAt: string }
 interface Msg { id: string; role: string; content: string; createdAt: string }
 interface Profile { onboardingDone: boolean; examType?: 'DTM' | 'MS' | null; subject?: string; subject2?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string; totalTests?: number; avgScore?: number; abilityLevel?: number }
-interface PublicTest { id: string; title: string; shareLink: string; subject?: string; category?: string; source?: string; premium?: boolean; _count?: { questions: number; attempts: number } }
+interface PublicTest { id: string; title: string; shareLink: string; subject?: string; category?: string; source?: string; premium?: boolean; testType?: string; timeLimit?: number | null; _count?: { questions: number; attempts: number } }
+
+/* Test turi badge'i — birinchi qarashda format ko'rinsin (4.1). REGULAR uchun badge yo'q (clutter emas). */
+function testTypeBadge(testType?: string | null): { label: string; bg: string; color: string } | null {
+    if (testType === 'DTM_BLOCK') return { label: 'DTM · 189', bg: 'color-mix(in srgb, var(--brand) 12%, transparent)', color: 'var(--brand)' }
+    if (testType === 'MILLIY_SERTIFIKAT') return { label: 'MS · 75', bg: 'rgba(99,102,241,0.12)', color: '#6366f1' }
+    return null
+}
 
 /* Test manbasi badge'i — ishonch uchun (Rasmiy / Norasmiy / AI-bashorat). */
 function sourceBadge(source?: string | null): { label: string; bg: string; color: string } | null {
@@ -2173,6 +2180,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                     imageUrl: q.imageUrl || null,
                     questionType: q.questionType || 'mcq',
                     a: opts[0] || '', b: opts[1] || '', c: opts[2] || '', d: opts[3] || '',
+                    // FAZA 3: variant rasmlari (by-link'dan signed URL massivi, indeks = variant)
+                    optionImages: Array.isArray(q.optionImages) ? q.optionImages : undefined,
                     correct: ''
                 }
             })
@@ -3182,6 +3191,25 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             <p className="text-xl font-bold" style={{ fontFamily: 'var(--k-serif)', fontWeight: 500 }}>Salom{user?.name ? `, ${user.name}` : ''}! <span className="k-italic">Birga</span> ishlaymiz.</p>
                                             <p className="text-sm mt-2" style={{ color: 'var(--text-muted)' }}>Savolingizni pastga yozing — tushuntiraman, test beraman, reja tuzaman.</p>
                                         </div>
+                                        {/* 6.1: AI imkoniyatlarini ochib beruvchi misol-kartalar — bosilsa darhol yuboriladi */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-6">
+                                            {[
+                                                { Icon: ClipboardList, label: `${profile?.subject || 'Fan'}dan test tuz`, hint: '15 ta savollik mini-imtihon', prompt: `${profile?.subject || 'Asosiy fanim'}dan 15 ta savollik test tuz. Har savol 4 variantli bo'lsin, oxirida zaif joylarimni ayt.` },
+                                                { Icon: BookOpen, label: 'Mavzuni tushuntir', hint: 'Misollar bilan, oddiy tilda', prompt: `${profile?.subject || 'Asosiy fanim'}dan menga bitta muhim mavzuni misollar bilan tushuntir. Avval qaysi mavzu kerakligini so'ra.` },
+                                                { Icon: Layers, label: 'Flashcard yasa', hint: 'Muhim tushunchalardan 10 ta', prompt: `${profile?.subject || 'Asosiy fanim'}ning eng muhim tushunchalaridan 10 ta flashcard yasa.` },
+                                                { Icon: Target, label: 'Bugungi o\'quv reja', hint: 'Imtihoningizga moslangan', prompt: 'Menga bugun uchun qisqa, bajarsa bo\'ladigan o\'quv reja tuz — imtihonim va zaif mavzularimga mosla.' },
+                                            ].map((ex, i) => (
+                                                <button key={i} type="button" onClick={() => { void handleSend(ex.prompt, []) }}
+                                                    className="text-left px-3.5 py-3 rounded-xl border transition"
+                                                    style={{ background: 'var(--bg-card)', borderColor: 'var(--border)', transitionDuration: '150ms' }}
+                                                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--brand)'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.06)' }}
+                                                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none' }}>
+                                                    <ex.Icon className="h-4 w-4 mb-1.5" style={{ color: 'var(--brand)' }} />
+                                                    <p className="text-[12.5px] font-semibold leading-snug" style={{ color: 'var(--text-primary)' }}>{ex.label}</p>
+                                                    <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{ex.hint}</p>
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -3460,9 +3488,11 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     </div>
                                                 ) : (
                                                     <div className="space-y-2.5">
-                                                        {(['a', 'b', 'c', 'd'] as const).map(opt => {
+                                                        {(['a', 'b', 'c', 'd'] as const).map((opt, oi) => {
                                                             const isSelected = testAnswers[i] === opt
                                                             const isCorrect = q.correct === opt
+                                                            // FAZA 3: variant rasmi (public testlarda by-link'dan keladi)
+                                                            const optionImage = Array.isArray(q.optionImages) ? q.optionImages[oi] : null
                                                             let sty: React.CSSProperties = {}
                                                             if (testSubmitted) {
                                                                 if (isCorrect) sty = { borderColor: 'var(--success)', background: 'var(--success-light)', color: 'var(--success)', fontWeight: 600 }
@@ -3485,6 +3515,9 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                                     <span className="font-bold mr-2" style={{ opacity: 0.6 }}>{opt.toUpperCase()})</span>
                                                                     <span className="pointer-events-none">
                                                                         <MathText text={q[opt]} />
+                                                                        {optionImage && (
+                                                                            <img src={optionImage} alt={`${opt.toUpperCase()} variant rasmi`} className="mt-1.5 rounded-lg border max-w-full block" style={{ borderColor: 'var(--border)', maxHeight: '10rem', objectFit: 'contain' }} />
+                                                                        )}
                                                                     </span>
                                                                     {testSubmitted && isCorrect && <span className="ml-2 inline-flex items-center justify-center h-5 w-5 rounded-full text-xs" style={{ background: 'var(--success-light)', color: 'var(--success)' }}>✓</span>}
                                                                     {testSubmitted && isSelected && !isCorrect && <span className="ml-2 inline-flex items-center justify-center h-5 w-5 rounded-full text-xs" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>✕</span>}
@@ -3936,8 +3969,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                                 </div>
                                                                 <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{t.subject} • {t._count?.questions ?? 0} savol</p>
                                                                 <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                                                    {(() => { const tb = testTypeBadge(t.testType); return tb ? <span className="inline-block text-[10px] px-2 py-0.5 rounded-md font-bold" style={{ background: tb.bg, color: tb.color }}>{tb.label}</span> : null })()}
                                                                     {t.premium && <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-semibold" style={{ background: 'rgba(184,134,11,0.13)', color: '#B8860B' }}><Sparkles className="h-2.5 w-2.5" />Premium</span>}
                                                                     {(() => { const b = sourceBadge(t.source); return b ? <span className="inline-block text-[10px] px-2 py-0.5 rounded-md font-semibold" style={{ background: b.bg, color: b.color }}>{b.label}</span> : null })()}
+                                                                    {typeof t.timeLimit === 'number' && t.timeLimit > 0 && <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-semibold" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}><Clock className="h-2.5 w-2.5" />{t.timeLimit} daq</span>}
                                                                 </div>
                                                                 {result && (
                                                                     <p className="text-xs mt-2" style={{ color: 'var(--text-secondary)' }}>

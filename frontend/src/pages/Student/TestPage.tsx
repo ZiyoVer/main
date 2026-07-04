@@ -100,7 +100,7 @@ function parseMultipartOptions(raw: unknown): MultipartOptions | null {
 
 const OPTS = ['A', 'B', 'C', 'D'] as const
 type AnswerValue = number | string | string[] | Record<number, number>
-type CorrectAnswerMap = Record<string, { idx: number; text?: string; type: string; matchingCorrect?: number[]; multipartCorrectText?: Array<{ label: string; text: string; correctText: string }> }>
+type CorrectAnswerMap = Record<string, { idx: number; text?: string; type: string; matchingCorrect?: number[]; multipartCorrectText?: Array<{ label: string; text: string; correctText: string }>; solutionImage?: string | null }>
 type TestTypeValue = 'REGULAR' | 'DTM_BLOCK' | 'MILLIY_SERTIFIKAT'
 
 function normalizeTestType(value: string | null | undefined): TestTypeValue {
@@ -249,7 +249,8 @@ export default function TestPage() {
                     text: ca.correctText,
                     type: ca.questionType || 'mcq',
                     matchingCorrect: ca.matchingCorrect,
-                    multipartCorrectText: ca.multipartCorrectText
+                    multipartCorrectText: ca.multipartCorrectText,
+                    solutionImage: ca.solutionImageUrl || null // FAZA 3: yechim rasmi (submitdan keyin)
                 }
             })
             setCorrectMap(map)
@@ -572,14 +573,27 @@ export default function TestPage() {
                                             else { bg = 'var(--bg-surface)'; border = 'var(--border)'; color = 'var(--text-muted)' }
                                         }
                                         return (
-                                            <button key={oi} type="button" disabled={submitted || isGuest} onClick={() => !isGuest && setAnswers(a => ({ ...a, [q.id]: oi }))} className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border text-left text-[13px] transition" style={{ background: bg, borderColor: border, color, cursor: isGuest ? 'not-allowed' : 'pointer', opacity: isGuest ? 0.7 : 1 }}>
-                                                <span className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 text-[10px] font-bold border-current">{OPTS[oi]}</span>
-                                                <span className="flex-1 pointer-events-none"><TextWithMath text={opt} /></span>
-                                                {submitted && oi === correctIdx && <CheckCircle className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--success)' }} />}
-                                                {submitted && sel === oi && oi !== correctIdx && <XCircle className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--danger)' }} />}
+                                            <button key={oi} type="button" disabled={submitted || isGuest} onClick={() => !isGuest && setAnswers(a => ({ ...a, [q.id]: oi }))} className="w-full flex items-start gap-2.5 px-3.5 py-2.5 rounded-lg border text-left text-[13px] transition" style={{ background: bg, borderColor: border, color, cursor: isGuest ? 'not-allowed' : 'pointer', opacity: isGuest ? 0.7 : 1 }}>
+                                                <span className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 text-[10px] font-bold border-current mt-0.5">{OPTS[oi]}</span>
+                                                <span className="flex-1 pointer-events-none">
+                                                    <TextWithMath text={opt} />
+                                                    {/* FAZA 3: variant rasmi */}
+                                                    {Array.isArray(q.optionImages) && q.optionImages[oi] && (
+                                                        <img src={q.optionImages[oi]} alt={`${OPTS[oi]} variant rasmi`} className="mt-1.5 rounded-lg border max-w-full" style={{ borderColor: 'var(--border)', maxHeight: '10rem' }} />
+                                                    )}
+                                                </span>
+                                                {submitted && oi === correctIdx && <CheckCircle className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--success)' }} />}
+                                                {submitted && sel === oi && oi !== correctIdx && <XCircle className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--danger)' }} />}
                                             </button>
                                         )
                                     })}
+                                </div>
+                            )}
+                            {/* FAZA 3: yechim rasmi — faqat topshirilgandan keyin */}
+                            {submitted && correct?.solutionImage && (
+                                <div className="mt-3 p-2.5 rounded-lg" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                                    <p className="text-[11px] font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>Yechim:</p>
+                                    <img src={correct.solutionImage} alt="Yechim rasmi" className="max-w-full rounded-lg" style={{ maxHeight: '16rem' }} />
                                 </div>
                             )}
                         </div>
@@ -971,14 +985,27 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                                 sty = { background: 'var(--brand-light)', color: 'var(--brand)', border: '1px solid var(--brand)', fontWeight: 600 }
                                             }
                                             return (
-                                                <div key={oi} className="flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] transition" style={sty}>
-                                                    <span className="font-bold text-[11px] flex-shrink-0 w-4">{OPTS[oi]})</span>
-                                                    <span className="flex-1"><TextWithMath text={opt} /></span>
-                                                    {submitted && oi === correctIdx && <CheckCircle className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--success)' }} />}
-                                                    {submitted && sel && oi !== correctIdx && <XCircle className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--danger)' }} />}
+                                                <div key={oi} className="flex items-start gap-2 px-3 py-2 rounded-lg text-[13px] transition" style={sty}>
+                                                    <span className="font-bold text-[11px] flex-shrink-0 w-4 mt-0.5">{OPTS[oi]})</span>
+                                                    <span className="flex-1">
+                                                        <TextWithMath text={opt} />
+                                                        {/* FAZA 3: variant rasmi (DTM chap panel) */}
+                                                        {Array.isArray(q.optionImages) && q.optionImages[oi] && (
+                                                            <img src={q.optionImages[oi]} alt={`${OPTS[oi]} variant rasmi`} className="mt-1.5 rounded-lg border max-w-full" style={{ borderColor: 'var(--border)', maxHeight: '9rem', objectFit: 'contain' }} />
+                                                        )}
+                                                    </span>
+                                                    {submitted && oi === correctIdx && <CheckCircle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" style={{ color: 'var(--success)' }} />}
+                                                    {submitted && sel && oi !== correctIdx && <XCircle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" style={{ color: 'var(--danger)' }} />}
                                                 </div>
                                             )
                                         })}
+                                    </div>
+                                )}
+                                {/* FAZA 3: yechim rasmi — faqat topshirilgandan keyin */}
+                                {submitted && correct?.solutionImage && (
+                                    <div className="mt-3 p-2.5 rounded-lg" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                                        <p className="text-[11px] font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>Yechim:</p>
+                                        <img src={correct.solutionImage} alt="Yechim rasmi" className="max-w-full rounded-lg" style={{ maxHeight: 240, objectFit: 'contain' }} />
                                     </div>
                                 )}
                             </div>

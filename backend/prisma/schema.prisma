@@ -175,8 +175,10 @@ model TestQuestion {
   text         String
   imageUrl     String?
   options      String  // JSON array: ["A", "B", "C", "D"], "[]" for open-ended
+  optionImages String? // JSON array (options bilan parallel): ["s3key:...", null, ...] — MCQ variant rasmlari
   correctIdx   Int     @default(0) // -1 for open-ended
   correctText  String? // To'g'ri javob matni (open-ended uchun)
+  solutionImageUrl String? // Yechim/javob rasmi (submitdan KEYIN ko'rsatiladi)
   questionType String  @default("mcq") // "mcq" | "open"
   topic        String? // Mavzu tegi (zaiflik tahlili uchun) — AI generatsiya to'ldiradi; null bo'lsa blockType/subject'ga tushadi
   difficulty   Float   @default(0.0)   // Rasch difficulty
