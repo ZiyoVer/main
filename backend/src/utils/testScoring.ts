@@ -8,6 +8,10 @@ export interface AnswerEvaluation {
     isCorrect: boolean
     correctSubCount?: number
     totalSubs?: number
+    // Savol umuman javob berilganmi (tanlov/matn kiritilganmi). Noto'g'ri javob ham "javob
+    // berilgan" sanaladi — DTM breakdown'dagi 'answered' hisobi to'g'ri chiqishi uchun (aks
+    // holda noto'g'ri MCQ "javobsiz" deb sanalardi). Berilmasa eski heuristikaga tushadi.
+    hasAnswer?: boolean
 }
 
 export interface ScoreableQuestion {
@@ -156,7 +160,9 @@ export function scoreDtmBlockAttempt(params: {
         const coefficient = question?.coefficient ?? getDefaultDtmCoefficient(blockType, fallbackSubject)
         const weight = Number.isFinite(coefficient) && coefficient > 0 ? coefficient : getDefaultDtmCoefficient(blockType, fallbackSubject)
         const ratio = getWeightedCorrectRatio(result)
-        const isAnswered = (result.totalSubs || 0) > 0 || result.isCorrect || ratio > 0
+        const isAnswered = typeof result.hasAnswer === 'boolean'
+            ? result.hasAnswer
+            : ((result.totalSubs || 0) > 0 || result.isCorrect || ratio > 0)
 
         rawScore += weight * ratio
         scoreMax += weight

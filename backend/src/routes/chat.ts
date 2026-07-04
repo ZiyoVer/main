@@ -1904,6 +1904,11 @@ router.post('/:chatId/save-analysis', authenticate, requireVerified, async (req:
 
 // Streaming xabar yuborish (SSE)
 router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRequest, res) => {
+    // Yetim xabar guard'i: user xabari AI chaqiruvidan OLDIN saqlanadi. Agar keyin
+    // provayder umuman javob bermasa (tashqi catch), juft assistant yozuvini saqlab,
+    // reload'da yolg'iz user xabari qolishining oldini olamiz. Catch'da ko'rinishi uchun
+    // try'dan TASHQARIDA e'lon qilinadi.
+    let userMessageSaved = false
     try {
         const { content, thinking, displayText, todoContext } = req.body
         if (!content?.trim()) return res.status(400).json({ error: 'Xabar bo\'sh' })
@@ -2034,6 +2039,7 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
             await prisma.message.create({
                 data: { chatId: chat.id, role: 'user', content: savedUserContent }
             })
+            userMessageSaved = true
         } catch (userSaveErr) {
             console.error('User message save failed:', userSaveErr)
         }
@@ -2079,11 +2085,32 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
                     : 'DeepSeek xatosi → Gemini zaxiraga fallback:', firstErr.message)
                 activeClient = gptClient
                 activeModel = VISION_MODEL
-                const fallbackOpts = { ...streamOptions, model: activeModel }
-                fallbackOpts.reasoning_effort = 'low' // Gemini tezligi uchun
-                delete fallbackOpts.temperature
-                fallbackOpts.temperature = 0.7
-                stream = await gptClient.chat.completions.create(fallbackOpts) as any
+                const fallbackOpts = { ...streamOptions, model: activeModel, reasoning_effort: 'low', temperature: 0.7 }
+                // Zaxira (Gemini) chaqiruvini ham 429/quota'da qayta uramiz — primary bilan bir xil
+                // resilience (aks holda Gemini bir sekundlik spike'da butun so'rov yiqilar edi).
+                const isRLErr = (er: any) => {
+                    const m = (er?.message || '').toLowerCase()
+                    return (er?.status ?? 0) === 429 || m.includes('rate limit') || m.includes('resource_exhausted') || m.includes('quota')
+                }
+                try {
+                    stream = await gptClient.chat.completions.create(fallbackOpts) as any
+                } catch (fbErr: any) {
+                    if (!isRLErr(fbErr)) throw fbErr
+                    let fbLast = fbErr
+                    let fbRecovered = false
+                    for (const delay of [800, 2000, 3500]) {
+                        await new Promise(r => setTimeout(r, delay))
+                        try {
+                            stream = await gptClient.chat.completions.create(fallbackOpts) as any
+                            fbRecovered = true
+                            break
+                        } catch (e2: any) {
+                            fbLast = e2
+                            if (!isRLErr(e2)) throw e2
+                        }
+                    }
+                    if (!fbRecovered) throw fbLast
+                }
             } else {
                 throw firstErr
             }
@@ -2182,6 +2209,18 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
                 ? 'AI kaliti noto\'g\'ri. Admin bilan bog\'laning.'
                 : `AI javob bera olmadi (${status || 'network'}). Qayta urinib ko\'ring.`
         if (!res.headersSent) {
+            // Yetim xabar oldini olamiz: user xabari saqlangan bo'lsa-yu provayder umuman
+            // javob bermay bu yerga tushsak, juft assistant yozuvi bo'lmaydi. Qisqa xatolik
+            // xabarini saqlaymiz — reload'da yolg'iz user xabari ko'rinmaydi (abort yo'li kabi).
+            if (userMessageSaved) {
+                try {
+                    await prisma.message.create({
+                        data: { chatId: req.params.chatId as string, role: 'assistant', content: `*${userMsg}*` }
+                    })
+                } catch (orphanErr) {
+                    console.error('Yetim xabar saqlashda xato:', orphanErr)
+                }
+            }
             res.status(500).json({ error: userMsg })
         } else {
             res.write(`data: ${JSON.stringify({ error: userMsg })}\n\n`)

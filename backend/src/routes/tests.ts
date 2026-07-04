@@ -217,7 +217,7 @@ async function evaluateOpenAnswer(studentAnswer: string, correctAnswer: string):
             }],
             max_tokens: 5,
             temperature: 0
-        })
+        }, { timeout: 8000 })
         const reply = aiCheck.choices[0]?.message?.content?.trim().toUpperCase() || ''
         return reply.startsWith('HA')
     } catch {
@@ -270,6 +270,19 @@ const testReadLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 60,
     keyGenerator: (req: any) => req.user?.id || ipKeyGenerator(req),
+})
+
+// AI tahlil endpointlari (/explain, /analyze-result, /analyze-vision) uchun rate limit.
+// Bular faqat authenticate bilan himoyalangan edi (limiter yo'q) — qimmat LLM chaqiruvlari
+// cheksiz chaqirilib xarajat abuse'iga sabab bo'lardi. 20/5daqiqa oddiy foydalanuvchi uchun
+// yetarlicha keng (xatolarni birma-bir tushuntirish), lekin abuse'ni to'sadi.
+const aiAnalysisLimiter = rateLimit({
+    windowMs: 5 * 60 * 1000,
+    max: 20,
+    keyGenerator: (req: any) => req.user?.id || ipKeyGenerator(req),
+    message: { error: 'AI tahlil limiti. Bir necha daqiqadan keyin qayta urinib ko\'ring.' },
+    standardHeaders: true,
+    legacyHeaders: false,
 })
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } })
@@ -975,7 +988,11 @@ router.get('/by-link/:shareLink', optionalAuthenticate, testReadLimiter, async (
             }
         }
 
-        res.json({ ...test, questions: sanitizedQuestions, ...timeWindow })
+        // Ichki maydonlarni (foydalanuvchi UUID'lari — creatorId/approvedById) test-yechuvchiga
+        // oshkor qilmaymiz. Qolgan meta (title/subject/testType/timeLimit/creator.name) qoladi —
+        // frontend shularга tayanadi, shuning uchun faqat aniq maxfiy maydonlar olib tashlanadi.
+        const { creatorId: _creatorId, approvedById: _approvedById, approvedAt: _approvedAt, ...safeTest } = test
+        res.json({ ...safeTest, questions: sanitizedQuestions, ...timeWindow })
     } catch (e) {
         res.status(500).json({ error: 'Server xatoligi' })
     }
@@ -1627,7 +1644,7 @@ router.post('/upload-image', authenticate, requireRole('TEACHER', 'ADMIN'), uplo
 })
 
 // Rasmli savollarni vision AI bilan tahlil qilish
-router.post('/analyze-vision', authenticate, async (req: AuthRequest, res) => {
+router.post('/analyze-vision', authenticate, aiAnalysisLimiter, async (req: AuthRequest, res) => {
     try {
         const { questions } = req.body
         if (!Array.isArray(questions) || questions.length === 0) {
@@ -1713,7 +1730,7 @@ Javoblar O'zbek tilida, KaTeX formulalar bilan ($\\frac{a}{b}$ formatida) bo'lsi
 
 // Test natijasini AI bilan tahlil qilish (TestPage uchun)
 // Bitta savolni QISQA tushuntirish — test panel review'da xato javob ostidagi "Nega xato?" tugmasi uchun.
-router.post('/explain', authenticate, async (req: AuthRequest, res) => {
+router.post('/explain', authenticate, aiAnalysisLimiter, async (req: AuthRequest, res) => {
     try {
         const { question, studentAnswer, correctAnswer, subject } = req.body
         if (!question || !correctAnswer) return res.status(400).json({ error: 'question va correctAnswer kerak' })
@@ -1766,7 +1783,7 @@ Nega to'g'ri javob ${String(correctAnswer).toUpperCase()} ekanini soddagina tush
     }
 })
 
-router.post('/analyze-result', authenticate, async (req: AuthRequest, res) => {
+router.post('/analyze-result', authenticate, aiAnalysisLimiter, async (req: AuthRequest, res) => {
     try {
         const { title, subject, score, total, questions } = req.body
         if (!Array.isArray(questions)) return res.json({ analysis: null })
@@ -1999,6 +2016,7 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
                     selectedIdx: -1,
                     textAnswer: studentAns || null,
                     isCorrect,
+                    hasAnswer: !!studentAns,
                     difficulty: q.difficulty || 0.0
                 }
             }
@@ -2030,6 +2048,7 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
                     textAnswer: null,
                     textAnswers: studentTextAnswers,
                     isCorrect,
+                    hasAnswer: studentTextAnswers.some((x) => typeof x === 'string' && x.trim().length > 0),
                     difficulty: q.difficulty || 0.0,
                     correctSubCount,
                     totalSubs: subQuestions.length,
@@ -2055,6 +2074,7 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
                     textAnswer: null,
                     matchingAnswers: studentMatchingAnswers,
                     isCorrect,
+                    hasAnswer: studentMatchingAnswers.some((x) => typeof x === 'number' && x >= 0),
                     difficulty: q.difficulty || 0.0,
                     correctSubCount,
                     totalSubs: subQuestions.length
@@ -2068,6 +2088,7 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
                 selectedIdx,
                 textAnswer: typeof a?.textAnswer === 'string' ? a.textAnswer : null,
                 isCorrect,
+                hasAnswer: selectedIdx >= 0,
                 difficulty: q.difficulty || 0.0
             }
         }))
