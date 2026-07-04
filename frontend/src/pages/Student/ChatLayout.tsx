@@ -982,6 +982,7 @@ export default function ChatLayout() {
         activeTestQuestions, setActiveTestQuestions, testReadOnly, setTestReadOnly,
         testWidth, setTestWidth, testDragRef, testTimeLeft, setTestTimeLeft,
         raschFeedback, setRaschFeedback, loadingPublicTest, setLoadingPublicTest,
+        aiSessionId, setAiSessionId,
         openTestPanel,
     } = useTestPanel(completedTestIdsRef, completedAiTestsRef)
 
@@ -1951,7 +1952,22 @@ Iltimos, har bir savolni tahlil qilib ber:
         setActiveTestQuestions([])
         setActiveTestSource(null) // AI chat testi — manba badge'i yo'q
         openTestPanel(jsonStr)
-    }, [openTestPanel, setActiveTestId, setActiveTestQuestions])
+        // 1.1: efemer AI testni SERVERда ro'yxatga olamiz — submit server-grade bo'lsin (klient
+        // ballni soxtalashtira olmaydi). Xato bo'lsa jim o'tamiz: submitTestPanel eski /submit-ai'ga
+        // fallback qiladi (uzilish yo'q).
+        try {
+            const parsedForSession = parseStructuredJson<unknown[]>(extractStructuredPayload(jsonStr))
+            if (Array.isArray(parsedForSession) && parsedForSession.length > 0) {
+                const subjectHint = profileRef.current?.subject || undefined
+                fetchApi('/tests/ai-session', {
+                    method: 'POST',
+                    body: JSON.stringify({ questions: parsedForSession, subject: subjectHint }),
+                    silent: true,
+                }).then((r: { sessionId?: string }) => { if (r?.sessionId) setAiSessionId(r.sessionId) })
+                    .catch(() => { /* fallback: /submit-ai */ })
+            }
+        } catch { /* parse xato — fallback */ }
+    }, [openTestPanel, setActiveTestId, setActiveTestQuestions, setAiSessionId])
 
     // Flashcard panelni ochish
     const handleOpenFlash = useCallback((jsonStr: string) => {
@@ -2399,23 +2415,40 @@ Iltimos, har bir savolni tahlil qilib ber:
             } else if (testPanel) {
                 const aiKey = testPanel.substring(0, 500)
                 try { localStorage.setItem('dtmmax_ans_' + aiKey, JSON.stringify(testAnswers)) } catch { }
-                const scorePercent = (score / questions.length) * 100
-                const raschResults = questions.map((q: any, i: number) => {
-                    const fallbackDifficulty = questions.length > 1
-                        ? -2 + (i / (questions.length - 1)) * 4
-                        : 0
-                    return {
-                        difficulty: typeof q.difficulty === 'number' && Number.isFinite(q.difficulty)
-                            ? q.difficulty
-                            : Math.round(fallbackDifficulty * 100) / 100,
-                        isCorrect: testAnswers[i] === q.correct,
-                        topic: typeof q.topic === 'string' ? q.topic : '' // yopiq halqa: per-mavzu TopicStat
-                    }
-                })
-                await fetchApi('/tests/submit-ai', {
-                    method: 'POST',
-                    body: JSON.stringify({ score: scorePercent, totalQuestions: questions.length, results: raschResults, subject: currentChat?.subject || currentChat?.subject2 || profile?.subject || 'Umumiy' })
-                })
+                // 1.1: SERVER-GRADE. Sessiya ro'yxatga olingan bo'lsa (aiSessionId), FAQAT javob
+                // harflarini yuboramiz — server o'zi baholaydi (klient ballni soxtalashtira olmaydi).
+                // Ro'yxatga olinmagan/xato bo'lsa eski /submit-ai'ga fallback (statistika yoziladi).
+                let serverGraded = false
+                if (aiSessionId) {
+                    const answerLetters: Record<number, string> = {}
+                    questions.forEach((_q: any, i: number) => { if (testAnswers[i]) answerLetters[i] = testAnswers[i] })
+                    try {
+                        await fetchApi(`/tests/ai-session/${aiSessionId}/submit`, {
+                            method: 'POST',
+                            body: JSON.stringify({ answers: answerLetters }),
+                        })
+                        serverGraded = true
+                    } catch { serverGraded = false }
+                }
+                if (!serverGraded) {
+                    const scorePercent = (score / questions.length) * 100
+                    const raschResults = questions.map((q: any, i: number) => {
+                        const fallbackDifficulty = questions.length > 1
+                            ? -2 + (i / (questions.length - 1)) * 4
+                            : 0
+                        return {
+                            difficulty: typeof q.difficulty === 'number' && Number.isFinite(q.difficulty)
+                                ? q.difficulty
+                                : Math.round(fallbackDifficulty * 100) / 100,
+                            isCorrect: testAnswers[i] === q.correct,
+                            topic: typeof q.topic === 'string' ? q.topic : '' // yopiq halqa: per-mavzu TopicStat
+                        }
+                    })
+                    await fetchApi('/tests/submit-ai', {
+                        method: 'POST',
+                        body: JSON.stringify({ score: scorePercent, totalQuestions: questions.length, results: raschResults, subject: currentChat?.subject || currentChat?.subject2 || profile?.subject || 'Umumiy' })
+                    })
+                }
                 markAiTestCompleted(aiKey)
                 loadProfile()
                 loadMyResults()

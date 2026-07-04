@@ -18,6 +18,9 @@ export function useTestPanel(
   const [testTimeLeft, setTestTimeLeft] = useState<number | null>(null)
   const [raschFeedback, setRaschFeedback] = useState<{ prev: number; next: number } | null>(null)
   const [loadingPublicTest, setLoadingPublicTest] = useState(false)
+  // 1.1: efemer AI test SERVERda ro'yxatga olinganda sessionId shu yerda saqlanadi.
+  // Submit shu id bo'lsa server-grade endpointga (klient ballga ishonmasdan), aks holda eski /submit-ai.
+  const [aiSessionId, setAiSessionId] = useState<string | null>(null)
 
   // Open test in side panel
   const openTestPanel = useCallback((jsonStr: string) => {
@@ -28,6 +31,7 @@ export function useTestPanel(
     const aiKey = stableJson.substring(0, 500)  // BUG-11: 120 → 500, collision xavfini kamaytirish
     setRaschFeedback(null)
     setTestTimeLeft(null)
+    setAiSessionId(null)  // yangi ochilish — eski sessiyani tozalaymiz (ChatLayout qayta ro'yxatga oladi)
     if (completedAiTestsRef.current.has(aiKey)) {
       // Allaqachon yechilgan — saqlangan javoblar bilan ko'rish rejimi
       let savedAnswers: Record<number, string> = {}
@@ -59,6 +63,7 @@ export function useTestPanel(
     testTimeLeft, setTestTimeLeft,
     raschFeedback, setRaschFeedback,
     loadingPublicTest, setLoadingPublicTest,
+    aiSessionId, setAiSessionId,
     openTestPanel,
   }
 }

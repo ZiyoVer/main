@@ -43,6 +43,7 @@ model User {
   notificationsSent     Notification[] @relation("NotificationSender")
   subscriptions Subscription[]
   payments      Payment[]
+  aiTestSessions AiTestSession[]
 }
 
 enum Role {
@@ -414,4 +415,21 @@ model Payment {
   @@index([userId])
   @@index([status])
   @@index([subscriptionId]) // obuna o'chirilganda SetNull FK skanini oldini oladi
+}
+
+// ============ AI TEST SESSIYA (server-grade baholash) ============
+// Chat ichida AI generatsiya qilgan efemer testlar oldin klient hisoblagan ballga
+// ishonardi (/submit-ai). Endi savollar + to'g'ri javoblar shu yerda saqlanadi va
+// submit'da SERVER o'zi baholaydi — klient natijani soxtalashtira olmaydi.
+model AiTestSession {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject     String?
+  questions   String    // JSON: [{q,a,b,c,d,correct,topic,difficulty}] — to'g'ri javoblar bilan (server-only)
+  submittedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+  @@index([userId, createdAt])
 }

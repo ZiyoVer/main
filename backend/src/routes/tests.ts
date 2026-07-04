@@ -1929,6 +1929,135 @@ router.post('/submit-ai', authenticate, submitLimiter, async (req: AuthRequest, 
     }
 })
 
+// ─── 1.1: AI-TEST SERVER-GRADE ────────────────────────────────────────────────
+// Chat ichida AI generatsiya qilgan efemer testni SERVERда ro'yxatga olamiz (savollar +
+// to'g'ri javoblar bilan). Submit'da klient FAQAT o'z tanlagan harflarini yuboradi; server
+// to'g'riligini O'ZI hisoblaydi -> klient natijani soxtalashtira olmaydi (eski /submit-ai
+// muammosi). Kalit yo'q bo'lsa ham ishlaydi (AI bloki chat streamдan keladi).
+router.post('/ai-session', authenticate, createLimiter, async (req: AuthRequest, res) => {
+    try {
+        const { questions, subject } = req.body
+        if (!Array.isArray(questions) || questions.length === 0) {
+            return res.status(400).json({ error: 'questions massiv bo\'lishi kerak' })
+        }
+        if (questions.length > 120) {
+            return res.status(400).json({ error: 'Juda ko\'p savol (maks 120)' })
+        }
+        // Faqat kerakli maydonlar; to'g'ri javob = 'a'|'b'|'c'|'d' harfi (server-only saqlanadi).
+        const cleaned = questions.slice(0, 120).map((q: any) => ({
+            q: typeof q?.q === 'string' ? q.q.slice(0, 2000) : '',
+            a: typeof q?.a === 'string' ? q.a.slice(0, 1000) : '',
+            b: typeof q?.b === 'string' ? q.b.slice(0, 1000) : '',
+            c: typeof q?.c === 'string' ? q.c.slice(0, 1000) : '',
+            d: typeof q?.d === 'string' ? q.d.slice(0, 1000) : '',
+            correct: typeof q?.correct === 'string' ? q.correct.trim().toLowerCase().slice(0, 1) : '',
+            topic: typeof q?.topic === 'string' ? q.topic.slice(0, 120) : '',
+            difficulty: typeof q?.difficulty === 'number' && Number.isFinite(q.difficulty) ? q.difficulty : null,
+        }))
+        const subjectKey = normalizeSubject(typeof subject === 'string' ? subject : '')
+            ?? (typeof subject === 'string' && subject.trim() ? subject.trim() : null)
+        const sess = await prisma.aiTestSession.create({
+            data: { userId: req.user.id, subject: subjectKey, questions: JSON.stringify(cleaned) }
+        })
+        res.json({ sessionId: sess.id })
+    } catch (e) {
+        console.error('ai-session create xato:', e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+// AI-test sessiyasini SERVER baholaydi. Klient faqat javob harflarini yuboradi.
+router.post('/ai-session/:sessionId/submit', authenticate, submitLimiter, async (req: AuthRequest, res) => {
+    try {
+        const { answers } = req.body // { "0":"a", "1":"c" } yoki ["a","c",...]
+        const sess = await prisma.aiTestSession.findUnique({ where: { id: req.params.sessionId as string } })
+        if (!sess || sess.userId !== req.user.id) {
+            return res.status(404).json({ error: 'AI test sessiyasi topilmadi' })
+        }
+        if (sess.submittedAt) {
+            return res.status(409).json({ error: 'Bu test allaqachon yechilgan' })
+        }
+        let storedQuestions: Array<{ correct?: string; topic?: string }> = []
+        try { storedQuestions = JSON.parse(sess.questions) } catch { /* buzilgan JSON */ }
+        if (!Array.isArray(storedQuestions) || storedQuestions.length === 0) {
+            return res.status(400).json({ error: 'Sessiya savollari topilmadi' })
+        }
+        const getAns = (i: number): string => {
+            if (Array.isArray(answers)) return typeof answers[i] === 'string' ? answers[i].trim().toLowerCase() : ''
+            if (answers && typeof answers === 'object') {
+                const v = (answers as Record<string, unknown>)[String(i)]
+                return typeof v === 'string' ? v.trim().toLowerCase() : ''
+            }
+            return ''
+        }
+        // SERVER BAHOLAYDI — klient 'isCorrect'iga umuman ishonmaymiz.
+        let correctCount = 0
+        const perQuestion = storedQuestions.map((q, i) => {
+            const chosen = getAns(i)
+            const correctLetter = String(q.correct || '').trim().toLowerCase()
+            const isCorrect = !!chosen && !!correctLetter && chosen === correctLetter
+            if (isCorrect) correctCount++
+            return { index: i, isCorrect, correct: correctLetter, topic: normalizeTopicKey(q.topic) }
+        })
+        const total = storedQuestions.length
+        const scorePercent = total > 0 ? Math.round((correctCount / total) * 1000) / 10 : 0
+
+        const subjectKey = sess.subject ?? 'Umumiy'
+        const topicAgg = new Map<string, { correct: number; total: number }>()
+        for (const pq of perQuestion) {
+            const topic = pq.topic
+            if (!topic || topic.length > 80) continue
+            const cur = topicAgg.get(topic) || { correct: 0, total: 0 }
+            cur.correct += pq.isCorrect ? 1 : 0
+            cur.total += 1
+            topicAgg.set(topic, cur)
+        }
+
+        await prisma.$transaction(async (tx) => {
+            // Idempotentlik (poyga): sessiyani lock qilib, qayta submitni to'samiz.
+            await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${'aisess:' + sess.id}, 0))`
+            const fresh = await tx.aiTestSession.findUnique({ where: { id: sess.id }, select: { submittedAt: true } })
+            if (fresh?.submittedAt) throw new AlreadySubmittedError()
+            await tx.aiTestSession.update({ where: { id: sess.id }, data: { submittedAt: new Date() } })
+
+            const profile = await tx.studentProfile.upsert({
+                where: { userId: req.user.id },
+                create: { userId: req.user.id, totalTests: 0, avgScore: 0 },
+                update: {}
+            })
+            await tx.studentProfile.update({
+                where: { userId: req.user.id },
+                data: {
+                    totalTests: { increment: 1 },
+                    avgScore: Math.round(((profile.avgScore * profile.totalTests + scorePercent) / (profile.totalTests + 1)) * 100) / 100
+                }
+            })
+            const practicedAt = new Date()
+            for (const [topic, agg] of topicAgg) {
+                await tx.topicStat.upsert({
+                    where: { userId_subject_topic: { userId: req.user.id, subject: subjectKey, topic } },
+                    update: { correct: { increment: agg.correct }, total: { increment: agg.total }, lastPracticed: practicedAt },
+                    create: { userId: req.user.id, subject: subjectKey, topic, correct: agg.correct, total: agg.total, lastPracticed: practicedAt },
+                })
+            }
+        }, { timeout: 15000 })
+
+        res.json({
+            ok: true,
+            score: scorePercent,
+            correct: correctCount,
+            total,
+            perQuestion: perQuestion.map(p => ({ index: p.index, isCorrect: p.isCorrect, correct: p.correct }))
+        })
+    } catch (e) {
+        if (e instanceof AlreadySubmittedError) {
+            return res.status(409).json({ error: 'Bu test allaqachon yechilgan' })
+        }
+        console.error('ai-session submit xato:', e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
 // Guest submit endpoint endi ishlatilmaydi — login qilgan user ham oddiy /submit endpointdan foydalanadi
 router.post('/:testId/submit-guest', optionalAuthenticate, submitLimiter, async (req: AuthRequest, res) => {
     if (!req.user) {
@@ -2153,6 +2282,11 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
         }
 
         const attempt = await prisma.$transaction(async (tx) => {
+            // 1.7 POYGA TUZATISH: bir user+test uchun bir vaqtda kelgan submit'larni SERIALIZATSIYA
+            // qilamiz. Poyga oynasi jonli isbotlangan (10 parallel submit -> 2 urinish yaratilardi):
+            // ikki tranzaksiya findFirst'ni ikkalasi ham "urinish yo'q" ko'rib, ikkitasini yaratardi.
+            // pg_advisory_xact_lock tranzaksiya oxirida avtomatik bo'shaydi (deadlock xavfi yo'q).
+            await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${test.id + ':' + req.user.id}, 0))`
             // Idempotentlik: vaqt-limitsiz testlarda sessiya guard'i yo'q (timeLimitMs === null),
             // shuning uchun double-submit/replay'ni shu yerda to'xtatamiz — bir foydalanuvchi
             // vaqt-limitsiz testni faqat bir marta yechadi. Vaqtli testlar sessiya orqali
