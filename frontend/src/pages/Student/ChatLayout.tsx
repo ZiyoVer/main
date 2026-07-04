@@ -843,7 +843,9 @@ export default function ChatLayout() {
     const nav = useNavigate()
     const location = useLocation()
     const { user, logout, token } = useAuthStore()
-    const todoStorageKey = `${TODO_STORAGE_PREFIX}_${user?.id || 'guest'}`
+    // Reja (todo) CHATGA bog'lab saqlanadi — yangi chatda eski chat rejasi ko'rinmasin.
+    // 'new' — hali chat tanlanmagan (/suhbat) holat uchun vaqtinchalik bo'lim.
+    const todoStorageKey = `${TODO_STORAGE_PREFIX}_${user?.id || 'guest'}_${chatId || 'new'}`
     // Essay draft kaliti foydalanuvchi bo'yicha scoped — umumiy qurilmada boshqa userga sizib o'tmasin
     const essayDraftKey = `dtmmax_essay_draft_${user?.id || 'guest'}`
     const [chats, setChats] = useState<Chat[]>([])
@@ -955,7 +957,13 @@ export default function ChatLayout() {
         todoItemsRef.current = todoItems
     }, [todoItems])
 
+    // Qaysi kalit uchun todoItems yuklangani — chat almashganda persist effekti eski chat
+    // rejasini YANGI chat kalitiga yozib qo'ymasligi uchun guard (effektlar tartibi: persist
+    // load'dan OLDIN turadi, guard'siz eski items yangi kalitga sizib o'tadi).
+    const todoLoadedKeyRef = useRef(todoStorageKey)
+
     useEffect(() => {
+        if (todoLoadedKeyRef.current !== todoStorageKey) return // bu chat rejasi hali yuklanmagan
         try {
             if (todoItems.length > 0) localStorage.setItem(todoStorageKey, JSON.stringify(todoItems))
             else localStorage.removeItem(todoStorageKey)
@@ -963,6 +971,23 @@ export default function ChatLayout() {
             console.warn('Todo rejani saqlab bo\'lmadi:', err)
         }
     }, [todoItems, todoStorageKey])
+
+    // Chat almashganda o'sha chatning O'Z rejasi yuklanadi (yangi chat — bo'sh boshlanadi).
+    useEffect(() => {
+        if (todoLoadedKeyRef.current === todoStorageKey) return
+        if (todoAutoCloseRef.current) { clearTimeout(todoAutoCloseRef.current); todoAutoCloseRef.current = null }
+        const stored = loadStoredTodos(todoStorageKey)
+        const items = stored.length > 0 && stored.every(item => item.done) ? [] : stored
+        todoLoadedKeyRef.current = todoStorageKey
+        setTodoItems(items)
+        setTodoOpen(typeof window !== 'undefined' && window.innerWidth >= 768 && items.some(item => !item.done))
+    }, [todoStorageKey])
+
+    // Bir martalik tozalash: eski GLOBAL (chat'siz) reja kaliti — aynan u "yangi chatda eski
+    // reja chiqadi" bug'ining manbai edi. Endi reja faqat chat-kalitlarda yashaydi.
+    useEffect(() => {
+        try { localStorage.removeItem(`${TODO_STORAGE_PREFIX}_${user?.id || 'guest'}`) } catch { /* storage yo'q bo'lsa jim */ }
+    }, [user?.id])
 
     useEffect(() => {
         return () => {
@@ -1059,8 +1084,19 @@ export default function ChatLayout() {
             setStreaming('')
             setThinkingText('')
         }
+        // Panellar suhbatga tegishli kontekst — boshqa chatga o'tilganda eski chatning
+        // test/flashcard/essay paneli ochiq qolib ketmasin (reja o'z effektida almashadi).
+        setTestPanel(null)
+        setFlashPanel(null)
+        setEssayPanel(null)
+        setEssayText('')
+        setEssaySubmitted(false)
+        setEssayTimeLeft(null)
+        setActiveTestSource(null)
+        setExplanations({})
+        setExplLoading(null)
         if (chatId) loadMessages(chatId)
-    }, [chatId])
+    }, [chatId]) // eslint-disable-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (chatId || !chatsLoaded || !profileLoaded || showOnboarding || autoLandingChatRef.current) return
         autoLandingChatRef.current = true
