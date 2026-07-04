@@ -9,10 +9,12 @@ import rehypeSanitize from 'rehype-sanitize'
 import DOMPurify from 'dompurify'
 import 'katex/dist/katex.min.css'
 import katex from 'katex'
-import { renderMathHtml } from '@/lib/mathRender'
+import { renderMathHtml, normalizeMathText } from '@/lib/mathRender'
 import toast from 'react-hot-toast'
 import { fetchApi } from '@/lib/api'
 import { parseStructuredJson, extractStructuredPayload } from '@/lib/structuredJson'
+import { stableHash, legacyTestKey } from '@/lib/stableHash'
+import { saveScopedItem, pruneDtmmaxStorage } from '@/lib/storagePrune'
 import GeometryFigure from '@/components/GeometryFigure'
 import { SUBJECTS, normalizeSubjectValue } from '@/constants'
 import { DTM_DIRECTIONS, SCORE_BOUNDS, dtmDirectionByCode, dtmDirectionBySubjects } from '@/constants/dtmDirections'
@@ -151,20 +153,6 @@ function MathText({ text }: { text: string }) {
     } catch { return <>{text}</> }
 }
 
-// DeepSeek \[...\] va \(...\) formatini $$...$$ va $...$ ga o'giradi
-function preprocessMath(text: string): string {
-    return text
-        .replace(/\\\[(\s*[\s\S]*?\s*)\\\]/g, (_, m) => `\n$$\n${m.trim()}\n$$\n`)
-        .replace(/\\\((\s*[\s\S]*?\s*)\\\)/g, (_, m) => {
-            const inner = m.trim()
-            // Murakkab inline formulalarni display math ga o'tkazish
-            if (/\\int|\\sum|\\prod|\\lim|\\infty|\\frac\{[^}]{3,}/.test(inner)) {
-                return `\n$$\n${inner}\n$$\n`
-            }
-            return `$${inner}$`
-        })
-}
-
 function detectStructuredBlockType(raw: string, className?: string): StructuredBlockType {
     const lowerClass = className?.toLowerCase() || ''
     if (lowerClass.includes('language-test')) return 'test'
@@ -228,7 +216,7 @@ const MdMessage = memo(({ content, isStreaming }: {
     isStreaming?: boolean
 }) => {
     const { onOpenTest, onProfileUpdate, onOpenFlash, onOpenEssay, onSetTodo, onMarkTodoDoneByTask, isAiTestDone } = useChatContext()
-    const processedContent = preprocessMath(content)
+    const processedContent = normalizeMathText(content) // 2.4: yagona manba — mathRender
     return (
         <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeSanitize, rehypeKatex]} components={{
             img: ({ src, alt }) => <img src={src} alt={alt || ''} className="max-h-48 max-w-[90%] sm:max-w-sm md:max-w-md rounded-xl object-contain my-1" style={{ border: '1px solid var(--border)' }} />,
@@ -1029,6 +1017,7 @@ export default function ChatLayout() {
     const loadControllerRef = useRef<AbortController | null>(null)
     const isSubmittingRef = useRef(false)
     const submitTestPanelRef = useRef<() => void>(() => { })
+    const submitEssayRef = useRef<() => void>(() => { })
     const sidebarWidth = (() => {
         if (typeof window === 'undefined') return 280
         const w = window.innerWidth
@@ -1057,6 +1046,7 @@ export default function ChatLayout() {
     }, [])
 
     useEffect(() => {
+        pruneDtmmaxStorage() // 2.3: per-test kalitlar cheksiz o'smasin (har turdan eng yangi 50 tasi qoladi)
         loadChats(); loadProfile(); loadPublicTests(); loadMyResults(); loadProgress(); loadDueFlashcards(); logActivity()
         // Real-time online tracking — har 60 soniyada ping
         const sendPing = () => fetchApi('/auth/ping', { method: 'POST', body: JSON.stringify({ page: 'chat' }) }).catch(() => { })
@@ -1340,12 +1330,14 @@ Iltimos, har bir savolni tahlil qilib ber:
         return () => clearInterval(id)
     }, [essayTimeLeft])
 
+    // Vaqt tugaganda avtomatik topshirish — ref orqali stale closure oldini olamiz
+    // (aks holda submitEssay eski essayText ni ko'rib, chala matn topshirilardi)
     useEffect(() => {
         if (essayTimeLeft === 0 && essayPanel && !essaySubmitted) {
             toast.error('Vaqt tugadi! Essay avtomatik topshirildi.')
-            submitEssay()
+            submitEssayRef.current()
         }
-    }, [essayTimeLeft]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [essayTimeLeft, essayPanel, essaySubmitted])
 
     // Essay draft — localStorage ga saqlash (har o'zgarishda), foydalanuvchi bo'yicha scoped kalit bilan
     useEffect(() => {
@@ -2013,12 +2005,25 @@ Iltimos, har bir savolni tahlil qilib ber:
         setTodoOpen(false) // todoni yopamiz
         openFlashPanel(jsonStr)
         setFlashIsReview(false) // AI chatdan kelgan — review rejimi emas
-        // DB ga saqlaymiz — Kartochkalar tabida ko'rinishi uchun (background)
+        // DB ga saqlaymiz — Kartochkalar tabida ko'rinishi uchun (background).
+        // 2.2: BIR to'plam BIR marta POST bo'ladi — har qayta ochilishda dublikat DB qator yaratilmasin.
         const subj = profileRef.current?.subject || 'Umumiy'
+        const normalizedCards = cards.map((c) => ({ front: String(c.front || ''), back: String(c.back || '') }))
+        const flashSig = stableHash(subj + '|' + JSON.stringify(normalizedCards))
+        let postedSigs: string[] = []
+        try {
+            const parsed = JSON.parse(localStorage.getItem('dtmmax_flash_posted_v1') || '[]')
+            if (Array.isArray(parsed)) postedSigs = parsed.filter((s): s is string => typeof s === 'string')
+        } catch { /* buzilgan yozuv — bo'sh ro'yxatdan davom etamiz */ }
+        if (postedSigs.includes(flashSig)) return
         fetchApi('/flashcards', {
             method: 'POST',
-            body: JSON.stringify({ subject: subj, cards: cards.map((c) => ({ front: String(c.front || ''), back: String(c.back || '') })) })
-        }).then(() => loadDueFlashcards()).catch((err: unknown) => { console.error('saveFlashcards:', err) })
+            body: JSON.stringify({ subject: subj, cards: normalizedCards })
+        }).then(() => {
+            // Faqat MUVAFFAQIYATLI POST belgilanadi — xatoda keyingi ochilishda qayta uriniladi
+            try { localStorage.setItem('dtmmax_flash_posted_v1', JSON.stringify([flashSig, ...postedSigs].slice(0, 100))) } catch { }
+            loadDueFlashcards()
+        }).catch((err: unknown) => { console.error('saveFlashcards:', err) })
     }, [openFlashPanel]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Essay panel ochish
@@ -2127,6 +2132,9 @@ Iltimos, har bir savolni tahlil qilib ber:
         const prompt = `📝 **Writing topshirig'i — ${essayPanel.task}:**\n"${essayPanel.prompt}"\n\n**Mening essayim (${wordCount} so'z):**\n${essayText}\n\n---\nIltimos, ushbu essayni Milliy Sertifikat (Multilevel) mezonlari bo'yicha baholang:\n1. **Task Achievement** — vazifani to'liq bajardimmi?\n2. **Coherence & Cohesion** — tuzilma va bog'liqlik\n3. **Lexical Resource** — leksik boylik\n4. **Grammatical Range & Accuracy** — grammatik to'g'rilik\n\nHar bir mezon uchun 30 balldan baho bering, jami 120 dan. Asosiy xatolarni ko'rsating va yaxshilash bo'yicha aniq tavsiyalar bering.`
         handleSend(prompt, [])
     }
+
+    // Har render da ref ni yangilaymiz — auto-submit doim joriy essayText ni ko'rsin
+    submitEssayRef.current = () => { void submitEssay() }
 
     // Public test ochish (sidebar dan)
     async function openPublicTest(t: any) {
@@ -2268,8 +2276,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                 if (backendSubmitResult?.correctAnswers) {
                     const correctMap: Record<string, number> = {}
                     backendSubmitResult.correctAnswers.forEach((c: any) => { correctMap[c.id] = c.correctIdx })
-                    try { localStorage.setItem('dtmmax_correct_' + activeTestId, JSON.stringify(correctMap)) } catch { }
-                    try { localStorage.setItem('dtmmax_pub_ans_' + activeTestId, JSON.stringify(testAnswers)) } catch { }
+                    saveScopedItem('dtmmax_correct_' + activeTestId, JSON.stringify(correctMap))
+                    saveScopedItem('dtmmax_pub_ans_' + activeTestId, JSON.stringify(testAnswers))
                     questions = questions.map((q: any) => {
                         const ci = correctMap[q.id]
                         return ci !== undefined ? { ...q, correct: (['a', 'b', 'c', 'd'] as const)[ci] ?? '' } : q
@@ -2449,8 +2457,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                     throw new Error('Public test natijasi backendda tasdiqlanmadi')
                 }
             } else if (testPanel) {
-                const aiKey = testPanel.substring(0, 500)
-                try { localStorage.setItem('dtmmax_ans_' + aiKey, JSON.stringify(testAnswers)) } catch { }
+                const aiKey = stableHash(testPanel) // 2.1: butun JSON ustidan barqaror hash-kalit
+                saveScopedItem('dtmmax_ans_' + aiKey, JSON.stringify(testAnswers))
                 // 1.1: SERVER-GRADE. Sessiya ro'yxatga olingan bo'lsa (aiSessionId), FAQAT javob
                 // harflarini yuboramiz — server o'zi baholaydi (klient ballni soxtalashtira olmaydi).
                 // Ro'yxatga olinmagan/xato bo'lsa eski /submit-ai'ga fallback (statistika yoziladi).
@@ -2505,8 +2513,10 @@ Iltimos, har bir savolni tahlil qilib ber:
             const normalized = extractStructuredPayload(jsonStr)
             const parsed = parseStructuredJson<unknown[]>(normalized)
             if (!Array.isArray(parsed) || parsed.length === 0) return false
-            const aiKey = JSON.stringify(parsed).substring(0, 500)
-            return completedAiTestsRef.current.has(aiKey)
+            const stableJson = JSON.stringify(parsed)
+            // 2.1: yangi hash-kalit + eski 500-belgili kalit (tarix saqlansin)
+            return completedAiTestsRef.current.has(stableHash(stableJson))
+                || completedAiTestsRef.current.has(legacyTestKey(stableJson))
         } catch { return false }
     }, [])
 

@@ -9,10 +9,20 @@ const AUTO_WRAP_PATTERNS = [
     /\\(?:sin|cos|tan|cot|sec|csc|log|ln|lim)\b(?:\s*[a-zA-Z0-9]+)?/g,
 ]
 
+// YAGONA manba (2.4): DeepSeek \[...\] va \(...\) ni $$...$$/$...$ ga o'giradi.
+// Chat xabari ham, test/flashcard panellari ham AYNAN shu funksiyani ishlatadi —
+// bitta formula hamma joyda bir xil ko'rinadi.
 export function normalizeMathText(text: string): string {
     return text
         .replace(/\\\[(\s*[\s\S]*?\s*)\\\]/g, (_, m) => `\n$$\n${m.trim()}\n$$\n`)
-        .replace(/\\\((\s*[\s\S]*?\s*)\\\)/g, (_, m) => `$${m.trim()}$`)
+        .replace(/\\\((\s*[\s\S]*?\s*)\\\)/g, (_, m) => {
+            const inner = m.trim()
+            // Murakkab inline formulalar display math'ga ko'tariladi — o'qilishi aniqroq
+            if (/\\int|\\sum|\\prod|\\lim|\\infty|\\frac\{[^}]{3,}/.test(inner)) {
+                return `\n$$\n${inner}\n$$\n`
+            }
+            return `$${inner}$`
+        })
 }
 
 function looksLikeStandaloneMathExpression(text: string): boolean {

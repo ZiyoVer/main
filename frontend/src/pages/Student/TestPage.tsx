@@ -7,12 +7,8 @@ import toast from 'react-hot-toast'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import DOMPurify from 'dompurify'
-
-function normalizeMathText(text: string): string {
-    return text
-        .replace(/\\\[(\s*[\s\S]*?\s*)\\\]/g, (_, m) => `\n$$\n${m.trim()}\n$$\n`)
-        .replace(/\\\((\s*[\s\S]*?\s*)\\\)/g, (_, m) => `$${m.trim()}$`)
-}
+import { normalizeMathText } from '@/lib/mathRender' // 2.4: yagona manba — lokal nusxa olib tashlandi
+import { saveScopedItem, pruneDtmmaxStorage } from '@/lib/storagePrune'
 
 function MathPreview({ text, inline }: { text: string; inline?: boolean }) {
     const normalized = normalizeMathText(text || '')
@@ -160,11 +156,17 @@ export default function TestPage() {
         if (!shareLink) return
         setLoading(true)
         setErr('')
+        pruneDtmmaxStorage() // 2.3: per-test kalitlar cheksiz o'smasin
         fetchApi(`/tests/by-link/${shareLink}`)
             .then(t => {
                 setTest(t)
                 setFocusedQ(0)
                 autoSubmitRef.current = false
+                // 2.6: reload'da javoblar yo'qolmasin — saqlangan qoralama tiklanadi
+                try {
+                    const saved = JSON.parse(localStorage.getItem('dtmmax_tp_ans_' + t.id) || 'null')
+                    if (saved && typeof saved === 'object' && !Array.isArray(saved)) setAnswers(saved)
+                } catch { /* buzilgan qoralama — bo'sh boshlaymiz */ }
                 const remainingSeconds = typeof t.timeRemainingSeconds === 'number'
                     ? t.timeRemainingSeconds
                     : (typeof t.timeLimit === 'number' && t.timeLimit > 0 ? t.timeLimit * 60 : null)
@@ -181,6 +183,14 @@ export default function TestPage() {
         const pingInterval = setInterval(sendPing, 60000)
         return () => clearInterval(pingInterval)
     }, [isGuest])
+
+    // 2.6: har javob o'zgarishida qoralama saqlanadi (server-taymerga TEGILMAYDI —
+    // timeRemainingSeconds manba bo'lib qoladi; bu faqat javoblarni tiklaydi)
+    useEffect(() => {
+        if (!test || submitted) return
+        if (Object.keys(answers).length === 0) return
+        saveScopedItem('dtmmax_tp_ans_' + test.id, JSON.stringify(answers))
+    }, [answers, test, submitted])
 
     useEffect(() => {
         if (!timerActive) return
@@ -244,6 +254,8 @@ export default function TestPage() {
             })
             setCorrectMap(map)
             setSubmitted(true)
+            // 2.6: topshirilgandan keyin qoralama kerak emas
+            try { localStorage.removeItem('dtmmax_tp_ans_' + test.id) } catch { }
             const optLabels = ['a', 'b', 'c', 'd']
             const questionsForAnalysis = test.questions.map((q: any, i: number) => {
                 const opts = parseChoiceOptions(q.options)

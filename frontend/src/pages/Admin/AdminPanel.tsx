@@ -1271,7 +1271,8 @@ export default function AdminPanel() {
             return (right.todayMinutes || 0) - (left.todayMinutes || 0)
         })
         .slice(0, 6)
-    const onlineNowCount = timeSpentUsers.filter(user => user.isOnline).length
+    // "Hozir onlayn" YAGONA manbasi — /analytics/online-users (onlineUsers holati, 30s da yangilanadi)
+    const onlineNowCount = onlineUsers.length
     const totalTodayMinutes = timeSpentUsers.reduce((sum, user) => sum + (user.todayMinutes || 0), 0)
     const totalWeekMinutes = timeSpentUsers.reduce((sum, user) => sum + (user.weekMinutes || 0), 0)
     // Knowledge — fan filtri + matn qidiruv (sarlavha/manba/mazmun) + load-more uchun bir marta hisoblanadi
@@ -1427,7 +1428,7 @@ export default function AdminPanel() {
                             <p className="text-[11px] font-semibold uppercase tracking-wider mb-2.5" style={mutedText}>Faollik</p>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                                 {[
-                                    { n: stats.onlineNow ?? onlineUsers.length, l: 'Hozir onlayn', icon: Wifi, color: 'var(--success)' },
+                                    { n: onlineNowCount, l: 'Hozir onlayn', icon: Wifi, color: 'var(--success)' },
                                     { n: stats.newUsers24h, l: 'Yangi userlar (24h)', icon: UserPlus, color: 'var(--info)' },
                                     { n: stats.activeUsers7d, l: 'Faol userlar (7 kun)', icon: Activity, color: '#06b6d4' },
                                     { n: stats.messages7d, l: 'Xabarlar (7 kun)', icon: MessageSquare, color: 'var(--brand)' },

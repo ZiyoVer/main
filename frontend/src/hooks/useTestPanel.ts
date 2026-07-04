@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { fetchApi } from '@/lib/api'
 import { extractStructuredPayload, parseStructuredJson } from '@/lib/structuredJson'
+import { stableHash, legacyTestKey } from '@/lib/stableHash'
 
 export function useTestPanel(
   completedTestIdsRef: React.MutableRefObject<Set<string>>,
@@ -28,14 +29,23 @@ export function useTestPanel(
     const parsedQuestions = parseStructuredJson<unknown[]>(normalizedJson)
     if (!Array.isArray(parsedQuestions) || parsedQuestions.length === 0) return
     const stableJson = JSON.stringify(parsedQuestions)
-    const aiKey = stableJson.substring(0, 500)  // BUG-11: 120 → 500, collision xavfini kamaytirish
+    // BUG-11 (2.1): kalit endi butun JSON ustidan barqaror hash — prefiks-to'qnashuv yo'q.
+    // Eski (500-belgili) kalitdagi tarix best-effort o'qiladi — foydalanuvchi tarixi yo'qolmasin.
+    const aiKey = stableHash(stableJson)
+    const legacyKey = legacyTestKey(stableJson)
     setRaschFeedback(null)
     setTestTimeLeft(null)
     setAiSessionId(null)  // yangi ochilish — eski sessiyani tozalaymiz (ChatLayout qayta ro'yxatga oladi)
-    if (completedAiTestsRef.current.has(aiKey)) {
+    if (completedAiTestsRef.current.has(aiKey) || completedAiTestsRef.current.has(legacyKey)) {
       // Allaqachon yechilgan — saqlangan javoblar bilan ko'rish rejimi
       let savedAnswers: Record<number, string> = {}
-      try { savedAnswers = JSON.parse(localStorage.getItem('dtmmax_ans_' + aiKey) || '{}') } catch { }
+      try {
+        savedAnswers = JSON.parse(
+          localStorage.getItem('dtmmax_ans_' + aiKey)
+          || localStorage.getItem('dtmmax_ans_' + legacyKey)
+          || '{}'
+        )
+      } catch { }
       setTestPanel(stableJson)
       setTestAnswers(savedAnswers)
       setTestSubmitted(true)

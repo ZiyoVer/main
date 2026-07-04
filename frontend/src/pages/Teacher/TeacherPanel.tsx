@@ -68,6 +68,7 @@ interface MultipartOpenSubQ { label: string; text: string; correctText: string }
 type TestTypeValue = 'REGULAR' | 'DTM_BLOCK' | 'MILLIY_SERTIFIKAT'
 type DtmBlockTypeValue = 'GENERIC' | 'MANDATORY_LANGUAGE' | 'MANDATORY_MATH' | 'MANDATORY_HISTORY' | 'SPECIALTY_1' | 'SPECIALTY_2'
 interface Question {
+    uid: string                       // klient-tomon barqaror kalit (React key) — API ga YUBORILMAYDI
     text: string; imageUrl?: string | null; options: string[]; correctIdx: number
     questionType: 'mcq' | 'open' | 'matching' | 'multipart_open'; correctText?: string
     imagePreviewUrl?: string | null
@@ -152,7 +153,7 @@ interface TeacherTestDetailResponse {
     source?: 'OFFICIAL' | 'UNOFFICIAL' | 'AI_PREDICTION'
     premium?: boolean
     attemptsCount: number
-    questions: Question[]
+    questions: Array<Omit<Question, 'uid'>>
 }
 
 interface AttemptDetailItem {
@@ -262,8 +263,17 @@ function createDefaultMultipartSubQuestions(): MultipartOpenSubQ[] {
     return ['A', 'B', 'C'].map(label => ({ label, text: '', correctText: '' }))
 }
 
+// Savol uchun barqaror klient-kalit (React key + ochiq/yopiq holat). Indeks emas —
+// savol o'chirilganda qo'shni savollarning state'i adashib ketmasin.
+let questionUidSeq = 0
+function nextQuestionUid(): string {
+    questionUidSeq += 1
+    return `q${Date.now().toString(36)}-${questionUidSeq}`
+}
+
 function createEmptyQuestion(): Question {
     return {
+        uid: nextQuestionUid(),
         text: '',
         imageUrl: null,
         options: ['', '', '', ''],
@@ -294,11 +304,11 @@ export default function TeacherPanel() {
     const [timeLimit, setTimeLimit] = useState<number>(0)
     const [timeLimitTouched, setTimeLimitTouched] = useState(false)
     const [questions, setQuestions] = useState<Question[]>([createEmptyQuestion()])
-    // Ko'p savolли formada (DTM 90) savollar yopiq ko'rinadi — ochilgan indekslar to'plami.
+    // Ko'p savolли formada (DTM 90) savollar yopiq ko'rinadi — ochilgan savollarning uid to'plami.
     // 6 tadan kam bo'lsa hammasi ochiq (oddiy test). Ko'p bo'lsa — bossangiz ochiladi.
-    const [expandedQ, setExpandedQ] = useState<Set<number>>(new Set())
-    const isQExpanded = (qi: number) => questions.length <= 6 || expandedQ.has(qi)
-    const toggleQ = (qi: number) => setExpandedQ(prev => { const n = new Set(prev); if (n.has(qi)) n.delete(qi); else n.add(qi); return n })
+    const [expandedQ, setExpandedQ] = useState<Set<string>>(new Set())
+    const isQExpanded = (uid: string) => questions.length <= 6 || expandedQ.has(uid)
+    const toggleQ = (uid: string) => setExpandedQ(prev => { const n = new Set(prev); if (n.has(uid)) n.delete(uid); else n.add(uid); return n })
     const [loading, setLoading] = useState(false)
     const [msg, setMsg] = useState('')
     const [copied, setCopied] = useState<string | null>(null)
@@ -335,11 +345,16 @@ export default function TeacherPanel() {
     }, [])
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') setAnalyticsId(null)
+            if (e.key !== 'Escape') return
+            // Qatlam tartibi: eng ustki modal birinchi yopiladi.
+            // Urinish tafsiloti (z-60) ochiq bo'lsa — faqat uni yopamiz, statistika ochiq qoladi.
+            if (selectedAttemptId) { setSelectedAttemptId(null); return }
+            if (analyticsId) { setAnalyticsId(null); return }
+            if (showNotifModal) setShowNotifModal(false)
         }
         window.addEventListener('keydown', handleEsc)
         return () => window.removeEventListener('keydown', handleEsc)
-    }, [])
+    }, [selectedAttemptId, analyticsId, showNotifModal])
     // Vaqtni aqlli default bilan to'ldirish — ustoz qo'lda o'zgartirsa qayta bosmaymiz
     useEffect(() => {
         if (timeLimitTouched) return
@@ -454,7 +469,10 @@ export default function TeacherPanel() {
             setPremium(detail.premium ?? false)
             setTimeLimit(detail.timeLimit || 0)
             setTimeLimitTouched(Boolean(detail.timeLimit))
-            setQuestions(detail.questions.length > 0 ? detail.questions : [createEmptyQuestion()])
+            // Serverdan kelgan savollarga klient-kalit (uid) beramiz — React key barqaror bo'lsin
+            setQuestions(detail.questions.length > 0
+                ? detail.questions.map(question => ({ ...question, uid: nextQuestionUid() }))
+                : [createEmptyQuestion()])
             setTab('create')
             setMsg('')
             setAiFile(null)
@@ -650,19 +668,27 @@ export default function TeacherPanel() {
 
     async function generateFromFile() {
         if (!aiFile) return
+        // Klient-tomon tekshiruv — backend qabul qiladigan turlar (PDF, Word, rasm) va multer 20MB limiti bilan mos
+        const AI_FILE_MAX_SIZE = 20 * 1024 * 1024 // 20MB
+        const isAllowedType = aiFile.type.startsWith('image/')
+            || aiFile.type === 'application/pdf'
+            || aiFile.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            || aiFile.type === 'application/msword'
+        if (!isAllowedType) {
+            setAiError('Faqat PDF, Word (.doc/.docx) yoki rasm (PNG, JPG) fayllari qo\'llab-quvvatlanadi')
+            return
+        }
+        if (aiFile.size > AI_FILE_MAX_SIZE) {
+            setAiError('Fayl hajmi 20MB dan oshmasligi kerak')
+            return
+        }
         setAiGenerating(true); setAiError(''); setAiDone(false)
         try {
             const formData = new FormData()
             formData.append('file', aiFile)
             formData.append('subject', subject)
-            const token = localStorage.getItem('token')
-            const res = await fetch('/api/tests/generate-from-file', {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` },
-                body: formData
-            })
-            const data = await res.json()
-            if (!res.ok) throw new Error(data.error || 'Xatolik')
+            // uploadFile — auth/xato boshqaruvi upload-image bilan bir xil bo'lsin
+            const data = await uploadFile('/tests/generate-from-file', formData)
             const mapped: Question[] = data.questions.map((q: any) => {
                 // Moslashtirish (matching) savol
                 if (q.questionType === 'matching') {
@@ -675,6 +701,7 @@ export default function TeacherPanel() {
                         correctIdx: typeof sq.correctIdx === 'number' ? Math.max(0, Math.min(sq.correctIdx, maxIdx)) : 0
                     }))
                     return {
+                        uid: nextQuestionUid(),
                         text: q.text || '',
                         options: ['', '', '', ''],
                         correctIdx: -1,
@@ -690,6 +717,7 @@ export default function TeacherPanel() {
                 let opts = Array.isArray(q.options) ? q.options.map(String).filter((o: string) => o.trim().length > 0) : []
                 while (opts.length < 4) opts.push('')
                 return {
+                    uid: nextQuestionUid(),
                     text: q.text || '',
                     options: opts.slice(0, 4),
                     correctIdx: typeof q.correctIdx === 'number' ? q.correctIdx : 0,
@@ -825,7 +853,8 @@ export default function TeacherPanel() {
                     source,
                     premium,
                     timeLimit: timeLimit || null,
-                    questions: finalQuestions
+                    // uid va boshqa klient-only maydonlar API ga yuborilmaydi
+                    questions: finalQuestions.map(({ uid: _uid, imagePreviewUrl: _preview, imageUploading: _uploading, ...apiQuestion }) => apiQuestion)
                 })
             })
             setMsg('success')
@@ -1000,7 +1029,7 @@ export default function TeacherPanel() {
 <tbody>${questionRows}</tbody>
 </table>
 
-<div class="footer">DTMMax · dtmmax.pro · ${new Date().toLocaleDateString('uz-UZ')}</div>
+<div class="footer">DTMMax · dtmmax.uz · ${new Date().toLocaleDateString('uz-UZ')}</div>
 </body>
 </html>`
 
@@ -1008,7 +1037,23 @@ export default function TeacherPanel() {
         if (!w) { toast.error('Popup bloklangan. Brauzer ruxsat bering.'); return }
         w.document.write(html)
         w.document.close()
-        setTimeout(() => { w.print() }, 600)
+        // KaTeX CSS CDN'dan yuklanadi — print undan OLDIN ochilsa formulalar stilsiz chiqadi.
+        // Stylesheet load bo'lishini kutamiz; CDN sekin/ishlamasa 2 soniyalik zaxira taymer print'ni baribir ochadi.
+        let printed = false
+        const doPrint = () => {
+            if (printed) return
+            printed = true
+            try { w.print() } catch { /* oyna yopilgan bo'lsa e'tiborsiz */ }
+        }
+        const katexCss = w.document.querySelector('link[rel="stylesheet"]') as HTMLLinkElement | null
+        if (katexCss && !katexCss.sheet) {
+            katexCss.addEventListener('load', () => setTimeout(doPrint, 100))
+            katexCss.addEventListener('error', () => doPrint())
+            setTimeout(doPrint, 2000)
+        } else {
+            // CSS allaqachon tayyor (kesh) yoki link topilmadi — qisqa kutish bilan print
+            setTimeout(doPrint, 300)
+        }
     }
 
     // Helpers
@@ -1392,7 +1437,7 @@ export default function TeacherPanel() {
                             </div>
 
                             {questions.map((q, qi) => (
-                                <div key={qi} className="rounded-xl p-3.5 space-y-2 transition" style={{ ...cardStyle, borderColor: aiDone ? 'color-mix(in srgb, var(--info) 20%, transparent)' : 'var(--border)' }}
+                                <div key={q.uid} className="rounded-xl p-3.5 space-y-2 transition" style={{ ...cardStyle, borderColor: aiDone ? 'color-mix(in srgb, var(--info) 20%, transparent)' : 'var(--border)' }}
                                     onPaste={(e) => {
                                         const items = e.clipboardData?.items
                                         if (!items) return
@@ -1411,11 +1456,11 @@ export default function TeacherPanel() {
                                     {/* Savol header */}
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2">
-                                            <button type="button" onClick={() => toggleQ(qi)} className="flex items-center gap-1 text-[12px] font-semibold" style={secondaryText}>
-                                                {questions.length > 6 && <span style={{ fontSize: 9 }}>{isQExpanded(qi) ? '▾' : '▸'}</span>}
+                                            <button type="button" onClick={() => toggleQ(q.uid)} className="flex items-center gap-1 text-[12px] font-semibold" style={secondaryText}>
+                                                {questions.length > 6 && <span style={{ fontSize: 9 }}>{isQExpanded(q.uid) ? '▾' : '▸'}</span>}
                                                 Savol {qi + 1}
                                             </button>
-                                            {!isQExpanded(qi) && q.text.trim() && <span className="text-[11px] truncate max-w-[150px]" style={{ color: 'var(--text-muted)' }}>{q.text.trim().slice(0, 38)}</span>}
+                                            {!isQExpanded(q.uid) && q.text.trim() && <span className="text-[11px] truncate max-w-[150px]" style={{ color: 'var(--text-muted)' }}>{q.text.trim().slice(0, 38)}</span>}
                                             {/* MCQ / Yozma / Moslashtirish toggle */}
                                             <div className="flex flex-wrap rounded-md overflow-hidden border text-[11px] font-medium" style={{ borderColor: 'var(--border)' }}>
                                                 <button type="button" onClick={() => updateQ(qi, 'questionType', 'mcq')}
@@ -1457,7 +1502,7 @@ export default function TeacherPanel() {
                                             </button>
                                         )}
                                     </div>
-                                    {isQExpanded(qi) && (<>
+                                    {isQExpanded(q.uid) && (<>
                                     <div className="relative">
                                         <textarea placeholder="Savol matni ($formula$ yoki \\frac{a}{b} yozsa preview chiqadi)" required={!q.imageUrl} value={q.text} onChange={e => updateQ(qi, 'text', e.target.value)} rows={2}
                                             className="input resize-none w-full pr-12" style={{ height: 'auto', padding: '0.5rem 0.75rem', fontSize: '13px' }} />
@@ -1671,7 +1716,7 @@ export default function TeacherPanel() {
                                                 <div key={oi} className="space-y-1.5">
                                                     <label className="flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition"
                                                         style={q.correctIdx === oi ? { border: '1px solid color-mix(in srgb, var(--success) 40%, transparent)', background: 'color-mix(in srgb, var(--success) 6%, transparent)' } : { border: '1px solid var(--border)' }}>
-                                                        <input type="radio" name={`correct-${qi}`} checked={q.correctIdx === oi} onChange={() => updateQ(qi, 'correctIdx', oi)} className="w-3 h-3 flex-shrink-0" style={{ accentColor: 'var(--success)' }} />
+                                                        <input type="radio" name={`correct-${q.uid}`} checked={q.correctIdx === oi} onChange={() => updateQ(qi, 'correctIdx', oi)} className="w-3 h-3 flex-shrink-0" style={{ accentColor: 'var(--success)' }} />
                                                         <input placeholder={`Variant ${String.fromCharCode(65 + oi)}`} required={!q.imageUrl} value={o} onChange={e => updateQ(qi, `opt${oi}`, e.target.value)}
                                                             className="flex-1 bg-transparent outline-none text-[13px] min-w-0" />
                                                     </label>
