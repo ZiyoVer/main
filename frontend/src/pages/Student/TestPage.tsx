@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, type NavigateFunction } from 'react-router-dom'
 import { BrainCircuit, CheckCircle, XCircle, ArrowLeft, Sparkles, LogIn, Lock, MessageSquare, ChevronLeft, ChevronRight, Clock } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
@@ -100,6 +100,11 @@ function parseMultipartOptions(raw: unknown): MultipartOptions | null {
 
 const OPTS = ['A', 'B', 'C', 'D'] as const
 type AnswerValue = number | string | string[] | Record<number, number>
+// 5.3: submit javobidagi tavsiya — zaif mavzu va keyingi test
+type TestRecommendation = {
+    focusTopic: { topic: string; subject: string; pct: number } | null
+    nextTest: { id: string; title: string; shareLink: string } | null
+}
 type CorrectAnswerMap = Record<string, { idx: number; text?: string; type: string; matchingCorrect?: number[]; multipartCorrectText?: Array<{ label: string; text: string; correctText: string }>; solutionImage?: string | null }>
 type TestTypeValue = 'REGULAR' | 'DTM_BLOCK' | 'MILLIY_SERTIFIKAT'
 
@@ -130,6 +135,87 @@ function getResultMeta(result: any, testType: TestTypeValue) {
     }
 }
 
+// 5.2: natija foizi 0 dan yakuniy qiymatgacha ~0.8s da sanaladi.
+// prefers-reduced-motion bo'lsa animatsiyasiz to'g'ridan-to'g'ri yakuniy qiymat.
+function useCountUp(target: number, durationMs = 800): number {
+    const [value, setValue] = useState(0)
+    useEffect(() => {
+        const safeTarget = Number.isFinite(target) ? target : 0
+        const reduceMotion = typeof window !== 'undefined'
+            && typeof window.matchMedia === 'function'
+            && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        if (reduceMotion || safeTarget <= 0) {
+            setValue(safeTarget)
+            return
+        }
+        let raf = 0
+        const start = performance.now()
+        const tick = (now: number) => {
+            const progress = Math.min(1, (now - start) / durationMs)
+            const eased = 1 - Math.pow(1 - progress, 3) // ease-out
+            setValue(Math.round(safeTarget * eased))
+            if (progress < 1) raf = requestAnimationFrame(tick)
+        }
+        raf = requestAnimationFrame(tick)
+        return () => cancelAnimationFrame(raf)
+    }, [target, durationMs])
+    return value
+}
+
+// 5.2: animatsiyalangan foiz + yaxshi natijada (>=70%) yumshoq glow-puls
+function ScoreCountUp({ score }: { score: number }) {
+    const shown = useCountUp(score)
+    const celebrate = score >= 70
+    return (
+        <span className={celebrate ? 'tp-score-glow' : undefined} style={{ display: 'inline-block' }}>
+            {celebrate && (
+                <style>{`
+@keyframes tpScoreGlow {
+    0%, 100% { transform: scale(1); text-shadow: 0 0 0 rgba(0, 0, 0, 0); }
+    50% { transform: scale(1.05); text-shadow: 0 0 16px color-mix(in srgb, var(--success) 45%, transparent); }
+}
+.tp-score-glow { animation: tpScoreGlow 1.6s ease-in-out 0.85s 2; }
+@media (prefers-reduced-motion: reduce) { .tp-score-glow { animation: none; } }
+`}</style>
+            )}
+            {shown}%
+        </span>
+    )
+}
+
+// 5.3: "Keyingi qadam" kartasi — zaif mavzu bo'yicha AI mashq va/yoki keyingi test
+function NextStepCard({ recommendation, nav, compact }: { recommendation: TestRecommendation; nav: NavigateFunction; compact?: boolean }) {
+    const { focusTopic, nextTest } = recommendation
+    if (!focusTopic && !nextTest) return null
+    return (
+        <div className={`rounded-xl ${compact ? 'p-3' : 'p-4'} text-left`} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderLeft: '3px solid var(--brand)' }}>
+            <p className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--brand)' }}>Keyingi qadam</p>
+            {focusTopic && (
+                <div className={nextTest ? 'mb-2' : ''}>
+                    <p className="text-[13px] mb-2" style={{ color: 'var(--text-primary)' }}>
+                        Zaif mavzu: <span className="font-semibold">{focusTopic.topic}</span> ({focusTopic.pct}% to'g'ri)
+                    </p>
+                    <button
+                        onClick={() => { const id = localStorage.getItem('dtmmax_analysis_chat_id'); nav(id ? `/suhbat/${id}` : '/suhbat?analyzeTest=true') }}
+                        className={`w-full ${compact ? 'h-9 text-[12px]' : 'h-10 text-[13px]'} rounded-xl font-semibold text-white flex items-center justify-center gap-1.5`}
+                        style={{ background: 'var(--brand)' }}>
+                        <Sparkles className="h-3.5 w-3.5" /> AI bilan mashq qilish
+                    </button>
+                </div>
+            )}
+            {nextTest && (
+                <button
+                    onClick={() => nav('/test/' + nextTest.shareLink)}
+                    className={`w-full ${compact ? 'h-9 text-[12px]' : 'h-10 text-[13px]'} rounded-xl font-semibold flex items-center justify-center gap-1 transition`}
+                    style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
+                    <span className="truncate">Keyingi test: {nextTest.title}</span>
+                    <ChevronRight className="h-4 w-4 flex-shrink-0" />
+                </button>
+            )}
+        </div>
+    )
+}
+
 export default function TestPage() {
     const { shareLink } = useParams<{ shareLink: string }>()
     const nav = useNavigate()
@@ -143,6 +229,7 @@ export default function TestPage() {
     const [submitting, setSubmitting] = useState(false)
     const [correctMap, setCorrectMap] = useState<CorrectAnswerMap>({})
     const [analysisReady, setAnalysisReady] = useState(false)
+    const [recommendation, setRecommendation] = useState<TestRecommendation | null>(null) // 5.3
     const [focusedQ, setFocusedQ] = useState(0) // for DTM mode: highlight active question
     const [timeLeft, setTimeLeft] = useState<number | null>(null)
 
@@ -156,6 +243,14 @@ export default function TestPage() {
         if (!shareLink) return
         setLoading(true)
         setErr('')
+        // 5.3: shareLink o'zgarganda (masalan, "Keyingi test" tugmasi) eski testning
+        // javoblari/natijasi yangi testga o'tib qolmasin — hammasi tozalanadi
+        setAnswers({})
+        setSubmitted(false)
+        setResult(null)
+        setCorrectMap({})
+        setAnalysisReady(false)
+        setRecommendation(null)
         pruneDtmmaxStorage() // 2.3: per-test kalitlar cheksiz o'smasin
         fetchApi(`/tests/by-link/${shareLink}`)
             .then(t => {
@@ -242,6 +337,9 @@ export default function TestPage() {
             })
             const res = await fetchApi(`/tests/${test.id}/submit`, { method: 'POST', body: JSON.stringify({ answers: payload, shareLink }) })
             setResult(res)
+            // 5.3: tavsiya (zaif mavzu / keyingi test) — "Keyingi qadam" kartasi uchun
+            const rec: TestRecommendation | null = res?.recommendation ?? null
+            setRecommendation(rec && (rec.focusTopic || rec.nextTest) ? rec : null)
             const map: CorrectAnswerMap = {}
             res.correctAnswers?.forEach((ca: any) => {
                 map[ca.id] = {
@@ -363,6 +461,7 @@ export default function TestPage() {
         submitting={submitting} submit={submit}
         answeredCount={answeredCount} total={total}
         isGuest={isGuest} analysisReady={analysisReady}
+        recommendation={recommendation}
         focusedQ={focusedQ} setFocusedQ={setFocusedQ}
         questionsRef={questionsRef} scrollToQuestion={scrollToQuestion}
         nav={nav} token={token} timeLeft={timeLeft}
@@ -386,14 +485,18 @@ export default function TestPage() {
                                 <Clock className="h-3.5 w-3.5" /> {formatTimer(timeLeft)}
                             </span>
                         )}
-                        {!isGuest && !submitted && <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>{answeredCount}/{total}</span>}
                         {isGuest && <button onClick={() => nav('/kirish', { state: { from: `/test/${shareLink}` } })} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-white" style={{ background: 'var(--brand)' }}><LogIn className="h-3.5 w-3.5" /> Kirish</button>}
                     </div>
                 </div>
-                {/* Thin progress bar */}
-                {!submitted && !isGuest && (
-                    <div className="h-0.5 w-full" style={{ background: 'var(--bg-muted)' }}>
-                        <div className="h-full transition-all duration-300" style={{ width: `${total ? (answeredCount / total) * 100 : 0}%`, background: 'var(--brand)' }} />
+                {/* 4.5: yopishqoq progress — savollar ustida doim ko'rinib turadi */}
+                {!submitted && !isGuest && total > 0 && (
+                    <div className="px-5 pb-1.5">
+                        <div className="max-w-2xl mx-auto">
+                            <p className="text-[10px] font-medium tabular-nums mb-1 text-right" style={{ color: 'var(--text-muted)' }}>{answeredCount}/{total} javob berildi</p>
+                            <div className="h-[3px] w-full rounded-full overflow-hidden" style={{ background: 'var(--bg-muted)' }}>
+                                <div className="h-full rounded-full transition-all duration-300" style={{ width: `${(answeredCount / total) * 100}%`, background: 'var(--brand)' }} />
+                            </div>
+                        </div>
                     </div>
                 )}
             </header>
@@ -425,11 +528,14 @@ export default function TestPage() {
                             return (
                                 <>
                         <div className="flex items-center justify-center gap-4 mb-2">
-                            <div className="text-4xl font-extrabold" style={{ color: result.score >= 70 ? 'var(--success)' : result.score >= 50 ? 'var(--warning)' : 'var(--danger)' }}>{result.score}%</div>
+                            <div className="text-4xl font-extrabold" style={{ color: result.score >= 70 ? 'var(--success)' : result.score >= 50 ? 'var(--warning)' : 'var(--danger)' }}><ScoreCountUp score={typeof result.score === 'number' ? result.score : 0} /></div>
                             {result.grade && <div className="text-3xl font-extrabold" style={{ color: result.grade.startsWith('A') ? 'var(--success)' : result.grade.startsWith('B') ? 'var(--info)' : result.grade.startsWith('C') ? 'var(--warning)' : 'var(--danger)' }}>{result.grade}</div>}
                         </div>
                         <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{resultMeta.label}: {resultMeta.value}</p>
                         <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{result.correct} / {result.total} to'g'ri javob</p>
+                        {typeof result.score === 'number' && result.score < 50 && recommendation?.focusTopic && (
+                            <p className="text-[12px] mt-2 font-medium" style={{ color: 'var(--warning)' }}>Zaif mavzularing aniqlandi — birga mustahkamlaymiz 💪</p>
+                        )}
                         <div className="mt-3 flex items-center justify-center gap-2 flex-wrap">
                             {normalizedTestType === 'MILLIY_SERTIFIKAT' && result.msBall !== undefined && <div className="px-3 py-1.5 rounded-lg text-[12px] font-semibold" style={{ background: 'color-mix(in srgb, var(--brand) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', color: 'var(--brand)' }}>MS: {result.msBall} / {result.msMax}</div>}
                         </div>
@@ -448,6 +554,9 @@ export default function TestPage() {
                         <button onClick={() => { const id = localStorage.getItem('dtmmax_analysis_chat_id'); nav(id ? `/suhbat/${id}` : '/suhbat?analyzeTest=true') }} className="w-full h-10 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2" style={{ background: 'var(--brand)' }}><MessageSquare className="h-4 w-4" /> Hozir o'tish</button>
                     </div>
                 )}
+
+                {/* 5.3: Keyingi qadam — zaif mavzu mashqi / keyingi test */}
+                {submitted && recommendation && <NextStepCard recommendation={recommendation} nav={nav} />}
 
                 {/* Questions */}
                 {test?.questions?.map((q: any, qi: number) => {
@@ -603,7 +712,7 @@ export default function TestPage() {
                 {!submitted && (
                     isGuest
                         ? <button onClick={() => nav('/kirish', { state: { from: `/test/${shareLink}` } })} className="w-full h-11 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2" style={{ background: 'var(--brand)' }}><LogIn className="h-4 w-4" /> Yechishni boshlash uchun kiring</button>
-                        : <button onClick={() => submit()} disabled={submitting || answeredCount === 0} className="w-full h-11 rounded-xl text-sm font-semibold text-white transition disabled:opacity-40" style={{ background: 'var(--k-accent-grad)', boxShadow: 'var(--k-shadow-cta)' }}>{submitting ? 'Tekshirilmoqda...' : `Testni yuborish (${answeredCount}/${total})`}</button>
+                        : <button onClick={() => submit()} disabled={submitting || answeredCount === 0} className="w-full h-11 rounded-xl text-sm font-semibold text-white transition disabled:opacity-40" style={{ background: 'var(--k-accent-grad)', boxShadow: 'var(--k-shadow-cta)' }}>{submitting ? 'Tekshirilmoqda...' : answeredCount < total ? `Testni yuborish (${total - answeredCount} ta javobsiz)` : `Testni yuborish (${answeredCount}/${total})`}</button>
                 )}
                 {submitted && <button onClick={() => nav('/suhbat')} className="w-full h-11 rounded-xl text-sm font-semibold transition" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>Chatga qaytish</button>}
             </div>
@@ -614,7 +723,7 @@ export default function TestPage() {
 // ─────────────────────────────────────────────────────────────
 // DTM TEST VIEW — split screen: questions left, blanka right
 // ─────────────────────────────────────────────────────────────
-function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap, submitting, submit, answeredCount, total, isGuest, analysisReady, focusedQ, setFocusedQ, questionsRef, scrollToQuestion, nav, token, timeLeft }: any) {
+function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap, submitting, submit, answeredCount, total, isGuest, analysisReady, recommendation, focusedQ, setFocusedQ, questionsRef, scrollToQuestion, nav, token, timeLeft }: any) {
     const shareLink = test?.shareLink
     const questions: any[] = test?.questions || []
     const [isCompactLayout, setIsCompactLayout] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 1024 : false)
@@ -816,9 +925,12 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
             return (
                 <div className={footerPadding} style={{ borderTop: '1px solid var(--border)' }}>
                     <div className="text-center">
-                        <p className="text-xl font-extrabold" style={{ color: result?.score >= 70 ? 'var(--success)' : result?.score >= 50 ? 'var(--warning)' : 'var(--danger)' }}>{result?.score ?? 0}%</p>
+                        <p className="text-xl font-extrabold" style={{ color: result?.score >= 70 ? 'var(--success)' : result?.score >= 50 ? 'var(--warning)' : 'var(--danger)' }}><ScoreCountUp score={typeof result?.score === 'number' ? result.score : 0} /></p>
                         <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{resultMeta.value}</p>
                         <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{result?.correct}/{result?.total} to'g'ri javob</p>
+                        {typeof result?.score === 'number' && result.score < 50 && recommendation?.focusTopic && (
+                            <p className="text-[10px] mt-1 font-medium" style={{ color: 'var(--warning)' }}>Zaif mavzularing aniqlandi — birga mustahkamlaymiz 💪</p>
+                        )}
                         {analysisReady && (
                             <button onClick={() => { const id = localStorage.getItem('dtmmax_analysis_chat_id'); nav(id ? `/suhbat/${id}` : '/suhbat?analyzeTest=true') }} className={`mt-2 w-full ${buttonHeight} rounded-lg text-[12px] font-semibold text-white flex items-center justify-center gap-1.5`} style={{ background: 'var(--brand)' }}>
                                 <Sparkles className="h-3 w-3" /> AI tahlil
@@ -1014,7 +1126,9 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
 
                     {/* Chatga qaytish (after submit) */}
                     {submitted && (
-                        <div className="pb-6">
+                        <div className="pb-6 space-y-3">
+                            {/* 5.3: Keyingi qadam — DTM ko'rinishida ham */}
+                            {recommendation && <NextStepCard recommendation={recommendation} nav={nav} compact />}
                             <button onClick={() => nav('/suhbat')} className="w-full h-11 rounded-xl text-sm font-semibold transition" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
                                 Chatga qaytish
                             </button>
