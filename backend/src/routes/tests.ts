@@ -358,6 +358,23 @@ function createDtmBlockCounts(): Record<DtmBlockType, number> {
     }
 }
 
+// Rasmiy DTM blok tartibi — saqlashda savollar shu tartibda joylanadi (orderIdx massivdan olinadi).
+// Invariant serverda turadi: eski klient, to'g'ridan-to'g'ri API chaqiruv yoki kelajakdagi
+// import yo'li ham blok tartibini buza olmaydi.
+const DTM_BLOCK_SAVE_ORDER: Record<string, number> = {
+    MANDATORY_LANGUAGE: 0, MANDATORY_MATH: 1, MANDATORY_HISTORY: 2, SPECIALTY_1: 3, SPECIALTY_2: 4
+}
+
+function sortDtmQuestionsInPlace(questions: unknown[]): void {
+    const rank = (question: unknown) => {
+        const rawBlockType = (question as IncomingCreateQuestion | null)?.blockType
+        const blockType = normalizeDtmBlockType(typeof rawBlockType === 'string' ? rawBlockType : undefined)
+        return DTM_BLOCK_SAVE_ORDER[blockType] ?? 9
+    }
+    // Array.prototype.sort barqaror — blok ichidagi tartib o'zgarmaydi
+    questions.sort((a, b) => rank(a) - rank(b))
+}
+
 function validateDtmBlockStructure(questions: IncomingCreateQuestion[], subject2: string | null): string | null {
     if (questions.length > DTM_OFFICIAL_TOTAL_QUESTIONS) {
         return `DTM blok testida eng ko'pi bilan ${DTM_OFFICIAL_TOTAL_QUESTIONS} ta savol bo'lishi kerak`
@@ -1321,6 +1338,8 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
         }
 
         if (normalizedTestType === 'DTM_BLOCK') {
+            // Savollar HAR DOIM rasmiy blok tartibida saqlanadi — validatsiya xato indekslari ham shu tartibda
+            sortDtmQuestionsInPlace(questions)
             const structureError = validateDtmBlockStructure(questions as IncomingCreateQuestion[], normalizedSubject2)
             if (structureError) {
                 return res.status(400).json({ error: structureError })
@@ -1531,6 +1550,8 @@ router.patch('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), testMuta
         }
 
         if (normalizedTestType === 'DTM_BLOCK') {
+            // Savollar HAR DOIM rasmiy blok tartibida saqlanadi — validatsiya xato indekslari ham shu tartibda
+            sortDtmQuestionsInPlace(questions)
             const structureError = validateDtmBlockStructure(questions as IncomingCreateQuestion[], normalizedSubject2)
             if (structureError) {
                 return res.status(400).json({ error: structureError })

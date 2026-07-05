@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import { BrainCircuit, Plus, Trash2, LogOut, Copy, Check, Globe, Lock, ClipboardList, Upload, Sparkles, FileText, Image, BarChart2, X, Users, Bell } from 'lucide-react'
 import { fetchApi, uploadFile } from '@/lib/api'
+import { saveScopedItem } from '@/lib/storagePrune'
 import { renderMathHtml } from '@/lib/mathRender'
 import { useAuthStore } from '@/store/authStore'
 import { SUBJECTS } from '../../constants'
@@ -100,6 +101,7 @@ interface TeacherTestListItem {
     subject: string
     subject2: string | null
     isPublic: boolean
+    approved?: boolean
     testType: string | null
     timeLimit: number | null
     shareLink: string
@@ -223,13 +225,37 @@ const TEST_TYPES: Array<{ value: TestTypeValue; title: string; description: stri
     { value: 'MILLIY_SERTIFIKAT', title: 'Milliy Sertifikat', description: 'Rasch modeli · 75 ball', accent: 'var(--info)', icon: '📋' },
 ]
 
-const DTM_BLOCK_OPTIONS: Array<{ value: DtmBlockTypeValue; label: string; coefficient: number; target: number }> = [
-    { value: 'MANDATORY_LANGUAGE', label: 'Ona tili', coefficient: 1.1, target: 10 },
-    { value: 'MANDATORY_MATH', label: 'Majburiy matematika', coefficient: 1.1, target: 10 },
-    { value: 'MANDATORY_HISTORY', label: 'O‘zbekiston tarixi', coefficient: 1.1, target: 10 },
-    { value: 'SPECIALTY_1', label: '1-ixtisoslik', coefficient: 3.1, target: 30 },
-    { value: 'SPECIALTY_2', label: '2-ixtisoslik', coefficient: 2.1, target: 30 },
+// aiSubject — blok AI importida generate-from-file'ga yuboriladigan fan;
+// ixtisoslik bloklari uchun yo'q (formadagi subject/subject2 dan olinadi)
+const DTM_BLOCK_OPTIONS: Array<{ value: DtmBlockTypeValue; label: string; shortLabel: string; coefficient: number; target: number; aiSubject?: string }> = [
+    { value: 'MANDATORY_LANGUAGE', label: 'Ona tili', shortLabel: 'Ona tili', coefficient: 1.1, target: 10, aiSubject: 'Ona tili' },
+    { value: 'MANDATORY_MATH', label: 'Majburiy matematika', shortLabel: 'Matem.', coefficient: 1.1, target: 10, aiSubject: 'Matematika' },
+    { value: 'MANDATORY_HISTORY', label: 'O‘zbekiston tarixi', shortLabel: 'Tarix', coefficient: 1.1, target: 10, aiSubject: 'Tarix' },
+    { value: 'SPECIALTY_1', label: '1-ixtisoslik', shortLabel: '1-ixt.', coefficient: 3.1, target: 30 },
+    { value: 'SPECIALTY_2', label: '2-ixtisoslik', shortLabel: '2-ixt.', coefficient: 2.1, target: 30 },
 ]
+
+// Payload'da savollar rasmiy DTM tartibida ketadi (orderIdx massiv tartibidan olinadi)
+const DTM_BLOCK_RANK: Record<string, number> = {
+    MANDATORY_LANGUAGE: 0, MANDATORY_MATH: 1, MANDATORY_HISTORY: 2, SPECIALTY_1: 3, SPECIALTY_2: 4
+}
+
+// Qoralama avtosaqlash — brauzer yopilib qolsa 90 savollik mehnat yo'qolmasin.
+// Kalit user id bilan scoped: umumiy kompyuterda boshqa o'qituvchi qoralamasi ko'rinmasin
+const teacherDraftKeyFor = (userId: string | undefined) => `dtmmax_teacher_draft_${userId || 'anon'}_v1`
+interface TeacherDraft {
+    savedAt: string
+    title: string
+    subject: string
+    subject2: string
+    isPublic: boolean
+    testType: TestTypeValue
+    source: 'OFFICIAL' | 'UNOFFICIAL' | 'AI_PREDICTION'
+    premium: boolean
+    timeLimit: number
+    timeLimitTouched: boolean
+    questions: Question[]
+}
 
 function getDefaultCoefficient(blockType: DtmBlockTypeValue): number {
     return DTM_BLOCK_OPTIONS.find(option => option.value === blockType)?.coefficient ?? 3.1
@@ -352,6 +378,16 @@ export default function TeacherPanel() {
     const fileInputRef = useRef<HTMLInputElement>(null)
     const dtmControlStats = useMemo(() => getDtmControlStats(questions), [questions])
 
+    // DTM blok-bo'limli forma: yopiq bo'limlar + har blokka alohida AI import
+    const [collapsedBlocks, setCollapsedBlocks] = useState<Set<DtmBlockTypeValue>>(new Set())
+    const [blockAiGenerating, setBlockAiGenerating] = useState<DtmBlockTypeValue | null>(null)
+    // Ref (state emas) — tugma bosilishi bilan sinxron yoziladi, file input onChange kechroq o'qiydi
+    const blockAiTargetRef = useRef<DtmBlockTypeValue | null>(null)
+    const blockFileInputRef = useRef<HTMLInputElement>(null)
+
+    // Qoralama: mount'da topilgan bo'lsa banner ko'rsatamiz
+    const [draftMeta, setDraftMeta] = useState<{ title: string; count: number; savedAt: string } | null>(null)
+
     useEffect(() => { loadTests() }, [])
     useEffect(() => {
         const sendPing = () => fetchApi('/auth/ping', { method: 'POST', body: JSON.stringify({ page: 'teacher' }), silent: true }).catch(() => { })
@@ -388,6 +424,88 @@ export default function TeacherPanel() {
     }, [questions.length, testType, timeLimitTouched])
     async function loadTests() {
         try { setTests(await fetchApi('/tests/my-tests')) } catch { }
+    }
+
+    const teacherDraftKey = teacherDraftKeyFor(user?.id)
+
+    // Mount'da saqlangan qoralama bor-yo'qligini tekshiramiz (banner uchun)
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(teacherDraftKey)
+            if (!raw) return
+            const draft = JSON.parse(raw) as TeacherDraft
+            if (!Array.isArray(draft.questions) || draft.questions.length === 0) return
+            setDraftMeta({ title: draft.title || 'Nomsiz test', count: draft.questions.length, savedAt: draft.savedAt })
+        } catch {
+            localStorage.removeItem(teacherDraftKey)
+        }
+    }, [teacherDraftKey])
+
+    // Qoralama avtosaqlash (debounce 800ms) — faqat YANGI test yaratishda.
+    // Tahrirlash/nusxa rejimida yozmaymiz: tiklash semantikasi chalkashadi.
+    // MUHIM: banner turganда (draftMeta) ham yozmaymiz — aks holda yangi bir harf
+    // eski 90 savollik qoralamani 800ms ichida yozib yuborardi, banner esa hali eskisini taklif qilib turardi
+    useEffect(() => {
+        if (tab !== 'create' || editingTestId || cloneMode || draftMeta) return
+        const timer = setTimeout(() => {
+            const hasContent = title.trim().length > 0
+                || questions.some(q => q.text.trim() || q.imageUrl || q.options.some(option => option.trim()))
+            if (!hasContent) return
+            const draft: TeacherDraft = {
+                savedAt: new Date().toISOString(),
+                title, subject, subject2, isPublic, testType, source, premium, timeLimit, timeLimitTouched,
+                // Yuklanish flaglari saqlanmaydi (spinner osilib qolmasin); blob: preview'lar ham —
+                // ular brauzer yopilganda o'ladi va tiklanganда singan rasm ko'rsatardi.
+                // Signed URL preview'lar (7 kun yashaydi) saqlanadi.
+                questions: questions.map(({ imageUploading: _a, optionImageUploading: _b, solutionImageUploading: _c, ...rest }) => ({
+                    ...rest,
+                    imagePreviewUrl: rest.imagePreviewUrl?.startsWith('blob:') ? null : rest.imagePreviewUrl,
+                    optionImagePreviews: rest.optionImagePreviews?.map(preview => (preview?.startsWith('blob:') ? null : preview)),
+                    solutionImagePreviewUrl: rest.solutionImagePreviewUrl?.startsWith('blob:') ? null : rest.solutionImagePreviewUrl
+                }))
+            }
+            // saveScopedItem: quota to'lsa eski dtmmax_* kalitlarni prune qilib qayta urinadi
+            saveScopedItem(teacherDraftKey, JSON.stringify(draft))
+        }, 800)
+        return () => clearTimeout(timer)
+    }, [tab, editingTestId, cloneMode, draftMeta, teacherDraftKey, title, subject, subject2, isPublic, testType, source, premium, timeLimit, timeLimitTouched, questions])
+
+    function restoreDraft() {
+        try {
+            const raw = localStorage.getItem(teacherDraftKey)
+            if (!raw) { setDraftMeta(null); return }
+            const draft = JSON.parse(raw) as TeacherDraft
+            // Formada yozilgan (banner sabab avtosaqlanmagan) kontent bo'lsa — so'raymiz
+            const hasFormContent = title.trim().length > 0
+                || questions.some(q => q.text.trim() || q.imageUrl || q.options.some(option => option.trim()))
+            if (hasFormContent && !confirm('Joriy formadagi kontent qoralama bilan almashtiriladi. Davom etasizmi?')) return
+            resetEditorState()
+            setTitle(draft.title || '')
+            setSubject(draft.subject || 'Matematika')
+            setSubject2(draft.subject2 || '')
+            setIsPublic(Boolean(draft.isPublic))
+            setTestType(draft.testType || 'REGULAR')
+            setSource(draft.source || 'UNOFFICIAL')
+            setPremium(Boolean(draft.premium))
+            setTimeLimit(draft.timeLimit || 0)
+            setTimeLimitTouched(Boolean(draft.timeLimitTouched))
+            setQuestions(draft.questions.length > 0
+                ? draft.questions.map(q => ({ ...q, uid: q.uid || nextQuestionUid() }))
+                : [createEmptyQuestion()])
+            setTab('create')
+            setMsg('')
+            setDraftMeta(null)
+            toast.success('Qoralama tiklandi')
+        } catch {
+            localStorage.removeItem(teacherDraftKey)
+            setDraftMeta(null)
+            toast.error('Qoralama buzilgan — tiklab bo\'lmadi')
+        }
+    }
+
+    function discardDraft() {
+        localStorage.removeItem(teacherDraftKey)
+        setDraftMeta(null)
     }
 
     function resetEditorState() {
@@ -431,13 +549,98 @@ export default function TeacherPanel() {
         finally { setSendingNotif(false) }
     }
 
+    // Faqat DTM bo'lmagan testlarda ishlatiladi — DTM'da savol bo'lim ichidan qo'shiladi (addQuestionToBlock)
     function addQuestion() {
-        setQuestions(prev => [
-            ...prev,
-            testType === 'DTM_BLOCK'
-                ? { ...createEmptyQuestion(), questionType: 'mcq', blockType: 'SPECIALTY_1', coefficient: 3.1 }
-                : createEmptyQuestion()
-        ])
+        setQuestions(prev => [...prev, createEmptyQuestion()])
+    }
+
+    // DTM bo'limidan savol qo'shish — blok turi va koeffitsient bo'limdan avtomatik
+    function addQuestionToBlock(blockType: DtmBlockTypeValue) {
+        const question = { ...createEmptyQuestion(), questionType: 'mcq' as const, blockType, coefficient: getDefaultCoefficient(blockType) }
+        setQuestions(prev => [...prev, question])
+        setExpandedQ(prev => { const next = new Set(prev); next.add(question.uid); return next })
+    }
+
+    function toggleBlockCollapse(blockType: DtmBlockTypeValue) {
+        setCollapsedBlocks(prev => {
+            const next = new Set(prev)
+            if (next.has(blockType)) next.delete(blockType); else next.add(blockType)
+            return next
+        })
+    }
+
+    // AI javobidagi MCQ savolni forma savoliga aylantirish — global va blok importlari
+    // BIR XIL qoidada ishlasin (drift bo'lsa bir import boshqasidan farqli savol chiqarardi)
+    function mapAiMcqQuestion(q: { text?: string; options?: unknown[]; correctIdx?: number }, blockType: DtmBlockTypeValue, coefficient: number): Question {
+        // Variantlar POZITSIYASI saqlanadi — bo'shlarini filter qilish indekslarni surib,
+        // correctIdx boshqa variantga ko'rsatib qolardi (noto'g'ri javob "to'g'ri" bo'lib saqlanardi)
+        const opts = (Array.isArray(q.options) ? q.options.map(option => (option == null ? '' : String(option))) : []).slice(0, 4)
+        while (opts.length < 4) opts.push('')
+        return {
+            ...createEmptyQuestion(),
+            text: q.text || '',
+            options: opts.slice(0, 4),
+            // correctIdx 0-3 oralig'iga clamp — AI ba'zan chegaradan tashqari indeks qaytaradi
+            correctIdx: typeof q.correctIdx === 'number' ? Math.max(0, Math.min(q.correctIdx, 3)) : 0,
+            questionType: 'mcq',
+            blockType,
+            coefficient
+        }
+    }
+
+    // AI fayl tekshiruvi — backend qabul qiladigan turlar va multer 20MB limiti.
+    // Eski .doc YO'Q: backend mammoth faqat .docx o'qiydi, .doc yuborilsa chalg'ituvchi 500 qaytardi
+    function aiFileError(file: File): string | null {
+        const isAllowedType = file.type.startsWith('image/')
+            || file.type === 'application/pdf'
+            || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        if (!isAllowedType) return 'Faqat PDF, Word (.docx) yoki rasm (PNG, JPG) fayllari qo\'llab-quvvatlanadi'
+        if (file.size > 20 * 1024 * 1024) return 'Fayl hajmi 20MB dan oshmasligi kerak'
+        return null
+    }
+
+    // Bitta DTM blokiga AI import: savollar shu blokka avto-belgilanadi.
+    // (Avval hamma import SPECIALTY_1 ga majburlanardi — 90 savolda saqlash darrov rad etilardi.)
+    async function generateBlockFromFile(blockType: DtmBlockTypeValue, file: File) {
+        const option = DTM_BLOCK_OPTIONS.find(item => item.value === blockType)
+        if (!option) return
+        const fileError = aiFileError(file)
+        if (fileError) { toast.error(fileError); return }
+        // Majburiy bloklar fani jadvaldan (aiSubject), ixtisoslik bloklari formadan
+        const blockSubject = option.aiSubject ?? (blockType === 'SPECIALTY_2' ? (subject2 || subject) : subject)
+        // Rasm-only savollar ham kontent (matni bo'sh bo'lsa ham) — ularni jimgina o'chirib yubormaslik kerak
+        const hasContent = questions.some(q => q.blockType === blockType
+            && (q.text.trim() || q.imageUrl || q.options.some(option2 => option2.trim()) || q.optionImages?.some(Boolean) || q.solutionImageUrl))
+        if (hasContent && !confirm(`${option.label} blokidagi mavjud savollar import qilingan savollar bilan almashtiriladi. Davom etasizmi?`)) return
+        setBlockAiGenerating(blockType)
+        try {
+            const formData = new FormData()
+            formData.append('file', file)
+            formData.append('subject', blockSubject)
+            const data = await uploadFile('/tests/generate-from-file', formData)
+            const totalParsed = (data.questions || []).length
+            const mapped: Question[] = (data.questions || [])
+                .filter((q: { questionType?: string }) => q.questionType !== 'matching')
+                .map((q: { text?: string; options?: unknown[]; correctIdx?: number }) => mapAiMcqQuestion(q, blockType, option.coefficient))
+                .filter((q: Question) => q.text.trim().length > 0)
+            if (mapped.length === 0) { toast.error('Fayldan A/B/C/D savollar topilmadi'); return }
+            // Limitdan oshsa ham HAMMASI olinadi — savol yo'qolmaydi. Bo'lim qizarib
+            // over-limit ko'rsatadi, ortiqchasini "Blok turi" bilan boshqa blokka ko'chirish mumkin
+            if (mapped.length > option.target) {
+                toast(`${mapped.length} ta savol keldi — blok limiti ${option.target}. Ortiqchasini "Blok turi" orqali boshqa blokka ko'chiring.`, { duration: 7000 })
+            }
+            if (totalParsed > mapped.length) {
+                toast(`${totalParsed - mapped.length} ta A/B/C/D bo'lmagan yoki bo'sh savol o'tkazib yuborildi`)
+            }
+            if (data.truncated) toast('Fayl katta — AI bo\'lib-bo\'lib tahlil qildi, natijani tekshirib chiqing')
+            setQuestions(prev => [...prev.filter(q => q.blockType !== blockType), ...mapped])
+            setCollapsedBlocks(prev => { const next = new Set(prev); next.delete(blockType); return next })
+            toast.success(`${option.label}: ${mapped.length} ta savol import qilindi`)
+        } catch (e) {
+            toast.error(e instanceof Error ? e.message : 'AI import ishlamadi')
+        } finally {
+            setBlockAiGenerating(null)
+        }
     }
 
     function applyOfficialDtmTemplate() {
@@ -543,12 +746,14 @@ export default function TeacherPanel() {
     // Faylni serverga yuklaydi (compress qilingan yoki original). Xatoni YUQORIGA uzatadi
     // (handleImageUpload uni toast bilan ko'rsatadi) — avval catch ichida qayta chaqirilib,
     // ikkinchi xato JIM yo'qolardi.
-    async function uploadQuestionImage(qi: number, file: File): Promise<void> {
+    // Savol INDEKS emas, uid orqali topiladi — yuklash async, orada savol o'chirilsa
+    // indekslar suriladi va rasm noto'g'ri savolga yozilardi (variant/yechim yo'llari kabi)
+    async function uploadQuestionImage(uid: string, file: File): Promise<void> {
         const formData = new FormData()
         formData.append('image', file)
         const uploaded = await uploadFile('/tests/upload-image', formData)
         if (!uploaded?.imageUrl) throw new Error('Server rasm manzilini qaytarmadi')
-        setQuestions(prev => prev.map((q, i) => i === qi ? {
+        setQuestions(prev => prev.map(q => q.uid === uid ? {
             ...q,
             imageUrl: uploaded.imageUrl,
             imagePreviewUrl: uploaded.url || q.imagePreviewUrl, // signed URL kelmasa lokal preview qoladi
@@ -574,24 +779,24 @@ export default function TeacherPanel() {
         } catch { return null }
     }
 
-    async function handleImageUpload(qi: number, file: File) {
+    async function handleImageUpload(uid: string, file: File) {
         const MAX_SIZE = 10 * 1024 * 1024 // 10MB
         if (!file.type.startsWith('image/')) { toast.error('Faqat rasm fayllari (PNG, JPG) qo\'yiladi'); return }
         if (file.size > MAX_SIZE) { toast.error('Rasm hajmi 10MB dan oshmasligi kerak'); return }
 
         // 1) DARROV lokal preview ko'rsatamiz (xira, spinner bilan) — o'qituvchi yuklanayotganini KO'RADI
         const localPreview = URL.createObjectURL(file)
-        setQuestions(prev => prev.map((q, i) => i === qi
+        setQuestions(prev => prev.map(q => q.uid === uid
             ? { ...q, imagePreviewUrl: localPreview, imageUploading: true }
             : q))
 
         // 2) Compress (ixtiyoriy) → yuklash. Compress bo'lmasa original bilan urinamiz.
         const compressed = await compressImage(file)
         try {
-            await uploadQuestionImage(qi, compressed || file)
+            await uploadQuestionImage(uid, compressed || file)
         } catch (e: any) {
             // Xato — endi JIM emas: aniq sabab ko'rsatiladi (masalan S3 sozlanmagan bo'lsa)
-            setQuestions(prev => prev.map((q, i) => i === qi
+            setQuestions(prev => prev.map(q => q.uid === uid
                 ? { ...q, imagePreviewUrl: null, imageUploading: false }
                 : q))
             URL.revokeObjectURL(localPreview)
@@ -602,7 +807,7 @@ export default function TeacherPanel() {
             return
         }
         // 3) Muvaffaqiyat — spinnerni o'chiramiz (imagePreviewUrl uploadQuestionImage ichida signed URL bo'ldi)
-        setQuestions(prev => prev.map((q, i) => i === qi ? { ...q, imageUploading: false } : q))
+        setQuestions(prev => prev.map(q => q.uid === uid ? { ...q, imageUploading: false } : q))
         URL.revokeObjectURL(localPreview)
     }
 
@@ -774,19 +979,8 @@ export default function TeacherPanel() {
     async function generateFromFile() {
         if (!aiFile) return
         // Klient-tomon tekshiruv — backend qabul qiladigan turlar (PDF, Word, rasm) va multer 20MB limiti bilan mos
-        const AI_FILE_MAX_SIZE = 20 * 1024 * 1024 // 20MB
-        const isAllowedType = aiFile.type.startsWith('image/')
-            || aiFile.type === 'application/pdf'
-            || aiFile.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-            || aiFile.type === 'application/msword'
-        if (!isAllowedType) {
-            setAiError('Faqat PDF, Word (.doc/.docx) yoki rasm (PNG, JPG) fayllari qo\'llab-quvvatlanadi')
-            return
-        }
-        if (aiFile.size > AI_FILE_MAX_SIZE) {
-            setAiError('Fayl hajmi 20MB dan oshmasligi kerak')
-            return
-        }
+        const fileError = aiFileError(aiFile)
+        if (fileError) { setAiError(fileError); return }
         setAiGenerating(true); setAiError(''); setAiDone(false)
         try {
             const formData = new FormData()
@@ -818,34 +1012,14 @@ export default function TeacherPanel() {
                         coefficient: 3.1
                     }
                 }
-                // MCQ savol
-                let opts = Array.isArray(q.options) ? q.options.map(String).filter((o: string) => o.trim().length > 0) : []
-                while (opts.length < 4) opts.push('')
-                return {
-                    uid: nextQuestionUid(),
-                    text: q.text || '',
-                    options: opts.slice(0, 4),
-                    correctIdx: typeof q.correctIdx === 'number' ? q.correctIdx : 0,
-                    questionType: 'mcq' as const,
-                    correctText: '',
-                    blockType: 'SPECIALTY_1',
-                    coefficient: 3.1
-                }
+                // MCQ savol — blok importi bilan BIR XIL mapper (indeks/clamp qoidalari yagona)
+                return mapAiMcqQuestion(q, 'SPECIALTY_1', 3.1)
             })
-            const normalizedMapped = testType === 'DTM_BLOCK'
-                ? mapped.filter(question => question.questionType === 'mcq').map(question => ({
-                    ...question,
-                    blockType: 'SPECIALTY_1' as const,
-                    coefficient: 3.1
-                }))
-                : mapped
 
-            setQuestions(normalizedMapped.length > 0 ? normalizedMapped : [createEmptyQuestion()])
+            // Bu karta DTM_BLOCK'da ko'rinmaydi (u yerda blok importi ishlaydi) — DTM normalizatsiya kerak emas
+            setQuestions(mapped.length > 0 ? mapped : [createEmptyQuestion()])
             setAiDone(true)
             if (!title) setTitle(`${subject} testi`)
-            if (testType === 'DTM_BLOCK' && normalizedMapped.length !== mapped.length) {
-                setAiError('DTM blok testida faqat A/B/C/D savollar qoldirildi. Blok turini har savolda tekshiring.')
-            }
             if (data.truncated) {
                 setAiError('Fayl katta bo\'lgani uchun AI uni bo\'lib-bo\'lib tahlil qildi. Natijalarni tekshirib chiqing.')
             }
@@ -858,6 +1032,23 @@ export default function TeacherPanel() {
     async function submit(e: React.FormEvent) {
         e.preventDefault()
         if (loading) return
+
+        // Rasm hali yuklanayotganda saqlansa, test rasmsiz ketardi — kutamiz
+        const uploadingImages = questions.some(q => q.imageUploading || q.optionImageUploading != null || q.solutionImageUploading)
+        if (uploadingImages) {
+            setMsg('Rasm hali yuklanmoqda — tugashini kutib, qayta saqlang')
+            return
+        }
+
+        // Xato xabarida o'qituvchi ko'rgan raqam chiqsin: DTM'da "1-ixtisoslik 5-savol", oddiyda "Savol 5"
+        const questionLabel = (i: number) => {
+            if (testType !== 'DTM_BLOCK') return `Savol ${i + 1}`
+            const blockType = questions[i]?.blockType
+            const option = DTM_BLOCK_OPTIONS.find(item => item.value === blockType)
+            if (!option) return `Savol ${i + 1}`
+            const position = questions.slice(0, i + 1).filter(item => item.blockType === blockType).length
+            return `${option.label}, ${position}-savol`
+        }
 
         // Auto-fill empty options or text if there's an image
         const finalQuestions = questions.map(q => {
@@ -896,7 +1087,7 @@ export default function TeacherPanel() {
         })
 
         for (let i = 0; i < finalQuestions.length; i++) {
-            if (!finalQuestions[i].text?.trim() && !finalQuestions[i].imageUrl) { setMsg(`Savol ${i + 1} matni bo'sh`); return }
+            if (!finalQuestions[i].text?.trim() && !finalQuestions[i].imageUrl) { setMsg(`${questionLabel(i)} matni bo'sh`); return }
             if (finalQuestions[i].questionType === 'open') continue
             if (finalQuestions[i].questionType === 'multipart_open') {
                 let multipartPayload: { subQuestions?: MultipartOpenSubQ[] } = {}
@@ -925,7 +1116,7 @@ export default function TeacherPanel() {
                 continue
             }
             for (let j = 0; j < 4; j++) {
-                if (!finalQuestions[i].options[j]?.trim()) { setMsg(`Savol ${i + 1}, variant ${String.fromCharCode(65 + j)} bo'sh`); return }
+                if (!finalQuestions[i].options[j]?.trim()) { setMsg(`${questionLabel(i)}, variant ${String.fromCharCode(65 + j)} bo'sh`); return }
             }
         }
 
@@ -950,6 +1141,12 @@ export default function TeacherPanel() {
             }
         }
         setLoading(true); setMsg('')
+        // DTM'da savollar rasmiy blok tartibida yuboriladi (orderIdx massivdan olinadi) —
+        // o'quvchi testni Ona tili → Matematika → Tarix → Ixtisoslik tartibida ko'radi.
+        // Barqaror sort: blok ichidagi tartib o'zgarmaydi.
+        const payloadQuestions = testType === 'DTM_BLOCK'
+            ? [...finalQuestions].sort((a, b) => (DTM_BLOCK_RANK[a.blockType || ''] ?? 9) - (DTM_BLOCK_RANK[b.blockType || ''] ?? 9))
+            : finalQuestions
         try {
             await fetchApi(editingTestId ? `/tests/${editingTestId}` : '/tests/create', {
                 method: editingTestId ? 'PATCH' : 'POST',
@@ -964,7 +1161,7 @@ export default function TeacherPanel() {
                     timeLimit: timeLimit || null,
                     // uid va boshqa klient-only maydonlar API ga yuborilmaydi
                     // (optionImages va solutionImageUrl — 's3key:' ref'lar — payloadda QOLADI)
-                    questions: finalQuestions.map(({
+                    questions: payloadQuestions.map(({
                         uid: _uid,
                         imagePreviewUrl: _preview,
                         imageUploading: _uploading,
@@ -977,6 +1174,14 @@ export default function TeacherPanel() {
                 })
             })
             setMsg('success')
+            // Teacher public test admin tasdig'igacha o'quvchilarga ko'rinmaydi — buni ochiq aytamiz,
+            // aks holda "joyladim, lekin chiqmayapti" bo'lib tuyuladi
+            if (isPublic && user?.role !== 'ADMIN') {
+                toast.success('Test saqlandi — admin tasdig\'idan so\'ng o\'quvchilarga ko\'rinadi', { duration: 6000 })
+            }
+            // Muvaffaqiyatli saqlandi — qoralama endi kerak emas
+            localStorage.removeItem(teacherDraftKey)
+            setDraftMeta(null)
             setTitle('')
             setQuestions([createEmptyQuestion()])
             setTimeLimit(0)
@@ -1008,6 +1213,9 @@ export default function TeacherPanel() {
             })
             if (currentIsPublic) {
                 toast.success('Test private qilindi')
+            } else if (res?.approved === false) {
+                // TEACHER public qilganda backend approved=false qo'yadi — tasdiqqacha o'quvchi ko'rmaydi
+                toast.success('Test tasdiqqa yuborildi — admin tasdig\'idan so\'ng o\'quvchilarga ko\'rinadi', { duration: 6000 })
             } else {
                 const notified = typeof res?.notified === 'number' ? res.notified : 0
                 toast.success(notified > 0
@@ -1020,11 +1228,15 @@ export default function TeacherPanel() {
         }
     }
 
-    function copyLink(shareLink: string) {
+    function copyLink(shareLink: string, pendingApproval = false) {
         const url = `${window.location.origin}/test/${shareLink}`
         navigator.clipboard.writeText(url)
         setCopied(shareLink)
         setTimeout(() => setCopied(null), 2000)
+        // Tasdiqlanmagan public test havolasini o'quvchi ochsa 403 oladi — o'qituvchini ogohlantiramiz
+        if (pendingApproval) {
+            toast('Havola nusxalandi, lekin test hali tasdiqlanmagan — o\'quvchilar admin tasdig\'idan keyin ocha oladi', { duration: 6000 })
+        }
     }
 
     async function openAnalytics(testId: string) {
@@ -1261,6 +1473,22 @@ export default function TeacherPanel() {
                         </button>
                     </div>
 
+                    {/* Saqlanmagan qoralama banneri — brauzer yopilib qolgan bo'lsa mehnat tiklanadi */}
+                    {draftMeta && !editingTestId && !cloneMode && (
+                        <div className="rounded-xl px-4 py-3 mb-4 flex items-center justify-between gap-3 flex-wrap" style={{ ...cardStyle, background: 'color-mix(in srgb, var(--info) 6%, transparent)', borderColor: 'color-mix(in srgb, var(--info) 25%, transparent)' }}>
+                            <div>
+                                <p className="text-[12px] font-semibold" style={secondaryText}>Saqlanmagan qoralama topildi</p>
+                                <p className="text-[11px]" style={mutedText}>
+                                    "{draftMeta.title}" · {draftMeta.count} savol · {new Date(draftMeta.savedAt).toLocaleString('uz-UZ')}
+                                </p>
+                            </div>
+                            <div className="flex gap-2">
+                                <button type="button" className="btn btn-primary btn-sm" onClick={restoreDraft}>Tiklash</button>
+                                <button type="button" className="btn btn-outline btn-sm" onClick={discardDraft}>O'chirish</button>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Test List */}
                     {tab === 'list' && (
                         <div className="space-y-1.5 anim-up">
@@ -1291,7 +1519,9 @@ export default function TeacherPanel() {
                                         <div className="flex items-center gap-1.5 mb-0.5">
                                             <p className="text-[13px] font-medium truncate">{t.title}</p>
                                             {t.isPublic
-                                                ? <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded flex-shrink-0" style={{ color: 'var(--success)', background: 'var(--success-light)' }}><Globe className="h-2.5 w-2.5" /> Public</span>
+                                                ? (t.approved === false
+                                                    ? <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded flex-shrink-0" title="Admin tasdig'idan so'ng o'quvchilarga ko'rinadi" style={{ color: '#B45309', background: 'color-mix(in srgb, #F59E0B 14%, transparent)' }}>⏳ Tasdiq kutilmoqda</span>
+                                                    : <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded flex-shrink-0" style={{ color: 'var(--success)', background: 'var(--success-light)' }}><Globe className="h-2.5 w-2.5" /> Public</span>)
                                                 : <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded flex-shrink-0" style={{ color: 'var(--text-muted)', background: 'var(--bg-surface)' }}><Lock className="h-2.5 w-2.5" /> Private</span>}
                                         </div>
                                         <p className="text-[11px]" style={mutedText}>
@@ -1330,7 +1560,7 @@ export default function TeacherPanel() {
                                         style={{ color: 'var(--info)', background: 'var(--info-light)' }}>
                                         <BarChart2 className="h-3 w-3" /> Statistika
                                     </button>
-                                    <button onClick={() => copyLink(t.shareLink)} className="h-7 px-2.5 flex items-center gap-1 rounded-lg text-[11px] font-medium transition flex-shrink-0"
+                                    <button onClick={() => copyLink(t.shareLink, t.isPublic && t.approved === false)} className="h-7 px-2.5 flex items-center gap-1 rounded-lg text-[11px] font-medium transition flex-shrink-0"
                                         style={{ color: 'var(--text-secondary)', background: 'var(--bg-surface)' }}>
                                         {copied === t.shareLink ? <><Check className="h-3 w-3" style={{ color: 'var(--success)' }} /> Nusxalandi</> : <><Copy className="h-3 w-3" /> Link</>}
                                     </button>
@@ -1356,6 +1586,58 @@ export default function TeacherPanel() {
                             {msg && msg !== 'success' && (
                                 <div className="text-[13px] px-3 py-2 rounded-lg" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>{msg}</div>
                             )}
+
+                            {/* DTM nazorat — yopishqoq panel: 90 savol orasida ham holat va Saqlash doim ko'z oldida */}
+                            {testType === 'DTM_BLOCK' && (
+                                <div className="rounded-xl px-3 py-2 space-y-1" style={{ position: 'sticky', top: 58, zIndex: 30, background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: '0 4px 12px rgba(0,0,0,0.07)' }}>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="text-[12px] font-bold flex-shrink-0" style={{ color: dtmControlStats.officialReady ? 'var(--success)' : 'var(--brand)' }}>
+                                            {dtmControlStats.total}/{DTM_OFFICIAL_QUESTION_TOTAL}
+                                        </span>
+                                        <span className="text-[11px] flex-shrink-0" style={mutedText}>{formatDtmNumber(dtmControlStats.scoreMax)}/{DTM_OFFICIAL_SCORE_TOTAL} ball</span>
+                                        <div className="flex gap-1 flex-wrap flex-1 min-w-0">
+                                            {dtmControlStats.rows.map(row => {
+                                                const isOver = row.count > row.target
+                                                const isComplete = row.count === row.target
+                                                return (
+                                                    <button key={row.value} type="button"
+                                                        onClick={() => document.getElementById(`dtm-block-${row.value}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                                                        title={`${row.label} bo'limiga o'tish`}
+                                                        className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full transition"
+                                                        style={isOver
+                                                            ? { color: 'var(--danger)', background: 'var(--danger-light)' }
+                                                            : isComplete
+                                                                ? { color: 'var(--success)', background: 'var(--success-light)' }
+                                                                : { color: 'var(--text-muted)', background: 'var(--bg-surface)' }}>
+                                                        {row.shortLabel} {row.count}/{row.target}{isComplete ? ' ✓' : ''}
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+                                        <button type="submit" disabled={loading} className="btn btn-primary btn-sm flex-shrink-0">
+                                            {loading ? 'Saqlanmoqda...' : 'Saqlash'}
+                                        </button>
+                                    </div>
+                                    {dtmControlStats.hasSpecialty2 && !subject2 && (
+                                        <p className="text-[10px]" style={{ color: 'var(--danger)' }}>2-ixtisoslik savollari bor — "Umumiy ma'lumot"da 2-fanni tanlang.</p>
+                                    )}
+                                    {dtmControlStats.overLimit.length > 0 && (
+                                        <p className="text-[10px]" style={{ color: 'var(--danger)' }}>{dtmControlStats.overLimit[0].label} bloki {dtmControlStats.overLimit[0].target} savoldan oshgan.</p>
+                                    )}
+                                    {dtmControlStats.officialMismatch && dtmControlStats.overLimit.length === 0 && (
+                                        <p className="text-[10px]" style={{ color: 'var(--brand)' }}>90 savollik test rasmiy hisoblanishi uchun taqsimot 10+10+10+30+30 bo'lishi kerak.</p>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Blok AI import uchun yashirin file input — nishon blok ref orqali sinxron o'qiladi */}
+                            <input ref={blockFileInputRef} type="file" accept=".pdf,.docx,image/*" className="hidden"
+                                onChange={e => {
+                                    const file = e.target.files?.[0]
+                                    const target = blockAiTargetRef.current
+                                    if (file && target) generateBlockFromFile(target, file)
+                                    e.target.value = ''
+                                }} />
                             {(editingTestId || cloneMode) && (
                                 <div className="rounded-xl px-4 py-3 flex items-center justify-between gap-3" style={{ ...cardStyle, background: 'color-mix(in srgb, var(--brand) 5%, transparent)' }}>
                                     <div>
@@ -1451,7 +1733,7 @@ export default function TeacherPanel() {
                                 {testType === 'DTM_BLOCK' && (
                                     <div className="space-y-2">
                                         <div className="rounded-lg px-3 py-2 text-[11px]" style={{ background: 'color-mix(in srgb, var(--brand) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 20%, transparent)', color: 'var(--text-secondary)' }}>
-                                            Har savolda blok turini tanlaysiz. Koeffitsient avtomatik keladi, xohlasangiz qo'lda ham o'zgartirasiz.
+                                            Savollar 5 ta blok bo'limiga bo'lingan — blok turi va koeffitsient bo'limdan avtomatik keladi. Har bo'limga alohida AI import qilsa bo'ladi.
                                         </div>
                                         <div className="flex flex-wrap gap-2">
                                             <button
@@ -1463,54 +1745,7 @@ export default function TeacherPanel() {
                                             </button>
                                             <span className="text-[11px] self-center" style={mutedText}>10 + 10 + 10 + 30 + 30 blok</span>
                                         </div>
-                                        <div className="rounded-xl p-3 space-y-3" style={{ background: 'color-mix(in srgb, var(--brand) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 18%, transparent)' }}>
-                                            <div className="flex flex-wrap items-center justify-between gap-2">
-                                                <div>
-                                                    <p className="text-[12px] font-semibold" style={secondaryText}>DTM nazorat</p>
-                                                    <p className="text-[11px]" style={mutedText}>
-                                                        {dtmControlStats.total}/{DTM_OFFICIAL_QUESTION_TOTAL} savol · {formatDtmNumber(dtmControlStats.scoreMax)}/{DTM_OFFICIAL_SCORE_TOTAL} ball
-                                                    </p>
-                                                </div>
-                                                <span
-                                                    className="text-[10px] font-semibold px-2 py-1 rounded-full"
-                                                    style={dtmControlStats.officialReady
-                                                        ? { color: 'var(--success)', background: 'color-mix(in srgb, var(--success) 12%, transparent)' }
-                                                        : { color: 'var(--brand)', background: 'color-mix(in srgb, var(--brand) 12%, transparent)' }}
-                                                >
-                                                    {dtmControlStats.officialReady ? 'Rasmiy format tayyor' : 'Nazorat kerak'}
-                                                </span>
-                                            </div>
-                                            <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
-                                                {dtmControlStats.rows.map(row => {
-                                                    const isOver = row.count > row.target
-                                                    const isComplete = row.count === row.target
-                                                    return (
-                                                        <div key={row.value} className="rounded-lg px-2.5 py-2" style={{ background: 'var(--bg-card)', border: `1px solid ${isOver ? 'var(--danger)' : isComplete ? 'color-mix(in srgb, var(--success) 28%, transparent)' : 'var(--border)'}` }}>
-                                                            <div className="flex items-center justify-between gap-2">
-                                                                <span className="text-[10px] font-medium truncate" style={secondaryText}>{row.label}</span>
-                                                                <span className="text-[10px] font-bold" style={{ color: isOver ? 'var(--danger)' : isComplete ? 'var(--success)' : 'var(--text-muted)' }}>{row.count}/{row.target}</span>
-                                                            </div>
-                                                            <div className="mt-1.5 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-surface)' }}>
-                                                                <div className="h-full rounded-full" style={{ width: `${row.percent}%`, background: isOver ? 'var(--danger)' : isComplete ? 'var(--success)' : 'var(--brand)' }} />
-                                                            </div>
-                                                            <p className="text-[10px] mt-1" style={mutedText}>×{row.coefficient}</p>
-                                                        </div>
-                                                    )
-                                                })}
-                                            </div>
-                                            {dtmControlStats.total < DTM_OFFICIAL_QUESTION_TOTAL && (
-                                                <p className="text-[11px]" style={mutedText}>Bu qisqa DTM mashq testi sifatida saqlanadi. Rasmiy blok uchun 90 savol to'liq bo'lishi kerak.</p>
-                                            )}
-                                            {dtmControlStats.hasSpecialty2 && !subject2 && (
-                                                <p className="text-[11px]" style={{ color: 'var(--danger)' }}>2-ixtisoslik savollari bor — 2-fanni tanlang.</p>
-                                            )}
-                                            {dtmControlStats.overLimit.length > 0 && (
-                                                <p className="text-[11px]" style={{ color: 'var(--danger)' }}>{dtmControlStats.overLimit[0].label} bloki {dtmControlStats.overLimit[0].target} savoldan oshgan.</p>
-                                            )}
-                                            {dtmControlStats.officialMismatch && dtmControlStats.overLimit.length === 0 && (
-                                                <p className="text-[11px]" style={{ color: 'var(--brand)' }}>90 savollik test rasmiy hisoblanishi uchun taqsimot 10+10+10+30+30 bo'lishi kerak.</p>
-                                            )}
-                                        </div>
+                                        <p className="text-[11px]" style={mutedText}>Qisqa test ham saqlanadi (mashq sifatida). Rasmiy blok uchun 90 savol to'liq bo'lishi kerak — holat yuqoridagi panelda.</p>
                                     </div>
                                 )}
                                 {/* Vaqt chegarasi */}
@@ -1535,7 +1770,9 @@ export default function TeacherPanel() {
                                 </div>
                             </div>
 
-                            {/* AI bilan yaratish — doim ko'rinadi */}
+                            {/* AI bilan yaratish — DTM'da yashirin: u yerda har blokning o'z AI importi bor
+                                (global import hamma savolni bitta blokka tiqib, saqlashni buzardi) */}
+                            {testType !== 'DTM_BLOCK' && (
                             <div className="rounded-xl p-4 space-y-2.5" style={{ ...cardStyle, borderColor: aiDone ? 'color-mix(in srgb, var(--info) 30%, transparent)' : 'var(--border)' }}>
                                 <div className="flex items-center gap-2 mb-1">
                                     <div className="h-6 w-6 rounded-md flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, var(--info), var(--brand))' }}>
@@ -1548,7 +1785,7 @@ export default function TeacherPanel() {
                                         </p>
                                     </div>
                                 </div>
-                                <input ref={fileInputRef} type="file" accept=".pdf,image/*" className="hidden"
+                                <input ref={fileInputRef} type="file" accept=".pdf,.docx,image/*" className="hidden"
                                     onChange={e => { setAiFile(e.target.files?.[0] || null); setAiError(''); setAiDone(false) }} />
                                 <div onClick={() => fileInputRef.current?.click()}
                                     className="border-2 border-dashed rounded-lg p-3.5 text-center cursor-pointer transition-colors"
@@ -1582,6 +1819,7 @@ export default function TeacherPanel() {
                                         : <><Sparkles className="h-3.5 w-3.5" /> AI bilan savollar yaratish</>}
                                 </button>
                             </div>
+                            )}
 
                             {/* Savollar */}
                             <div className="flex items-center justify-between">
@@ -1589,7 +1827,10 @@ export default function TeacherPanel() {
                                 {aiDone && <span className="text-[11px] px-2 py-0.5 rounded" style={{ color: 'var(--info)', background: 'color-mix(in srgb, var(--info) 10%, transparent)' }}>✨ AI yaratgan</span>}
                             </div>
 
-                            {questions.map((q, qi) => (
+                            {(() => {
+                                // Bitta savol kartasi — tekis ro'yxatda ham, DTM blok bo'limida ham ishlatiladi.
+                                // qi — questions massividagi HAQIQIY indeks (updateQ/removeQ shu bilan ishlaydi).
+                                const renderQuestionCard = (q: Question, qi: number, displayLabel: string) => (
                                 <div key={q.uid} className="rounded-xl p-3.5 space-y-2 transition" style={{ ...cardStyle, borderColor: aiDone ? 'color-mix(in srgb, var(--info) 20%, transparent)' : 'var(--border)' }}
                                     onPaste={(e) => {
                                         const items = e.clipboardData?.items
@@ -1599,7 +1840,7 @@ export default function TeacherPanel() {
                                                 const file = item.getAsFile()
                                                 if (file) {
                                                     e.preventDefault()
-                                                    handleImageUpload(qi, file)
+                                                    handleImageUpload(q.uid, file)
                                                     break
                                                 }
                                             }
@@ -1611,8 +1852,20 @@ export default function TeacherPanel() {
                                         <div className="flex items-center gap-2">
                                             <button type="button" onClick={() => toggleQ(q.uid)} className="flex items-center gap-1 text-[12px] font-semibold" style={secondaryText}>
                                                 {questions.length > 6 && <span style={{ fontSize: 9 }}>{isQExpanded(q.uid) ? '▾' : '▸'}</span>}
-                                                Savol {qi + 1}
+                                                {displayLabel}
                                             </button>
+                                            {/* Yopiq kartada holat belgisi — 90 savol ichida to'ldirilmaganini topish oson bo'lsin */}
+                                            {!isQExpanded(q.uid) && (() => {
+                                                const qDone = Boolean((q.text.trim() || q.imageUrl)
+                                                    && (q.questionType !== 'mcq' || q.imageUrl || q.options.every(option => option.trim())))
+                                                return (
+                                                    <span className="text-[10px] font-bold flex-shrink-0"
+                                                        title={qDone ? 'To\'ldirilgan' : 'To\'ldirilmagan'}
+                                                        style={{ color: qDone ? 'var(--success)' : 'var(--brand)' }}>
+                                                        {qDone ? '✓' : '●'}
+                                                    </span>
+                                                )
+                                            })()}
                                             {!isQExpanded(q.uid) && q.text.trim() && <span className="text-[11px] truncate max-w-[150px]" style={{ color: 'var(--text-muted)' }}>{q.text.trim().slice(0, 38)}</span>}
                                             {/* MCQ / Yozma / Moslashtirish toggle */}
                                             <div className="flex flex-wrap rounded-md overflow-hidden border text-[11px] font-medium" style={{ borderColor: 'var(--border)' }}>
@@ -1662,7 +1915,7 @@ export default function TeacherPanel() {
                                         <label className={`absolute right-2 top-2 p-1.5 rounded-md transition hover:bg-slate-100 dark:hover:bg-slate-800 ${q.imageUploading ? 'cursor-wait opacity-60' : 'cursor-pointer'}`}
                                             title="Rasm yuklash yoki Ctrl+V (Paste) orqali kiritish">
                                             <input type="file" accept="image/*" className="hidden" disabled={q.imageUploading} onChange={e => {
-                                                if (e.target.files?.[0]) handleImageUpload(qi, e.target.files[0]);
+                                                if (e.target.files?.[0]) handleImageUpload(q.uid, e.target.files[0]);
                                                 e.target.value = ''
                                             }} />
                                             {q.imageUploading
@@ -1920,15 +2173,85 @@ export default function TeacherPanel() {
                                     {q.questionType === 'matching' && <p className="text-[10px]" style={{ color: 'color-mix(in srgb, var(--info) 38%, transparent)' }}>Ko'k = to'g'ri javob · Savol matni = umumiy kontekst (ixtiyoriy)</p>}
                                     </>)}
                                 </div>
-                            ))}
+                                )
 
-                            <button type="button" onClick={addQuestion}
-                                className="w-full h-9 rounded-xl border-2 border-dashed text-[13px] transition flex items-center justify-center gap-1.5"
-                                style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
-                                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
-                                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)' }}>
-                                <Plus className="h-3.5 w-3.5" /> Savol qo'shish
-                            </button>
+                                // Oddiy va Milliy Sertifikat testlari — avvalgidek tekis ro'yxat
+                                if (testType !== 'DTM_BLOCK') {
+                                    return questions.map((q, qi) => renderQuestionCard(q, qi, `Savol ${qi + 1}`))
+                                }
+
+                                // DTM blok test — savollar 5 ta bo'limga guruhlangan, blok turi bo'limdan avtomatik
+                                const rows = questions.map((question, index) => ({ question, index }))
+                                const knownBlocks = new Set<string>(DTM_BLOCK_OPTIONS.map(option => option.value))
+                                const orphanRows = rows.filter(row => !knownBlocks.has(row.question.blockType || ''))
+                                return (
+                                    <>
+                                        {DTM_BLOCK_OPTIONS.map(option => {
+                                            const blockRows = rows.filter(row => row.question.blockType === option.value)
+                                            const collapsed = collapsedBlocks.has(option.value)
+                                            const isOver = blockRows.length > option.target
+                                            const isComplete = blockRows.length === option.target
+                                            const accent = isOver ? 'var(--danger)' : isComplete ? 'var(--success)' : 'var(--brand)'
+                                            return (
+                                                <div key={option.value} id={`dtm-block-${option.value}`} className="rounded-xl overflow-hidden"
+                                                    style={{ scrollMarginTop: 130, border: `1px solid ${isOver ? 'var(--danger)' : isComplete ? 'color-mix(in srgb, var(--success) 35%, transparent)' : 'var(--border)'}`, background: 'var(--bg-card)' }}>
+                                                    <div className="flex items-center gap-2 px-3.5 py-2.5 flex-wrap">
+                                                        <button type="button" onClick={() => toggleBlockCollapse(option.value)}
+                                                            className="flex items-center gap-1.5 text-[13px] font-semibold flex-1 min-w-0 text-left" style={secondaryText}>
+                                                            <span style={{ fontSize: 10 }}>{collapsed ? '▸' : '▾'}</span>
+                                                            <span className="truncate">{option.label}</span>
+                                                            <span className="text-[11px] font-bold flex-shrink-0" style={{ color: accent }}>{blockRows.length}/{option.target}</span>
+                                                            <span className="text-[10px] font-normal flex-shrink-0" style={mutedText}>×{option.coefficient}</span>
+                                                        </button>
+                                                        <button type="button" disabled={blockAiGenerating !== null}
+                                                            onClick={() => { blockAiTargetRef.current = option.value; blockFileInputRef.current?.click() }}
+                                                            title={`${option.label} blokiga PDF/rasm/Word'dan savollar import qilish`}
+                                                            className="h-7 px-2 rounded-md text-[11px] font-medium transition flex items-center gap-1 flex-shrink-0 disabled:opacity-40"
+                                                            style={{ color: 'var(--info)', background: 'color-mix(in srgb, var(--info) 10%, transparent)' }}>
+                                                            {blockAiGenerating === option.value
+                                                                ? <><div className="h-3 w-3 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--info)', borderTopColor: 'transparent' }} /> AI o'qimoqda...</>
+                                                                : <><Sparkles className="h-3 w-3" /> AI import</>}
+                                                        </button>
+                                                        <button type="button" onClick={() => addQuestionToBlock(option.value)}
+                                                            className="h-7 px-2 rounded-md text-[11px] font-medium transition flex items-center gap-1 flex-shrink-0"
+                                                            style={{ color: 'var(--brand)', background: 'color-mix(in srgb, var(--brand) 10%, transparent)' }}>
+                                                            <Plus className="h-3 w-3" /> Savol
+                                                        </button>
+                                                    </div>
+                                                    <div className="h-0.5" style={{ background: 'var(--bg-surface)' }}>
+                                                        <div className="h-full transition-all" style={{ width: `${Math.min(100, Math.round((blockRows.length / option.target) * 100))}%`, background: accent }} />
+                                                    </div>
+                                                    {!collapsed && (
+                                                        <div className="px-2.5 py-2.5 space-y-2">
+                                                            {blockRows.length === 0 && (
+                                                                <p className="text-[11px] px-1" style={mutedText}>Bu blokda hali savol yo'q — "+ Savol" yoki "AI import" bilan qo'shing.</p>
+                                                            )}
+                                                            {blockRows.map((row, position) => renderQuestionCard(row.question, row.index, `${position + 1}-savol`))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )
+                                        })}
+                                        {orphanRows.length > 0 && (
+                                            <div className="rounded-xl p-3 space-y-2" style={{ border: '1px dashed var(--danger)', background: 'var(--bg-card)' }}>
+                                                <p className="text-[12px] font-semibold" style={{ color: 'var(--danger)' }}>Blok tanlanmagan savollar — har biriga "Blok turi"ni tanlang, ular tegishli bo'limga o'tadi</p>
+                                                {orphanRows.map((row, position) => renderQuestionCard(row.question, row.index, `${position + 1}-savol`))}
+                                            </div>
+                                        )}
+                                    </>
+                                )
+                            })()}
+
+                            {/* DTM'da savol bo'lim ichidan qo'shiladi (blok turi avtomatik) — global tugma chalkashtirardi */}
+                            {testType !== 'DTM_BLOCK' && (
+                                <button type="button" onClick={addQuestion}
+                                    className="w-full h-9 rounded-xl border-2 border-dashed text-[13px] transition flex items-center justify-center gap-1.5"
+                                    style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+                                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)' }}>
+                                    <Plus className="h-3.5 w-3.5" /> Savol qo'shish
+                                </button>
+                            )}
                             <button type="submit" disabled={loading}
                                 className="btn btn-primary" style={{ width: '100%', height: '2.5rem' }}>
                                 {loading ? 'Saqlanmoqda...' : editingTestId ? `Testni Yangilash (${questions.length} savol)` : `Testni Saqlash (${questions.length} savol)`}
