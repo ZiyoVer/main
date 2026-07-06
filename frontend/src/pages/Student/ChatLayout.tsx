@@ -591,6 +591,23 @@ function timeGreeting(): string {
     return 'Xayrli oqshom'
 }
 
+// Diagnostik test tanlangan HAMMA fandan bo'lsin (DTM: 1+2 ixtisoslik) — bitta fanda
+// 10 savol emas. Har fan bo'yicha daraja aniqlanadi; AI har safar yangi savol tuzadi.
+function diagnosticSubjects(p: { subject?: string; subject2?: string; examType?: 'DTM' | 'MS' | null } | null): string[] {
+    const out: string[] = []
+    if (p?.subject) out.push(p.subject)
+    if (p?.examType === 'DTM' && p?.subject2 && p.subject2 !== p.subject) out.push(p.subject2)
+    return out
+}
+function buildDiagnosticPrompt(p: Parameters<typeof diagnosticSubjects>[0]): string {
+    const subs = diagnosticSubjects(p)
+    if (subs.length >= 2) {
+        return `Men DTMga tayyorlanaman, fanlarim: ${subs.join(' va ')}. Darajamni aniqlash uchun diagnostik test tuz — HAR FANDAN kamida 6 ta savol (aralash, osondan qiyinga qarab), har biri 4 variantli (A/B/C/D). Test tugagach har fan bo'yicha darajamni (foiz va A+/A/B/C daraja) ALOHIDA ayt, zaif mavzularimni ko'rsat va keyingi qadamni tavsiya qil. Savollar har safar yangi bo'lsin.`
+    }
+    const one = subs[0] || 'asosiy fanim'
+    return `${one}dan darajamni aniqlash uchun diagnostik test tuz — kamida 10 ta savol, osondan qiyinga qarab, har biri 4 variantli (A/B/C/D). Test tugagach darajamni (foiz va daraja) va zaif mavzularimni ayt, keyingi qadamni tavsiya qil.`
+}
+
 // Test yakunidagi mukofot lahzasi — kutubxonasiz engil konfetti.
 // prefers-reduced-motion hurmat qilinadi; natija yaxshiroq bo'lsa zarra ko'proq.
 function celebrate(ratio: number): void {
@@ -3483,10 +3500,17 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             )
                                         })()}
 
-                                        {/* Diagnostik CTA — hali birorta test yechmagan yangi o'quvchiga birinchi qadam */}
-                                        {myResults.length === 0 && (
+                                        {/* Diagnostik CTA — hali birorta test yechmagan yangi o'quvchiga birinchi qadam.
+                                            totalzTest ham 0 bo'lsagina: diagnostikadan keyin (ai-session totalTests'ni oshiradi)
+                                            karta yo'qoladi, o'rniga goal-progress chiqadi — "keyin osha boyicha ketadi". */}
+                                        {myResults.length === 0 && (profile?.totalTests ?? 0) === 0 && (() => {
+                                            const diagSubs = diagnosticSubjects(profile)
+                                            const subline = diagSubs.length >= 2
+                                                ? `${diagSubs.join(' + ')} · darajangni fan bo'yicha aniqlaydi`
+                                                : `${diagSubs[0] || 'Asosiy faning'} · natijaga qarab shaxsiy reja`
+                                            return (
                                             <button type="button"
-                                                onClick={() => { void handleSend(`${profile?.subject || 'Asosiy fanim'}dan darajamni aniqlash uchun 10 ta savollik diagnostik test tuz. Savollar osondan qiyinga qarab borsin. Oxirida darajam va zaif joylarim bo'yicha qisqa xulosa ber.`, []) }}
+                                                onClick={() => { void handleSend(buildDiagnosticPrompt(profile), []) }}
                                                 className="w-full text-left rounded-2xl p-3.5 sm:p-4 mt-4 sm:mt-5 transition hover:opacity-95"
                                                 style={{ background: 'var(--k-accent-grad, var(--brand))', color: '#fff', boxShadow: 'var(--k-shadow-cta, none)' }}>
                                                 <div className="flex items-center gap-3">
@@ -3495,11 +3519,12 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     </div>
                                                     <div className="min-w-0">
                                                         <p className="text-[14px] font-bold leading-snug">Darajangni aniqlaymiz — diagnostik test</p>
-                                                        <p className="text-[11.5px] mt-0.5" style={{ opacity: 0.85 }}>10 savol · ~10 daqiqa · natijaga qarab shaxsiy reja</p>
+                                                        <p className="text-[11.5px] mt-0.5" style={{ opacity: 0.85 }}>{subline}</p>
                                                     </div>
                                                 </div>
                                             </button>
-                                        )}
+                                            )
+                                        })()}
 
                                         {/* Bugungi reja — REAL SANA hisobga olinadi: faqat bugun tuzilgan reja "bugungi";
                                             eski kunlardan qolgan bajarilmaganlar alohida, halol "avvalgi" deb ko'rinadi */}
