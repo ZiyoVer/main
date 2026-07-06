@@ -3427,27 +3427,6 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             )
                                         })()}
 
-                                        <p className="text-[11px] font-bold uppercase tracking-[0.06em] mt-5 mb-2 text-left" style={{ color: 'var(--text-muted)' }}>Tez amallar</p>
-                                        {/* 6.1: misol-kartalar. BIRINCHISI — haqiqiy Testlar bo'limiga olib boradi
-                                            (avval hammasi chat prompt edi — yangi o'quvchi test bo'limi borligini ko'rmasdi) */}
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                            {([
-                                                { Icon: ClipboardList, label: 'Test yechish', hint: 'Tayyor DTM va fan testlari', action: () => { setOverlayPanel('tests'); markTestsSeen(); void loadPublicTests(); void loadMyResults() } },
-                                                { Icon: BookOpen, label: 'Mavzuni tushuntir', hint: 'Misollar bilan, oddiy tilda', prompt: `${profile?.subject || 'Asosiy fanim'}dan menga bitta muhim mavzuni misollar bilan tushuntir. Avval qaysi mavzu kerakligini so'ra.` },
-                                                { Icon: Layers, label: 'Flashcard yasa', hint: 'Muhim tushunchalardan 10 ta', prompt: `${profile?.subject || 'Asosiy fanim'}ning eng muhim tushunchalaridan 10 ta flashcard yasa.` },
-                                                { Icon: Target, label: 'Bugungi o\'quv reja', hint: 'Imtihoningizga moslangan', prompt: 'Menga bugun uchun qisqa, bajarsa bo\'ladigan o\'quv reja tuz — imtihonim va zaif mavzularimga mosla.' },
-                                            ] as Array<{ Icon: typeof ClipboardList; label: string; hint: string; prompt?: string; action?: () => void }>).map((ex, i) => (
-                                                <button key={i} type="button" onClick={() => { if (ex.action) ex.action(); else if (ex.prompt) void handleSend(ex.prompt, []) }}
-                                                    className="text-left px-3.5 py-3 rounded-xl border transition"
-                                                    style={{ background: 'var(--bg-card)', borderColor: 'var(--border)', transitionDuration: '150ms' }}
-                                                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--brand)'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.06)' }}
-                                                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none' }}>
-                                                    <ex.Icon className="h-4 w-4 mb-1.5" style={{ color: 'var(--brand)' }} />
-                                                    <p className="text-[12.5px] font-semibold leading-snug" style={{ color: 'var(--text-primary)' }}>{ex.label}</p>
-                                                    <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{ex.hint}</p>
-                                                </button>
-                                            ))}
-                                        </div>
                                     </div>
                                 )}
                             </div>
