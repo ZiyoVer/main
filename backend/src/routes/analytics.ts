@@ -84,17 +84,18 @@ router.get('/stats', authenticate, requireRole('ADMIN'), async (req: AuthRequest
             }),
         ])
 
-        // O'rtacha test ball — platforma o'rtachasini har urinishning FOIZi
-        // (score/scoreMax*100) ning o'rtachasi sifatida hisoblaymiz. Bu xom ballarni
-        // (turli scoreMax'li testlar) aralashtirmaydi. scoreMax<=0 yoki yo'q qatorlar tashlanadi.
+        // O'rtacha test ball — testAttempt.score ALLAQACHON foiz (0-100) sifatida
+        // saqlanadi (computedScore.scorePercent). Avval bu foizni yana scoreMax'ga
+        // bo'lib yuborardik → 10 savolli testda 80%/10*100=800% chiqib, o'rtacha
+        // 100%'dan oshib ketardi. Endi score'ni to'g'ridan-to'g'ri, 0-100 ga clamp bilan.
         const scoreRows = await prisma.testAttempt.findMany({
-            select: { score: true, scoreMax: true }
+            select: { score: true }
         })
         let percentSum = 0
         let percentCount = 0
         for (const row of scoreRows) {
-            if (row.scoreMax != null && row.scoreMax > 0) {
-                percentSum += (row.score / row.scoreMax) * 100
+            if (row.score != null && Number.isFinite(row.score)) {
+                percentSum += Math.max(0, Math.min(100, row.score))
                 percentCount += 1
             }
         }
@@ -501,18 +502,17 @@ router.get('/test-stats', authenticate, requireRole('ADMIN'), async (_req, res) 
                     test: { select: { title: true, subject: true } }
                 }
             }),
-            // O'rtacha ball uchun xom ballarni emas — har urinishning FOIZini hisoblaymiz
-            prisma.testAttempt.findMany({ select: { score: true, scoreMax: true } }),
+            // O'rtacha ball — score allaqachon foiz (0-100), to'g'ridan-to'g'ri o'rtachalanadi
+            prisma.testAttempt.findMany({ select: { score: true } }),
         ])
 
-        // O'rtacha test ball — har urinishning FOIZi (score/scoreMax*100) ning o'rtachasi.
-        // Bu /stats dagi tuzatish bilan bir xil: turli scoreMax'li testlarning xom
-        // ballarini aralashtirmaydi. scoreMax<=0 yoki yo'q qatorlar tashlanadi.
+        // testAttempt.score = foiz (0-100). Avval yana scoreMax'ga bo'lib, 100%'dan
+        // oshiq (masalan 367%) o'rtacha chiqardi — endi score'ni clamp bilan o'rtachalaymiz.
         let percentSum = 0
         let percentCount = 0
         for (const row of scoreRows) {
-            if (row.scoreMax != null && row.scoreMax > 0) {
-                percentSum += (row.score / row.scoreMax) * 100
+            if (row.score != null && Number.isFinite(row.score)) {
+                percentSum += Math.max(0, Math.min(100, row.score))
                 percentCount += 1
             }
         }

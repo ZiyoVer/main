@@ -1983,7 +1983,7 @@ export default function AdminPanel() {
                                     </div>
                                     <button type="submit" disabled={creating}
                                         className="w-full h-10 rounded-xl text-sm font-semibold text-white transition disabled:opacity-50 flex items-center justify-center gap-2"
-                                        style={{ background: 'var(--text-primary)' }}>
+                                        style={{ background: 'var(--k-accent-grad, var(--brand))' }}>
                                         {creating
                                             ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Yaratilmoqda...</>
                                             : <><UserPlus className="h-4 w-4" /> O'qituvchi yaratish</>}
