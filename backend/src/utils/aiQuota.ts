@@ -15,8 +15,8 @@ export type AiQuotaKind = keyof typeof FREE_DAILY_LIMITS
 
 // Kun chegarasi foydalanuvchi yashaydigan vaqt bo'yicha (Asia/Tashkent, UTC+5) —
 // UTC bo'yicha bo'lsa limit kechki 5 da yangilanib chalkashtirardi
-function tashkentDay(): string {
-    return new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 10)
+export function tashkentDay(offsetDays = 0): string {
+    return new Date(Date.now() + 5 * 3600 * 1000 + offsetDays * 86400 * 1000).toISOString().slice(0, 10)
 }
 
 async function hasActiveSubscription(userId: string): Promise<boolean> {

@@ -2379,6 +2379,11 @@ Iltimos, har bir savolni tahlil qilib ber:
                 })
                 backendSubmitHandled = true
 
+                // Yozma javob AI texnik xato sabab tekshirilmagan bo'lsa — yashirmaymiz
+                if (typeof backendSubmitResult?.unverifiedOpenCount === 'number' && backendSubmitResult.unverifiedOpenCount > 0) {
+                    toast(`${backendSubmitResult.unverifiedOpenCount} ta yozma javob texnik sabab AI bilan tekshirilmadi va "xato" deb hisoblandi. Keyinroq qayta topshirib ko'ring.`, { duration: 8000 })
+                }
+
                 if (backendSubmitResult?.newAbility !== undefined) {
                     const prevAbility = profile?.abilityLevel ?? 0
                     setRaschFeedback({ prev: prevAbility, next: backendSubmitResult.newAbility })

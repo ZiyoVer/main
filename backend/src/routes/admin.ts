@@ -2,8 +2,41 @@ import { Router } from 'express'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
 import { logAdminAction } from '../utils/adminAudit'
+import { FREE_DAILY_LIMITS, tashkentDay } from '../utils/aiQuota'
 
 const router = Router()
+
+// GET /api/admin/ai-usage — kunlik AI sarfi ko'zgusi (faqat ADMIN).
+// Bugun + oxirgi 7 kun: faol userlar, so'rovlar, limitga urilganlar.
+// Xarajatni ko'z bilan kuzatish uchun — DeepSeek/OpenAI hisobiga syurpriz bo'lmasin.
+router.get('/ai-usage', authenticate, requireRole('ADMIN'), async (_req: AuthRequest, res) => {
+    try {
+        const today = tashkentDay()
+        const weekAgo = tashkentDay(-6)
+        const [dayRows, atChatLimit, atVisionLimit] = await Promise.all([
+            prisma.aiDailyUsage.groupBy({
+                by: ['day'],
+                where: { day: { gte: weekAgo } },
+                _sum: { chatCount: true, visionCount: true },
+                _count: { _all: true },
+                orderBy: { day: 'asc' },
+            }),
+            prisma.aiDailyUsage.count({ where: { day: today, chatCount: { gte: FREE_DAILY_LIMITS.chat } } }),
+            prisma.aiDailyUsage.count({ where: { day: today, visionCount: { gte: FREE_DAILY_LIMITS.vision } } }),
+        ])
+        const days = dayRows.map(row => ({
+            day: row.day,
+            users: row._count._all,
+            chat: row._sum.chatCount ?? 0,
+            vision: row._sum.visionCount ?? 0,
+        }))
+        const todayRow = days.find(d => d.day === today) || { day: today, users: 0, chat: 0, vision: 0 }
+        res.json({ limits: FREE_DAILY_LIMITS, today: { ...todayRow, atChatLimit, atVisionLimit }, days })
+    } catch (e) {
+        console.error('ai-usage:', e)
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
 
 // CSV maydonini xavfsiz qochirish (escape): vergul, qo'shtirnoq yoki yangi qator bo'lsa
 // butun maydonni qo'shtirnoqqa olamiz va ichki qo'shtirnoqlarni ikkilantiramiz (RFC 4180).

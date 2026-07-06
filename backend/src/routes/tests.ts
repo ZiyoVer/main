@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import crypto from 'crypto'
 import multer from 'multer'
 import pdfParse from 'pdf-parse'
 import mammoth from 'mammoth'
@@ -196,34 +197,43 @@ function formatQuestionForAnalysis(question: any, index: number): string {
     return `${isCorrect ? '✅' : '❌'} ${index + 1}. ${questionText}${variants ? `\n   Variantlar: ${variants}` : ''}\n   O'quvchi: ${studentAnswer.toUpperCase()} | To'g'ri: ${correctAnswer.toUpperCase()}`
 }
 
-async function evaluateOpenAnswer(studentAnswer: string, correctAnswer: string): Promise<boolean> {
+// Yozma javob baholash natijasi: aiVerified=false — AI tekshira olmadi (texnik xato),
+// javob "xato" deb belgilanadi, LEKIN bu holat JIM yutilmaydi: yuqoriga unverified
+// sifatida chiqadi va submit javobida unverifiedOpenCount bo'lib ko'rinadi.
+interface OpenAnswerVerdict { correct: boolean; aiVerified: boolean }
+
+async function evaluateOpenAnswer(studentAnswer: string, correctAnswer: string): Promise<OpenAnswerVerdict> {
     const normalizedStudent = normalizeOpenAnswer(studentAnswer)
     const acceptedAnswers = parseAcceptedAnswers(correctAnswer)
     const normalizedAnswers = [...new Set(acceptedAnswers.map(normalizeOpenAnswer).filter(Boolean))]
 
     if (!normalizedStudent || normalizedAnswers.length === 0) {
-        return false
+        return { correct: false, aiVerified: true }
     }
 
     if (normalizedAnswers.includes(normalizedStudent)) {
-        return true
+        return { correct: true, aiVerified: true }
     }
 
-    try {
-        const aiCheck = await aiClient.chat.completions.create({
-            model: aiModel,
-            messages: [{
-                role: 'user',
-                content: `Test savoli uchun to'g'ri javob variantlari:\n${acceptedAnswers.map((answer, index) => `${index + 1}) "${answer}"`).join('\n')}\n\nO'quvchi javobi: "${studentAnswer.trim()}"\n\nO'quvchining javobi shu variantlardan biriga ma'nosi bo'yicha mos keladimi? Faqat "HA" yoki "YOQ" deb javob ber.`
-            }],
-            max_tokens: 5,
-            temperature: 0
-        }, { timeout: 8000 })
-        const reply = aiCheck.choices[0]?.message?.content?.trim().toUpperCase() || ''
-        return reply.startsWith('HA')
-    } catch {
-        return false
+    // AI semantik tekshiruv — 2 urinish (avval bitta xato = o'quvchi javobi jimgina 0 olardi)
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            const aiCheck = await aiClient.chat.completions.create({
+                model: aiModel,
+                messages: [{
+                    role: 'user',
+                    content: `Test savoli uchun to'g'ri javob variantlari:\n${acceptedAnswers.map((answer, index) => `${index + 1}) "${answer}"`).join('\n')}\n\nO'quvchi javobi: "${studentAnswer.trim()}"\n\nO'quvchining javobi shu variantlardan biriga ma'nosi bo'yicha mos keladimi? Faqat "HA" yoki "YOQ" deb javob ber.`
+                }],
+                max_tokens: 5,
+                temperature: 0
+            }, { timeout: 8000 })
+            const reply = aiCheck.choices[0]?.message?.content?.trim().toUpperCase() || ''
+            return { correct: reply.startsWith('HA'), aiVerified: true }
+        } catch (e) {
+            if (attempt === 1) console.warn('evaluateOpenAnswer: AI 2 urinishda ham javob bermadi:', (e as Error)?.message)
+        }
     }
+    return { correct: false, aiVerified: false }
 }
 
 const router = Router()
@@ -1996,6 +2006,18 @@ router.post('/submit-ai', authenticate, submitLimiter, async (req: AuthRequest, 
             topicAgg.set(topic, cur)
         }
 
+        // IDEMPOTENTLIK: bir xil natijani qayta yuborish statistikani shishirmasin
+        // (avval bitta {score:100} ni qayta-qayta POST qilib avgScore/totalTests'ni
+        // buzish mumkin edi). Payload hash unique — takrori jim qabul qilinadi, yozilmaydi.
+        const payloadHash = crypto.createHash('sha256')
+            .update(JSON.stringify({ s: safeScore, t: totalQuestions ?? null, r: results.slice(0, MAX_RESULTS), sub: subjectKey }))
+            .digest('hex')
+        try {
+            await prisma.aiSubmitDedup.create({ data: { userId: req.user.id, hash: payloadHash } })
+        } catch {
+            return res.json({ ok: true, idempotent: true })
+        }
+
         // AI testlar uchun Rasch yangilanmaydi — faqat statistika + TopicStat.
         // Atomik tranzaksiya: bir vaqtda kelgan submit'lar avgScore'ni buzmasin.
         await prisma.$transaction(async (tx) => {
@@ -2238,14 +2260,16 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
             if (q.questionType === 'open') {
                 const studentAns = typeof a?.textAnswer === 'string' ? a.textAnswer.trim() : ''
                 const correctAns = (q.correctText || '').trim()
-                isCorrect = studentAns ? await evaluateOpenAnswer(studentAns, correctAns) : false
+                const verdict = studentAns ? await evaluateOpenAnswer(studentAns, correctAns) : { correct: false, aiVerified: true }
+                isCorrect = verdict.correct
                 return {
                     questionId: q.id,
                     selectedIdx: -1,
                     textAnswer: studentAns || null,
                     isCorrect,
                     hasAnswer: !!studentAns,
-                    difficulty: q.difficulty || 0.0
+                    difficulty: q.difficulty || 0.0,
+                    aiUnverified: !verdict.aiVerified
                 }
             }
 
@@ -2259,13 +2283,14 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
                 const subResults = await Promise.all(subQuestions.map(async (subQuestion, subIndex) => {
                     const studentAnswer = (studentTextAnswers[subIndex] || '').trim()
                     const correctText = String(subQuestion.correctText || '').trim()
-                    const subCorrect = studentAnswer ? await evaluateOpenAnswer(studentAnswer, correctText) : false
+                    const subVerdict = studentAnswer ? await evaluateOpenAnswer(studentAnswer, correctText) : { correct: false, aiVerified: true }
                     return {
                         label: String(subQuestion.label || String.fromCharCode(65 + subIndex)),
                         subText: String(subQuestion.text || ''),
                         studentAnswer,
                         correctText,
-                        isCorrect: subCorrect
+                        isCorrect: subVerdict.correct,
+                        aiUnverified: !subVerdict.aiVerified
                     }
                 }))
                 const correctSubCount = subResults.filter((subResult) => subResult.isCorrect).length
@@ -2280,7 +2305,8 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
                     difficulty: q.difficulty || 0.0,
                     correctSubCount,
                     totalSubs: subQuestions.length,
-                    subResults
+                    subResults,
+                    aiUnverified: subResults.some((subResult) => subResult.aiUnverified)
                 }
             }
 
@@ -2579,7 +2605,10 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
             results,
             correctAnswers,
             topicBreakdown,
-            recommendation
+            recommendation,
+            // AI texnik xato sabab tekshirilmay "xato" deb belgilangan yozma javoblar soni —
+            // frontend buni ko'rsatadi, o'quvchi jimgina noto'g'ri baholanmaydi
+            unverifiedOpenCount: results.filter((resultItem) => (resultItem as { aiUnverified?: boolean }).aiUnverified).length
         })
     } catch (e) {
         if (e instanceof AlreadySubmittedError) {

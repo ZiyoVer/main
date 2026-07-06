@@ -45,6 +45,7 @@ model User {
   payments      Payment[]
   aiTestSessions AiTestSession[]
   aiDailyUsage  AiDailyUsage[]
+  aiSubmitDedups AiSubmitDedup[]
 }
 
 enum Role {
@@ -412,6 +413,19 @@ model AiDailyUsage {
 
   @@unique([userId, day])
   @@index([day])
+}
+
+// Legacy /submit-ai fallback uchun takror-yuborish himoyasi (server-grade sessiyasiz yo'l).
+// Bir xil payload ikkinchi marta statistikaga yozilmaydi.
+model AiSubmitDedup {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hash      String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, hash])
+  @@index([createdAt])
 }
 
 model Payment {

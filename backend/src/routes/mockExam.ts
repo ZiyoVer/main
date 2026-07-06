@@ -149,23 +149,23 @@ router.post('/generate', mockExamLimiter, async (req: AuthRequest, res) => {
             return res.status(500).json({ error: 'Savollar generatsiya qilinmadi' })
         }
 
-        // Savollarni tekshirish va normallashtirish
+        // Savollarni tekshirish va normallashtirish.
+        // MUHIM: correct harfi yaroqsiz bo'lsa savol TASHLANADI (avval default 'A'
+        // qo'yilardi — o'quvchi to'g'ri javob berib ham "xato" olishi mumkin edi).
+        // Variantlari to'liq bo'lmagan savollar ham tashlanadi (placeholder o'rniga).
         const LETTERS = ['A', 'B', 'C', 'D']
-        const normalized = questions.slice(0, config.count).map((q: any, i: number) => {
-            // correct: 'A'/'B'/'C'/'D' yoki 'a'/'b'/'c'/'d' — katta harfga normalize qilamiz
-            let correct = 'A'
-            if (typeof q.correct === 'string') {
-                const upper = q.correct.toUpperCase()
-                correct = LETTERS.includes(upper) ? upper : 'A'
-            }
-            return {
-                id: i,
-                question: q.question || q.text || '',
-                options: Array.isArray(q.options) ? q.options.slice(0, 4) : ['A variant', 'B variant', 'C variant', 'D variant'],
-                correct,         // DB ga yozish uchun saqlanadi
-                explanation: q.explanation || '' // DB ga yozish uchun saqlanadi
-            }
-        }).filter(q => q.question.trim().length > 0)
+        const normalized = questions.slice(0, config.count)
+            .map((q: any) => {
+                const upper = typeof q.correct === 'string' ? q.correct.trim().toUpperCase() : ''
+                return {
+                    question: String(q.question || q.text || ''),
+                    options: Array.isArray(q.options) ? q.options.slice(0, 4).map(String) : [],
+                    correct: LETTERS.includes(upper) ? upper : null,
+                    explanation: q.explanation || ''
+                }
+            })
+            .filter(q => q.question.trim().length > 0 && q.correct !== null && q.options.length === 4 && q.options.every((o: string) => o.trim().length > 0))
+            .map((q, i) => ({ id: i, ...q, correct: q.correct as string }))
 
         // Clientga yuboriladigan versiya — correct/explanation yo'q (xavfsizlik)
         const normalizedForClient = normalized.map(({ correct: _c, explanation: _e, ...rest }) => rest)

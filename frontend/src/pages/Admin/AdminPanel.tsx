@@ -289,6 +289,8 @@ export default function AdminPanel() {
     const [tab, setTab] = useState<'stats' | 'presence' | 'users' | 'teachers' | 'docs' | 'tests' | 'ai' | 'knowledge' | 'activity' | 'audit' | 'moderation' | 'broadcast'>('stats')
     const [stats, setStats] = useState<any>(null)
     const [statsError, setStatsError] = useState('')
+    // Kunlik AI sarfi (bepul limitlar hisobi) — xarajat ko'zgusi
+    const [aiUsage, setAiUsage] = useState<{ limits: { chat: number; vision: number }; today: { users: number; chat: number; vision: number; atChatLimit: number; atVisionLimit: number }; days: Array<{ day: string; users: number; chat: number; vision: number }> } | null>(null)
     // Faol foydalanuvchilar: DAU / WAU / MAU (kontrakt: /stats yoki /admin/active-users)
     const [activeUsers, setActiveUsers] = useState<ActiveUsersMetrics | null>(null)
     const [users, setUsers] = useState<any[]>([])
@@ -464,17 +466,19 @@ export default function AdminPanel() {
     async function loadStats() {
         setLoading(true)
         setTimeSpentLoading(true)
-        const [statsRes, timeSpentRes, docsRes, aiRes, defaultsRes, testStatsRes] = await Promise.allSettled([
+        const [statsRes, timeSpentRes, docsRes, aiRes, defaultsRes, testStatsRes, aiUsageRes] = await Promise.allSettled([
             fetchApi('/analytics/stats'),
             fetchApi('/analytics/time-spent'),
             fetchApi('/documents/list'),
             fetchApi('/ai-settings'),
             fetchApi('/ai-settings/defaults'),
             fetchApi('/analytics/test-stats'),
+            fetchApi('/admin/ai-usage'),
         ])
 
         if (statsRes.status === 'fulfilled') { setStats(statsRes.value); setStatsError('') }
         else { setStats(null); setStatsError('Statistikani yuklab boʻlmadi') }
+        if (aiUsageRes.status === 'fulfilled') setAiUsage(aiUsageRes.value)
 
         // DAU/WAU/MAU — avval /stats javobidan, bo'lmasa /admin/active-users dan
         const fromStats = statsRes.status === 'fulfilled' ? pickActiveUsers(statsRes.value) : null
@@ -1364,6 +1368,45 @@ export default function AdminPanel() {
                 )}
                 {tab === 'stats' && !loading && stats && (
                     <div className="space-y-5">
+
+                        {/* === AI SARFI (bepul kunlik limitlar hisobi) === */}
+                        {aiUsage && (
+                            <div className="rounded-xl p-4" style={{ border: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+                                <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+                                    <p className="text-[13px] font-bold" style={{ color: 'var(--text-primary)' }}>AI sarfi — bugun</p>
+                                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>limit: {aiUsage.limits.chat} so'rov · {aiUsage.limits.vision} rasm / kun</span>
+                                </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                    {[
+                                        { label: 'Faol user', value: aiUsage.today.users },
+                                        { label: "AI so'rovlar", value: aiUsage.today.chat },
+                                        { label: 'Rasm tahlili', value: aiUsage.today.vision },
+                                        { label: 'Limitga urilgan', value: aiUsage.today.atChatLimit + aiUsage.today.atVisionLimit },
+                                    ].map(item => (
+                                        <div key={item.label} className="rounded-lg px-3 py-2" style={{ background: 'var(--bg-surface)' }}>
+                                            <p className="text-lg font-extrabold tracking-tight" style={{ color: 'var(--text-primary)' }}>{item.value}</p>
+                                            <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{item.label}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                                {aiUsage.days.length > 1 && (
+                                    <div className="mt-3 space-y-1">
+                                        {aiUsage.days.map(d => {
+                                            const maxChat = Math.max(...aiUsage.days.map(x => x.chat), 1)
+                                            return (
+                                                <div key={d.day} className="flex items-center gap-2">
+                                                    <span className="text-[10px] w-12 flex-shrink-0" style={{ color: 'var(--text-muted)' }}>{d.day.slice(5)}</span>
+                                                    <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'var(--bg-surface)' }}>
+                                                        <div className="h-full rounded-full" style={{ width: `${Math.round((d.chat / maxChat) * 100)}%`, background: 'var(--brand)' }} />
+                                                    </div>
+                                                    <span className="text-[10px] w-20 flex-shrink-0 text-right" style={{ color: 'var(--text-muted)' }}>{d.chat} so'rov · {d.users} user</span>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* === HOZIR ONLAYN === */}
                         <div className="rounded-xl overflow-hidden" style={{ border: '1.5px solid color-mix(in srgb, var(--success) 30%, transparent)', background: 'color-mix(in srgb, var(--success) 4%, transparent)' }}>
