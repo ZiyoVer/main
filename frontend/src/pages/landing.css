@@ -496,8 +496,10 @@
    rangida to'ladi. Yumshoq suzadi. Faqat dekorativ.
    ===================================================================== */
 .lp-root .lp-climb-scene {
-  position: absolute; top: 2%; left: 46%;
-  width: 384px; height: 384px;
+  /* eni kattaroq (kattaroq ko'rinadi), balandligi asl holicha — "Sen bugun"
+     yorlig'i pastga tushib boshqa panel orqasiga o'tib ketmasin */
+  position: absolute; top: 3%; left: 46%;
+  width: 372px; height: 320px;
   transform: translateX(-50%);
   z-index: 3; pointer-events: none;
 }

@@ -571,7 +571,7 @@ function MathZone() {
     <div
       aria-hidden="true"
       className="lp-math-zone"
-      style={{ position: 'absolute', top: 92, right: 36, width: 512, height: 360, zIndex: 1 }}
+      style={{ position: 'absolute', top: 92, right: 36, width: 512, height: 360, zIndex: 3 }}
     >
       <HeroClimb />
     </div>
