@@ -1,0 +1,27 @@
+{
+ "brief": "Bepul foydalanuvchi kunlik AI limiti: chat 30, rasm 5 (xarajat shipi)",
+ "created": "2026-07-06T06:11:03.285863+00:00",
+ "goals": [
+  {
+   "id": "G001",
+   "title": "Schema+util",
+   "objective": "AiDailyUsage jadvali, consumeAiQuota (rol/obuna istisno, Tashkent kuni, poyga-xavfsiz)",
+   "status": "pending",
+   "evidence": null
+  },
+  {
+   "id": "G002",
+   "title": "Enforce",
+   "objective": "chat stream+send 30/kun, analyze-vision 5/kun, explain chat hisobida",
+   "status": "pending",
+   "evidence": null
+  },
+  {
+   "id": "G003",
+   "title": "Copy+verify",
+   "objective": "pro.ts Free copy, backend tsc, frontend build, push",
+   "status": "pending",
+   "evidence": null
+  }
+ ]
+}

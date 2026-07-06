@@ -44,6 +44,7 @@ model User {
   subscriptions Subscription[]
   payments      Payment[]
   aiTestSessions AiTestSession[]
+  aiDailyUsage  AiDailyUsage[]
 }
 
 enum Role {
@@ -397,6 +398,20 @@ model Subscription {
   @@index([userId, status])
   @@index([userId, status, expiresAt]) // getEntitlement: active obunani expiresAt bo'yicha qidiradi
   @@index([expiresAt])
+}
+
+// Bepul foydalanuvchining kunlik AI limitlari hisobi (kun = Asia/Tashkent, "YYYY-MM-DD").
+// Faol obunasi bor user va TEACHER/ADMIN bu jadvalga umuman yozilmaydi.
+model AiDailyUsage {
+  id          String @id @default(uuid())
+  userId      String
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day         String
+  chatCount   Int    @default(0) // AI so'rovlari (chat, test/essay/flashcard yaratish, tushuntirish)
+  visionCount Int    @default(0) // rasm/OCR tahlili (eng qimmat yo'l)
+
+  @@unique([userId, day])
+  @@index([day])
 }
 
 model Payment {

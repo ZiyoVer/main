@@ -4,6 +4,7 @@ import pdfParse from 'pdf-parse'
 import mammoth from 'mammoth'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireVerified } from '../middleware/auth'
+import { consumeAiQuota, quotaExceededMessage } from '../utils/aiQuota'
 import OpenAI from 'openai'
 import { Prisma } from '@prisma/client'
 import { aiSettingsCache, aiSettingsCacheTime, AI_SETTINGS_TTL, setAISettingsCache, AISettingsData } from '../utils/aiSettingsCache'
@@ -1912,6 +1913,11 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
     try {
         const { content, thinking, displayText, todoContext } = req.body
         if (!content?.trim()) return res.status(400).json({ error: 'Xabar bo\'sh' })
+
+        // Bepul kunlik AI limiti (xarajat shipi) — SSE boshlanishidan OLDIN tekshiriladi,
+        // shunda frontend oddiy 429 JSON oladi va xabarni toast qiladi
+        const quota = await consumeAiQuota(req.user.id, req.user.role, 'chat')
+        if (!quota.ok) return res.status(429).json({ error: quotaExceededMessage('chat'), code: 'DAILY_AI_LIMIT' })
         const parsedTodoContext: TodoContextItem[] = Array.isArray(todoContext)
             ? todoContext
                 .filter((item: any) => item && typeof item.task === 'string' && item.task.trim().length > 0)
@@ -2234,6 +2240,10 @@ router.post('/:chatId/send', authenticate, requireVerified, async (req: AuthRequ
     try {
         const { content } = req.body
         if (!content?.trim()) return res.status(400).json({ error: 'Xabar bo\'sh' })
+
+        // Bepul kunlik AI limiti — stream bilan bir xil hisob
+        const quota = await consumeAiQuota(req.user.id, req.user.role, 'chat')
+        if (!quota.ok) return res.status(429).json({ error: quotaExceededMessage('chat'), code: 'DAILY_AI_LIMIT' })
 
         const chat = await prisma.chat.findFirst({
             where: { id: (req.params.chatId as string), userId: req.user.id }

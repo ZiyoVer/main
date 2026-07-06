@@ -72,10 +72,12 @@ export const PRO_FEATURES: readonly ProFeature[] = [
     },
 ] as const
 
-/** Free-tier feature list, mirroring Landing.tsx PLANS[Bepul].features. */
+/** Free-tier feature list, mirroring Landing.tsx PLANS[Bepul].features.
+    Kunlik limitlar backend'dagi FREE_DAILY_LIMITS (aiQuota.ts: chat 30, vision 5) bilan mos tursin. */
 export const FREE_FEATURES: readonly string[] = [
-    'AI repetitor bilan cheksiz suhbat',
-    'Cheksiz DTM uslubidagi testlar',
+    'AI repetitor — kuniga 30 ta so\'rov (suhbat, test, reja)',
+    'Rasm/screenshot tahlili — kuniga 5 ta',
+    'Tayyor DTM testlarini yechish — cheksiz',
     'Natija tahlili va progress kuzatuvi',
     'Flashcardlar bilan eslab qolish',
 ] as const

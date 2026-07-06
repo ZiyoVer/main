@@ -7,6 +7,7 @@ import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
 import { DtmBlockType } from '@prisma/client'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole, optionalAuthenticate } from '../middleware/auth'
+import { consumeAiQuota, quotaExceededMessage } from '../utils/aiQuota'
 import { uploadToS3, getSignedS3Url, resolveStoredS3Url, toStoredS3Ref, isStorageConfigured } from '../utils/s3'
 import { logAdminAction } from '../utils/adminAudit'
 import { getSubjectVariants, normalizeSubject, categoryForTest } from '../utils/subjects'
@@ -1743,6 +1744,10 @@ router.post('/analyze-vision', authenticate, aiAnalysisLimiter, async (req: Auth
         const imageQs = questions.filter((q: any) => q.imageUrl)
         if (imageQs.length === 0) return res.json({ analysis: null })
 
+        // Bepul kunlik RASM tahlili limiti — vision eng qimmat AI yo'li (OpenAI)
+        const quota = await consumeAiQuota(req.user.id, req.user.role, 'vision')
+        if (!quota.ok) return res.status(429).json({ error: quotaExceededMessage('vision'), code: 'DAILY_AI_LIMIT' })
+
         if (!process.env.GEMINI_API_KEY) {
             return res.json({ analysis: null })
         }
@@ -1824,6 +1829,10 @@ router.post('/explain', authenticate, aiAnalysisLimiter, async (req: AuthRequest
     try {
         const { question, studentAnswer, correctAnswer, subject } = req.body
         if (!question || !correctAnswer) return res.status(400).json({ error: 'question va correctAnswer kerak' })
+
+        // Tushuntirish ham DeepSeek so'rovi — umumiy kunlik chat kvotasidan yeydi
+        const quota = await consumeAiQuota(req.user.id, req.user.role, 'chat')
+        if (!quota.ok) return res.status(429).json({ error: quotaExceededMessage('chat'), code: 'DAILY_AI_LIMIT' })
         const opts = (['a', 'b', 'c', 'd'] as const)
             .map(k => (req.body[k] ? `${k.toUpperCase()}) ${req.body[k]}` : null))
             .filter(Boolean).join('\n')
