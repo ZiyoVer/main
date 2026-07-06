@@ -3634,8 +3634,23 @@ Iltimos, har bir savolni tahlil qilib ber:
                             </div>
                         ) : (
                             <div className="max-w-3xl mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-3 sm:space-y-6">
-                                {messages.map((m, i) => (
-                                    <div key={m.id || i} className={`flex ${m.role === 'user' ? 'justify-end' : ''}`}>
+                                {messages.map((m, i) => {
+                                    // Sana ajratgichi — kun almashganda "Bugun/Kecha/5-iyul" chizig'i
+                                    const msgDay = m.createdAt ? new Date(m.createdAt).toDateString() : ''
+                                    const prevMsg = messages[i - 1]
+                                    const showDateSep = !!msgDay && (!prevMsg?.createdAt || new Date(prevMsg.createdAt).toDateString() !== msgDay)
+                                    const dateLabel = !msgDay ? '' : (() => {
+                                        const todayKey = new Date().toDateString()
+                                        const yesterdayKey = new Date(Date.now() - 86400000).toDateString()
+                                        if (msgDay === todayKey) return 'Bugun'
+                                        if (msgDay === yesterdayKey) return 'Kecha'
+                                        return new Date(m.createdAt).toLocaleDateString('uz-UZ', { day: 'numeric', month: 'long' })
+                                    })()
+                                    return (
+                                    <React.Fragment key={m.id || i}>
+                                    {showDateSep && <div className="chat-date-sep" aria-hidden="true"><span>{dateLabel}</span></div>}
+                                    <div className={`flex ${m.role === 'user' ? 'justify-end' : ''}`}
+                                        title={m.createdAt ? new Date(m.createdAt).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' }) : undefined}>
                                         {m.role === 'user' ? (
                                             <div className="bubble-user">
                                                 {m.content.includes('![') ? (
@@ -3664,7 +3679,9 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             </div>
                                         )}
                                     </div>
-                                ))}
+                                    </React.Fragment>
+                                    )
+                                })}
                                 {/* Thinking process display */}
                                 {thinkingText && (
                                     <div className="flex gap-3 opacity-40">
@@ -3682,6 +3699,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         <img src="/dtmmax-logo.png" alt="" aria-hidden="true" className="ai-avatar" />
                                         <div className="bubble-ai w-full sm:w-auto">
                                             <MdMessage content={streaming} isStreaming={true} />
+                                            {/* Miltillovchi kursor — javob hali yozilmoqda (blok tuzilayotganda spinner o'zi bor) */}
+                                            {!/```(test|flashcard|vocab|formula|todo)/.test(streaming.slice(-400)) && <span className="stream-caret" aria-hidden="true" />}
                                             {/```test/.test(streaming) && !/```test[\s\S]*?```/.test(streaming) && (
                                                 <div className="mt-3">
                                                     <span className="ai-generating"><span className="ai-star">✳</span> Test tuzmoqda...</span>

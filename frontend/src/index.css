@@ -1247,3 +1247,42 @@ html.dark .md-content pre {
         padding: 8px 12px !important;
     }
 }
+
+/* ---- Chat jonlantirish (2026-07): streaming kursor + sana ajratgich ---- */
+/* Oqim oxirida miltillaydigan kursor — "AI hozir yozyapti" tirik hissi */
+.stream-caret {
+    display: inline-block;
+    width: 7px;
+    height: 1.05em;
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    border-radius: 2px;
+    background: var(--brand);
+    animation: stream-caret-blink 0.9s steps(2, start) infinite;
+}
+@keyframes stream-caret-blink { to { visibility: hidden; } }
+
+/* Suhbat ichidagi sana ajratgichi — uzun suhbatda "qachon edi" adashmasin */
+.chat-date-sep {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 6px 0;
+}
+.chat-date-sep::before,
+.chat-date-sep::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+}
+.chat-date-sep span {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .stream-caret { animation: none; }
+}
