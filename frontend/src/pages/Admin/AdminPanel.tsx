@@ -1269,12 +1269,6 @@ export default function AdminPanel() {
                 user.email?.toLowerCase().includes(normalizedTimeSpentSearch)
             )
         })
-    const timeSpentPreviewUsers = [...timeSpentUsers]
-        .sort((left, right) => {
-            if (right.isOnline !== left.isOnline) return Number(right.isOnline) - Number(left.isOnline)
-            return (right.todayMinutes || 0) - (left.todayMinutes || 0)
-        })
-        .slice(0, 6)
     // "Hozir onlayn" YAGONA manbasi — /analytics/online-users (onlineUsers holati, 30s da yangilanadi)
     const onlineNowCount = onlineUsers.length
     const totalTodayMinutes = timeSpentUsers.reduce((sum, user) => sum + (user.todayMinutes || 0), 0)
@@ -1467,15 +1461,18 @@ export default function AdminPanel() {
                             </div>
                         </div>
 
+                        {/* Faollik — bitta toza qator. "Hozir onlayn" yashil bannerда bor;
+                            avval "Faollik" + "Faol foydalanuvchilar" 7-kun metrikasini takrorlardi. */}
                         <div>
                             <p className="text-[11px] font-semibold uppercase tracking-wider mb-2.5" style={mutedText}>Faollik</p>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-2.5">
                                 {[
-                                    { n: onlineNowCount, l: 'Hozir onlayn', icon: Wifi, color: 'var(--success)' },
-                                    { n: stats.newUsers24h, l: 'Yangi userlar (24h)', icon: UserPlus, color: 'var(--info)' },
-                                    { n: stats.activeUsers7d, l: 'Faol userlar (7 kun)', icon: Activity, color: '#06b6d4' },
+                                    { n: activeUsers?.dau ?? null, l: 'Bugun faol', icon: Activity, color: 'var(--brand)' },
+                                    { n: activeUsers?.wau ?? stats.activeUsers7d, l: 'Faol (7 kun)', icon: CalendarClock, color: '#06b6d4' },
+                                    { n: activeUsers?.mau ?? null, l: 'Faol (30 kun)', icon: TrendingUp, color: 'var(--success)' },
+                                    { n: stats.newUsers24h, l: 'Yangi (24h)', icon: UserPlus, color: 'var(--info)' },
                                     { n: stats.messages7d, l: 'Xabarlar (7 kun)', icon: MessageSquare, color: 'var(--brand)' },
-                                ].map((s, i) => (
+                                ].filter(s => s.n != null).map((s, i) => (
                                     <div key={i} className="rounded-xl p-4 flex items-center gap-3" style={cardStyle}>
                                         <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ color: s.color, background: `color-mix(in srgb, ${s.color} 12%, transparent)` }}>
                                             <s.icon className="h-4 w-4" />
@@ -1488,30 +1485,6 @@ export default function AdminPanel() {
                                 ))}
                             </div>
                         </div>
-
-                        {/* === FAOL FOYDALANUVCHILAR (DAU / WAU / MAU) === */}
-                        {activeUsers && (
-                            <div>
-                                <p className="text-[11px] font-semibold uppercase tracking-wider mb-2.5" style={mutedText}>Faol foydalanuvchilar</p>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                                    {[
-                                        { n: activeUsers.dau, l: 'Bugun faol', icon: Activity, color: 'var(--brand)' },
-                                        { n: activeUsers.wau, l: '7 kun', icon: CalendarClock, color: 'var(--info)' },
-                                        { n: activeUsers.mau, l: '30 kun', icon: TrendingUp, color: 'var(--success)' },
-                                    ].map((s, i) => (
-                                        <div key={i} className="rounded-xl p-4 flex items-center gap-3" style={cardStyle}>
-                                            <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ color: s.color, background: `color-mix(in srgb, ${s.color} 12%, transparent)` }}>
-                                                <s.icon className="h-4 w-4" />
-                                            </div>
-                                            <div>
-                                                <p className="text-2xl font-bold tabular-nums leading-none">{s.n ?? 0}</p>
-                                                <p className="text-[11px] mt-0.5" style={mutedText}>{s.l}</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
 
                         {/* === TREND CHART === */}
                         <div className="rounded-xl p-4" style={cardStyle}>
@@ -1654,100 +1627,6 @@ export default function AdminPanel() {
                                         </div>
                                     ))}
                                 </div>
-                            </div>
-                        </div>
-
-                        <div className="rounded-xl overflow-hidden" style={cardStyle}>
-                            <div className="px-4 py-3 flex items-center justify-between gap-3 flex-wrap" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
-                                <div className="flex items-center gap-2">
-                                    <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--brand) 12%, transparent)', color: 'var(--brand)' }}>
-                                        <Clock3 className="h-4 w-4" />
-                                    </div>
-                                    <div>
-                                        <p className="text-[13px] font-semibold">Platformada o‘tkazilgan vaqt</p>
-                                        <p className="text-[11px]" style={mutedText}>{trackedUsers} ta user · {presenceIntervalMinutes} daqiqalik aktivlik pulsi asosida taxminiy hisob</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <button onClick={loadTimeSpent} className="btn btn-sm btn-outline flex items-center gap-1.5">
-                                        <RefreshCw className={`h-3 w-3 ${timeSpentLoading ? 'animate-spin' : ''}`} /> Yangilash
-                                    </button>
-                                    <button onClick={() => setTab('presence')} className="btn btn-sm btn-primary flex items-center gap-1.5">
-                                        <ExternalLink className="h-3 w-3" /> To‘liq jadval
-                                    </button>
-                                </div>
-                            </div>
-                            {timeSpentError && (
-                                <div className="px-4 py-2.5 text-[12px]" style={{ color: 'var(--danger)', background: 'var(--danger-light)', borderBottom: '1px solid var(--border)' }}>
-                                    {timeSpentError}
-                                </div>
-                            )}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
-                                {[
-                                    { label: 'Kuzatilayotganlar', value: trackedUsers, tone: 'var(--brand)' },
-                                    { label: 'Hozir onlayn', value: onlineNowCount, tone: 'var(--success)' },
-                                    { label: 'Bugungi vaqt', value: formatDuration(totalTodayMinutes), tone: 'var(--brand)' },
-                                    { label: '7 kunlik vaqt', value: formatDuration(totalWeekMinutes), tone: 'var(--info)' },
-                                ].map(item => (
-                                    <div key={item.label} className="rounded-xl px-3.5 py-3" style={{ background: 'var(--bg-surface)' }}>
-                                        <p className="text-[10px] uppercase tracking-wide mb-1" style={mutedText}>{item.label}</p>
-                                        <p className="text-[14px] font-semibold" style={{ color: item.tone }}>{item.value}</p>
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm min-w-[760px]">
-                                    <thead>
-                                        <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
-                                            <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Foydalanuvchi</th>
-                                            <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Bugun</th>
-                                            <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>7 kun</th>
-                                            <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Jami</th>
-                                            <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>Holat</th>
-                                            <th className="text-left py-2.5 px-4 font-medium text-[11px] uppercase" style={mutedText}>So‘nggi faollik</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {timeSpentLoading && timeSpentUsers.length === 0 ? (
-                                            <tr><td colSpan={6} className="text-center py-10 text-[12px]" style={mutedText}>Yuklanmoqda...</td></tr>
-                                        ) : timeSpentPreviewUsers.length === 0 ? (
-                                            <tr><td colSpan={6} className="text-center py-10 text-[12px]" style={mutedText}>Hali vaqt statistikasi to‘planmagan</td></tr>
-                                        ) : timeSpentPreviewUsers.map(user => (
-                                            <tr key={user.id} style={{ borderBottom: '1px solid var(--border)' }} className="hover:bg-[var(--bg-surface)] transition-colors">
-                                                <td className="py-2.5 px-4">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0" style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>
-                                                            {user.name?.[0]?.toUpperCase() || '?'}
-                                                        </div>
-                                                        <div className="min-w-0">
-                                                            <p className="text-[12px] font-medium truncate">{user.name}</p>
-                                                            <p className="text-[10px] truncate" style={mutedText}>{user.email}</p>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="py-2.5 px-4 text-[12px] font-medium tabular-nums">{formatDuration(user.todayMinutes || 0)}</td>
-                                                <td className="py-2.5 px-4 text-[12px] font-medium tabular-nums">{formatDuration(user.weekMinutes || 0)}</td>
-                                                <td className="py-2.5 px-4">
-                                                    <div>
-                                                        <p className="text-[12px] font-semibold tabular-nums">{formatDuration(user.totalMinutes || 0)}</p>
-                                                        <p className="text-[10px]" style={mutedText}>{user.totalHours || 0} soat</p>
-                                                    </div>
-                                                </td>
-                                                <td className="py-2.5 px-4">
-                                                    <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-semibold" style={user.isOnline ? { background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)' } : { background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
-                                                        <span className="h-1.5 w-1.5 rounded-full" style={{ background: user.isOnline ? 'var(--success)' : 'var(--text-muted)' }} />
-                                                        {user.isOnline ? 'Onlayn' : 'Offlayn'}
-                                                    </span>
-                                                </td>
-                                                <td className="py-2.5 px-4 text-[11px] tabular-nums" style={mutedText}>
-                                                    {user.lastSeen
-                                                        ? new Date(user.lastSeen).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-                                                        : '—'}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
                             </div>
                         </div>
 
