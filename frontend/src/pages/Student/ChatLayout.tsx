@@ -883,6 +883,20 @@ const ChatInputArea = memo(function ChatInputArea({
 })
 
 // Suhbatlarni sanasi bo'yicha guruhlash
+// Chat sarlavhasini ro'yxat uchun tozalaydi: rasm-referenslari va markdown xom holda
+// chiqib ketardi ("**[Rasm: screenshot-1783...]"). Toza, o'qiladigan sarlavha qaytaradi.
+function cleanChatTitle(raw: string | undefined | null): string {
+    let s = String(raw || '')
+    s = s.replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')      // markdown rasm ![alt](url)
+        .replace(/\*{0,2}\[?\s*Rasm:[^\]]*\]?/gi, ' ') // "**[Rasm: screenshot-...]" (yopilmagan ham)
+        .replace(/s3key:[^\s)]+/gi, ' ')               // xom S3 ref
+        .replace(/https?:\/\/\S+/g, ' ')               // yalang'och URL
+        .replace(/[*_#`>]+/g, ' ')                     // markdown belgilari
+        .replace(/\s+/g, ' ')                          // ketma-ket bo'shliqlar
+        .trim()
+    return s || 'Yangi suhbat'
+}
+
 function groupChatsByDate(chats: { id: string; title: string; updatedAt: string }[]) {
     const now = new Date()
     const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0)
@@ -2959,8 +2973,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             onMouseEnter={e => { if (chatId !== c.id) e.currentTarget.style.background = 'var(--bg-muted)' }}
                                             onMouseLeave={e => { if (chatId !== c.id) e.currentTarget.style.background = 'transparent' }}
                                             onClick={() => nav(`/suhbat/${c.id}`)}
-                                            title={c.title}>
-                                            <span className="flex-1 truncate">{c.title}</span>
+                                            title={cleanChatTitle(c.title)}>
+                                            <span className="flex-1 truncate">{cleanChatTitle(c.title)}</span>
                                             <button onClick={(e) => deleteChat(c.id, e)} className="opacity-0 group-hover:opacity-100 h-5 w-5 flex items-center justify-center rounded transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)' }} onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)' }}><Trash2 className="h-3 w-3" /></button>
                                         </div>
                                     ))}
@@ -3374,7 +3388,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                     <div className="h-14 flex items-center px-4 gap-2 flex-shrink-0" style={{ borderBottom: '1px solid color-mix(in srgb, var(--border) 74%, rgba(15,23,42,0.12) 26%)' }}>
                         <button onClick={() => setSideOpen(v => !v)} className="h-8 w-8 flex items-center justify-center rounded-lg transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} title="Yonpanel"><Menu className="h-4 w-4" /></button>
                         {currentChat?.title ? (
-                            <span className="text-sm font-medium truncate flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>{currentChat.title}</span>
+                            <span className="text-sm font-medium truncate flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>{cleanChatTitle(currentChat.title)}</span>
                         ) : (
                             // Sarlavha yo'q (yangi/bo'sh chat) — header bo'sh qolmasin, brend ko'rinsin
                             <span className="flex items-center gap-2 flex-1 min-w-0">
@@ -3397,6 +3411,14 @@ Iltimos, har bir savolni tahlil qilib ber:
                                 </button>
                             )
                         })()}
+                        {/* Mobilda yangi suhbat — drawer ochmasdan bir bosishda (desktop'da sidebar doim ochiq) */}
+                        {isMobile && (
+                            <button onClick={createChat} disabled={creating} title="Yangi suhbat"
+                                className="h-8 w-8 flex items-center justify-center rounded-lg transition flex-shrink-0 disabled:opacity-50"
+                                style={{ color: 'var(--brand)', background: 'var(--brand-light)' }}>
+                                <Plus className="h-4 w-4" />
+                            </button>
+                        )}
                     </div>
 
                     {/* Messages */}
