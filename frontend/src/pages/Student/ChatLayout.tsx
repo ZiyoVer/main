@@ -551,6 +551,36 @@ function loadStoredTodos(storageKey: string): TodoItem[] {
     }
 }
 
+// "Bugun" bosh ekrani uchun: reja chat-scoped saqlanadi, shuning uchun bosh ekranda
+// userning BARCHA chat-bucket'laridagi rejalarni yig'amiz (aks holda doim bo'sh ko'rinardi)
+function loadAllUserTodos(userId: string): Array<TodoItem & { storageKey: string }> {
+    const prefix = `${TODO_STORAGE_PREFIX}_${userId}_`
+    const merged: Array<TodoItem & { storageKey: string }> = []
+    const seen = new Set<string>()
+    try {
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i)
+            if (!key || !key.startsWith(prefix)) continue
+            for (const item of loadStoredTodos(key)) {
+                const signature = getTodoSignature(item)
+                if (seen.has(signature)) continue
+                seen.add(signature)
+                merged.push({ ...item, storageKey: key })
+            }
+        }
+    } catch { /* localStorage o'qilmasa — bo'sh ro'yxat */ }
+    // Bajarilmaganlar oldinda tursin
+    return merged.sort((a, b) => Number(a.done) - Number(b.done))
+}
+
+// Bosh ekrandan vazifani bajarildi deb belgilash — o'z bucket'iga yozib qo'yadi
+function markStoredTodoDone(storageKey: string, id: string): void {
+    try {
+        const items = loadStoredTodos(storageKey).map(t => (t.id === id ? { ...t, done: true } : t))
+        localStorage.setItem(storageKey, JSON.stringify(items))
+    } catch { /* saqlanmasa jim — UI holati baribir yangilanadi */ }
+}
+
 interface ChatInputAreaProps {
     chatId: string | undefined
     loading: boolean
@@ -881,6 +911,18 @@ export default function ChatLayout() {
         return !initialMobile && loadStoredTodos(todoStorageKey).some(item => !item.done)
     })
     const [showSettings, setShowSettings] = useState(false)
+    // "Bugun" ekrani rejasi — barcha chatlardagi rejalar yig'indisi (chat tanlanmaganda ko'rinadi)
+    const [homeTodos, setHomeTodos] = useState<Array<TodoItem & { storageKey: string }>>([])
+    useEffect(() => {
+        if (!chatId) setHomeTodos(loadAllUserTodos(user?.id || 'guest'))
+        // todoItems deps: joriy chatda reja o'zgargan bo'lsa, bosh ekranga qaytganda yangilansin
+    }, [chatId, user?.id, todoItems])
+    function markHomeTodoDone(item: TodoItem & { storageKey: string }) {
+        markStoredTodoDone(item.storageKey, item.id)
+        setHomeTodos(prev => prev.map(t => (t.id === item.id ? { ...t, done: true } : t)))
+        // Joriy bucket bo'lsa jonli todoItems state bilan ham sinxron
+        if (item.storageKey === todoStorageKey) markTodoDone(item.id)
+    }
     // 6.3: bir martalik 3 qadamli mini-tur (-1 = ko'rsatilmaydi/tugagan)
     const [tourStep, setTourStep] = useState<number>(() => {
         try { return localStorage.getItem('dtmmax_tour_done_v1') ? -1 : 0 } catch { return -1 }
@@ -3276,15 +3318,119 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         <p className="text-base font-bold tracking-tight">AI <span className="k-italic">tayyorlayapti</span>...</p>
                                     </div>
                                 ) : (
-                                    <div className="w-full max-w-md anim-up relative" style={{ zIndex: 1 }}>
+                                    <div className="w-full max-w-xl anim-up relative" style={{ zIndex: 1 }}>
+                                        {/* ===== "BUGUN" bosh ekrani — o'quvchi kirganda chat emas, shu dashboard ===== */}
                                         <div className="text-center">
-                                            <img src="/dtmmax-logo.png" alt="DtmMax" className="h-14 w-14 rounded-xl mx-auto mb-3" style={{ objectFit: 'contain' }} />
-                                            <p className="text-xl font-bold" style={{ fontFamily: 'var(--k-serif)', fontWeight: 500 }}>Salom{user?.name ? `, ${user.name}` : ''}! <span className="k-italic">Birga</span> ishlaymiz.</p>
-                                            <p className="text-sm mt-2" style={{ color: 'var(--text-muted)' }}>Savolingizni pastga yozing — tushuntiraman, test beraman, reja tuzaman.</p>
+                                            <img src="/dtmmax-logo.png" alt="DtmMax" className="h-12 w-12 rounded-xl mx-auto mb-2.5" style={{ objectFit: 'contain' }} />
+                                            <p className="text-xl font-bold" style={{ fontFamily: 'var(--k-serif)', fontWeight: 500 }}>Salom{user?.name ? `, ${user.name}` : ''}!</p>
+                                            <div className="flex items-center justify-center gap-2 mt-2 flex-wrap">
+                                                <button type="button" onClick={() => setOverlayPanel('progress')}
+                                                    className="flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11px] font-bold transition"
+                                                    style={{ background: 'color-mix(in srgb, #ea580c 10%, transparent)', color: '#ea580c', border: '1px solid color-mix(in srgb, #ea580c 25%, transparent)' }}>
+                                                    <Flame className="h-3 w-3" />
+                                                    {(progressData?.currentStreak ?? 0) > 0 ? `${progressData?.currentStreak} kun ketma-ket` : 'Bugun 1-kunni boshla'}
+                                                </button>
+                                                {(progressData?.xp ?? 0) > 0 && (
+                                                    <span className="h-7 px-2.5 rounded-full text-[11px] font-bold flex items-center" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>{progressData?.xp} XP</span>
+                                                )}
+                                            </div>
                                         </div>
+
+                                        {/* Diagnostik CTA — hali birorta test yechmagan yangi o'quvchiga birinchi qadam */}
+                                        {myResults.length === 0 && (
+                                            <button type="button"
+                                                onClick={() => { void handleSend(`${profile?.subject || 'Asosiy fanim'}dan darajamni aniqlash uchun 10 ta savollik diagnostik test tuz. Savollar osondan qiyinga qarab borsin. Oxirida darajam va zaif joylarim bo'yicha qisqa xulosa ber.`, []) }}
+                                                className="w-full text-left rounded-2xl p-4 mt-5 transition hover:opacity-95"
+                                                style={{ background: 'var(--k-accent-grad, var(--brand))', color: '#fff', boxShadow: 'var(--k-shadow-cta, none)' }}>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.18)' }}>
+                                                        <Target className="h-5 w-5" />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="text-[14px] font-bold leading-snug">Darajangni aniqlaymiz — diagnostik test</p>
+                                                        <p className="text-[11.5px] mt-0.5" style={{ opacity: 0.85 }}>10 savol · ~10 daqiqa · natijaga qarab shaxsiy reja</p>
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        )}
+
+                                        {/* Bugungi reja — barcha chatlardagi rejalardan yig'ilgan */}
+                                        <div className="rounded-2xl p-4 mt-4 text-left" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                            <div className="flex items-center justify-between gap-2 mb-1">
+                                                <p className="text-[13px] font-bold flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
+                                                    <Target className="h-4 w-4" style={{ color: 'var(--brand)' }} /> Bugungi reja
+                                                </p>
+                                                {homeTodos.length > 0 && (
+                                                    <span className="text-[11px] font-bold" style={{ color: 'var(--text-muted)' }}>
+                                                        {homeTodos.filter(t => t.done).length}/{homeTodos.length}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {homeTodos.length === 0 ? (
+                                                <div className="flex items-center justify-between gap-3 mt-1">
+                                                    <p className="text-[12px]" style={{ color: 'var(--text-muted)' }}>Reja hali tuzilmagan — AI 1 daqiqada tuzib beradi</p>
+                                                    <button type="button" className="btn btn-outline btn-sm flex-shrink-0"
+                                                        onClick={() => { void handleSend('Menga bugun uchun qisqa, bajarsa bo\'ladigan o\'quv reja tuz — imtihonim va zaif mavzularimga mosla.', []) }}>
+                                                        Reja tuzish
+                                                    </button>
+                                                </div>
+                                            ) : homeTodos.every(t => t.done) ? (
+                                                <p className="text-[12px] mt-1" style={{ color: 'var(--success)' }}>Barcha vazifalar bajarildi! 🎉</p>
+                                            ) : (
+                                                <div className="mt-1.5">
+                                                    {homeTodos.filter(t => !t.done).slice(0, 4).map(t => (
+                                                        <button key={`${t.storageKey}-${t.id}`} type="button" onClick={() => markHomeTodoDone(t)}
+                                                            className="w-full flex items-center gap-2.5 py-1.5 text-left group" title="Bajarildi deb belgilash">
+                                                            <span className="flex-shrink-0 h-[18px] w-[18px] rounded-full transition group-hover:scale-110" style={{ border: '1.5px solid var(--border-strong)' }} />
+                                                            <span className="text-[12.5px] flex-1 min-w-0 truncate" style={{ color: 'var(--text-primary)' }}>{t.task}</span>
+                                                            {t.duration ? <span className="text-[10px] flex-shrink-0" style={{ color: 'var(--text-muted)' }}>{t.duration} min</span> : null}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Davom etish — natijasi bor o'quvchiga */}
+                                        {myResults.length > 0 && (
+                                            <div className="rounded-2xl p-4 mt-3 flex items-center justify-between gap-3 text-left" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--success) 12%, transparent)' }}>
+                                                        <TrendingUp className="h-[18px] w-[18px]" style={{ color: 'var(--success)' }} />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="text-[13px] font-bold" style={{ color: 'var(--text-primary)' }}>Oxirgi natija: {myResults[0].score}%</p>
+                                                        <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Davom etsak — natija o'sadi</p>
+                                                    </div>
+                                                </div>
+                                                <button type="button" className="btn btn-primary btn-sm flex-shrink-0 relative"
+                                                    onClick={() => { setOverlayPanel('tests'); markTestsSeen(); void loadPublicTests(); void loadMyResults() }}>
+                                                    Testlar
+                                                    {newTestIds.size > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full text-white text-[9px] flex items-center justify-center font-bold" style={{ background: 'var(--danger)' }}>{newTestIds.size > 9 ? '9+' : newTestIds.size}</span>}
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {/* Zaif mavzu — bitta bosishda mashq */}
+                                        {(() => {
+                                            const weakTopic = progressData?.weakTopics?.[0]
+                                            if (!weakTopic) return null
+                                            return (
+                                                <button type="button"
+                                                    onClick={() => { void handleSend(`"${weakTopic.topic}" mavzusidan 10 ta savollik mashq testi tuz — bu mening zaif mavzum, oxirida xatolarimni tushuntir.`, []) }}
+                                                    className="w-full rounded-2xl p-3.5 mt-3 flex items-center gap-3 text-left transition"
+                                                    style={{ background: 'color-mix(in srgb, var(--warning) 7%, transparent)', border: '1px solid color-mix(in srgb, var(--warning) 22%, transparent)' }}>
+                                                    <AlertTriangle className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--warning)' }} />
+                                                    <span className="text-[12.5px] min-w-0 flex-1" style={{ color: 'var(--text-primary)' }}>
+                                                        Zaif mavzu: <strong>{weakTopic.topic}</strong> — mashq qilamizmi?
+                                                    </span>
+                                                </button>
+                                            )
+                                        })()}
+
+                                        <p className="text-[11px] font-bold uppercase tracking-[0.06em] mt-5 mb-2 text-left" style={{ color: 'var(--text-muted)' }}>Tez amallar</p>
                                         {/* 6.1: misol-kartalar. BIRINCHISI — haqiqiy Testlar bo'limiga olib boradi
                                             (avval hammasi chat prompt edi — yangi o'quvchi test bo'limi borligini ko'rmasdi) */}
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-6">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                             {([
                                                 { Icon: ClipboardList, label: 'Test yechish', hint: 'Tayyor DTM va fan testlari', action: () => { setOverlayPanel('tests'); markTestsSeen(); void loadPublicTests(); void loadMyResults() } },
                                                 { Icon: BookOpen, label: 'Mavzuni tushuntir', hint: 'Misollar bilan, oddiy tilda', prompt: `${profile?.subject || 'Asosiy fanim'}dan menga bitta muhim mavzuni misollar bilan tushuntir. Avval qaysi mavzu kerakligini so'ra.` },

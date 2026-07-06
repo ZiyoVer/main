@@ -1,41 +1,34 @@
 {
- "brief": "Student navigatsiya: mobil tab-bar + tez tuzatishlar (retention)",
- "created": "2026-07-06T04:50:03.488724+00:00",
+ "brief": "Bugun bosh sahifasi — o'quvchi kirganda dashboard (retention 2-bosqich)",
+ "created": "2026-07-06T05:19:55.151803+00:00",
  "goals": [
   {
    "id": "G001",
-   "title": "Mobil tab-bar",
-   "objective": "<768px doimiy pastki bar: Suhbat/Testlar/Natijalar/Menyu, aktiv holat, kontent padding",
-   "status": "complete",
-   "evidence": "Mobil tab-bar: fixed bottom nav z-60 (Suhbat/Testlar/Natijalar/Menyu), aktiv holat, badge, safe-area, Main/overlay/sidebar'ga padding; fokusli panellarda (test/insho/kartochka/reja) yashirinadi"
+   "title": "Ma'lumot tekshiruv",
+   "objective": "chatId init, myResults/todoItems/progressData shakllari, auto-select bor-yo'qligi",
+   "status": "in_progress",
+   "evidence": null
   },
   {
    "id": "G002",
-   "title": "Welcome karta",
-   "objective": "Birinchi karta haqiqiy Testlar bo'limiga olib boradi (chat prompt emas)",
-   "status": "complete",
-   "evidence": "Welcome birinchi karta endi haqiqiy Testlar bo'limini ochadi (setOverlayPanel tests + load)"
+   "title": "Bugun ekrani",
+   "objective": "bo'sh holat o'rniga dashboard: salom+streak+countdown, bugungi reja, davom etish, diagnostik CTA, tez amallar",
+   "status": "pending",
+   "evidence": null
   },
   {
    "id": "G003",
-   "title": "Kartochkalar nav",
-   "objective": "Sidebar'ga flashcards tugmasi (o'lik overlay'ni jonlantirish)",
-   "status": "complete",
-   "evidence": "Sidebar'ga Kartochkalar tugmasi qo'shildi (due badge bilan) — o'lik flashcards overlay endi ochiladi"
+   "title": "Kirish oqimi",
+   "objective": "login'dan keyin o'quvchi Bugun ekraniga tushishi (auto-chat-select bo'lsa o'chirish)",
+   "status": "pending",
+   "evidence": null
   },
   {
    "id": "G004",
-   "title": "Streak 0-holat",
-   "objective": "Yangi o'quvchi ham streak vidjetini ko'radi (boshlang'ich holat)",
-   "status": "complete",
-   "evidence": "Streak vidjet endi progressData bor har o'quvchiga ko'rinadi (0-holat 'Bugun boshlang')"
-  },
-  {
-   "id": "G005",
    "title": "Verifikatsiya",
-   "objective": "tsc+build, commit, push",
-   "status": "complete",
-   "evidence": "ChatLayout.tsx + 7 auth sahifa (anim-up olib tashlandi)"
+   "objective": "tsc+build, review, commit, push",
+   "status": "pending",
+   "evidence": null
   }
  ]
 }

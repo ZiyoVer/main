@@ -50,3 +50,5 @@
 {"ts": "2026-07-06T04:54:40.790787+00:00", "event": "checkpoint", "id": "G004", "status": "complete", "evidence": "Streak vidjet endi progressData bor har o'quvchiga ko'rinadi (0-holat 'Bugun boshlang')", "verify_cmd": "", "verify_evidence": ""}
 {"ts": "2026-07-06T04:54:40.901120+00:00", "event": "story_started", "id": "G005", "title": "Verifikatsiya"}
 {"ts": "2026-07-06T04:54:41.010406+00:00", "event": "checkpoint", "id": "G005", "status": "complete", "evidence": "ChatLayout.tsx + 7 auth sahifa (anim-up olib tashlandi)", "verify_cmd": "cd frontend && npx tsc --noEmit && npm run build", "verify_evidence": "tsc 0 xato, vite build 11.16s OK"}
+{"ts": "2026-07-06T05:19:55.152631+00:00", "event": "plan_created", "brief": "Bugun bosh sahifasi — o'quvchi kirganda dashboard (retention 2-bosqich)", "count": 4}
+{"ts": "2026-07-06T05:25:11.287758+00:00", "event": "story_started", "id": "G001", "title": "Ma'lumot tekshiruv"}
