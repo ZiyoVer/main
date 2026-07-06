@@ -3407,7 +3407,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                             setShowScrollDown(prev => prev === far ? prev : far)
                         }}>
                         {(!chatId || (messages.length === 0 && !loading && !streaming)) ? (
-                            <div className="min-h-full flex flex-col items-center justify-center relative p-5 py-8" style={{ background: 'var(--bg-page)' }}>
+                            <div className="min-h-full flex flex-col items-center justify-center relative px-4 py-6 sm:p-5 sm:py-8" style={{ background: 'var(--bg-page)' }}>
                                 <div className="k-tex-dots absolute inset-0" style={{ zIndex: 0 }} />
                                 {(loading || streaming) ? (
                                     <div className="text-center px-4 anim-up relative" style={{ zIndex: 1 }}>
@@ -3418,21 +3418,22 @@ Iltimos, har bir savolni tahlil qilib ber:
                                     <div className="w-full max-w-xl anim-up relative" style={{ zIndex: 1 }}>
                                         {/* ===== "BUGUN" bosh ekrani — o'quvchi kirganda chat emas, shu dashboard ===== */}
                                         <div className="text-center">
-                                            <img src="/dtmmax-logo.png" alt="DtmMax" className="h-12 w-12 rounded-xl mx-auto mb-2.5" style={{ objectFit: 'contain' }} />
-                                            <p className="text-xl font-bold" style={{ fontFamily: 'var(--k-serif)', fontWeight: 500 }}>{timeGreeting()}{user?.name ? `, ${user.name}` : ''}!</p>
+                                            <img src="/dtmmax-logo.png" alt="DtmMax" className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl mx-auto mb-2 sm:mb-2.5" style={{ objectFit: 'contain' }} />
+                                            <p className="text-lg sm:text-xl font-bold" style={{ fontFamily: 'var(--k-serif)', fontWeight: 500 }}>{timeGreeting()}{user?.name ? `, ${user.name}` : ''}!</p>
                                             <div className="flex items-center justify-center gap-2 mt-2 flex-wrap">
                                                 <button type="button" onClick={() => setOverlayPanel('progress')}
-                                                    className="flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11px] font-bold transition"
+                                                    className="flex items-center gap-1.5 h-8 px-3 rounded-full text-[11px] font-bold transition"
                                                     style={{ background: 'color-mix(in srgb, #ea580c 10%, transparent)', color: '#ea580c', border: '1px solid color-mix(in srgb, #ea580c 25%, transparent)' }}>
                                                     <Flame className={`h-3 w-3 ${(progressData?.currentStreak ?? 0) > 0 ? 'k-flame-live' : ''}`} />
                                                     {(progressData?.currentStreak ?? 0) > 0 ? `${progressData?.currentStreak} kun ketma-ket` : 'Bugun 1-kunni boshla'}
                                                 </button>
                                                 {(progressData?.xp ?? 0) > 0 && (
-                                                    <span className="h-7 px-2.5 rounded-full text-[11px] font-bold flex items-center" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>{progressData?.xp} XP</span>
+                                                    <span className="h-8 px-3 rounded-full text-[11px] font-bold flex items-center" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>{progressData?.xp} XP</span>
                                                 )}
                                             </div>
-                                            {/* Yo'qotish qo'rquvi — seriyani saqlash eng kuchli qaytish sababi */}
-                                            {(progressData?.currentStreak ?? 0) > 0 && (
+                                            {/* Yo'qotish qo'rquvi — seriyani saqlash eng kuchli qaytish sababi.
+                                                Mobilda yashiriladi (vertikal joyni tejash) — chip'ning o'zi seriyani ko'rsatadi */}
+                                            {(progressData?.currentStreak ?? 0) > 0 && !isMobile && (
                                                 <p className="text-[11px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
                                                     Bugun 1 ta mashq yetadi — {progressData?.currentStreak} kunlik seriyang saqlanadi
                                                 </p>
@@ -3445,7 +3446,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             const estimatedBall = Math.round((progressData.avgScore / 100) * 189)
                                             const pathPercent = Math.max(3, Math.min(100, Math.round((estimatedBall / profile.targetScore) * 100)))
                                             return (
-                                                <div className="rounded-2xl p-4 mt-5 text-left" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                                <div className="rounded-2xl p-3.5 sm:p-4 mt-4 sm:mt-5 text-left" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
                                                     <div className="flex items-center justify-between gap-2 mb-2">
                                                         <p className="text-[13px] font-bold flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
                                                             <Trophy className="h-4 w-4" style={{ color: 'var(--brand)' }} /> {profile.targetScore} ball sari yo'l
@@ -3455,7 +3456,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--bg-surface)' }}>
                                                         <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pathPercent}%`, background: 'var(--k-accent-grad, var(--brand))' }} />
                                                     </div>
-                                                    <p className="text-[11px] mt-1.5" style={{ color: 'var(--text-muted)' }}>Har bir mashq shu chiziqni oldinga suradi</p>
+                                                    {!isMobile && <p className="text-[11px] mt-1.5" style={{ color: 'var(--text-muted)' }}>Har bir mashq shu chiziqni oldinga suradi</p>}
                                                 </div>
                                             )
                                         })()}
@@ -3464,7 +3465,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         {myResults.length === 0 && (
                                             <button type="button"
                                                 onClick={() => { void handleSend(`${profile?.subject || 'Asosiy fanim'}dan darajamni aniqlash uchun 10 ta savollik diagnostik test tuz. Savollar osondan qiyinga qarab borsin. Oxirida darajam va zaif joylarim bo'yicha qisqa xulosa ber.`, []) }}
-                                                className="w-full text-left rounded-2xl p-4 mt-5 transition hover:opacity-95"
+                                                className="w-full text-left rounded-2xl p-3.5 sm:p-4 mt-4 sm:mt-5 transition hover:opacity-95"
                                                 style={{ background: 'var(--k-accent-grad, var(--brand))', color: '#fff', boxShadow: 'var(--k-shadow-cta, none)' }}>
                                                 <div className="flex items-center gap-3">
                                                     <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.18)' }}>
@@ -3505,7 +3506,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 )
                                             }
                                             return (
-                                                <div className="rounded-2xl p-4 mt-4 text-left" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                                <div className="rounded-2xl p-3.5 sm:p-4 mt-3 sm:mt-4 text-left" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
                                                     <div className="flex items-center justify-between gap-2 mb-1">
                                                         <p className="text-[13px] font-bold flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
                                                             <Target className="h-4 w-4" style={{ color: 'var(--brand)' }} /> Bugungi reja
@@ -3544,9 +3545,11 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             )
                                         })()}
 
-                                        {/* Davom etish — natijasi bor o'quvchiga */}
-                                        {myResults.length > 0 && (
-                                            <div className="rounded-2xl p-4 mt-3 flex items-center justify-between gap-3 text-left" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                        {/* Davom etish — natijasi bor o'quvchiga.
+                                            Mobilda maqsad-yo'l kartasi bo'lsa YASHIRINADI: ikkisi ham progressni ko'rsatadi,
+                                            "Testlar" tugmasi esa pastki tab-barda bor — takror karta joyni band qilardi */}
+                                        {myResults.length > 0 && !(isMobile && profile?.examType === 'DTM' && !!profile?.targetScore && !!progressData?.avgScore) && (
+                                            <div className="rounded-2xl p-3.5 sm:p-4 mt-3 flex items-center justify-between gap-3 text-left" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
                                                 <div className="flex items-center gap-3 min-w-0">
                                                     <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--success) 12%, transparent)' }}>
                                                         <TrendingUp className="h-[18px] w-[18px]" style={{ color: 'var(--success)' }} />
@@ -4333,8 +4336,9 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 </div>
                                             )
                                         })()}
-                                        {/* 4.3: "Siz uchun" — fan/zaif mavzuga mos, hali ishlanmagan 2-3 tavsiya */}
-                                        {publicTests.length > 4 && (() => {
+                                        {/* 4.3: "Siz uchun" — fan/zaif mavzuga mos, hali ishlanmagan 2-3 tavsiya.
+                                            Mobilda yashiriladi: pastdagi to'liq ro'yxatni takrorlaydi va bir qator joy yeydi */}
+                                        {publicTests.length > 4 && !isMobile && (() => {
                                             const isDone = (t: PublicTest) => myResults.some(r => r.testId === t.id) || completedTestIdsRef.current.has(t.id)
                                             const subj = normalizeSubjectValue(profile?.subject)
                                             const subj2 = normalizeSubjectValue(profile?.subject2)
@@ -4396,13 +4400,14 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                         </div>
                                                     </div>
                                                     {(cats.length > 1 || hasPremium) && (
-                                                        <div className="flex flex-wrap gap-2">
+                                                        // Mobilda 2 qatorga o'ralib joy yemasin — bitta gorizontal scroll qatori
+                                                        <div className="flex gap-2 overflow-x-auto sm:flex-wrap" style={{ scrollbarWidth: 'none' }}>
                                                             {chips.map(c => {
                                                                 const active = testCategory === c
                                                                 const isPrem = c === 'premium'
                                                                 return (
                                                                     <button key={c} onClick={() => setTestCategory(c)}
-                                                                        className="text-xs font-semibold px-3 py-1.5 rounded-full transition inline-flex items-center gap-1"
+                                                                        className="text-xs font-semibold px-3 py-1.5 rounded-full transition inline-flex items-center gap-1 flex-shrink-0 whitespace-nowrap"
                                                                         style={active
                                                                             ? { background: isPrem ? '#B8860B' : 'var(--brand)', color: 'white' }
                                                                             : { background: 'var(--bg-muted)', color: isPrem ? '#B8860B' : 'var(--text-secondary)' }}>
@@ -4549,12 +4554,12 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 { label: "O'rtacha ball", value: `${Math.round(progressData?.avgScore ?? 0)}%`, icon: <Trophy className="h-5 w-5" />, color: 'var(--success)' },
                                                 { label: 'Kartochkalar', value: `${reviewedFlashcards}/${totalFlashcards || 0}`, icon: <Brain className="h-5 w-5" />, color: 'var(--brand)' },
                                             ].map((s, i) => (
-                                                <div key={i} className="rounded-2xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: `color-mix(in srgb, ${s.color} 10%, transparent)`, color: s.color }}>{s.icon}</div>
-                                                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{s.label}</span>
+                                                <div key={i} className="rounded-2xl p-3 sm:p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                                    <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
+                                                        <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `color-mix(in srgb, ${s.color} 10%, transparent)`, color: s.color }}>{s.icon}</div>
+                                                        <span className="text-[11px] sm:text-xs" style={{ color: 'var(--text-muted)' }}>{s.label}</span>
                                                     </div>
-                                                    <p className="text-2xl font-bold">{s.value}</p>
+                                                    <p className="text-xl sm:text-2xl font-bold">{s.value}</p>
                                                 </div>
                                             ))}
                                         </div>
@@ -4605,29 +4610,25 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                                             <span>{r.grade}</span>
                                                                         </>
                                                                     )}
-                                                                    {weakTopicSummary && (
-                                                                        <>
-                                                                            <span style={{ color: 'var(--text-muted)' }}>•</span>
-                                                                            <span>Zaif: {weakTopicSummary}</span>
-                                                                        </>
-                                                                    )}
                                                                 </div>
-                                                                {weakTopicSummary && (
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            setOverlayPanel(null)
-                                                                            void handleSend(`Mening zaif mavzularim: ${weakTopicSummary}. Shu mavzularni bugun o'rganish uchun qisqa reja tuzing va asosiy tushunchalarni tushuntiring.`, [])
-                                                                        }}
-                                                                        className="mt-3 text-xs font-semibold px-3 py-2 rounded-xl transition"
-                                                                        style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}
-                                                                    >
-                                                                        Zaif mavzuni o'rganish
-                                                                    </button>
-                                                                )}
                                                             </div>
                                                         )
                                                     })}
                                                 </div>
+                                                {/* Zaif mavzu — BIR MARTA (avval har qatorda takrorlanardi: bir xil matn + tugma 5x) */}
+                                                {weakTopicSummary && (
+                                                    <button
+                                                        onClick={() => {
+                                                            setOverlayPanel(null)
+                                                            void handleSend(`Mening zaif mavzularim: ${weakTopicSummary}. Shu mavzularni bugun o'rganish uchun qisqa reja tuzing va asosiy tushunchalarni tushuntiring.`, [])
+                                                        }}
+                                                        className="mt-3 w-full flex items-center gap-2.5 text-left text-[13px] font-semibold px-3.5 py-2.5 rounded-xl transition"
+                                                        style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}
+                                                    >
+                                                        <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                                                        Zaif mavzularni o'rganish: {weakTopicSummary}
+                                                    </button>
+                                                )}
                                             </div>
                                         )}
                                         {myResults.length === 0 && !progressData && (
