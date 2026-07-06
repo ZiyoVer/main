@@ -491,98 +491,60 @@
 }
 
 /* =====================================================================
-   HERO 3D — suzuvchi "189 ball" mahsulot kartasi (eski pixel-target o'rniga).
-   Perspective + preserve-3d qatlamlar: karta 3D egilgan, yumshoq suzadi,
-   oldida chiqib turgan chip va ball halqasi. Brend ranglari (orange/paper).
+   HERO — "Cho'qqi sari yo'l": pastdan yuqoriga ko'tarilgan yo'l, cho'qqida
+   189 va orzu universiteti; marker yo'lni bosib chiqadi, orqasidan yo'l brend
+   rangida to'ladi. Yumshoq suzadi. Faqat dekorativ.
    ===================================================================== */
-.lp-root .lp3d-scene {
-  position: absolute; top: 6%; left: 44%;
-  width: 300px; height: 340px;
+.lp-root .lp-climb-scene {
+  position: absolute; top: 4%; left: 46%;
+  width: 320px; height: 320px;
   transform: translateX(-50%);
-  perspective: 1150px;
   z-index: 3; pointer-events: none;
 }
-.lp-root .lp3d-float { width: 100%; height: 100%; animation: lp3d-bob 5.5s ease-in-out infinite; }
-.lp-root .lp3d-stage {
-  position: relative; width: 100%; height: 100%;
-  transform-style: preserve-3d;
-  animation: lp3d-tilt 11s ease-in-out infinite;
-}
-.lp-root .lp3d-shadow {
-  position: absolute; left: 50%; bottom: -30px; width: 210px; height: 30px;
+.lp-root .lp-climb-float { width: 100%; height: 100%; animation: lp-climb-bob 6s ease-in-out infinite; }
+.lp-root .lp-climb-shadow {
+  position: absolute; left: 50%; bottom: -22px; width: 220px; height: 28px;
   transform: translateX(-50%);
-  background: radial-gradient(ellipse at center, rgba(33,28,22,.20), transparent 72%);
+  background: radial-gradient(ellipse at center, rgba(33,28,22,.18), transparent 72%);
   filter: blur(7px);
-  animation: lp3d-shadow 5.5s ease-in-out infinite;
+  animation: lp-climb-shadow 6s ease-in-out infinite;
 }
-.lp-root .lp3d-card-back {
-  position: absolute; inset: 0; border-radius: 22px;
-  background: var(--lp-bg-2); border: 1px solid var(--lp-line);
-  transform: translateZ(-46px) translate(18px, 16px);
-}
-.lp-root .lp3d-card {
-  position: absolute; inset: 0; border-radius: 22px; padding: 20px;
-  background: linear-gradient(158deg, #fff 0%, var(--lp-bg-2) 135%);
+.lp-root .lp-climb-card {
+  position: absolute; inset: 0; border-radius: 24px; padding: 22px;
+  background: linear-gradient(158deg, #fff 0%, var(--lp-bg-2) 140%);
   border: 1px solid var(--lp-line);
   box-shadow: var(--lp-shadow-hover), inset 0 1px 0 rgba(255,255,255,.75);
-  transform-style: preserve-3d;
-  display: flex; flex-direction: column;
 }
-.lp-root .lp3d-head { display: flex; align-items: center; gap: 9px; }
-.lp-root .lp3d-avatar {
-  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
-  background: var(--lp-accent-grad);
-  box-shadow: 0 4px 12px -3px rgba(224,83,31,.5);
-  display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 14px;
-  transform: translateZ(20px);
+.lp-root .lp-climb-svg { width: 100%; height: 100%; overflow: visible; }
+.lp-root .lp-climb-ridge { fill: none; stroke: var(--lp-line-2); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.lp-root .lp-climb-fill {
+  fill: none; stroke: url(#lpClimbGrad); stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 358; stroke-dashoffset: 358;
+  animation: lp-climb-draw 5s cubic-bezier(.5,0,.25,1) infinite;
 }
-.lp-root .lp3d-bubble {
-  font-size: 11.5px; font-weight: 600; color: var(--lp-gray);
-  background: var(--lp-bg); border: 1px solid var(--lp-line);
-  padding: 6px 10px; border-radius: 10px 10px 10px 3px;
+.lp-root .lp-climb-dot { fill: var(--lp-accent); }
+.lp-root .lp-climb-runner {
+  fill: var(--lp-accent); stroke: #fff; stroke-width: 3;
+  offset-path: path('M18 232 L96 176 L150 196 L214 120 L280 40');
+  offset-distance: 0%;
+  animation: lp-climb-run 5s cubic-bezier(.5,0,.25,1) infinite;
 }
-.lp-root .lp3d-ringwrap {
-  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  transform: translateZ(14px);
-}
-.lp-root .lp3d-ring { position: relative; width: 132px; height: 132px; }
-.lp-root .lp3d-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-.lp-root .lp3d-ring-track { fill: none; stroke: var(--lp-line); stroke-width: 9; }
-.lp-root .lp3d-ring-arc {
-  fill: none; stroke: url(#lp3dGrad); stroke-width: 9; stroke-linecap: round;
-  stroke-dasharray: 351.9; stroke-dashoffset: 351.9;
-  animation: lp3d-draw 2.4s cubic-bezier(.22,1,.36,1) .3s forwards;
-}
-.lp-root .lp3d-ring-center {
-  position: absolute; inset: 0; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; line-height: 1;
-}
-.lp-root .lp3d-score { font-family: 'Fraunces', Georgia, serif; font-weight: 600; font-size: 40px; color: var(--lp-ink); letter-spacing: -.02em; }
-.lp-root .lp3d-score-sub { font-size: 10.5px; font-weight: 700; letter-spacing: .04em; color: var(--lp-accent-strong); margin-top: 3px; text-transform: uppercase; }
-.lp-root .lp3d-foot { font-size: 11px; font-weight: 600; color: var(--lp-gray-2); text-align: center; }
-.lp-root .lp3d-chip {
-  position: absolute; display: inline-flex; align-items: center; gap: 5px;
-  font-size: 11px; font-weight: 700; padding: 6px 11px; border-radius: 999px;
-  background: #fff; border: 1px solid var(--lp-line); box-shadow: 0 8px 20px -8px rgba(33,28,22,.28);
-}
-.lp-root .lp3d-chip-test { left: -26px; bottom: 40px; color: #0e8f5e; transform: translateZ(62px); }
-.lp-root .lp3d-chip-dot { width: 7px; height: 7px; border-radius: 50%; background: #10b981; }
-.lp-root .lp3d-chip-formula {
-  right: -22px; top: 30px; transform: translateZ(52px);
-  font-family: 'Fraunces', Georgia, serif; font-style: italic; color: var(--lp-ink); font-weight: 500;
-}
-@keyframes lp3d-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
-@keyframes lp3d-tilt {
-  0%,100% { transform: rotateY(-20deg) rotateX(8deg); }
-  50%     { transform: rotateY(-11deg) rotateX(5deg); }
-}
-@keyframes lp3d-shadow { 0%,100% { transform: translateX(-50%) scale(1); opacity: .55; } 50% { transform: translateX(-50%) scale(.86); opacity: .38; } }
-@keyframes lp3d-draw { to { stroke-dashoffset: 26; } }  /* ~92% arc */
+.lp-root .lp-climb-flag { position: absolute; top: 16px; right: 18px; text-align: center; }
+.lp-root .lp-climb-flag .b { display: block; font-family: 'Fraunces', Georgia, serif; font-weight: 600; font-size: 40px; color: var(--lp-accent); line-height: 1; letter-spacing: -.02em; }
+.lp-root .lp-climb-flag .l { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--lp-gray-2); margin-top: 3px; }
+.lp-root .lp-climb-base { position: absolute; left: 18px; bottom: 16px; display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: var(--lp-gray); }
+.lp-root .lp-climb-base .who { width: 24px; height: 24px; border-radius: 50%; background: var(--lp-accent-grad); color: #fff; display: grid; place-items: center; font-size: 11px; font-weight: 800; box-shadow: 0 4px 12px -3px rgba(224,83,31,.5); }
+
+@keyframes lp-climb-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+@keyframes lp-climb-shadow { 0%,100% { transform: translateX(-50%) scale(1); opacity: .5; } 50% { transform: translateX(-50%) scale(.88); opacity: .34; } }
+@keyframes lp-climb-draw { 0% { stroke-dashoffset: 358; } 58%,100% { stroke-dashoffset: 0; } }
+@keyframes lp-climb-run { 0% { offset-distance: 0%; } 58%,100% { offset-distance: 100%; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .lp-root .lp3d-float, .lp-root .lp3d-stage, .lp-root .lp3d-shadow { animation: none !important; }
-  .lp-root .lp3d-ring-arc { animation: none !important; stroke-dashoffset: 26 !important; }
+  .lp-root .lp-climb-float, .lp-root .lp-climb-shadow { animation: none !important; }
+  .lp-root .lp-climb-fill { animation: none !important; stroke-dashoffset: 0 !important; }
+  .lp-root .lp-climb-runner { animation: none !important; offset-distance: 100% !important; }
 }
 @media (max-width: 980px) {
-  .lp-root .lp3d-scene { display: none !important; }  /* mobil sokin qoladi (brend) */
+  .lp-root .lp-climb-scene { display: none !important; }  /* mobil sokin qoladi (brend) */
 }

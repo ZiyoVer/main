@@ -622,43 +622,35 @@ function MathGlyph({ g, i }: { g: Glyph; i: number }) {
   )
 }
 
-/* HERO 3D — suzuvchi "189 ball" mahsulot kartasi (eski pixel-target o'rniga).
-   Perspective + preserve-3d qatlamlar: 3D egilgan karta, ball halqasi (SVG arc),
-   oldida chiqib turgan chiplar. Brend ranglari. Faqat dekorativ (aria-hidden). */
-function Hero3D() {
+/* HERO — "Cho'qqi sari yo'l": pastdan yuqoriga ko'tarilgan yo'l, cho'qqida 189
+   va orzu universiteti; marker yo'lni bosib chiqadi, orqasidan yo'l brend rangida
+   to'ladi. Safar/o'sish/maqsad tuyg'usi. Faqat dekorativ (aria-hidden). */
+const CLIMB_PATH = 'M18 232 L96 176 L150 196 L214 120 L280 40'
+function HeroClimb() {
   return (
-    <div className="lp3d-scene" aria-hidden="true">
-      <span className="lp3d-shadow" />
-      <div className="lp3d-float">
-        <div className="lp3d-stage">
-          <div className="lp3d-card-back" />
-          <div className="lp3d-card">
-            <div className="lp3d-head">
-              <span className="lp3d-avatar">AI</span>
-              <span className="lp3d-bubble">Bugun 9/10 — zo'r! 💪</span>
-            </div>
-            <div className="lp3d-ringwrap">
-              <div className="lp3d-ring">
-                <svg viewBox="0 0 132 132">
-                  <defs>
-                    <linearGradient id="lp3dGrad" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0" stopColor={C.accent} />
-                      <stop offset="1" stopColor={C.accent2} />
-                    </linearGradient>
-                  </defs>
-                  <circle className="lp3d-ring-track" cx="66" cy="66" r="56" />
-                  <circle className="lp3d-ring-arc" cx="66" cy="66" r="56" />
-                </svg>
-                <div className="lp3d-ring-center">
-                  <span className="lp3d-score">189</span>
-                  <span className="lp3d-score-sub">ball / 189</span>
-                </div>
-              </div>
-            </div>
-            <div className="lp3d-foot">Maksimal ball sari — har kuni</div>
+    <div className="lp-climb-scene" aria-hidden="true">
+      <span className="lp-climb-shadow" />
+      <div className="lp-climb-float">
+        <div className="lp-climb-card">
+          <div className="lp-climb-flag">
+            <span className="b">189</span>
+            <span className="l">orzu · universitet</span>
           </div>
-          <span className="lp3d-chip lp3d-chip-test"><span className="lp3d-chip-dot" />Test 9/10</span>
-          <span className="lp3d-chip lp3d-chip-formula">x²−5x+6</span>
+          <svg className="lp-climb-svg" viewBox="0 0 300 260">
+            <defs>
+              <linearGradient id="lpClimbGrad" x1="0" y1="1" x2="1" y2="0">
+                <stop offset="0" stopColor={C.accent} />
+                <stop offset="1" stopColor={C.accent2} />
+              </linearGradient>
+            </defs>
+            <path className="lp-climb-ridge" d={CLIMB_PATH} />
+            <path className="lp-climb-fill" d={CLIMB_PATH} />
+            <circle className="lp-climb-dot" cx="96" cy="176" r="4" />
+            <circle className="lp-climb-dot" cx="214" cy="120" r="4" />
+            <circle className="lp-climb-dot" cx="280" cy="40" r="5" />
+            <circle className="lp-climb-runner" r="7" />
+          </svg>
+          <div className="lp-climb-base"><span className="who">S</span> Sen — bugun</div>
         </div>
       </div>
     </div>
@@ -678,7 +670,7 @@ function MathZone() {
       {GLYPHS.map((g, i) => (
         <MathGlyph key={g.ch} g={g} i={i} />
       ))}
-      <Hero3D />
+      <HeroClimb />
     </div>
   )
 }
