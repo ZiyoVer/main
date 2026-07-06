@@ -400,73 +400,8 @@ function Nav() {
 /* HERO                                                                    */
 /* ===================================================================== */
 
-/* Floating math elements. `depth` (0=far/faint/small … 2=near/solid/large) drives
-   size + opacity so the cluster reads with parallax depth. All entries are pure
-   symbols (Fraunces italic). Each gets a staggered float `delay` (ms) so the drift
-   never marches in lock-step. */
-type GlyphDepth = 0 | 1 | 2
-type Glyph = { ch: string; top: number; left: number; depth: GlyphDepth; delay: number }
-
-const GLYPHS: Glyph[] = [
-  /* pure-symbol signature set — numbers/equations removed per owner request.
-     A few positions were nudged so the cluster stays airy around the enlarged
-     3D target (which now sits ~top:22% / left:45% of the zone at 120px) and
-     nothing overlaps it. */
-  { ch: '√', top: 4, left: 2, depth: 2, delay: 0 },
-  { ch: 'π', top: 2, left: 40, depth: 1, delay: 900 },
-  { ch: '∫', top: 28, left: 88, depth: 2, delay: 1800 },
-  { ch: 'Σ', top: 62, left: 6, depth: 2, delay: 600 },
-  { ch: 'x²', top: 1, left: 76, depth: 1, delay: 2400 },
-  { ch: '≈', top: 14, left: 24, depth: 0, delay: 3000 },
-  { ch: '÷', top: 62, left: 74, depth: 0, delay: 1500 },
-  { ch: '∞', top: 70, left: 40, depth: 1, delay: 300 },
-  { ch: 'θ', top: 36, left: 12, depth: 0, delay: 2700 },
-  { ch: 'Δ', top: 88, left: 22, depth: 1, delay: 1050 },
-  { ch: '∠', top: 8, left: 62, depth: 0, delay: 3300 },
-  { ch: '°', top: 44, left: 94, depth: 0, delay: 750 },
-]
-
-/* size (px) per depth — pure symbols only (Fraunces italic). */
-const GLYPH_SIZE: Record<GlyphDepth, number> = { 0: 22, 1: 30, 2: 36 }
-const GLYPH_OPACITY: Record<GlyphDepth, number> = { 0: 0.45, 1: 0.7, 2: 1 }
-
-/* Pixel-art sparkle: a tiny <rect> grid that TWINKLES via steps() keyframes
-   (choppy / 8-bit feel). Decorative only — sits between the glyphs. */
-type Sparkle = { top: number; left: number; scale: number; delay: number }
-const SPARKLES: Sparkle[] = [
-  { top: 12, left: 20, scale: 1, delay: 0 },
-  { top: 54, left: 58, scale: 0.8, delay: 700 },
-  { top: 80, left: 34, scale: 1.1, delay: 1400 },
-  { top: 36, left: 80, scale: 0.7, delay: 2100 },
-  { top: 66, left: 72, scale: 0.9, delay: 350 },
-]
-
-function PixelSparkle({ s }: { s: Sparkle }) {
-  /* a 5×5 plus/diamond sparkle built from <rect> cells, crispEdges */
-  return (
-    <svg
-      aria-hidden="true"
-      className="lp-pixel-sparkle"
-      width={10 * s.scale}
-      height={10 * s.scale}
-      viewBox="0 0 10 10"
-      shapeRendering="crispEdges"
-      fill={C.accent}
-      style={{
-        position: 'absolute',
-        top: `${s.top}%`,
-        left: `${s.left}%`,
-        animationDelay: `${s.delay}ms`,
-      }}
-    >
-      <rect x="4" y="0" width="2" height="2" />
-      <rect x="4" y="8" width="2" height="2" />
-      <rect x="0" y="4" width="2" height="2" />
-      <rect x="8" y="4" width="2" height="2" />
-      <rect x="4" y="4" width="2" height="2" />
-    </svg>
-  )
-}
+/* Suzuvchi matematik belgilar (Σ √ ∫ x² …) va pixel-uchqunlar OLIB TASHLANDI
+   (egasi so'rovi) — hero'da faqat "Cho'qqi sari yo'l" grafigi qoladi. */
 
 /* Pixel-art TARGET + an orange pixel ARROW that flies in from the left and
    hits the bullseye on a 4s loop (impact flash / ripple synced in landing.css).
@@ -595,33 +530,6 @@ function PixelTarget() {
   )
 }
 
-function MathGlyph({ g, i }: { g: Glyph; i: number }) {
-  const size = GLYPH_SIZE[g.depth]
-  /* expose depth opacity to CSS so the auto-glow can lift to full opacity uniformly */
-  const styleVars = { '--lp-glyph-op': GLYPH_OPACITY[g.depth] } as CSSProperties
-  return (
-    <span
-      className="lp-glyph"
-      style={{
-        ...styleVars,
-        position: 'absolute',
-        top: `${g.top}%`,
-        left: `${g.left}%`,
-        fontFamily: SERIF,
-        fontStyle: 'italic',
-        fontWeight: 500,
-        fontSize: size,
-        whiteSpace: 'nowrap',
-        userSelect: 'none',
-        /* two delays: float (random stagger) , auto-glow (sequential cascade) */
-        animationDelay: `${g.delay}ms, ${i * 420}ms`,
-      }}
-    >
-      <span className="lp-glyph-ch">{g.ch}</span>
-    </span>
-  )
-}
-
 /* HERO — "Cho'qqi sari yo'l": pastdan yuqoriga ko'tarilgan yo'l, cho'qqida 189
    va orzu universiteti; marker yo'lni bosib chiqadi, orqasidan yo'l brend rangida
    to'ladi. Safar/o'sish/maqsad tuyg'usi. Faqat dekorativ (aria-hidden). */
@@ -629,7 +537,6 @@ const CLIMB_PATH = 'M18 232 L96 176 L150 196 L214 120 L280 40'
 function HeroClimb() {
   return (
     <div className="lp-climb-scene" aria-hidden="true">
-      <span className="lp-climb-shadow" />
       <div className="lp-climb-float">
         <div className="lp-climb-card">
           <div className="lp-climb-flag">
@@ -658,18 +565,14 @@ function HeroClimb() {
 }
 
 function MathZone() {
+  // Suzuvchi matematik belgilar (Σ, √, ∫, x²…) va uchqunlar olib tashlandi —
+  // faqat "Cho'qqi sari yo'l" hero grafigi qoladi (sokin, fokus bitta g'oyada).
   return (
     <div
       aria-hidden="true"
       className="lp-math-zone"
       style={{ position: 'absolute', top: 92, right: 36, width: 512, height: 360, zIndex: 1 }}
     >
-      {SPARKLES.map((s, i) => (
-        <PixelSparkle key={`sp-${i}`} s={s} />
-      ))}
-      {GLYPHS.map((g, i) => (
-        <MathGlyph key={g.ch} g={g} i={i} />
-      ))}
       <HeroClimb />
     </div>
   )
