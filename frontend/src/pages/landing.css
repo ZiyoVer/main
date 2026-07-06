@@ -496,8 +496,8 @@
    rangida to'ladi. Yumshoq suzadi. Faqat dekorativ.
    ===================================================================== */
 .lp-root .lp-climb-scene {
-  position: absolute; top: 4%; left: 46%;
-  width: 320px; height: 320px;
+  position: absolute; top: 2%; left: 46%;
+  width: 384px; height: 384px;
   transform: translateX(-50%);
   z-index: 3; pointer-events: none;
 }
@@ -521,7 +521,7 @@
   animation: lp-climb-run 5s cubic-bezier(.5,0,.25,1) infinite;
 }
 .lp-root .lp-climb-flag { position: absolute; top: 16px; right: 18px; text-align: center; }
-.lp-root .lp-climb-flag .b { display: block; font-family: 'Fraunces', Georgia, serif; font-weight: 600; font-size: 40px; color: var(--lp-accent); line-height: 1; letter-spacing: -.02em; }
+.lp-root .lp-climb-flag .b { display: block; font-family: 'Fraunces', Georgia, serif; font-weight: 600; font-size: 48px; color: var(--lp-accent); line-height: 1; letter-spacing: -.02em; }
 .lp-root .lp-climb-flag .l { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--lp-gray-2); margin-top: 3px; }
 .lp-root .lp-climb-base { position: absolute; left: 18px; bottom: 16px; display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: var(--lp-gray); }
 .lp-root .lp-climb-base .who { width: 24px; height: 24px; border-radius: 50%; background: var(--lp-accent-grad); color: #fff; display: grid; place-items: center; font-size: 11px; font-weight: 800; box-shadow: 0 4px 12px -3px rgba(224,83,31,.5); }
