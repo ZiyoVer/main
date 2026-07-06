@@ -9,6 +9,8 @@ export interface TodoItem {
   duration?: number
   subject?: string
   done: boolean
+  // Reja qachon tuzilgan — "Bugungi reja" faqat bugungi bo'lishi uchun (eski meros yozuvlarda yo'q)
+  createdAt?: number
 }
 
 interface ChatContextValue {

@@ -544,7 +544,8 @@ function loadStoredTodos(storageKey: string): TodoItem[] {
                 time: typeof item.time === 'string' ? item.time : undefined,
                 subject: typeof item.subject === 'string' ? item.subject : undefined,
                 duration: typeof item.duration === 'number' ? item.duration : undefined,
-                done: Boolean(item.done)
+                done: Boolean(item.done),
+                createdAt: typeof item.createdAt === 'number' ? item.createdAt : undefined
             }))
     } catch {
         return []
@@ -2159,7 +2160,9 @@ Iltimos, har bir savolni tahlil qilib ber:
                 return {
                     ...item,
                     id: existing?.id || `todo-${i}-${Date.now()}`,
-                    done: Boolean(existing?.done)
+                    done: Boolean(existing?.done),
+                    // Reja sanasi — "Bugungi reja" real sanaga tayanadi
+                    createdAt: existing?.createdAt || Date.now()
                 }
             })
         })
@@ -3427,50 +3430,71 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             </button>
                                         )}
 
-                                        {/* Bugungi reja — barcha chatlardagi rejalardan yig'ilgan */}
-                                        <div className="rounded-2xl p-4 mt-4 text-left" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                            <div className="flex items-center justify-between gap-2 mb-1">
-                                                <p className="text-[13px] font-bold flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
-                                                    <Target className="h-4 w-4" style={{ color: 'var(--brand)' }} /> Bugungi reja
-                                                </p>
-                                                {homeTodos.length > 0 && (
-                                                    <span className="text-[11px] font-bold" style={{ color: 'var(--text-muted)' }}>
-                                                        {homeTodos.filter(t => t.done).length}/{homeTodos.length}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            {homeTodos.length === 0 ? (
-                                                <div className="flex items-center justify-between gap-3 mt-1">
-                                                    <p className="text-[12px]" style={{ color: 'var(--text-muted)' }}>Reja hali tuzilmagan — AI 1 daqiqada tuzib beradi</p>
-                                                    <button type="button" className="btn btn-outline btn-sm flex-shrink-0"
-                                                        onClick={() => { void handleSend('Menga bugun uchun qisqa, bajarsa bo\'ladigan o\'quv reja tuz — imtihonim va zaif mavzularimga mosla.', []) }}>
-                                                        Reja tuzish
+                                        {/* Bugungi reja — REAL SANA hisobga olinadi: faqat bugun tuzilgan reja "bugungi";
+                                            eski kunlardan qolgan bajarilmaganlar alohida, halol "avvalgi" deb ko'rinadi */}
+                                        {(() => {
+                                            const todayKey = new Date().toDateString()
+                                            const isTodayItem = (t: TodoItem) => typeof t.createdAt === 'number' && new Date(t.createdAt).toDateString() === todayKey
+                                            const todayTodos = homeTodos.filter(isTodayItem)
+                                            const olderUndone = homeTodos.filter(t => !isTodayItem(t) && !t.done)
+                                            const showingOlder = todayTodos.length === 0 && olderUndone.length > 0
+                                            const newPlanPrompt = 'Menga bugun uchun qisqa, bajarsa bo\'ladigan o\'quv reja tuz — imtihonim va zaif mavzularimga mosla.'
+                                            const renderTodoRow = (t: TodoItem & { storageKey: string }) => {
+                                                const justDone = justDoneIds.has(t.id)
+                                                return (
+                                                    <button key={`${t.storageKey}-${t.id}`} type="button" onClick={() => markHomeTodoDone(t)} disabled={justDone}
+                                                        className="w-full flex items-center gap-2.5 py-1.5 text-left group" title="Bajarildi deb belgilash">
+                                                        {justDone ? (
+                                                            <span className="k-tick-pop flex-shrink-0 h-[18px] w-[18px] rounded-full flex items-center justify-center" style={{ background: 'var(--success)' }}>
+                                                                <span className="text-white text-[11px] font-bold leading-none">✓</span>
+                                                            </span>
+                                                        ) : (
+                                                            <span className="flex-shrink-0 h-[18px] w-[18px] rounded-full transition group-hover:scale-110" style={{ border: '1.5px solid var(--border-strong)' }} />
+                                                        )}
+                                                        <span className="text-[12.5px] flex-1 min-w-0 truncate transition-all" style={{ color: justDone ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: justDone ? 'line-through' : 'none' }}>{t.task}</span>
+                                                        {t.duration ? <span className="text-[10px] flex-shrink-0" style={{ color: 'var(--text-muted)' }}>{t.duration} min</span> : null}
                                                     </button>
-                                                </div>
-                                            ) : homeTodos.every(t => t.done) && justDoneIds.size === 0 ? (
-                                                <p className="text-[12px] mt-1" style={{ color: 'var(--success)' }}>Barcha vazifalar bajarildi! 🎉</p>
-                                            ) : (
-                                                <div className="mt-1.5">
-                                                    {homeTodos.filter(t => !t.done || justDoneIds.has(t.id)).slice(0, 4).map(t => {
-                                                        const justDone = justDoneIds.has(t.id)
-                                                        return (
-                                                            <button key={`${t.storageKey}-${t.id}`} type="button" onClick={() => markHomeTodoDone(t)} disabled={justDone}
-                                                                className="w-full flex items-center gap-2.5 py-1.5 text-left group" title="Bajarildi deb belgilash">
-                                                                {justDone ? (
-                                                                    <span className="k-tick-pop flex-shrink-0 h-[18px] w-[18px] rounded-full flex items-center justify-center" style={{ background: 'var(--success)' }}>
-                                                                        <span className="text-white text-[11px] font-bold leading-none">✓</span>
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="flex-shrink-0 h-[18px] w-[18px] rounded-full transition group-hover:scale-110" style={{ border: '1.5px solid var(--border-strong)' }} />
-                                                                )}
-                                                                <span className="text-[12.5px] flex-1 min-w-0 truncate transition-all" style={{ color: justDone ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: justDone ? 'line-through' : 'none' }}>{t.task}</span>
-                                                                {t.duration ? <span className="text-[10px] flex-shrink-0" style={{ color: 'var(--text-muted)' }}>{t.duration} min</span> : null}
+                                                )
+                                            }
+                                            return (
+                                                <div className="rounded-2xl p-4 mt-4 text-left" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                                    <div className="flex items-center justify-between gap-2 mb-1">
+                                                        <p className="text-[13px] font-bold flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
+                                                            <Target className="h-4 w-4" style={{ color: 'var(--brand)' }} /> Bugungi reja
+                                                        </p>
+                                                        {todayTodos.length > 0 && (
+                                                            <span className="text-[11px] font-bold" style={{ color: 'var(--text-muted)' }}>
+                                                                {todayTodos.filter(t => t.done).length}/{todayTodos.length}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {todayTodos.length === 0 && olderUndone.length === 0 ? (
+                                                        <div className="flex items-center justify-between gap-3 mt-1">
+                                                            <p className="text-[12px]" style={{ color: 'var(--text-muted)' }}>Bugun uchun reja hali yo'q — AI 1 daqiqada tuzib beradi</p>
+                                                            <button type="button" className="btn btn-outline btn-sm flex-shrink-0"
+                                                                onClick={() => { void handleSend(newPlanPrompt, []) }}>
+                                                                Reja tuzish
                                                             </button>
-                                                        )
-                                                    })}
+                                                        </div>
+                                                    ) : showingOlder ? (
+                                                        <>
+                                                            <p className="text-[11px] mt-0.5 mb-1" style={{ color: 'var(--text-muted)' }}>Avvalgi rejadan qolgan vazifalar:</p>
+                                                            {olderUndone.slice(0, 3).map(renderTodoRow)}
+                                                            <button type="button" className="btn btn-outline btn-sm mt-2"
+                                                                onClick={() => { void handleSend(newPlanPrompt, []) }}>
+                                                                Bugun uchun yangi reja
+                                                            </button>
+                                                        </>
+                                                    ) : todayTodos.every(t => t.done) && justDoneIds.size === 0 ? (
+                                                        <p className="text-[12px] mt-1" style={{ color: 'var(--success)' }}>Bugungi reja to'liq bajarildi! 🎉</p>
+                                                    ) : (
+                                                        <div className="mt-1.5">
+                                                            {todayTodos.filter(t => !t.done || justDoneIds.has(t.id)).slice(0, 4).map(renderTodoRow)}
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            )}
-                                        </div>
+                                            )
+                                        })()}
 
                                         {/* Davom etish — natijasi bor o'quvchiga */}
                                         {myResults.length > 0 && (
@@ -4281,7 +4305,9 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                         {recommended.map(t => (
                                                             <button key={t.id} onClick={() => { void openPublicTest(t) }}
                                                                 className="flex-shrink-0 text-left px-3.5 py-3 rounded-xl border transition"
-                                                                style={{ background: 'var(--bg-card)', borderColor: 'color-mix(in srgb, var(--brand) 30%, var(--border))', width: '13rem' }}>
+                                                                style={{ background: 'var(--bg-card)', borderColor: 'var(--border)', width: '13rem' }}
+                                                                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.boxShadow = 'var(--k-shadow-card, none)' }}
+                                                                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}>
                                                                 <div className="flex items-center gap-1.5 mb-1">
                                                                     {(() => { const tb = testTypeBadge(t.testType); return tb ? <span className="text-[9px] px-1.5 py-0.5 rounded font-bold" style={{ background: tb.bg, color: tb.color }}>{tb.label}</span> : null })()}
                                                                     <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{t.subject}</span>
@@ -4356,68 +4382,44 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 return 0
                                             })
                                             .map(t => {
+                                                // Premium-minimal karta: butun karta bosiladigan, BITTA meta-qator,
+                                                // bitta tur-badge — rangli chegara/ikonka/badge shovqini olib tashlandi
                                                 const result = myResults.find(r => r.testId === t.id)
                                                 const done = !!result || completedTestIdsRef.current.has(t.id)
+                                                const typeBadge = testTypeBadge(t.testType)
+                                                const source = sourceBadge(t.source)
+                                                const summary = result ? getAttemptSummary(result) : null
                                                 return (
-                                                    <div key={t.id} className="rounded-2xl p-4 transition"
-                                                        style={{
-                                                            background: 'var(--bg-card)',
-                                                            border: done ? '1px solid color-mix(in srgb, var(--success) 35%, transparent)' : '1px solid var(--border)',
-                                                            borderLeft: done ? '3px solid var(--success)' : '3px solid var(--brand)',
-                                                            opacity: done ? 0.92 : 1,
-                                                        }}>
-                                                        <div className="flex items-start gap-3">
-                                                            <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                                                                style={{ background: done ? 'color-mix(in srgb, var(--success) 12%, transparent)' : 'color-mix(in srgb, var(--brand) 10%, transparent)' }}>
-                                                                {done ? <CheckCircle className="h-5 w-5" style={{ color: 'var(--success)' }} /> : <ClipboardList className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
-                                                            </div>
+                                                    <button key={t.id} type="button" onClick={() => { void openPublicTest(t) }}
+                                                        className="w-full text-left rounded-2xl p-4 transition group"
+                                                        style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', opacity: done ? 0.8 : 1 }}
+                                                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.boxShadow = 'var(--k-shadow-card, none)' }}
+                                                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}>
+                                                        <div className="flex items-center gap-3">
                                                             <div className="flex-1 min-w-0">
-                                                                <div className="flex items-center gap-2 flex-wrap">
-                                                                    <p className="font-semibold text-sm truncate">{t.title}</p>
-                                                                    {done && (
-                                                                        <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)' }}>
-                                                                            <CheckCircle className="h-2.5 w-2.5" /> Ishlangan
-                                                                        </span>
-                                                                    )}
+                                                                <div className="flex items-center gap-2">
+                                                                    <p className="font-semibold text-sm leading-snug truncate" style={{ color: 'var(--text-primary)' }}>{t.title}</p>
+                                                                    {typeBadge && <span className="text-[9px] px-1.5 py-0.5 rounded font-bold flex-shrink-0" style={{ background: typeBadge.bg, color: typeBadge.color }}>{typeBadge.label}</span>}
+                                                                    {t.premium && <Sparkles className="h-3 w-3 flex-shrink-0" style={{ color: '#B8860B' }} />}
                                                                 </div>
-                                                                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{t.subject} • {t._count?.questions ?? 0} savol</p>
-                                                                <div className="flex flex-wrap gap-1.5 mt-1.5">
-                                                                    {(() => { const tb = testTypeBadge(t.testType); return tb ? <span className="inline-block text-[10px] px-2 py-0.5 rounded-md font-bold" style={{ background: tb.bg, color: tb.color }}>{tb.label}</span> : null })()}
-                                                                    {t.premium && <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-semibold" style={{ background: 'rgba(184,134,11,0.13)', color: '#B8860B' }}><Sparkles className="h-2.5 w-2.5" />Premium</span>}
-                                                                    {(() => { const b = sourceBadge(t.source); return b ? <span className="inline-block text-[10px] px-2 py-0.5 rounded-md font-semibold" style={{ background: b.bg, color: b.color }}>{b.label}</span> : null })()}
-                                                                    {typeof t.timeLimit === 'number' && t.timeLimit > 0 && <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-semibold" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}><Clock className="h-2.5 w-2.5" />{t.timeLimit} daq</span>}
-                                                                </div>
-                                                                {result && (
-                                                                    <p className="text-xs mt-2" style={{ color: 'var(--text-secondary)' }}>
-                                                                        {(() => {
-                                                                            const summary = getAttemptSummary(result)
-                                                                            return `${summary.correctCount}/${summary.answeredCount || t._count?.questions || 0} to'g'ri`
-                                                                        })()}
-                                                                    </p>
-                                                                )}
+                                                                <p className="text-[11.5px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                                                                    {t.subject} · {t._count?.questions ?? 0} savol
+                                                                    {typeof t.timeLimit === 'number' && t.timeLimit > 0 ? ` · ${t.timeLimit} daq` : ''}
+                                                                    {source ? ` · ${source.label}` : ''}
+                                                                </p>
                                                             </div>
-                                                            <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                                                                {result && (
-                                                                    <span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)' }}>
-                                                                        {getAttemptSummary(result).percent}%
-                                                                    </span>
+                                                            <div className="flex items-center gap-2.5 flex-shrink-0">
+                                                                {done && summary && (
+                                                                    <span className="text-[12px] font-bold" style={{ color: 'var(--success)' }}>{summary.percent}%</span>
                                                                 )}
                                                                 {done ? (
-                                                                    <button onClick={() => { void openPublicTest(t) }}
-                                                                        className="text-xs font-semibold px-3 py-1.5 rounded-xl transition"
-                                                                        style={{ background: 'var(--bg-muted)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>
-                                                                        Ko'rish
-                                                                    </button>
+                                                                    <span className="text-[12px] font-semibold" style={{ color: 'var(--text-muted)' }}>Ko'rish</span>
                                                                 ) : (
-                                                                    <button onClick={() => { void openPublicTest(t) }}
-                                                                        className="text-xs font-semibold px-3 py-1.5 rounded-xl transition"
-                                                                        style={{ background: 'var(--brand)', color: 'white' }}>
-                                                                        Boshlash
-                                                                    </button>
+                                                                    <span className="inline-block text-[12px] font-bold transition group-hover:translate-x-0.5" style={{ color: 'var(--brand)' }}>Boshlash →</span>
                                                                 )}
                                                             </div>
                                                         </div>
-                                                    </div>
+                                                    </button>
                                                 )
                                             })}
                                     </div>
