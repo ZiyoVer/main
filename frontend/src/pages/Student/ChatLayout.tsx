@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, FileText, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, ArrowUp, ArrowDown, BarChart2, User, Calendar, Shield, Sparkles, Clock, Flame, Zap, Copy, MessageSquare } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, FileText, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, ArrowUp, ArrowDown, BarChart2, User, Calendar, Shield, Sparkles, Clock, Flame, Zap, Copy, MessageSquare, Pencil } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import remarkGfm from 'remark-gfm'
@@ -948,6 +948,9 @@ export default function ChatLayout() {
         return !initialMobile && loadStoredTodos(todoStorageKey).some(item => !item.done)
     })
     const [showSettings, setShowSettings] = useState(false)
+    // Sozlamalarda imtihon ma'lumotlari odatda read-only ko'rinadi; qalamcha bosilganda tahrirlanadi.
+    // Tugmalar/maydonlar ko'payganda oyna tinch qoladi.
+    const [editingExamInfo, setEditingExamInfo] = useState(false)
     // "Bugun" ekrani rejasi — barcha chatlardagi rejalar yig'indisi (chat tanlanmaganda ko'rinadi)
     const [homeTodos, setHomeTodos] = useState<Array<TodoItem & { storageKey: string }>>([])
     useEffect(() => {
@@ -1657,6 +1660,7 @@ Iltimos, har bir savolni tahlil qilib ber:
             }
             await fetchApi('/profile', { method: 'PUT', body: JSON.stringify(data) })
             setShowOnboarding(false)
+            setEditingExamInfo(false) // saqlangach read-only ko'rinishga qaytadi
             await loadProfile()
             toast.success('Profil muvaffaqiyatli saqlandi!')
             // Birinchi marta onboarding — chat ochib, AI SHAXSIY HISSIY SALOMni yozadi (DB'ga saqlanadi).
@@ -3126,7 +3130,37 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             ))}
                                         </section>
                                         <section className="pt-7 space-y-4" style={{ borderTop: '1px solid var(--border)' }}>
-                                            <p className="k-eyebrow">Imtihon ma'lumotlari</p>
+                                            <div className="flex items-center justify-between gap-2">
+                                                <p className="k-eyebrow">Imtihon ma'lumotlari</p>
+                                                {!editingExamInfo && (
+                                                    <button type="button" onClick={() => setEditingExamInfo(true)}
+                                                        className="h-7 w-7 flex items-center justify-center rounded-lg transition flex-shrink-0"
+                                                        style={{ color: 'var(--text-muted)' }}
+                                                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-muted)'; e.currentTarget.style.color = 'var(--brand)' }}
+                                                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)' }}
+                                                        title="Tahrirlash">
+                                                        <Pencil className="h-3.5 w-3.5" />
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            {/* READ-ONLY ko'rinish — ma'lumotlar tinch ro'yxatda, tahrirlash qalamcha ortida */}
+                                            {!editingExamInfo ? (
+                                                <div className="rounded-xl divide-y" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderColor: 'var(--border)' }}>
+                                                    {[
+                                                        { icon: GraduationCap, label: 'Imtihon turi', value: onboardingForm.examType === 'MS' ? 'Milliy Sertifikat' : onboardingForm.examType === 'DTM' ? 'DTM' : '—' },
+                                                        { icon: BookOpen, label: onboardingForm.examType === 'DTM' ? 'Fanlar' : 'Asosiy fan', value: [onboardingForm.subject, onboardingForm.examType === 'DTM' ? onboardingForm.subject2 : ''].filter(Boolean).join(' · ') || '—' },
+                                                        { icon: Calendar, label: 'Imtihon sanasi', value: onboardingForm.examDate || '—' },
+                                                        { icon: Target, label: 'Maqsad ball', value: onboardingForm.targetScore === '' ? '—' : String(onboardingForm.targetScore) },
+                                                    ].map((row, i) => (
+                                                        <div key={i} className="flex items-center gap-3 px-3.5 py-2.5" style={{ borderColor: 'var(--border)' }}>
+                                                            <row.icon className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--text-muted)' }} />
+                                                            <span className="text-[12px] flex-1" style={{ color: 'var(--text-muted)' }}>{row.label}</span>
+                                                            <span className="text-[13px] font-semibold text-right" style={{ color: 'var(--text-primary)' }}>{row.value}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (<>
                                             <div>
                                                 <label className="text-xs font-medium flex items-center gap-2 mb-1" style={{ color: 'var(--text-muted)' }}>
                                                     <GraduationCap className="h-3.5 w-3.5" />
@@ -3209,17 +3243,26 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     {obScoreErr && <p className="text-xs mt-1.5" style={{ color: 'var(--danger)' }}>{obScoreErr}</p>}
                                                 </div>
                                             </div>
+                                            </>)}
                                         </section>
 
 
-                                        {/* ── Footer: Save (primary) + Logout (ghost) ── */}
+                                        {/* ── Footer: tahrirlashda Saqlash+Bekor; aks holda faqat Chiqish ── */}
                                         <div className="pt-7 flex flex-col sm:flex-row gap-3" style={{ borderTop: '1px solid var(--border)' }}>
-                                            <button type="submit" disabled={savingProfile || !!obScoreErr} className="btn btn-primary h-10 text-sm px-5 flex-1">
-                                                {savingProfile ? 'Saqlanmoqda...' : 'Saqlash'}
-                                            </button>
-                                            <button type="button" onClick={() => { setShowSettings(false); localStorage.removeItem(essayDraftKey); logout() }} className="btn btn-outline h-10 text-sm px-5 flex-1">
-                                                Chiqish
-                                            </button>
+                                            {editingExamInfo ? (
+                                                <>
+                                                    <button type="submit" disabled={savingProfile || !!obScoreErr} className="btn btn-primary h-10 text-sm px-5 flex-1">
+                                                        {savingProfile ? 'Saqlanmoqda...' : 'Saqlash'}
+                                                    </button>
+                                                    <button type="button" onClick={() => { setEditingExamInfo(false); void loadProfile() }} className="btn btn-outline h-10 text-sm px-5 flex-1">
+                                                        Bekor qilish
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <button type="button" onClick={() => { setShowSettings(false); localStorage.removeItem(essayDraftKey); logout() }} className="btn btn-outline h-10 text-sm px-5 flex-1">
+                                                    Chiqish
+                                                </button>
+                                            )}
                                         </div>
                                     </form>
 
@@ -3309,7 +3352,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                     {notifCount > 0 && <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full text-white text-[8px] flex items-center justify-center font-bold" style={{ background: 'var(--danger)' }}>{notifCount > 9 ? '9+' : notifCount}</span>}
                                 </button>
                                 <button
-                                    onClick={() => setShowSettings(true)}
+                                    onClick={() => { setEditingExamInfo(false); setShowSettings(true) }}
                                     className="min-w-[58px] h-10 px-2.5 flex flex-col items-center justify-center rounded-xl transition"
                                     style={{ color: 'var(--text-muted)' }}
                                     onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
