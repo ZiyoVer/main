@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/authStore'
 export default function AdminLogin() {
     const nav = useNavigate()
     const login = useAuthStore(s => s.login)
+    const clearSession = useAuthStore(s => s.clearSession)
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [showPw, setShowPw] = useState(false)
@@ -17,7 +18,10 @@ export default function AdminLogin() {
         e.preventDefault()
         setLoading(true)
         setErr('')
-        localStorage.removeItem('token')
+        // clearSession() token'ni ham, store'dagi user'ni ham tozalaydi — faqat
+        // localStorage.removeItem qilinsa store'da eski sessiya qolib desync bo'lardi.
+        // (logout() emas — u sahifani '/'ga otib yuborardi)
+        clearSession()
         try {
             const data = await fetchApi('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
             if (data.user.role === 'STUDENT') {

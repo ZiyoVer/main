@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { BrainCircuit, CheckCircle, XCircle, Loader2 } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
@@ -9,8 +9,14 @@ export default function EmailVerify() {
     const { user, login, token: authToken } = useAuthStore()
     const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
     const [message, setMessage] = useState('')
+    // StrictMode'da effect ikki marta otiladi: ikkinchi so'rov allaqachon ishlatilgan token
+    // bilan 400 olib, muvaffaqiyatli tasdiqni "havola eskirgan"ga aylantirardi.
+    // GoogleCallback'dagi bilan bir xil bir-martalik guard.
+    const ran = useRef(false)
 
     useEffect(() => {
+        if (ran.current) return
+        ran.current = true
         if (!token) { setStatus('error'); setMessage('Noto\'g\'ri havola'); return }
         fetchApi(`/auth/verify-email/${token}`, { method: 'GET' })
             .then(() => {

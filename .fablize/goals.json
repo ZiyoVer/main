@@ -1,41 +1,41 @@
 {
- "brief": "DTMMax 90-savollik blok test joylashni oson va ishonchli qilish",
- "created": "2026-07-05T11:52:54.124809+00:00",
+ "brief": "DTMMax: kirish oqimi xatolari + dizayn/brend tozalash",
+ "created": "2026-07-06T04:32:20.806263+00:00",
  "goals": [
   {
    "id": "G001",
-   "title": "Blok-bo'limli forma",
-   "objective": "DTM_BLOCK formasini 5 blok bo'limiga o'tkazish, auto blockType, sticky nazorat panel",
+   "title": "EmailVerify fix",
+   "objective": "StrictMode double-fire guard (GoogleCallback uslubida useRef)",
    "status": "complete",
-   "evidence": "TeacherPanel.tsx: DTM savollar 5 blok bo'limiga guruhlandi (renderQuestionCard + section render), sticky nazorat panel (58px, chip'lar scrollIntoView), blok ichidan +Savol avto blockType; tsc --noEmit va vite build toza"
+   "evidence": "EmailVerify.tsx: useRef bir-martalik guard (GoogleCallback uslubi)"
   },
   {
    "id": "G002",
-   "title": "Blok AI import",
-   "objective": "Har blok bo'limiga alohida AI import, SPECIALTY_1 majburlashni olib tashlash",
+   "title": "AdminLogin desync",
+   "objective": "localStorage.removeItem o'rniga authStore logout()",
    "status": "complete",
-   "evidence": "generateBlockFromFile(): har blokka alohida AI import, blok fani avtomatik, limit trim + toast; global AI karta DTM'da yashirildi"
+   "evidence": "authStore clearSession() (redirect'siz) + AdminLogin'da ishlatildi; logout() emas chunki u '/'ga redirect qiladi"
   },
   {
    "id": "G003",
-   "title": "Tasdiq badge",
-   "objective": "Teacher ro'yxatida approved=false public testga 'Tasdiq kutilmoqda' belgisi",
+   "title": "Brend rang",
+   "objective": "#F15A24 light mode'da render bo'lsin (kelviq/landing/index.css)",
    "status": "complete",
-   "evidence": "Ro'yxatda isPublic&&approved===false uchun 'Tasdiq kutilmoqda' badge; submit va toggleVisibility'da aniq toast"
+   "evidence": "kelviq.css light --brand/--warning/grad #E0531F→#F15A24; landing.css --lp-accent+grad; Landing.tsx accent+accentGrad; index.css :root light Amber→#F15A24 (dark ham), stale komment tuzatildi"
   },
   {
    "id": "G004",
-   "title": "Saqlash guardlari",
-   "objective": "Rasm yuklanayotganda submit bloklash + qoralama avtosaqlash",
+   "title": "Font+token",
+   "objective": "Inter olib tashlash, success-token birxillash, mobil jadval scroll",
    "status": "complete",
-   "evidence": "submit'da rasm yuklanish guard; localStorage qoralama (800ms debounce), banner Tiklash/O'chirish, saqlashda tozalanadi"
+   "evidence": "index.html Inter link olib tashlandi (hech qayerda ishlatilmasdi); ChatLayout 20+ emerald #10b981/#d1fae5/#065f46/rgba(16,185,129,*) → var(--success)/color-mix; ProResult fallback'lar tozalandi; TeacherPanel analytics jadval overflow-x-auto"
   },
   {
    "id": "G005",
    "title": "Verifikatsiya",
-   "objective": "Frontend build+tsc toza o'tishi, commit va push",
+   "objective": "tsc+build toza, commit, push",
    "status": "complete",
-   "evidence": "TeacherPanel.tsx + backend tests.ts o'zgartirildi, build/tsc toza"
+   "evidence": "6 fayl: EmailVerify, AdminLogin, authStore, kelviq.css, landing.css, Landing.tsx, index.css, index.html, ChatLayout, ProResult, TeacherPanel"
   }
  ]
 }

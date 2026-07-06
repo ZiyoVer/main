@@ -2368,7 +2368,8 @@ export default function TeacherPanel() {
                                 {analytics && analytics.students.length > 0 && (
                                     <div>
                                         <h3 className="text-[11px] font-semibold uppercase tracking-wide mb-2" style={mutedText}>O'quvchilar reytingi</h3>
-                                        <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                                        {/* overflow-x-auto: tor ekranda jadval kesilmasin — ichida gorizontal scroll */}
+                                        <div className="rounded-xl overflow-x-auto" style={{ border: '1px solid var(--border)' }}>
                                             <table className="w-full" style={{ borderCollapse: 'collapse', fontSize: '12px' }}>
                                                 <thead>
                                                     <tr style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)' }}>

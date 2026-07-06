@@ -26,10 +26,10 @@ const C = {
   line: '#E4DDD0',    /* warm hairline — card borders, paper rules */
   line2: '#D6CDBC',   /* warm hover border */
   tex: '#DAD2C4',     /* TEXTURE color — dots & plus marks (warm, faint) */
-  accent: '#E0531F',  /* restrained editorial orange (slightly deepened for paper) */
+  accent: '#F15A24',  /* spec brend rang — kelviq/landing.css bilan bir xil */
   accentStrong: '#C0410F', /* CTA active, focus ring */
   accent2: '#F5894E', /* gradient stop 2 / bevel highlight */
-  accentGrad: 'linear-gradient(135deg, #E0531F 0%, #F5894E 100%)',
+  accentGrad: 'linear-gradient(135deg, #F15A24 0%, #F5894E 100%)',
   /* pixel-target 3D shading: extruded side-shadow + top-left highlight (warm) */
   targetShade: '#C3BAA9',  /* warm darker ring-shadow for the extruded depth layer */
   targetHi: '#FCFAF5',     /* warm near-white highlight edge on the top-left rings */

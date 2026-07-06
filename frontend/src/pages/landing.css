@@ -22,10 +22,10 @@
   --lp-line-2:    #D6CDBC;   /* warm hover border */
   --lp-tex:       #DAD2C4;   /* TEXTURE color — dots & plus marks (warm, faint) */
 
-  --lp-accent:    #E0531F;   /* restrained editorial orange */
+  --lp-accent:    #F15A24;   /* spec brend rang — kelviq.css --brand bilan bir xil */
   --lp-accent-strong:#C0410F;/* CTA active, focus ring */
   --lp-accent-2:  #F5894E;   /* gradient stop 2 / bevel highlight */
-  --lp-accent-grad: linear-gradient(135deg, #E0531F 0%, #F5894E 100%);
+  --lp-accent-grad: linear-gradient(135deg, #F15A24 0%, #F5894E 100%);
 
   --lp-target-shade: #C3BAA9;/* pixel-target 3D: warm extruded side-wall shadow */
   --lp-target-hi:    #FCFAF5;/* pixel-target 3D: warm top-left highlight edge */

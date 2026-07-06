@@ -44,12 +44,12 @@ export default function ProResult() {
             desc: "Bank javobini kutyapmiz — odatda bir necha soniya.",
         },
         paid: {
-            icon: <CheckCircle className="h-12 w-12 mx-auto" style={{ color: 'var(--success, #10b981)' }} />,
+            icon: <CheckCircle className="h-12 w-12 mx-auto" style={{ color: 'var(--success)' }} />,
             title: "To'lov muvaffaqiyatli! 🎉",
             desc: "Pro obunangiz 30 kunga faollashtirildi. Omad — endi maksimal natija sari birga ishlaymiz!",
         },
         failed: {
-            icon: <XCircle className="h-12 w-12 mx-auto" style={{ color: 'var(--danger, #ef4444)' }} />,
+            icon: <XCircle className="h-12 w-12 mx-auto" style={{ color: 'var(--danger)' }} />,
             title: "To'lov amalga oshmadi",
             desc: "Pul yechilmagan bo'lishi kerak. Qayta urinib ko'ring yoki boshqa karta ishlating.",
         },

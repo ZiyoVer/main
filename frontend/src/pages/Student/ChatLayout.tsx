@@ -253,8 +253,8 @@ const MdMessage = memo(({ content, isStreaming }: {
                     const done = !isStreaming && isAiTestDone(jsonStr)
                     return (
                         <div className="my-3 rounded-2xl overflow-hidden" style={done ? {
-                            background: 'linear-gradient(135deg, rgba(16,185,129,0.10) 0%, rgba(16,185,129,0.04) 100%)',
-                            border: '1.5px solid rgba(16,185,129,0.35)',
+                            background: 'linear-gradient(135deg, color-mix(in srgb, var(--success) 10%, transparent) 0%, color-mix(in srgb, var(--success) 4%, transparent) 100%)',
+                            border: '1.5px solid color-mix(in srgb, var(--success) 35%, transparent)',
                         } : {
                             background: 'linear-gradient(135deg, color-mix(in srgb, var(--brand) 10%, transparent) 0%, color-mix(in srgb, var(--brand) 4%, transparent) 100%)',
                             border: '1.5px solid color-mix(in srgb, var(--brand) 30%, transparent)',
@@ -262,13 +262,13 @@ const MdMessage = memo(({ content, isStreaming }: {
                             <div className="p-4">
                                 <div className="flex items-center justify-between gap-3">
                                     <div className="flex items-center gap-3 min-w-0">
-                                        <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: done ? '#10b981' : 'var(--k-accent-grad)' }}>
+                                        <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: done ? 'var(--success)' : 'var(--k-accent-grad)' }}>
                                             {done ? <CheckCircle className="h-5 w-5 text-white" /> : <ClipboardList className="h-5 w-5 text-white" />}
                                         </div>
                                         <div className="min-w-0">
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{done ? 'Test yechilgan' : 'Test tayyor!'}</p>
-                                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: done ? '#10b981' : 'var(--brand)', color: '#fff' }}>
+                                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: done ? 'var(--success)' : 'var(--brand)', color: '#fff' }}>
                                                     {qCount} ta savol
                                                 </span>
                                             </div>
@@ -279,7 +279,7 @@ const MdMessage = memo(({ content, isStreaming }: {
                                         <button
                                             onClick={() => onOpenTest(jsonStr)}
                                             className="flex-shrink-0 h-9 px-4 rounded-xl text-[13px] font-bold text-white flex items-center gap-2 transition-all"
-                                            style={{ background: done ? '#10b981' : 'var(--k-accent-grad)' }}
+                                            style={{ background: done ? 'var(--success)' : 'var(--k-accent-grad)' }}
                                             onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
                                             onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
                                         >
@@ -3663,7 +3663,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                     const wordCount = essayText.trim().split(/\s+/).filter(Boolean).length
                     const wordOk = wordCount >= essayPanel.minWords
                     const wordOver = wordCount > essayPanel.maxWords
-                    const wordColor = wordOver ? '#ef4444' : wordOk ? '#10b981' : 'var(--text-muted)'
+                    const wordColor = wordOver ? '#ef4444' : wordOk ? 'var(--success)' : 'var(--text-muted)'
                     return (
                         <div className={(essayMaximized || isMobile) ? 'fixed inset-0 z-50 flex flex-col' : 'relative flex flex-col flex-shrink-0'}
                             style={(essayMaximized || isMobile) ? { background: 'var(--bg-card)' } : { width: essayWidth, background: 'var(--bg-card)', borderLeft: '1px solid var(--border)' }}>
@@ -3691,7 +3691,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         </span>
                                     )}
                                     {essaySubmitted && (
-                                        <span className="text-[10px] px-2 py-0.5 rounded-md font-medium" style={{ background: '#d1fae5', color: '#065f46' }}>Topshirildi ✓</span>
+                                        <span className="text-[10px] px-2 py-0.5 rounded-md font-medium" style={{ background: 'var(--success-light)', color: 'var(--success)' }}>Topshirildi ✓</span>
                                     )}
                                 </div>
                                 <div className="flex items-center gap-1">
@@ -3754,7 +3754,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         <div className="h-full rounded-full transition-all duration-300"
                                             style={{
                                                 width: `${Math.min(100, (wordCount / essayPanel.maxWords) * 100)}%`,
-                                                background: wordOver ? '#ef4444' : wordOk ? '#10b981' : '#10b981aa'
+                                                background: wordOver ? '#ef4444' : wordOk ? 'var(--success)' : 'color-mix(in srgb, var(--success) 65%, transparent)'
                                             }} />
                                     </div>
 
@@ -3770,9 +3770,9 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             {wordOk ? 'Topshirish va baholash' : `Yana ${essayPanel.minWords - wordCount} ta so'z yozing`}
                                         </button>
                                     ) : (
-                                        <div className="rounded-xl p-3 flex items-center gap-3" style={{ background: '#d1fae5', border: '1px solid #10b981' }}>
-                                            <CheckCircle className="h-5 w-5 flex-shrink-0" style={{ color: '#065f46' }} />
-                                            <p className="text-[13px]" style={{ color: '#065f46' }}>Essay topshirildi. Chatda baho va tavsiyalarni kuting.</p>
+                                        <div className="rounded-xl p-3 flex items-center gap-3" style={{ background: 'var(--success-light)', border: '1px solid var(--success)' }}>
+                                            <CheckCircle className="h-5 w-5 flex-shrink-0" style={{ color: 'var(--success)' }} />
+                                            <p className="text-[13px]" style={{ color: 'var(--success)' }}>Essay topshirildi. Chatda baho va tavsiyalarni kuting.</p>
                                         </div>
                                     )}
                                 </div>
@@ -3946,10 +3946,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                             {/* Header */}
                             <div className="flex items-center gap-3 px-5 py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                                 <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                                    style={{ background: overlayPanel === 'progress' ? 'rgba(16,185,129,0.12)' : 'color-mix(in srgb, var(--brand) 12%, transparent)' }}>
+                                    style={{ background: overlayPanel === 'progress' ? 'color-mix(in srgb, var(--success) 12%, transparent)' : 'color-mix(in srgb, var(--brand) 12%, transparent)' }}>
                                     {overlayPanel === 'tests' && <ClipboardList className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
                                     {overlayPanel === 'flashcards' && <Brain className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
-                                    {overlayPanel === 'progress' && <BarChart2 className="h-5 w-5" style={{ color: '#10b981' }} />}
+                                    {overlayPanel === 'progress' && <BarChart2 className="h-5 w-5" style={{ color: 'var(--success)' }} />}
                                     {overlayPanel === 'pro' && <Sparkles className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
                                 </div>
                                 <div className="flex-1">
@@ -4013,7 +4013,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 <div className="rounded-2xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
                                                     <div className="flex items-center justify-between gap-3 mb-2.5">
                                                         <p className="text-[13px] font-bold" style={{ color: 'var(--text-primary)' }}>
-                                                            Ishlangan: <span style={{ color: donePct === 100 ? '#10b981' : 'var(--brand)' }}>{doneCount}/{publicTests.length}</span>
+                                                            Ishlangan: <span style={{ color: donePct === 100 ? 'var(--success)' : 'var(--brand)' }}>{doneCount}/{publicTests.length}</span>
                                                         </p>
                                                         {weakTopicSummary && (
                                                             <button
@@ -4028,7 +4028,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                         )}
                                                     </div>
                                                     <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-muted)' }}>
-                                                        <div className="h-full rounded-full transition-all" style={{ width: `${donePct}%`, background: donePct === 100 ? '#10b981' : 'var(--k-accent-grad, var(--brand))' }} />
+                                                        <div className="h-full rounded-full transition-all" style={{ width: `${donePct}%`, background: donePct === 100 ? 'var(--success)' : 'var(--k-accent-grad, var(--brand))' }} />
                                                     </div>
                                                 </div>
                                             )
@@ -4134,20 +4134,20 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     <div key={t.id} className="rounded-2xl p-4 transition"
                                                         style={{
                                                             background: 'var(--bg-card)',
-                                                            border: done ? '1px solid rgba(16,185,129,0.35)' : '1px solid var(--border)',
-                                                            borderLeft: done ? '3px solid #10b981' : '3px solid var(--brand)',
+                                                            border: done ? '1px solid color-mix(in srgb, var(--success) 35%, transparent)' : '1px solid var(--border)',
+                                                            borderLeft: done ? '3px solid var(--success)' : '3px solid var(--brand)',
                                                             opacity: done ? 0.92 : 1,
                                                         }}>
                                                         <div className="flex items-start gap-3">
                                                             <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                                                                style={{ background: done ? 'rgba(16,185,129,0.12)' : 'color-mix(in srgb, var(--brand) 10%, transparent)' }}>
-                                                                {done ? <CheckCircle className="h-5 w-5" style={{ color: '#10b981' }} /> : <ClipboardList className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
+                                                                style={{ background: done ? 'color-mix(in srgb, var(--success) 12%, transparent)' : 'color-mix(in srgb, var(--brand) 10%, transparent)' }}>
+                                                                {done ? <CheckCircle className="h-5 w-5" style={{ color: 'var(--success)' }} /> : <ClipboardList className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
                                                             </div>
                                                             <div className="flex-1 min-w-0">
                                                                 <div className="flex items-center gap-2 flex-wrap">
                                                                     <p className="font-semibold text-sm truncate">{t.title}</p>
                                                                     {done && (
-                                                                        <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold flex-shrink-0" style={{ background: 'rgba(16,185,129,0.12)', color: '#10b981' }}>
+                                                                        <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)' }}>
                                                                             <CheckCircle className="h-2.5 w-2.5" /> Ishlangan
                                                                         </span>
                                                                     )}
@@ -4170,7 +4170,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                             </div>
                                                             <div className="flex flex-col items-end gap-2 flex-shrink-0">
                                                                 {result && (
-                                                                    <span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: 'rgba(16,185,129,0.12)', color: '#10b981' }}>
+                                                                    <span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: 'color-mix(in srgb, var(--success) 12%, transparent)', color: 'var(--success)' }}>
                                                                         {getAttemptSummary(result).percent}%
                                                                     </span>
                                                                 )}
@@ -4268,7 +4268,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 { label: 'Ketma-ket kun', value: progressData?.currentStreak ?? 0, icon: <Flame className="h-5 w-5" />, color: '#ea580c' },
                                                 { label: 'XP', value: progressData?.xp ?? 0, icon: <Zap className="h-5 w-5" />, color: '#f59e0b' },
                                                 { label: 'Yechilgan testlar', value: myResults.length, icon: <ClipboardList className="h-5 w-5" />, color: 'var(--brand)' },
-                                                { label: "O'rtacha ball", value: `${Math.round(progressData?.avgScore ?? 0)}%`, icon: <Trophy className="h-5 w-5" />, color: '#10b981' },
+                                                { label: "O'rtacha ball", value: `${Math.round(progressData?.avgScore ?? 0)}%`, icon: <Trophy className="h-5 w-5" />, color: 'var(--success)' },
                                                 { label: 'Kartochkalar', value: `${reviewedFlashcards}/${totalFlashcards || 0}`, icon: <Brain className="h-5 w-5" />, color: 'var(--brand)' },
                                             ].map((s, i) => (
                                                 <div key={i} className="rounded-2xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
@@ -4308,14 +4308,14 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                             <div key={r.id} className="rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
                                                                 <div className="flex items-center gap-3">
                                                                     <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                                                                        style={{ background: summary.percent >= 70 ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.1)', color: summary.percent >= 70 ? '#10b981' : '#ef4444' }}>
+                                                                        style={{ background: summary.percent >= 70 ? 'color-mix(in srgb, var(--success) 12%, transparent)' : 'rgba(239,68,68,0.1)', color: summary.percent >= 70 ? 'var(--success)' : '#ef4444' }}>
                                                                         <Trophy className="h-4 w-4" />
                                                                     </div>
                                                                 <div className="flex-1 min-w-0">
                                                                     <p className="text-sm font-medium truncate">{r.test?.title || publicTests.find(t => t.id === r.testId)?.title || 'Test'}</p>
                                                                     <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{new Date(r.createdAt).toLocaleDateString('uz-UZ')}</p>
                                                                 </div>
-                                                                    <span className="text-sm font-bold flex-shrink-0" style={{ color: summary.percent >= 70 ? '#10b981' : '#ef4444' }}>{getAttemptMeta(r)}</span>
+                                                                    <span className="text-sm font-bold flex-shrink-0" style={{ color: summary.percent >= 70 ? 'var(--success)' : '#ef4444' }}>{getAttemptMeta(r)}</span>
                                                                 </div>
                                                                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
                                                                     <span>{summary.correctCount}/{summary.answeredCount || r.total || 0} to'g'ri</span>

@@ -13,8 +13,8 @@
    scoped atom overrides, INSIDE the `.kelviq` subtree. :root and the global
    atoms in index.css are NEVER edited. Adding `import './styles/kelviq.css'`
    globally is safe because every rule below is scoped to `.kelviq` (or `.dark
-   .kelviq`) — nothing leaks to Teacher / Admin / Profile surfaces, which simply
-   never receive the `.kelviq` class.
+   .kelviq`) — nothing leaks to un-classed surfaces. NOTE (2026-07): hozirda
+   BARCHA asosiy surface'lar (Teacher/Admin/Auth/Student) .kelviq bilan o'ralgan.
 
    USAGE for surface agents: add className="kelviq" to a surface root. No
    per-file CSS import is needed (this file is imported once in main.tsx).
@@ -27,8 +27,8 @@
    1. LIGHT — token remap (redefines the SAME names the app + atoms read)
    ========================================================================= */
 .kelviq {
-  /* Brand (restrained EDITORIAL orange — paper accent, matches landing) */
-  --brand:        #E0531F;
+  /* Brand — spec rang #F15A24 (avval #E0531F: light mode'da spec brend hech qayerda render bo'lmasdi) */
+  --brand:        #F15A24;
   --brand-hover:  #C0410F;
   --brand-light:  #F6E7DC;
   --brand-muted:  #EFC9B2;
@@ -54,13 +54,13 @@
   --success-light:  #DCFCE7;
   --danger:         #DC2626;
   --danger-light:   #FEE2E2;
-  --warning:        #E0531F;
+  --warning:        #F15A24;
   --warning-light:  #F6E7DC;
   --info:           #2563EB;
   --info-light:     #DBEAFE;
 
   /* ---- Kelviq helper vars (k- prefix; do not collide with app tokens) ---- */
-  --k-accent-grad:      linear-gradient(135deg, #E0531F 0%, #F5894E 100%);
+  --k-accent-grad:      linear-gradient(135deg, #F15A24 0%, #F5894E 100%);
   --k-shadow-card:      0 1px 2px rgba(33,28,22,.04), 0 1px 1px rgba(33,28,22,.03);
   --k-shadow-cta:       0 6px 18px rgba(224,83,31,.22);
   --k-shadow-cta-hover: 0 10px 26px rgba(224,83,31,.30);

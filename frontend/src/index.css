@@ -5,10 +5,10 @@
 @import "tw-animate-css";
 
 /* ============================================================
-   DTMMax Design System
+   DTMMax Design System — BAZA tokenlar (kelviq.css .kelviq ostida override qiladi)
    Light mode default. Dark mode activated via .dark class on <html>.
-   Accent: Amber. Palette: Stone (warm gray).
-   Font: Inter
+   Accent: brend orange #F15A24. Palette: Stone (warm gray).
+   Font: Plus Jakarta Sans (baza); .kelviq subtree'da Hanken Grotesk
    ============================================================ */
 
 @custom-variant dark (&:is(.dark *));
@@ -31,11 +31,12 @@
     --border: #DDD8D0;
     --border-strong: #CFC6BC;
 
-    /* Brand (Amber) */
-    --brand: #D97706;
-    --brand-light: #FEF3C7;
-    --brand-hover: #B45309;
-    --brand-muted: #FDE68A;
+    /* Brand — spec orange (avval Amber #D97706; kelviq'siz surface'lar — ErrorBoundary,
+       banner va h.k. — brenddan boshqa rangda chiqardi) */
+    --brand: #F15A24;
+    --brand-light: #F6E7DC;
+    --brand-hover: #C0410F;
+    --brand-muted: #EFC9B2;
 
     /* Status */
     --success: #16A34A;
@@ -74,10 +75,10 @@ html.dark {
     --border: #3C3936;
     --border-strong: #57534E;
 
-    --brand: #F59E0B;
-    --brand-light: #292113;
-    --brand-hover: #FBBF24;
-    --brand-muted: #78350F;
+    --brand: #F15A24;
+    --brand-light: #2A1A12;
+    --brand-hover: #FF8A4C;
+    --brand-muted: #5A2E1C;
 
     --success-light: #052e16;
     --danger-light: #450a0a;

@@ -6,6 +6,9 @@ interface AuthState {
     token: string | null
     user: User | null
     login: (token: string, user: User) => void
+    // Sessiyani redirect'siz tozalaydi (login sahifalarida eski sessiya izini o'chirish uchun)
+    clearSession: () => void
+    // To'liq chiqish: sessiya tozalanadi va bosh sahifaga qaytadi
     logout: () => void
 }
 
@@ -16,6 +19,13 @@ export const useAuthStore = create<AuthState>((set) => ({
         localStorage.setItem('token', token)
         localStorage.setItem('user', JSON.stringify(user))
         set({ token, user })
+    },
+    clearSession: () => {
+        // localStorage BILAN birga store state ham tozalanadi — faqat localStorage
+        // tozalansa xotiradagi eski user/token bilan desync bo'lardi
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+        set({ token: null, user: null })
     },
     logout: () => {
         localStorage.removeItem('token')
