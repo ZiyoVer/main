@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Copy, Check, Globe, Lock, ClipboardList, Upload, Sparkles, FileText, Image, BarChart2, X, Users, Bell } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Copy, Check, Globe, Lock, ClipboardList, Upload, Sparkles, FileText, Image, BarChart2, X, Users, Bell, AlertTriangle } from 'lucide-react'
 import { fetchApi, uploadFile } from '@/lib/api'
 import { saveScopedItem } from '@/lib/storagePrune'
 import { renderMathHtml } from '@/lib/mathRender'
@@ -422,8 +422,15 @@ export default function TeacherPanel() {
         if (count >= 2) setTimeLimit(Math.ceil(count * 1.5))
         else setTimeLimit(0)
     }, [questions.length, testType, timeLimitTouched])
+    // Yuklash xatosi JIM yutilmaydi — bo'sh ekran o'rniga xato + "Qayta urinish" ko'rsatiladi
+    const [testsLoadError, setTestsLoadError] = useState(false)
     async function loadTests() {
-        try { setTests(await fetchApi('/tests/my-tests')) } catch { }
+        try {
+            setTests(await fetchApi('/tests/my-tests'))
+            setTestsLoadError(false)
+        } catch {
+            setTestsLoadError(true)
+        }
     }
 
     const teacherDraftKey = teacherDraftKeyFor(user?.id)
@@ -1501,7 +1508,14 @@ export default function TeacherPanel() {
                                     Xabar yuborish
                                 </button>
                             </div>
-                            {tests.length === 0 && (
+                            {testsLoadError && tests.length === 0 && (
+                                <div className="card rounded-xl p-10 text-center">
+                                    <AlertTriangle className="h-8 w-8 mx-auto mb-2" style={{ color: 'var(--warning)' }} />
+                                    <p className="text-sm mb-3" style={mutedText}>Testlar yuklanmadi — internetni tekshirib qayta urining</p>
+                                    <button onClick={loadTests} className="btn btn-primary btn-sm">Qayta urinish</button>
+                                </div>
+                            )}
+                            {!testsLoadError && tests.length === 0 && (
                                 <div className="card rounded-xl p-12 text-center">
                                     <ClipboardList className="h-8 w-8 mx-auto mb-2" style={{ color: 'var(--border-strong)' }} />
                                     <p className="text-sm mb-2" style={mutedText}>Hozircha testlar yo'q</p>

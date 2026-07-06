@@ -24,7 +24,7 @@ import { useTestPanel } from '../../hooks/useTestPanel'
 import { useFlashPanel } from '../../hooks/useFlashPanel'
 import { useIsPro, PRO_PRICE, PRO_PRICE_PERIOD, PRO_STATUS_LABEL, PRO_FEATURES, FREE_FEATURES, PRO_DISCLAIMER } from '@/lib/pro'
 
-interface Chat { id: string; title: string; subject?: string; subject2?: string; updatedAt: string }
+interface Chat { id: string; title: string; subject?: string; subject2?: string; updatedAt: string; messageCount?: number }
 interface Msg { id: string; role: string; content: string; createdAt: string }
 interface Profile { onboardingDone: boolean; examType?: 'DTM' | 'MS' | null; subject?: string; subject2?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string; totalTests?: number; avgScore?: number; abilityLevel?: number }
 interface PublicTest { id: string; title: string; shareLink: string; subject?: string; category?: string; source?: string; premium?: boolean; testType?: string; timeLimit?: number | null; _count?: { questions: number; attempts: number } }
@@ -794,7 +794,7 @@ const ChatInputArea = memo(function ChatInputArea({
                 <div className="max-w-3xl mx-auto mb-2 flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
                     {QUICK_ACTIONS.map((a, i) => (
                         <button key={i} onClick={() => { if (!chatId || loading) return; onSend(a.p, []) }}
-                            className="h-7 px-3 text-[12px] font-medium rounded-full transition whitespace-nowrap flex items-center gap-1.5 flex-shrink-0"
+                            className="h-8 px-3 text-[12px] font-medium rounded-full transition whitespace-nowrap flex items-center gap-1.5 flex-shrink-0"
                             style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)', background: 'transparent' }}
                             onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -1802,6 +1802,15 @@ Iltimos, har bir savolni tahlil qilib ber:
 
     const createChat = useCallback(async () => {
         if (creating) return
+        // Bo'sh chat allaqachon bor bo'lsa — YANGI yaratmaymiz, o'shanga o'tamiz.
+        // Avval har bosishda yangi "Yangi suhbat" yaratilib, ro'yxat bo'sh chatlar bilan to'lardi.
+        const existingEmpty = chats.find(c => (c.messageCount ?? 1) === 0)
+        if (existingEmpty) {
+            setMessages([])
+            setCurrentChat(existingEmpty)
+            nav(`/suhbat/${existingEmpty.id}`)
+            return
+        }
         setCreating(true)
         try {
             const data = await fetchApi('/chat/new', {
@@ -1819,7 +1828,7 @@ Iltimos, har bir savolni tahlil qilib ber:
             nav(`/suhbat/${data.id}`)
         } catch (err) { console.error('createChat:', err) }
         setCreating(false)
-    }, [creating, profile])
+    }, [creating, profile, chats])
 
     // Stream helper — displayText ixtiyoriy: chatda ko'rinadigan matn (prompt AI ga yuboriladi)
     async function streamToChat(targetChatId: string, prompt: string, displayText?: string): Promise<boolean> {
@@ -2980,7 +2989,11 @@ Iltimos, har bir savolni tahlil qilib ber:
                         <div className="flex-1 overflow-y-auto px-2 py-2" style={{ scrollbarWidth: 'thin' }}>
                             {chats.length === 0 ? (
                                 <p className="text-xs text-center py-6" style={{ color: 'var(--text-muted)' }}>Hali suhbatlar yo'q</p>
-                            ) : groupChatsByDate(chats).map(({ label, items }) => (
+                            ) : groupChatsByDate(
+                                // Bo'sh chatlar ro'yxatni ifloslamasin — faqat xabari borlar
+                                // (hozir ochiq turgani istisno: foydalanuvchi adashmasin)
+                                chats.filter(c => (c.messageCount ?? 1) > 0 || c.id === chatId)
+                            ).map(({ label, items }) => (
                                 <div key={label} className="mb-3">
                                     <p className="text-[11px] font-medium px-3 mb-1" style={{ color: 'var(--text-muted)' }}>{label}</p>
                                     {items.map(c => (
@@ -3345,25 +3358,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                         </div>
                     )}
 
-                    {/* User footer */}
+                    {/* User footer.
+                        Streak vidjeti bu yerdan OLIB TASHLANDI — "Bugun" ekranidagi streak chipini
+                        aynan takrorlardi (egasi: keraksiz takror bo'lmasin). */}
                     <div className="p-3 flex-shrink-0" style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 76%, rgba(15,23,42,0.12) 24%)' }}>
-                        {/* 5.4: streak mini-vidjet — bosilsa Natijalar ochiladi.
-                            YANGI o'quvchiga ham ko'rinadi (0-holat "Bugun boshlang") — retention vositasi
-                            aynan birinchi kunlarda kerak, avval streak>0 shartida yashirin edi */}
-                        {progressData && (
-                            <button onClick={() => setOverlayPanel('progress')}
-                                className="w-full flex items-center gap-2 px-2 py-1.5 mb-1.5 rounded-xl transition text-left"
-                                style={{ background: 'transparent' }}
-                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                title="Natijalaringiz">
-                                <Flame className="h-4 w-4 flex-shrink-0" style={{ color: progressData.currentStreak > 0 ? '#ea580c' : 'var(--text-muted)' }} />
-                                <span className="text-[12px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
-                                    {progressData.currentStreak > 0 ? `${progressData.currentStreak} kun ketma-ket` : 'Bugun boshlang'}
-                                </span>
-                                <span className="ml-auto text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>{progressData.xp ?? 0} XP</span>
-                            </button>
-                        )}
                         <div className="flex items-center gap-2.5 px-2 py-1.5">
                             <div className="h-8 w-8 rounded-full flex items-center justify-center text-[11px] font-semibold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>{user?.name?.[0]?.toUpperCase()}</div>
                             <div className="flex-1 min-w-0">
@@ -4294,7 +4292,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                             onClick={e => e.stopPropagation()}>
 
                             {/* Header */}
-                            <div className="flex items-center gap-3 px-5 py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+                            <div className="flex items-center gap-3 px-4 sm:px-5 py-3.5 sm:py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                                 <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0"
                                     style={{ background: overlayPanel === 'progress' ? 'color-mix(in srgb, var(--success) 12%, transparent)' : 'color-mix(in srgb, var(--brand) 12%, transparent)' }}>
                                     {overlayPanel === 'tests' && <ClipboardList className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
@@ -4322,7 +4320,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                             </div>
 
                             {/* Content */}
-                            <div className="flex-1 overflow-y-auto px-5 py-4">
+                            <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-3.5 sm:py-4">
                                 {overlayPanel === 'tests' && (
                                     <div className="space-y-3">
                                         {/* 4.4: ma'lumot kelguncha skeleton kartalar */}
@@ -4596,7 +4594,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                             {[
                                                 { label: 'Ketma-ket kun', value: progressData?.currentStreak ?? 0, icon: <Flame className="h-5 w-5" />, color: '#ea580c' },
-                                                { label: 'XP', value: progressData?.xp ?? 0, icon: <Zap className="h-5 w-5" />, color: '#f59e0b' },
+                                                // XP mobilda yashirin — "Bugun" ekrani chipida allaqachon bor (takror + joy)
+                                                ...(isMobile ? [] : [{ label: 'XP', value: progressData?.xp ?? 0, icon: <Zap className="h-5 w-5" />, color: '#f59e0b' }]),
                                                 { label: 'Yechilgan testlar', value: myResults.length, icon: <ClipboardList className="h-5 w-5" />, color: 'var(--brand)' },
                                                 { label: "O'rtacha ball", value: `${Math.round(progressData?.avgScore ?? 0)}%`, icon: <Trophy className="h-5 w-5" />, color: 'var(--success)' },
                                                 { label: 'Kartochkalar', value: `${reviewedFlashcards}/${totalFlashcards || 0}`, icon: <Brain className="h-5 w-5" />, color: 'var(--brand)' },

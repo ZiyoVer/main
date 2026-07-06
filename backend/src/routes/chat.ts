@@ -701,7 +701,7 @@ async function getMeasuredTopics(userId: string): Promise<MeasuredTopics> {
     }
 }
 
-function buildSystemPrompt(profile: any, subject?: string, subject2?: string | null, extraRules?: string, ov: Record<string, string> = {}, isFirstMessage = false, measured?: MeasuredTopics): string {
+function buildSystemPrompt(profile: any, subject?: string, subject2?: string | null, extraRules?: string, ov: Record<string, string> = {}, isFirstMessage = false, measured?: MeasuredTopics, studentName?: string): string {
     // Toshkent vaqti (UTC+5)
     const now = new Date(Date.now() + 5 * 60 * 60 * 1000)
     const tashkentHour = now.getUTCHours()
@@ -1038,6 +1038,14 @@ Sen o'quvchining shaxsiy ustozisan — uni BOSHQARIB, ESLATIB turasan, yolg'iz q
 - O'quvchi nima qilishni bilmasa yoki yo'qotib qo'ysa — SEN aniq keyingi qadamni taklif qil (mavzu, mashq, test, reja). Hech qachon havoda qoldirma — onaday g'amxo'r bo'l.
 - LEKIN MAJBURLAMA: agar o'quvchi "yo'q, bu kerak emas" yoki "boshqa narsa qilaman" desa — uning fikrini HURMAT qil, qarshi turma, u xohlagan yo'lдan yordam ber. G'amxo'r, lekin bosim o'tkazmaydigan ustoz.
 
+## QIZIQTIRISH — o'quvchi qaytib kelgisi kelsin (muhim)
+${studentName ? `- O'quvchining ismi: ${studentName}. GOHIDA (har 4-5 javobda bir marta, tabiiy joyда) ismi bilan murojaat qil — har javobda EMAS, aks holda soxta tuyuladi.` : ''}
+- G'ALABANI ANIQ NISHONLA: o'quvchi to'g'ri yechsa/qiyin narsani tushunsa — nimani DELIGANINI aniq ayt ("Diskriminantni to'g'ri hisoblading — bu ko'pchilik adashadigan joy edi"). Generic "barakalla" emas.
+- QIZIQISH ILGAGI: tushuntirishga mos kelganda BITTA qisqa qiziq fakt yoki kutilmagan bog'lanish qo'sh ("Bilasanmi, bu formula GPS ishlashida ham ishlatiladi"). Har javobda emas — faqat tabiiy mos kelganda, 1 jumla.
+- MAQSADGA BOG'LA: o'quvchi qiynalayotganda yoki motivatsiya pasayganda, uning maqsadini (ball/imtihon) BIR jumla bilan eslatib kuch ber ("Bu mavzu DTMda har yili 2-3 savol keladi — hozir yechsak, o'sha ballar sizniki"). Har javobda emas — faqat kerak paytda.
+- SUHBAT SO'NGIDA ILGAK: o'quvchi xayrlashayotganda yoki mashg'ulot tugaganda, ertaga uchun BITTA aniq va qiziqarli reja tashla ("Ertaga [mavzu]ni ochamiz — u yerda testlarda eng ko'p tushadigan hiyla bor"). Bu uni qaytaradi.
+- TELEFON UCHUN YOZ: javobning har paragrafi 1-3 jumla. Uzun devor-matn yozma — o'quvchi telefonда o'qiydi.
+
 ## O'quvchi haqida
 ${[
             subject ? `**Fan:** ${subject}` : '',
@@ -1181,9 +1189,14 @@ router.get('/list', authenticate, async (req: AuthRequest, res) => {
         const chats = await prisma.chat.findMany({
             where: { userId: req.user.id },
             orderBy: { updatedAt: 'desc' },
-            select: { id: true, title: true, subject: true, subject2: true, updatedAt: true }
+            // messageCount — frontend bo'sh chatlarni ro'yxatda yashirish va yangi
+            // suhbatda mavjud bo'shini qayta ishlatish uchun (dublikat "Yangi suhbat"lar oldini oladi)
+            select: { id: true, title: true, subject: true, subject2: true, updatedAt: true, _count: { select: { messages: true } } }
         })
-        res.json(chats)
+        res.json(chats.map(c => ({
+            id: c.id, title: c.title, subject: c.subject, subject2: c.subject2,
+            updatedAt: c.updatedAt, messageCount: c._count.messages
+        })))
     } catch (e) {
         res.status(500).json({ error: 'Server xatoligi' })
     }
@@ -1962,10 +1975,11 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
         const isFirstMessage = history.filter(m => m.role === 'user').length === 0
         const titleSrc = displayText?.trim() || content
 
-        // Profile olish
-        const profile = await prisma.studentProfile.findUnique({
-            where: { userId: req.user.id }
-        })
+        // Profile + ism olish (ism — shaxsiy murojaat uchun; JWT'da faqat id/role bor)
+        const [profile, chatUser] = await Promise.all([
+            prisma.studentProfile.findUnique({ where: { userId: req.user.id } }),
+            prisma.user.findUnique({ where: { id: req.user.id }, select: { name: true } }),
+        ])
 
         // AI settings
         const aiSettings = await getAISettings()
@@ -1990,7 +2004,7 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
         const retentionSection = buildRetentionGuidance(content, pendingTodoContext.length > 0, isFirstMessage)
 
         const measured = await getMeasuredTopics(req.user.id)
-        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, chat.subject2 || undefined, aiSettings.extraRules, aiSettings.promptOverrides, isFirstMessage, measured) + ragSection + todoSection + toolIntentSection + retentionSection
+        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, chat.subject2 || undefined, aiSettings.extraRules, aiSettings.promptOverrides, isFirstMessage, measured, getFirstName(chatUser?.name)) + ragSection + todoSection + toolIntentSection + retentionSection
 
         // DeepSeek image_url qabul qilmaydi — OCR matni content ichida keladi
         const currentUserContent: any = content
@@ -2262,9 +2276,10 @@ router.post('/:chatId/send', authenticate, requireVerified, async (req: AuthRequ
             take: 20
         })).reverse()
 
-        const profile = await prisma.studentProfile.findUnique({
-            where: { userId: req.user.id }
-        })
+        const [profile, chatUser] = await Promise.all([
+            prisma.studentProfile.findUnique({ where: { userId: req.user.id } }),
+            prisma.user.findUnique({ where: { id: req.user.id }, select: { name: true } }),
+        ])
 
         const aiSettings = await getAISettings()
         const ragContext = await searchRAGContext(content, chat.subject || profile?.subject || undefined, [chat.subject2, profile?.subject2])
@@ -2276,7 +2291,7 @@ router.post('/:chatId/send', authenticate, requireVerified, async (req: AuthRequ
         const isFirstMessage = history.filter(m => m.role === 'user').length <= 1
         const retentionSection = buildRetentionGuidance(content, false, isFirstMessage)
         const measured = await getMeasuredTopics(req.user.id)
-        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, chat.subject2 || undefined, aiSettings.extraRules, aiSettings.promptOverrides, isFirstMessage, measured) + ragSection + toolIntentSection + retentionSection
+        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, chat.subject2 || undefined, aiSettings.extraRules, aiSettings.promptOverrides, isFirstMessage, measured, getFirstName(chatUser?.name)) + ragSection + toolIntentSection + retentionSection
 
 
         const msgs: any[] = [
