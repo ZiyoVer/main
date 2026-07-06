@@ -3390,7 +3390,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                             const c = d > 30 ? '#2563eb' : d > 14 ? '#ea580c' : '#dc2626'
                             return (
                                 <button onClick={() => setOverlayPanel('progress')} title="Imtihon rejangiz"
-                                    className="flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11px] font-bold flex-shrink-0 transition"
+                                    className="flex items-center gap-1.5 h-8 px-3 rounded-full text-[11px] font-bold flex-shrink-0 transition"
                                     style={{ background: `color-mix(in srgb, ${c} 10%, transparent)`, color: c, border: `1px solid color-mix(in srgb, ${c} 25%, transparent)` }}>
                                     <Calendar className="h-3 w-3" />
                                     <span className="hidden sm:inline">{profile.examType === 'MS' ? 'Sertifikat' : 'DTM'}gacha</span> {d} kun
@@ -3422,13 +3422,13 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             <p className="text-lg sm:text-xl font-bold" style={{ fontFamily: 'var(--k-serif)', fontWeight: 500 }}>{timeGreeting()}{user?.name ? `, ${user.name}` : ''}!</p>
                                             <div className="flex items-center justify-center gap-2 mt-2 flex-wrap">
                                                 <button type="button" onClick={() => setOverlayPanel('progress')}
-                                                    className="flex items-center gap-1.5 h-8 px-3 rounded-full text-[11px] font-bold transition"
+                                                    className="flex items-center gap-1.5 h-9 px-3.5 rounded-full text-[11px] font-bold transition"
                                                     style={{ background: 'color-mix(in srgb, #ea580c 10%, transparent)', color: '#ea580c', border: '1px solid color-mix(in srgb, #ea580c 25%, transparent)' }}>
                                                     <Flame className={`h-3 w-3 ${(progressData?.currentStreak ?? 0) > 0 ? 'k-flame-live' : ''}`} />
                                                     {(progressData?.currentStreak ?? 0) > 0 ? `${progressData?.currentStreak} kun ketma-ket` : 'Bugun 1-kunni boshla'}
                                                 </button>
                                                 {(progressData?.xp ?? 0) > 0 && (
-                                                    <span className="h-8 px-3 rounded-full text-[11px] font-bold flex items-center" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>{progressData?.xp} XP</span>
+                                                    <span className="h-9 px-3.5 rounded-full text-[11px] font-bold flex items-center" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>{progressData?.xp} XP</span>
                                                 )}
                                             </div>
                                             {/* Yo'qotish qo'rquvi — seriyani saqlash eng kuchli qaytish sababi.
@@ -3492,13 +3492,13 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 const justDone = justDoneIds.has(t.id)
                                                 return (
                                                     <button key={`${t.storageKey}-${t.id}`} type="button" onClick={() => markHomeTodoDone(t)} disabled={justDone}
-                                                        className="w-full flex items-center gap-2.5 py-1.5 text-left group" title="Bajarildi deb belgilash">
+                                                        className="w-full flex items-center gap-2.5 py-2 text-left group" title="Bajarildi deb belgilash">
                                                         {justDone ? (
-                                                            <span className="k-tick-pop flex-shrink-0 h-[18px] w-[18px] rounded-full flex items-center justify-center" style={{ background: 'var(--success)' }}>
-                                                                <span className="text-white text-[11px] font-bold leading-none">✓</span>
+                                                            <span className="k-tick-pop flex-shrink-0 h-[22px] w-[22px] rounded-full flex items-center justify-center" style={{ background: 'var(--success)' }}>
+                                                                <span className="text-white text-[12px] font-bold leading-none">✓</span>
                                                             </span>
                                                         ) : (
-                                                            <span className="flex-shrink-0 h-[18px] w-[18px] rounded-full transition group-hover:scale-110" style={{ border: '1.5px solid var(--border-strong)' }} />
+                                                            <span className="flex-shrink-0 h-[22px] w-[22px] rounded-full transition group-hover:scale-110" style={{ border: '1.5px solid var(--border-strong)' }} />
                                                         )}
                                                         <span className="text-[12.5px] flex-1 min-w-0 truncate transition-all" style={{ color: justDone ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: justDone ? 'line-through' : 'none' }}>{t.task}</span>
                                                         {t.duration ? <span className="text-[10px] flex-shrink-0" style={{ color: 'var(--text-muted)' }}>{t.duration} min</span> : null}
