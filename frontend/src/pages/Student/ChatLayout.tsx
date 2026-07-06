@@ -581,6 +581,42 @@ function markStoredTodoDone(storageKey: string, id: string): void {
     } catch { /* saqlanmasa jim — UI holati baribir yangilanadi */ }
 }
 
+// Vaqtga mos iliq salom — "Salom" o'rniga shaxsiyroq kutib olish
+function timeGreeting(): string {
+    const hour = new Date().getHours()
+    if (hour < 5) return 'Xayrli tun'
+    if (hour < 12) return 'Xayrli tong'
+    if (hour < 18) return 'Xayrli kun'
+    return 'Xayrli oqshom'
+}
+
+// Test yakunidagi mukofot lahzasi — kutubxonasiz engil konfetti.
+// prefers-reduced-motion hurmat qilinadi; natija yaxshiroq bo'lsa zarra ko'proq.
+function celebrate(ratio: number): void {
+    if (typeof document === 'undefined') return
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    const colors = ['#F15A24', '#F5894E', '#16A34A', '#2563EB', '#F4C430']
+    const count = ratio >= 0.7 ? 34 : ratio >= 0.4 ? 22 : 12
+    const originY = window.innerHeight * 0.45
+    for (let i = 0; i < count; i++) {
+        const piece = document.createElement('span')
+        piece.className = 'k-confetti-piece'
+        const size = 5 + Math.random() * 6
+        piece.style.width = `${size}px`
+        piece.style.height = `${size * (Math.random() > 0.5 ? 1 : 0.4)}px`
+        piece.style.borderRadius = Math.random() > 0.6 ? '50%' : '2px'
+        piece.style.background = colors[i % colors.length]
+        piece.style.left = `${window.innerWidth / 2 + (Math.random() - 0.5) * 160}px`
+        piece.style.top = `${originY}px`
+        piece.style.setProperty('--kc-dx', `${(Math.random() - 0.5) * 320}px`)
+        piece.style.setProperty('--kc-dy', `${-80 - Math.random() * 260}px`)
+        piece.style.setProperty('--kc-rot', `${(Math.random() - 0.5) * 720}deg`)
+        piece.style.setProperty('--kc-dur', `${0.9 + Math.random() * 0.8}s`)
+        document.body.appendChild(piece)
+        setTimeout(() => piece.remove(), 1800)
+    }
+}
+
 interface ChatInputAreaProps {
     chatId: string | undefined
     loading: boolean
@@ -917,11 +953,19 @@ export default function ChatLayout() {
         if (!chatId) setHomeTodos(loadAllUserTodos(user?.id || 'guest'))
         // todoItems deps: joriy chatda reja o'zgargan bo'lsa, bosh ekranga qaytganda yangilansin
     }, [chatId, user?.id, todoItems])
+    // Bajarilgan vazifa ~0.7s davomida yashil ✓ bilan ko'rinib turadi (qoniqarli tick),
+    // keyin ro'yxatdan siljiydi — darhol g'oyib bo'lish his-tuyg'usiz edi
+    const [justDoneIds, setJustDoneIds] = useState<Set<string>>(new Set())
     function markHomeTodoDone(item: TodoItem & { storageKey: string }) {
+        if (justDoneIds.has(item.id)) return
         markStoredTodoDone(item.storageKey, item.id)
-        setHomeTodos(prev => prev.map(t => (t.id === item.id ? { ...t, done: true } : t)))
         // Joriy bucket bo'lsa jonli todoItems state bilan ham sinxron
         if (item.storageKey === todoStorageKey) markTodoDone(item.id)
+        setJustDoneIds(prev => new Set(prev).add(item.id))
+        setTimeout(() => {
+            setHomeTodos(prev => prev.map(t => (t.id === item.id ? { ...t, done: true } : t)))
+            setJustDoneIds(prev => { const next = new Set(prev); next.delete(item.id); return next })
+        }, 700)
     }
     // 6.3: bir martalik 3 qadamli mini-tur (-1 = ko'rsatilmaydi/tugagan)
     const [tourStep, setTourStep] = useState<number>(() => {
@@ -2376,6 +2420,8 @@ Iltimos, har bir savolni tahlil qilib ber:
         const totalQuestionsForScore = typeof backendSubmitResult?.total === 'number'
             ? backendSubmitResult.total
             : questions.length
+        // Mukofot lahzasi — natija qanchalik yaxshi bo'lsa, bayram shunchalik katta
+        celebrate(totalQuestionsForScore > 0 ? score / totalQuestionsForScore : 0)
 
         // Mavzu statistikasini yangilash + XP. TopicStat endi per-MAVZU yoziladi:
         // saqlangan test → backend /submit; efemer AI test → /submit-ai (pastda, q.topic bilan).
@@ -3322,19 +3368,46 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         {/* ===== "BUGUN" bosh ekrani — o'quvchi kirganda chat emas, shu dashboard ===== */}
                                         <div className="text-center">
                                             <img src="/dtmmax-logo.png" alt="DtmMax" className="h-12 w-12 rounded-xl mx-auto mb-2.5" style={{ objectFit: 'contain' }} />
-                                            <p className="text-xl font-bold" style={{ fontFamily: 'var(--k-serif)', fontWeight: 500 }}>Salom{user?.name ? `, ${user.name}` : ''}!</p>
+                                            <p className="text-xl font-bold" style={{ fontFamily: 'var(--k-serif)', fontWeight: 500 }}>{timeGreeting()}{user?.name ? `, ${user.name}` : ''}!</p>
                                             <div className="flex items-center justify-center gap-2 mt-2 flex-wrap">
                                                 <button type="button" onClick={() => setOverlayPanel('progress')}
                                                     className="flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11px] font-bold transition"
                                                     style={{ background: 'color-mix(in srgb, #ea580c 10%, transparent)', color: '#ea580c', border: '1px solid color-mix(in srgb, #ea580c 25%, transparent)' }}>
-                                                    <Flame className="h-3 w-3" />
+                                                    <Flame className={`h-3 w-3 ${(progressData?.currentStreak ?? 0) > 0 ? 'k-flame-live' : ''}`} />
                                                     {(progressData?.currentStreak ?? 0) > 0 ? `${progressData?.currentStreak} kun ketma-ket` : 'Bugun 1-kunni boshla'}
                                                 </button>
                                                 {(progressData?.xp ?? 0) > 0 && (
                                                     <span className="h-7 px-2.5 rounded-full text-[11px] font-bold flex items-center" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>{progressData?.xp} XP</span>
                                                 )}
                                             </div>
+                                            {/* Yo'qotish qo'rquvi — seriyani saqlash eng kuchli qaytish sababi */}
+                                            {(progressData?.currentStreak ?? 0) > 0 && (
+                                                <p className="text-[11px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
+                                                    Bugun 1 ta mashq yetadi — {progressData?.currentStreak} kunlik seriyang saqlanadi
+                                                </p>
+                                            )}
                                         </div>
+
+                                        {/* Maqsad sari yo'l — har kirishda ko'z oldida (goal-gradient effekti) */}
+                                        {(() => {
+                                            if (profile?.examType !== 'DTM' || !profile?.targetScore || !progressData?.avgScore) return null
+                                            const estimatedBall = Math.round((progressData.avgScore / 100) * 189)
+                                            const pathPercent = Math.max(3, Math.min(100, Math.round((estimatedBall / profile.targetScore) * 100)))
+                                            return (
+                                                <div className="rounded-2xl p-4 mt-5 text-left" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                                    <div className="flex items-center justify-between gap-2 mb-2">
+                                                        <p className="text-[13px] font-bold flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
+                                                            <Trophy className="h-4 w-4" style={{ color: 'var(--brand)' }} /> {profile.targetScore} ball sari yo'l
+                                                        </p>
+                                                        <span className="text-[11px] font-bold" style={{ color: 'var(--text-muted)' }}>hozir ~{estimatedBall} ball</span>
+                                                    </div>
+                                                    <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--bg-surface)' }}>
+                                                        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pathPercent}%`, background: 'var(--k-accent-grad, var(--brand))' }} />
+                                                    </div>
+                                                    <p className="text-[11px] mt-1.5" style={{ color: 'var(--text-muted)' }}>Har bir mashq shu chiziqni oldinga suradi</p>
+                                                </div>
+                                            )
+                                        })()}
 
                                         {/* Diagnostik CTA — hali birorta test yechmagan yangi o'quvchiga birinchi qadam */}
                                         {myResults.length === 0 && (
@@ -3374,18 +3447,27 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                         Reja tuzish
                                                     </button>
                                                 </div>
-                                            ) : homeTodos.every(t => t.done) ? (
+                                            ) : homeTodos.every(t => t.done) && justDoneIds.size === 0 ? (
                                                 <p className="text-[12px] mt-1" style={{ color: 'var(--success)' }}>Barcha vazifalar bajarildi! 🎉</p>
                                             ) : (
                                                 <div className="mt-1.5">
-                                                    {homeTodos.filter(t => !t.done).slice(0, 4).map(t => (
-                                                        <button key={`${t.storageKey}-${t.id}`} type="button" onClick={() => markHomeTodoDone(t)}
-                                                            className="w-full flex items-center gap-2.5 py-1.5 text-left group" title="Bajarildi deb belgilash">
-                                                            <span className="flex-shrink-0 h-[18px] w-[18px] rounded-full transition group-hover:scale-110" style={{ border: '1.5px solid var(--border-strong)' }} />
-                                                            <span className="text-[12.5px] flex-1 min-w-0 truncate" style={{ color: 'var(--text-primary)' }}>{t.task}</span>
-                                                            {t.duration ? <span className="text-[10px] flex-shrink-0" style={{ color: 'var(--text-muted)' }}>{t.duration} min</span> : null}
-                                                        </button>
-                                                    ))}
+                                                    {homeTodos.filter(t => !t.done || justDoneIds.has(t.id)).slice(0, 4).map(t => {
+                                                        const justDone = justDoneIds.has(t.id)
+                                                        return (
+                                                            <button key={`${t.storageKey}-${t.id}`} type="button" onClick={() => markHomeTodoDone(t)} disabled={justDone}
+                                                                className="w-full flex items-center gap-2.5 py-1.5 text-left group" title="Bajarildi deb belgilash">
+                                                                {justDone ? (
+                                                                    <span className="k-tick-pop flex-shrink-0 h-[18px] w-[18px] rounded-full flex items-center justify-center" style={{ background: 'var(--success)' }}>
+                                                                        <span className="text-white text-[11px] font-bold leading-none">✓</span>
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="flex-shrink-0 h-[18px] w-[18px] rounded-full transition group-hover:scale-110" style={{ border: '1.5px solid var(--border-strong)' }} />
+                                                                )}
+                                                                <span className="text-[12.5px] flex-1 min-w-0 truncate transition-all" style={{ color: justDone ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: justDone ? 'line-through' : 'none' }}>{t.task}</span>
+                                                                {t.duration ? <span className="text-[10px] flex-shrink-0" style={{ color: 'var(--text-muted)' }}>{t.duration} min</span> : null}
+                                                            </button>
+                                                        )
+                                                    })}
                                                 </div>
                                             )}
                                         </div>

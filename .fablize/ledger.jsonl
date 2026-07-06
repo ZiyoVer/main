@@ -52,3 +52,21 @@
 {"ts": "2026-07-06T04:54:41.010406+00:00", "event": "checkpoint", "id": "G005", "status": "complete", "evidence": "ChatLayout.tsx + 7 auth sahifa (anim-up olib tashlandi)", "verify_cmd": "cd frontend && npx tsc --noEmit && npm run build", "verify_evidence": "tsc 0 xato, vite build 11.16s OK"}
 {"ts": "2026-07-06T05:19:55.152631+00:00", "event": "plan_created", "brief": "Bugun bosh sahifasi — o'quvchi kirganda dashboard (retention 2-bosqich)", "count": 4}
 {"ts": "2026-07-06T05:25:11.287758+00:00", "event": "story_started", "id": "G001", "title": "Ma'lumot tekshiruv"}
+{"ts": "2026-07-06T05:25:52.627325+00:00", "event": "checkpoint", "id": "G001", "status": "complete", "evidence": "chatId faqat URL'dan; reja chat-scoped ekani aniqlandi", "verify_cmd": "", "verify_evidence": ""}
+{"ts": "2026-07-06T05:25:52.740361+00:00", "event": "story_started", "id": "G002", "title": "Bugun ekrani"}
+{"ts": "2026-07-06T05:25:52.855560+00:00", "event": "checkpoint", "id": "G002", "status": "complete", "evidence": "Bugun dashboard qurildi: streak/XP, diagnostik CTA, reja (loadAllUserTodos), oxirgi natija, zaif mavzu, tez amallar", "verify_cmd": "", "verify_evidence": ""}
+{"ts": "2026-07-06T05:25:52.963919+00:00", "event": "story_started", "id": "G003", "title": "Kirish oqimi"}
+{"ts": "2026-07-06T05:25:53.068569+00:00", "event": "checkpoint", "id": "G003", "status": "complete", "evidence": "Login /suhbat'ga tushadi, auto-select yo'q — Bugun darhol ko'rinadi", "verify_cmd": "", "verify_evidence": ""}
+{"ts": "2026-07-06T05:25:53.173247+00:00", "event": "story_started", "id": "G004", "title": "Verifikatsiya"}
+{"ts": "2026-07-06T05:25:53.277687+00:00", "event": "checkpoint", "id": "G004", "status": "complete", "evidence": "Bugun ekrani LIVE", "verify_cmd": "cd frontend && npx tsc --noEmit && npm run build", "verify_evidence": "tsc 0 xato, build 9.72s OK; push 1968879"}
+{"ts": "2026-07-06T05:41:15.900498+00:00", "event": "plan_created", "brief": "Psixologik retention polish 1-to'lqin (chat/Bugun UI)", "count": 5}
+{"ts": "2026-07-06T05:45:34.062879+00:00", "event": "story_started", "id": "G001", "title": "Iliq salom + 189-yol"}
+{"ts": "2026-07-06T05:45:34.178286+00:00", "event": "checkpoint", "id": "G001", "status": "complete", "evidence": "timeGreeting() + 189-yo'l progress bar", "verify_cmd": "", "verify_evidence": ""}
+{"ts": "2026-07-06T05:45:34.285733+00:00", "event": "story_started", "id": "G002", "title": "Reja tick + streak"}
+{"ts": "2026-07-06T05:45:34.392233+00:00", "event": "checkpoint", "id": "G002", "status": "complete", "evidence": "justDoneIds 0.7s tick, flame pulse, seriya nudge", "verify_cmd": "", "verify_evidence": ""}
+{"ts": "2026-07-06T05:45:34.499943+00:00", "event": "story_started", "id": "G003", "title": "Konfetti"}
+{"ts": "2026-07-06T05:45:34.605655+00:00", "event": "checkpoint", "id": "G003", "status": "complete", "evidence": "celebrate() konfetti submitTestPanel'da", "verify_cmd": "", "verify_evidence": ""}
+{"ts": "2026-07-06T05:45:34.714298+00:00", "event": "story_started", "id": "G004", "title": "Mikro-interaksiyalar"}
+{"ts": "2026-07-06T05:45:34.821302+00:00", "event": "checkpoint", "id": "G004", "status": "complete", "evidence": "kelviq.css mikro-interaksiyalar", "verify_cmd": "", "verify_evidence": ""}
+{"ts": "2026-07-06T05:45:34.926806+00:00", "event": "story_started", "id": "G005", "title": "Verifikatsiya"}
+{"ts": "2026-07-06T05:45:35.036256+00:00", "event": "checkpoint", "id": "G005", "status": "complete", "evidence": "kelviq.css + ChatLayout.tsx", "verify_cmd": "cd frontend && npx tsc --noEmit && npm run build", "verify_evidence": "tsc 0 xato, build 9.50s OK"}

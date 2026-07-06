@@ -1,34 +1,41 @@
 {
- "brief": "Bugun bosh sahifasi — o'quvchi kirganda dashboard (retention 2-bosqich)",
- "created": "2026-07-06T05:19:55.151803+00:00",
+ "brief": "Psixologik retention polish 1-to'lqin (chat/Bugun UI)",
+ "created": "2026-07-06T05:41:15.899469+00:00",
  "goals": [
   {
    "id": "G001",
-   "title": "Ma'lumot tekshiruv",
-   "objective": "chatId init, myResults/todoItems/progressData shakllari, auto-select bor-yo'qligi",
-   "status": "in_progress",
-   "evidence": null
+   "title": "Iliq salom + 189-yol",
+   "objective": "vaqtga mos salom, targetScore sari progress bar",
+   "status": "complete",
+   "evidence": "timeGreeting() + 189-yo'l progress bar"
   },
   {
    "id": "G002",
-   "title": "Bugun ekrani",
-   "objective": "bo'sh holat o'rniga dashboard: salom+streak+countdown, bugungi reja, davom etish, diagnostik CTA, tez amallar",
-   "status": "pending",
-   "evidence": null
+   "title": "Reja tick + streak",
+   "objective": "qoniqarli done animatsiya, flame pulse, seriya nudge",
+   "status": "complete",
+   "evidence": "justDoneIds 0.7s tick, flame pulse, seriya nudge"
   },
   {
    "id": "G003",
-   "title": "Kirish oqimi",
-   "objective": "login'dan keyin o'quvchi Bugun ekraniga tushishi (auto-chat-select bo'lsa o'chirish)",
-   "status": "pending",
-   "evidence": null
+   "title": "Konfetti",
+   "objective": "test yakunida mukofot lahzasi",
+   "status": "complete",
+   "evidence": "celebrate() konfetti submitTestPanel'da"
   },
   {
    "id": "G004",
+   "title": "Mikro-interaksiyalar",
+   "objective": "kelviq btn/card transitions",
+   "status": "complete",
+   "evidence": "kelviq.css mikro-interaksiyalar"
+  },
+  {
+   "id": "G005",
    "title": "Verifikatsiya",
-   "objective": "tsc+build, review, commit, push",
-   "status": "pending",
-   "evidence": null
+   "objective": "tsc+build, push",
+   "status": "complete",
+   "evidence": "kelviq.css + ChatLayout.tsx"
   }
  ]
 }

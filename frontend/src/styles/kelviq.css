@@ -250,3 +250,50 @@
     opacity: 1;
   }
 }
+
+/* =========================================================================
+   Mikro-interaksiyalar — "qo'l ostida sezish" (aesthetic-usability).
+   Maqsad: har bosish yumshoq javob bersin — sayt "tirik" his qilinadi.
+   ========================================================================= */
+.kelviq .btn {
+  transition: transform .12s ease, box-shadow .18s ease, opacity .15s ease, background .15s ease;
+}
+.kelviq .btn:active:not(:disabled) { transform: scale(.97); }
+.kelviq .card {
+  transition: box-shadow .22s ease, border-color .22s ease, transform .22s ease;
+}
+
+/* Streak alangasi — tirik pulsatsiya (seriya bor bo'lsagina qo'llanadi) */
+@keyframes k-flame-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.18); opacity: .82; }
+}
+.kelviq .k-flame-live {
+  animation: k-flame-pulse 2.4s ease-in-out infinite;
+  transform-origin: 50% 80%;
+}
+
+/* Konfetti zarra — test yakunidagi mukofot lahzasi (JS celebrate() yasaydi) */
+@keyframes k-confetti-fall {
+  0%   { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate3d(var(--kc-dx, 0px), var(--kc-dy, -140px), 0) rotate(var(--kc-rot, 240deg)); opacity: 0; }
+}
+.k-confetti-piece {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  will-change: transform, opacity;
+  animation: k-confetti-fall var(--kc-dur, 1.2s) cubic-bezier(.15, .6, .35, 1) forwards;
+}
+
+/* Reja vazifasi bajarildi — check "pop" bo'lib to'ladi */
+@keyframes k-tick-pop {
+  0%   { transform: scale(.6); }
+  60%  { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+.k-tick-pop { animation: k-tick-pop .3s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .kelviq .k-flame-live, .k-confetti-piece, .k-tick-pop { animation: none; }
+}
