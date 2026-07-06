@@ -191,7 +191,7 @@ export default function VerifyEmailNotice() {
                 style={{ position: 'absolute', inset: 0, zIndex: 0 }}
             />
 
-            <main className="w-full max-w-sm anim-up" style={{ position: 'relative', zIndex: 1 }}>
+            <main className="w-full max-w-sm" style={{ position: 'relative', zIndex: 1 }}>
 
                 {/* Logo */}
                 <div className="flex items-center gap-2 justify-center mb-8">

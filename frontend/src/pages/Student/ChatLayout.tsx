@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, FileText, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, ArrowUp, ArrowDown, BarChart2, User, Calendar, Shield, Sparkles, Clock, Flame, Zap, Copy } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, FileText, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, ArrowUp, ArrowDown, BarChart2, User, Calendar, Shield, Sparkles, Clock, Flame, Zap, Copy, MessageSquare } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import remarkGfm from 'remark-gfm'
@@ -2749,6 +2749,11 @@ Iltimos, har bir savolni tahlil qilib ber:
         )
     }
 
+    // Mobil pastki tab-bar faqat "ko'rish" kontekstlarida chiqadi — test/insho/kartochka/reja
+    // kabi fokusli ish panellari ochiq bo'lsa yashirinadi (chalg'itmasin, layout ham buzilmasin)
+    const mobileTabBarVisible = isMobile && !testPanel && !essayPanel && !flashPanel && !todoOpen
+    const MOBILE_TABBAR_PAD = 'calc(54px + env(safe-area-inset-bottom))'
+
     return (
         <ChatContext.Provider value={chatContextValue}>
             <div className="kelviq min-h-[100dvh] h-[100dvh] flex overflow-hidden relative" style={{ background: 'var(--bg-page)' }}>
@@ -2763,7 +2768,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                         minWidth: sideOpen ? (isMobile ? '280px' : `${sidebarWidth}px`) : '0px',
                         background: 'var(--bg-surface)',
                         borderRight: '1px solid color-mix(in srgb, var(--border) 76%, rgba(15,23,42,0.12) 24%)',
-                        ...(isMobile && sideOpen ? { position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 50 } : {})
+                        ...(isMobile && sideOpen ? { position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 50, paddingBottom: mobileTabBarVisible ? MOBILE_TABBAR_PAD : undefined } : {})
                     }}
                     className="flex flex-col transition-all duration-200 overflow-hidden flex-shrink-0 relative"
                 >
@@ -2809,6 +2814,18 @@ Iltimos, har bir savolni tahlil qilib ber:
                             onMouseLeave={e => { if (overlayPanel !== 'progress') e.currentTarget.style.background = 'transparent' }}
                         >
                             <TrendingUp className="h-4 w-4 flex-shrink-0" /> Natijalar
+                        </button>
+                        {/* Kartochkalar — overlay avvaldan qurilgan edi, lekin ochadigan tugma YO'Q edi (o'lik bo'lim) */}
+                        <button onClick={() => setOverlayPanel(overlayPanel === 'flashcards' ? null : 'flashcards')}
+                            className="sidebar-nav-button w-full flex items-center gap-2 px-3 py-1.5 rounded-xl text-[14px] font-semibold tracking-[-0.01em] transition"
+                            style={overlayPanel === 'flashcards'
+                                ? { background: 'color-mix(in srgb, var(--bg-muted) 88%, white 12%)', color: 'var(--text-primary)', borderColor: 'color-mix(in srgb, var(--border) 70%, rgba(15,23,42,0.12) 30%)' }
+                                : { color: 'var(--text-primary)' }}
+                            onMouseEnter={e => { if (overlayPanel !== 'flashcards') e.currentTarget.style.background = 'var(--bg-muted)' }}
+                            onMouseLeave={e => { if (overlayPanel !== 'flashcards') e.currentTarget.style.background = 'transparent' }}
+                        >
+                            <Layers className="h-4 w-4 flex-shrink-0" /> Kartochkalar
+                            {dueFlashcards.length > 0 && <span className="ml-auto px-1.5 rounded-full text-white text-[10px] flex items-center font-bold" style={{ background: 'var(--brand)', height: '18px' }}>{dueFlashcards.length > 9 ? '9+' : dueFlashcards.length}</span>}
                         </button>
                         {/* Pro — narxlar/imkoniyatlar ko'rinishi (bloklamaydi, faqat ko'rsatadi) */}
                         <button onClick={() => setOverlayPanel(overlayPanel === 'pro' ? null : 'pro')}
@@ -3160,8 +3177,10 @@ Iltimos, har bir savolni tahlil qilib ber:
 
                     {/* User footer */}
                     <div className="p-3 flex-shrink-0" style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 76%, rgba(15,23,42,0.12) 24%)' }}>
-                        {/* 5.4: streak mini-vidjet — bosilsa Natijalar ochiladi */}
-                        {progressData && (progressData.currentStreak > 0 || (progressData.xp ?? 0) > 0) && (
+                        {/* 5.4: streak mini-vidjet — bosilsa Natijalar ochiladi.
+                            YANGI o'quvchiga ham ko'rinadi (0-holat "Bugun boshlang") — retention vositasi
+                            aynan birinchi kunlarda kerak, avval streak>0 shartida yashirin edi */}
+                        {progressData && (
                             <button onClick={() => setOverlayPanel('progress')}
                                 className="w-full flex items-center gap-2 px-2 py-1.5 mb-1.5 rounded-xl transition text-left"
                                 style={{ background: 'transparent' }}
@@ -3210,8 +3229,9 @@ Iltimos, har bir savolni tahlil qilib ber:
                 </div>
 
 
-                {/* Main */}
-                <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+                {/* Main — mobil tab-bar ko'rinsa pastdan joy qoldiramiz (input yashirinmasin) */}
+                <div className="flex-1 flex flex-col min-w-0 overflow-hidden"
+                    style={mobileTabBarVisible ? { paddingBottom: MOBILE_TABBAR_PAD } : undefined}>
                     <div className="h-14 flex items-center px-4 gap-2 flex-shrink-0" style={{ borderBottom: '1px solid color-mix(in srgb, var(--border) 74%, rgba(15,23,42,0.12) 26%)' }}>
                         <button onClick={() => setSideOpen(v => !v)} className="h-8 w-8 flex items-center justify-center rounded-lg transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} title="Yonpanel"><Menu className="h-4 w-4" /></button>
                         {currentChat?.title ? (
@@ -3262,15 +3282,16 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             <p className="text-xl font-bold" style={{ fontFamily: 'var(--k-serif)', fontWeight: 500 }}>Salom{user?.name ? `, ${user.name}` : ''}! <span className="k-italic">Birga</span> ishlaymiz.</p>
                                             <p className="text-sm mt-2" style={{ color: 'var(--text-muted)' }}>Savolingizni pastga yozing — tushuntiraman, test beraman, reja tuzaman.</p>
                                         </div>
-                                        {/* 6.1: AI imkoniyatlarini ochib beruvchi misol-kartalar — bosilsa darhol yuboriladi */}
+                                        {/* 6.1: misol-kartalar. BIRINCHISI — haqiqiy Testlar bo'limiga olib boradi
+                                            (avval hammasi chat prompt edi — yangi o'quvchi test bo'limi borligini ko'rmasdi) */}
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-6">
-                                            {[
-                                                { Icon: ClipboardList, label: `${profile?.subject || 'Fan'}dan test tuz`, hint: '15 ta savollik mini-imtihon', prompt: `${profile?.subject || 'Asosiy fanim'}dan 15 ta savollik test tuz. Har savol 4 variantli bo'lsin, oxirida zaif joylarimni ayt.` },
+                                            {([
+                                                { Icon: ClipboardList, label: 'Test yechish', hint: 'Tayyor DTM va fan testlari', action: () => { setOverlayPanel('tests'); markTestsSeen(); void loadPublicTests(); void loadMyResults() } },
                                                 { Icon: BookOpen, label: 'Mavzuni tushuntir', hint: 'Misollar bilan, oddiy tilda', prompt: `${profile?.subject || 'Asosiy fanim'}dan menga bitta muhim mavzuni misollar bilan tushuntir. Avval qaysi mavzu kerakligini so'ra.` },
                                                 { Icon: Layers, label: 'Flashcard yasa', hint: 'Muhim tushunchalardan 10 ta', prompt: `${profile?.subject || 'Asosiy fanim'}ning eng muhim tushunchalaridan 10 ta flashcard yasa.` },
                                                 { Icon: Target, label: 'Bugungi o\'quv reja', hint: 'Imtihoningizga moslangan', prompt: 'Menga bugun uchun qisqa, bajarsa bo\'ladigan o\'quv reja tuz — imtihonim va zaif mavzularimga mosla.' },
-                                            ].map((ex, i) => (
-                                                <button key={i} type="button" onClick={() => { void handleSend(ex.prompt, []) }}
+                                            ] as Array<{ Icon: typeof ClipboardList; label: string; hint: string; prompt?: string; action?: () => void }>).map((ex, i) => (
+                                                <button key={i} type="button" onClick={() => { if (ex.action) ex.action(); else if (ex.prompt) void handleSend(ex.prompt, []) }}
                                                     className="text-left px-3.5 py-3 rounded-xl border transition"
                                                     style={{ background: 'var(--bg-card)', borderColor: 'var(--border)', transitionDuration: '150ms' }}
                                                     onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--brand)'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.06)' }}
@@ -3940,7 +3961,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                     <div className="fixed inset-0 z-50 flex" onClick={() => setOverlayPanel(null)}>
                         <div className="absolute inset-0 k-fade-in" style={{ background: 'rgba(28,24,18,0.34)' }} />
                         <div className="relative ml-auto h-full flex flex-col overflow-hidden k-slide-in-right"
-                            style={{ width: '100%', maxWidth: '680px', background: 'var(--bg-page)', boxShadow: '-16px 0 50px -16px rgba(33,28,22,0.22)' }}
+                            style={{ width: '100%', maxWidth: '680px', background: 'var(--bg-page)', boxShadow: '-16px 0 50px -16px rgba(33,28,22,0.22)', ...(mobileTabBarVisible ? { paddingBottom: MOBILE_TABBAR_PAD } : {}) }}
                             onClick={e => e.stopPropagation()}>
 
                             {/* Header */}
@@ -4466,6 +4487,32 @@ Iltimos, har bir savolni tahlil qilib ber:
                             </div>
                         </div>
                     </div>
+                )}
+
+                {/* Mobil pastki tab-bar — asosiy bo'limlar birinchi ekranda ko'rinib tursin.
+                    z-60: sidebar (50) va overlay (50) ustida — bo'limlar orasida bir bosishda o'tiladi */}
+                {mobileTabBarVisible && (
+                    <nav className="fixed bottom-0 left-0 right-0 flex items-stretch"
+                        style={{ zIndex: 60, background: 'var(--bg-card)', borderTop: '1px solid var(--border)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+                        {([
+                            { key: 'chat', label: 'Suhbat', Icon: MessageSquare, active: !overlayPanel && !sideOpen, tap: () => { setOverlayPanel(null); setSideOpen(false) } },
+                            { key: 'tests', label: 'Testlar', Icon: ClipboardList, active: overlayPanel === 'tests', badge: newTestIds.size, tap: () => { setSideOpen(false); setOverlayPanel('tests'); markTestsSeen(); void loadPublicTests(); void loadMyResults() } },
+                            { key: 'progress', label: 'Natijalar', Icon: TrendingUp, active: overlayPanel === 'progress', tap: () => { setSideOpen(false); setOverlayPanel('progress') } },
+                            { key: 'menu', label: 'Menyu', Icon: Menu, active: sideOpen, tap: () => { setOverlayPanel(null); setSideOpen(true) } },
+                        ] as Array<{ key: string; label: string; Icon: typeof Menu; active: boolean; badge?: number; tap: () => void }>).map(tab => (
+                            <button key={tab.key} type="button" onClick={tab.tap}
+                                className="flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 relative"
+                                style={{ color: tab.active ? 'var(--brand)' : 'var(--text-muted)', minHeight: 52 }}>
+                                <tab.Icon className="h-5 w-5" />
+                                <span className="text-[10px] font-semibold">{tab.label}</span>
+                                {(tab.badge ?? 0) > 0 && (
+                                    <span className="absolute top-1 right-[calc(50%-18px)] min-w-[15px] h-[15px] px-0.5 rounded-full text-white text-[8px] flex items-center justify-center font-bold" style={{ background: 'var(--danger)' }}>
+                                        {(tab.badge ?? 0) > 9 ? '9+' : tab.badge}
+                                    </span>
+                                )}
+                            </button>
+                        ))}
+                    </nav>
                 )}
             </div >
         </ChatContext.Provider>

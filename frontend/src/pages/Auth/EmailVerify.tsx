@@ -55,7 +55,7 @@ export default function EmailVerify() {
                 style={{ position: 'absolute', inset: 0, zIndex: 0 }}
             />
 
-            <div className="w-full max-w-sm anim-up" style={{ position: 'relative', zIndex: 1 }}>
+            <div className="w-full max-w-sm" style={{ position: 'relative', zIndex: 1 }}>
                 <div className="flex items-center gap-2 justify-center mb-8">
                     <img src="/dtmmax-logo.png" alt="DtmMax" className="h-11 w-11 rounded-xl flex items-center justify-center" style={{ objectFit: 'contain' }} />
                     <span className="font-bold text-xl tracking-tight">DTM<span className="k-italic">Max</span></span>

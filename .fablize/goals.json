@@ -1,41 +1,41 @@
 {
- "brief": "DTMMax: kirish oqimi xatolari + dizayn/brend tozalash",
- "created": "2026-07-06T04:32:20.806263+00:00",
+ "brief": "Student navigatsiya: mobil tab-bar + tez tuzatishlar (retention)",
+ "created": "2026-07-06T04:50:03.488724+00:00",
  "goals": [
   {
    "id": "G001",
-   "title": "EmailVerify fix",
-   "objective": "StrictMode double-fire guard (GoogleCallback uslubida useRef)",
+   "title": "Mobil tab-bar",
+   "objective": "<768px doimiy pastki bar: Suhbat/Testlar/Natijalar/Menyu, aktiv holat, kontent padding",
    "status": "complete",
-   "evidence": "EmailVerify.tsx: useRef bir-martalik guard (GoogleCallback uslubi)"
+   "evidence": "Mobil tab-bar: fixed bottom nav z-60 (Suhbat/Testlar/Natijalar/Menyu), aktiv holat, badge, safe-area, Main/overlay/sidebar'ga padding; fokusli panellarda (test/insho/kartochka/reja) yashirinadi"
   },
   {
    "id": "G002",
-   "title": "AdminLogin desync",
-   "objective": "localStorage.removeItem o'rniga authStore logout()",
+   "title": "Welcome karta",
+   "objective": "Birinchi karta haqiqiy Testlar bo'limiga olib boradi (chat prompt emas)",
    "status": "complete",
-   "evidence": "authStore clearSession() (redirect'siz) + AdminLogin'da ishlatildi; logout() emas chunki u '/'ga redirect qiladi"
+   "evidence": "Welcome birinchi karta endi haqiqiy Testlar bo'limini ochadi (setOverlayPanel tests + load)"
   },
   {
    "id": "G003",
-   "title": "Brend rang",
-   "objective": "#F15A24 light mode'da render bo'lsin (kelviq/landing/index.css)",
+   "title": "Kartochkalar nav",
+   "objective": "Sidebar'ga flashcards tugmasi (o'lik overlay'ni jonlantirish)",
    "status": "complete",
-   "evidence": "kelviq.css light --brand/--warning/grad #E0531F→#F15A24; landing.css --lp-accent+grad; Landing.tsx accent+accentGrad; index.css :root light Amber→#F15A24 (dark ham), stale komment tuzatildi"
+   "evidence": "Sidebar'ga Kartochkalar tugmasi qo'shildi (due badge bilan) — o'lik flashcards overlay endi ochiladi"
   },
   {
    "id": "G004",
-   "title": "Font+token",
-   "objective": "Inter olib tashlash, success-token birxillash, mobil jadval scroll",
+   "title": "Streak 0-holat",
+   "objective": "Yangi o'quvchi ham streak vidjetini ko'radi (boshlang'ich holat)",
    "status": "complete",
-   "evidence": "index.html Inter link olib tashlandi (hech qayerda ishlatilmasdi); ChatLayout 20+ emerald #10b981/#d1fae5/#065f46/rgba(16,185,129,*) → var(--success)/color-mix; ProResult fallback'lar tozalandi; TeacherPanel analytics jadval overflow-x-auto"
+   "evidence": "Streak vidjet endi progressData bor har o'quvchiga ko'rinadi (0-holat 'Bugun boshlang')"
   },
   {
    "id": "G005",
    "title": "Verifikatsiya",
-   "objective": "tsc+build toza, commit, push",
+   "objective": "tsc+build, commit, push",
    "status": "complete",
-   "evidence": "6 fayl: EmailVerify, AdminLogin, authStore, kelviq.css, landing.css, Landing.tsx, index.css, index.html, ChatLayout, ProResult, TeacherPanel"
+   "evidence": "ChatLayout.tsx + 7 auth sahifa (anim-up olib tashlandi)"
   }
  ]
 }
