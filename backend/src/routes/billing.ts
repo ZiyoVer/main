@@ -150,11 +150,18 @@ router.post('/checkout', authenticate, async (req: AuthRequest, res) => {
             return res.status(502).json({ error: 'payment_init_failed', detail: data?.errMessage || null })
         }
 
-        // octo_payment_UUID'ni kuzatuv uchun saqlaymiz
+        // octo_payment_UUID — notify'da to'lovga BOG'LASH uchun saqlanadi (replay himoyasi).
+        // FAIL-CLOSED: uuid saqlanmasa checkout to'xtaydi — foydalanuvchi hali to'lamagan,
+        // qayta urinishi mumkin; uuid'siz to'lovni esa notify'da tekshirib bo'lmaydi.
+        const octoUuid = String(data?.data?.octo_payment_UUID || '')
+        if (!octoUuid) {
+            console.error('octo checkout: octo_payment_UUID kelmadi:', JSON.stringify(data))
+            return res.status(502).json({ error: 'payment_init_failed' })
+        }
         await prisma.payment.update({
             where: { providerTxnId: shopTxnId },
-            data: { meta: JSON.stringify({ octo_payment_UUID: data?.data?.octo_payment_UUID || null }) },
-        }).catch(() => undefined)
+            data: { meta: JSON.stringify({ octo_payment_UUID: octoUuid }) },
+        })
 
         res.json({ payUrl, shopTransactionId: shopTxnId })
     } catch (e) {
@@ -193,9 +200,10 @@ router.post('/octo/notify', async (req, res) => {
 
         // MUHIM: imzo formulasi Octo hujjatiga ko'ra sha1(unique_key+uuid+status).
         // Sandbox'da TASDIQLA — agar mos kelmasa Octo notify hujjatidagi aniq tartibga
-        // moslang. Vaqtincha sinash uchun OCTO_VERIFY_SIGNATURE=false qo'yib bo'ladi.
+        // moslang. OCTO_VERIFY_SIGNATURE=false faqat PRODUCTION'DAN TASHQARIDA ishlaydi —
+        // prod'da imzo har doim majburiy (tasodifan o'chirib qo'yish pul teshigi edi).
         const expected = crypto.createHash('sha1').update(`${notifySecret}${uuid}${status}`).digest('hex')
-        const verifyOn = process.env.OCTO_VERIFY_SIGNATURE !== 'false'
+        const verifyOn = process.env.NODE_ENV === 'production' || process.env.OCTO_VERIFY_SIGNATURE !== 'false'
         if (verifyOn && signature !== expected) {
             console.warn('octo notify imzo mos emas — kutilgan:', expected, '| kelgan:', signature)
             return res.status(401).json({ error: 'bad_signature' })
@@ -205,16 +213,38 @@ router.post('/octo/notify', async (req, res) => {
         if (!payment) return res.status(404).json({ error: 'payment_not_found' })
         if (payment.status === 'PAID') return res.json({ ok: true, idempotent: true })
 
+        // REPLAY HIMOYASI: Octo imzosi faqat (uuid+status)ga bog'liq — shop_transaction_id
+        // va summani qamramaydi. Shuning uchun uuid checkout'da saqlangan qiymat bilan
+        // AYNAN mos kelishi shart: birovning to'g'ri imzoli notify'sini boshqa to'lovga
+        // qayta o'ynatib bepul Pro olib bo'lmasin.
+        let storedUuid = ''
+        try { storedUuid = String((JSON.parse(payment.meta || '{}') as { octo_payment_UUID?: string })?.octo_payment_UUID || '') } catch { /* meta buzuq — quyida rad etiladi */ }
+        if (!storedUuid || storedUuid !== uuid) {
+            console.warn('octo notify: uuid to\'lovga mos emas', { shopTxnId, uuid, storedUuid })
+            return res.status(400).json({ error: 'uuid_mismatch' })
+        }
+
+        // Summa tekshiruvi (notify'da kelsa) — qisman to'lov to'liq obuna ochmasin
+        const notifiedSum = Number((body as { total_sum?: unknown }).total_sum ?? NaN)
+        if (Number.isFinite(notifiedSum) && Math.round(notifiedSum) < payment.amount) {
+            console.warn('octo notify: summa yetarli emas', { shopTxnId, notifiedSum, expected: payment.amount })
+            return res.status(400).json({ error: 'amount_mismatch' })
+        }
+
         const paid = status === 'succeeded'
         if (!paid) {
-            await prisma.payment.update({ where: { providerTxnId: shopTxnId }, data: { status: 'FAILED', meta: JSON.stringify(body) } })
+            // uuid meta'da SAQLAB QOLINADI — keyingi notify'lar ham tekshirila olishi uchun
+            await prisma.payment.update({
+                where: { providerTxnId: shopTxnId },
+                data: { status: 'FAILED', meta: JSON.stringify({ octo_payment_UUID: storedUuid, notify: body }) },
+            })
             return res.json({ ok: true })
         }
 
         const sub = await extendProSubscription(payment.userId, 'octo')
         await prisma.payment.update({
             where: { providerTxnId: shopTxnId },
-            data: { status: 'PAID', subscriptionId: sub.id, meta: JSON.stringify(body) },
+            data: { status: 'PAID', subscriptionId: sub.id, meta: JSON.stringify({ octo_payment_UUID: storedUuid, notify: body }) },
         })
         res.json({ ok: true })
     } catch (e) {
