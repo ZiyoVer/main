@@ -1410,9 +1410,11 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
                 if (!Array.isArray(opts) || opts.length < 2) {
                     return res.status(400).json({ error: `${i + 1}-savol: kamida 2 ta variant bo'lishi kerak` })
                 }
+                // Variant rasmi bo'lsa matn bo'sh bo'lishi mumkin (rasm-only variantlar)
+                const optionImageRefs = parseStoredOptionImages(sanitizeIncomingOptionImages(q.optionImages, opts.length))
                 for (let j = 0; j < opts.length; j++) {
-                    if (typeof opts[j] !== 'string' || !opts[j].trim()) {
-                        return res.status(400).json({ error: `${i + 1}-savol: ${String.fromCharCode(65 + j)} variant bo'sh bo'lishi mumkin emas` })
+                    if (typeof opts[j] !== 'string' || (!opts[j].trim() && !optionImageRefs[j])) {
+                        return res.status(400).json({ error: `${i + 1}-savol: ${String.fromCharCode(65 + j)} variantda matn yoki rasm bo'lishi kerak` })
                     }
                 }
                 const idx = q.correctIdx ?? 0
@@ -1619,9 +1621,11 @@ router.patch('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), testMuta
                 if (!Array.isArray(options) || options.length < 2) {
                     return res.status(400).json({ error: `${i + 1}-savol: kamida 2 ta variant bo'lishi kerak` })
                 }
+                // Variant rasmi bo'lsa matn bo'sh bo'lishi mumkin (rasm-only variantlar)
+                const optionImageRefs = parseStoredOptionImages(sanitizeIncomingOptionImages(q.optionImages, options.length))
                 for (let j = 0; j < options.length; j++) {
-                    if (typeof options[j] !== 'string' || !options[j].trim()) {
-                        return res.status(400).json({ error: `${i + 1}-savol: ${String.fromCharCode(65 + j)} variant bo'sh bo'lishi mumkin emas` })
+                    if (typeof options[j] !== 'string' || (!options[j].trim() && !optionImageRefs[j])) {
+                        return res.status(400).json({ error: `${i + 1}-savol: ${String.fromCharCode(65 + j)} variantda matn yoki rasm bo'lishi kerak` })
                     }
                 }
                 const idx = q.correctIdx ?? 0

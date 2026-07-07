@@ -456,7 +456,7 @@ export default function TeacherPanel() {
         if (tab !== 'create' || editingTestId || cloneMode || draftMeta) return
         const timer = setTimeout(() => {
             const hasContent = title.trim().length > 0
-                || questions.some(q => q.text.trim() || q.imageUrl || q.options.some(option => option.trim()))
+                || questions.some(q => q.text.trim() || q.imageUrl || q.options.some(option => option.trim()) || q.optionImages?.some(Boolean))
             if (!hasContent) return
             const draft: TeacherDraft = {
                 savedAt: new Date().toISOString(),
@@ -484,7 +484,7 @@ export default function TeacherPanel() {
             const draft = JSON.parse(raw) as TeacherDraft
             // Formada yozilgan (banner sabab avtosaqlanmagan) kontent bo'lsa — so'raymiz
             const hasFormContent = title.trim().length > 0
-                || questions.some(q => q.text.trim() || q.imageUrl || q.options.some(option => option.trim()))
+                || questions.some(q => q.text.trim() || q.imageUrl || q.options.some(option => option.trim()) || q.optionImages?.some(Boolean))
             if (hasFormContent && !confirm('Joriy formadagi kontent qoralama bilan almashtiriladi. Davom etasizmi?')) return
             resetEditorState()
             setTitle(draft.title || '')
@@ -655,7 +655,7 @@ export default function TeacherPanel() {
             toast.error('DTM blok test uchun 2-ixtisoslik fanini tanlang')
             return
         }
-        const hasCustomContent = questions.some((question) => question.text.trim() || question.options.some((option) => option.trim()))
+        const hasCustomContent = questions.some((question) => question.text.trim() || question.imageUrl || question.options.some((option) => option.trim()) || question.optionImages?.some(Boolean))
         if (hasCustomContent && !confirm('Joriy savollar rasmiy 90 savollik shablon bilan almashtiriladi. Davom etasizmi?')) {
             return
         }
@@ -1082,14 +1082,15 @@ export default function TeacherPanel() {
                 return { ...q, text: q.text?.trim() || (q.imageUrl ? ' ' : ''), options: JSON.stringify(matchingPayload) as any, correctIdx: -1, optionImages: undefined }
             }
             const newOpts = [...(q.options || ['', '', '', ''])]
-            for (let j = 0; j < 4; j++) {
-                if (!newOpts[j].trim() && q.imageUrl) {
-                    newOpts[j] = String.fromCharCode(65 + j)
-                }
-            }
             // optionImages options bilan indeks-mos qoladi: newOpts tartibi q.options bilan bir xil,
             // faqat bo'sh matnlar to'ldiriladi. Uzunlikni baribir tenglashtirib yuboramiz.
             const alignedOptionImages = q.optionImages ? newOpts.map((_, j) => q.optionImages?.[j] ?? null) : undefined
+            for (let j = 0; j < 4; j++) {
+                // Variantning O'Z rasmi bo'lsa harf bilan to'ldirmaymiz — o'quvchi rasmning o'zini ko'radi
+                if (!newOpts[j].trim() && q.imageUrl && !alignedOptionImages?.[j]) {
+                    newOpts[j] = String.fromCharCode(65 + j)
+                }
+            }
             return { ...q, text: q.text?.trim() || (q.imageUrl ? ' ' : ''), options: newOpts, optionImages: alignedOptionImages }
         })
 
@@ -1123,7 +1124,8 @@ export default function TeacherPanel() {
                 continue
             }
             for (let j = 0; j < 4; j++) {
-                if (!finalQuestions[i].options[j]?.trim()) { setMsg(`${questionLabel(i)}, variant ${String.fromCharCode(65 + j)} bo'sh`); return }
+                // Variant matni YOKI rasmi bo'lsa yetarli — rasm-only variantlar ruxsat etiladi
+                if (!finalQuestions[i].options[j]?.trim() && !finalQuestions[i].optionImages?.[j]) { setMsg(`${questionLabel(i)}, variant ${String.fromCharCode(65 + j)} bo'sh — matn yozing yoki rasm yuklang`); return }
             }
         }
 
@@ -1871,7 +1873,7 @@ export default function TeacherPanel() {
                                             {/* Yopiq kartada holat belgisi — 90 savol ichida to'ldirilmaganini topish oson bo'lsin */}
                                             {!isQExpanded(q.uid) && (() => {
                                                 const qDone = Boolean((q.text.trim() || q.imageUrl)
-                                                    && (q.questionType !== 'mcq' || q.imageUrl || q.options.every(option => option.trim())))
+                                                    && (q.questionType !== 'mcq' || q.imageUrl || q.options.every((option, oi) => option.trim() || q.optionImages?.[oi])))
                                                 return (
                                                     <span className="text-[10px] font-bold flex-shrink-0"
                                                         title={qDone ? 'To\'ldirilgan' : 'To\'ldirilmagan'}
