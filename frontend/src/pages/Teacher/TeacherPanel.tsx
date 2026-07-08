@@ -650,6 +650,56 @@ export default function TeacherPanel() {
         }
     }
 
+    // TO'LIQ DTM PDF import — bitta kitobcha → 90 savol 5 blokka avto-taqsim.
+    // Javoblar jadvali (kalit) topilsa AI taxminidan ustun qo'llanadi (backend fromKey).
+    const [dtmPdfImporting, setDtmPdfImporting] = useState(false)
+    const dtmPdfInputRef = useRef<HTMLInputElement>(null)
+
+    async function generateFullDtmFromFile(file: File) {
+        if (!subject2) { toast.error('Avval "Umumiy ma\'lumot"da 2-ixtisoslik fanini tanlang'); return }
+        if (file.type !== 'application/pdf') { toast.error('To\'liq DTM import faqat PDF qabul qiladi'); return }
+        const fileError = aiFileError(file)
+        if (fileError) { toast.error(fileError); return }
+        const hasContent = questions.some(q => q.text.trim() || q.imageUrl || q.options.some(option => option.trim()) || q.optionImages?.some(Boolean))
+        if (hasContent && !confirm('Joriy BARCHA savollar PDF\'dan import qilinganlar bilan almashtiriladi. Davom etasizmi?')) return
+        setDtmPdfImporting(true)
+        try {
+            const formData = new FormData()
+            formData.append('file', file)
+            formData.append('subject', subject)
+            formData.append('subject2', subject2)
+            formData.append('dtmBlock', '1')
+            const data = await uploadFile('/tests/generate-from-file', formData)
+            const raw: Array<{ text?: string; options?: unknown[]; correctIdx?: number; blockType?: string; fromKey?: boolean }> = data.questions || []
+            if (raw.length === 0) { toast.error('PDF\'dan savol topilmadi — skan sifatini tekshiring'); return }
+            const untagged = raw.filter(q => !DTM_BLOCK_OPTIONS.some(option => option.value === q.blockType)).length
+            const mapped: Question[] = raw.map(q => {
+                // Bloki aniqlanmagan savol SPECIALTY_1 ga tushadi — o'qituvchi "Blok turi" bilan ko'chiradi
+                const option = DTM_BLOCK_OPTIONS.find(item => item.value === q.blockType) ?? DTM_BLOCK_OPTIONS[3]
+                return mapAiMcqQuestion(q, option.value, option.coefficient)
+            })
+            setQuestions(mapped)
+            setCollapsedBlocks(new Set())
+            const counts = DTM_BLOCK_OPTIONS
+                .map(option => `${option.shortLabel} ${mapped.filter(q => q.blockType === option.value).length}/${option.target}`)
+                .join(' · ')
+            toast.success(`${mapped.length} ta savol import qilindi — ${counts}`, { duration: 9000 })
+            if (untagged > 0) toast(`${untagged} ta savolning bloki aniqlanmadi — 1-ixtisoslikka qo'yildi, "Blok turi" bilan to'g'rilang`, { duration: 8000 })
+            const keyApplied = Number(data.keyApplied) || 0
+            if (keyApplied > 0) {
+                const guessed = raw.length - raw.filter(q => q.fromKey).length
+                toast.success(`${keyApplied} ta to'g'ri javob kitobdagi javoblar jadvalidan olindi${guessed > 0 ? `, ${guessed} tasi AI taxmini — tekshiring` : ''}`, { duration: 9000 })
+            } else {
+                toast('Javoblar jadvali topilmadi — BARCHA to\'g\'ri javoblar AI taxmini. Saqlashdan oldin tekshirib chiqing!', { duration: 10000, icon: '⚠️' })
+            }
+            if (data.truncated) toast(`PDF ${30} sahifadan uzun — faqat birinchi 30 sahifasi o'qildi`, { duration: 7000 })
+        } catch (e) {
+            toast.error(e instanceof Error ? e.message : 'DTM PDF import ishlamadi')
+        } finally {
+            setDtmPdfImporting(false)
+        }
+    }
+
     function applyOfficialDtmTemplate() {
         if (!subject2) {
             toast.error('DTM blok test uchun 2-ixtisoslik fanini tanlang')
@@ -1752,6 +1802,25 @@ export default function TeacherPanel() {
                                             Savollar 5 ta blok bo'limiga bo'lingan — blok turi va koeffitsient bo'limdan avtomatik keladi. Har bo'limga alohida AI import qilsa bo'ladi.
                                         </div>
                                         <div className="flex flex-wrap gap-2">
+                                            <input ref={dtmPdfInputRef} type="file" accept=".pdf,application/pdf" className="hidden"
+                                                onChange={e => {
+                                                    if (e.target.files?.[0]) generateFullDtmFromFile(e.target.files[0])
+                                                    e.target.value = ''
+                                                }} />
+                                            <button
+                                                type="button"
+                                                onClick={() => dtmPdfInputRef.current?.click()}
+                                                disabled={dtmPdfImporting}
+                                                className="btn btn-primary btn-sm"
+                                                title="DTM blok test kitobchasi PDF'ini yuklang — 90 savol 5 blokka avtomatik taqsimlanadi. Javoblar jadvali bo'lsa undan olinadi."
+                                            >
+                                                {dtmPdfImporting ? (
+                                                    <span className="flex items-center gap-1.5">
+                                                        <span className="h-3 w-3 border-2 rounded-full animate-spin inline-block" style={{ borderColor: 'currentColor', borderTopColor: 'transparent' }} />
+                                                        PDF o'qilmoqda… (2-4 daqiqa)
+                                                    </span>
+                                                ) : <>📄 PDF'dan to'liq import (AI)</>}
+                                            </button>
                                             <button
                                                 type="button"
                                                 onClick={applyOfficialDtmTemplate}

@@ -58,6 +58,34 @@ export async function consumeAiQuota(
     return { ok: updated.count > 0, limit }
 }
 
+/**
+ * Frontend limit bar uchun joriy holat — hech narsa YEMAYDI, faqat o'qiydi.
+ * resetsAt = keyingi Toshkent yarim tuni (limit shu paytda yangilanadi).
+ */
+export async function getAiQuotaStatus(userId: string, role: string) {
+    const resetsAt = `${tashkentDay(1)}T00:00:00+05:00`
+    const unlimited = role === 'ADMIN' || role === 'TEACHER' || (await hasActiveSubscription(userId))
+    if (unlimited) {
+        return {
+            unlimited: true,
+            chat: { used: 0, limit: FREE_DAILY_LIMITS.chat },
+            vision: { used: 0, limit: FREE_DAILY_LIMITS.vision },
+            resetsAt,
+        }
+    }
+    const usage = await prisma.aiDailyUsage.findUnique({
+        where: { userId_day: { userId, day: tashkentDay() } },
+        select: { chatCount: true, visionCount: true },
+    })
+    return {
+        unlimited: false,
+        // clamp: poyga tufayli count limitdan oshib yozilgan bo'lsa ham barda maks limit ko'rinsin
+        chat: { used: Math.min(usage?.chatCount ?? 0, FREE_DAILY_LIMITS.chat), limit: FREE_DAILY_LIMITS.chat },
+        vision: { used: Math.min(usage?.visionCount ?? 0, FREE_DAILY_LIMITS.vision), limit: FREE_DAILY_LIMITS.vision },
+        resetsAt,
+    }
+}
+
 export function quotaExceededMessage(kind: AiQuotaKind): string {
     if (kind === 'vision') {
         return `Bugungi bepul rasm tahlili limiti tugadi (${FREE_DAILY_LIMITS.vision} ta). Ertaga yangilanadi.`

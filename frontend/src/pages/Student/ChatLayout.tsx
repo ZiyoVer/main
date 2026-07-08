@@ -659,6 +659,25 @@ const ChatInputArea = memo(function ChatInputArea({
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
+    // Kunlik AI limit bar — bepul userga qancha so'rov qolgani va qachon yangilanishi ko'rinadi.
+    // unlimited (Pro/o'qituvchi/admin) yoki fetch xatosida indikator umuman chiqmaydi.
+    const [aiQuota, setAiQuota] = useState<{
+        unlimited: boolean
+        chat: { used: number; limit: number }
+        vision: { used: number; limit: number }
+        resetsAt: string
+    } | null>(null)
+    const refreshAiQuota = useCallback(() => {
+        fetchApi('/auth/ai-quota', { silent: true }).then(setAiQuota).catch(() => { })
+    }, [])
+    useEffect(() => { refreshAiQuota() }, [refreshAiQuota])
+    // Har AI javob tugaganda (loading true→false) hisoblagich yangilanadi
+    const prevLoadingRef = useRef(loading)
+    useEffect(() => {
+        if (prevLoadingRef.current && !loading) refreshAiQuota()
+        prevLoadingRef.current = loading
+    }, [loading, refreshAiQuota])
+
     const adjustTextareaHeight = useCallback(() => {
         const el = textareaRef.current
         if (!el) return
@@ -875,6 +894,32 @@ const ChatInputArea = memo(function ChatInputArea({
                                 PRO
                             </span>
                         </button>
+                        {/* Kunlik AI limit bar (faqat bepul user) — nechta qolgani + qachon yangilanishi */}
+                        {aiQuota && !aiQuota.unlimited && (() => {
+                            const left = Math.max(0, aiQuota.chat.limit - aiQuota.chat.used)
+                            const ratio = left / aiQuota.chat.limit
+                            const exhausted = left === 0
+                            const low = !exhausted && ratio <= 0.2
+                            const hoursLeft = Math.max(1, Math.ceil((new Date(aiQuota.resetsAt).getTime() - Date.now()) / 3600000))
+                            const accent = exhausted ? 'var(--danger)' : low ? 'var(--brand)' : 'var(--text-muted)'
+                            return (
+                                <div className="h-8 px-2 flex items-center gap-1.5 rounded-lg text-[11px] font-medium select-none cursor-default"
+                                    title={`Bugungi bepul AI so'rovlari: ${aiQuota.chat.used}/${aiQuota.chat.limit} · Rasm tahlili: ${aiQuota.vision.used}/${aiQuota.vision.limit} · ~${hoursLeft} soatdan keyin (00:00, Toshkent vaqti) yangilanadi · Tayyor testlarni yechish — cheksiz`}
+                                    style={{ color: accent }}>
+                                    <Zap className="h-3 w-3 flex-shrink-0" />
+                                    {exhausted ? (
+                                        <span className="whitespace-nowrap">~{hoursLeft} soatda yangilanadi</span>
+                                    ) : (
+                                        <>
+                                            <span className="tabular-nums">{left}</span>
+                                            <span className="w-7 h-[3px] rounded-full overflow-hidden hidden sm:block" style={{ background: 'var(--border)' }}>
+                                                <span className="block h-full rounded-full transition-all" style={{ width: `${ratio * 100}%`, background: low ? 'var(--brand)' : 'var(--success)' }} />
+                                            </span>
+                                        </>
+                                    )}
+                                </div>
+                            )
+                        })()}
                         <div className="flex-1" />
                         {/* Send / Stop */}
                         {loading ? (

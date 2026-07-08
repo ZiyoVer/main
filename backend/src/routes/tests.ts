@@ -668,6 +668,152 @@ ${jsonFormat}`
     return { questions: rawQuestions, truncated }
 }
 
+// ── To'liq DTM blok test PDF import ──────────────────────────────────────────
+// Bitta kitobcha (≈16-24 sahifa, 90 savol) → savollar blockType teglari bilan.
+// Javoblar jadvali ("KALIT") topilsa AI taxminidan USTUN qo'llanadi — fromKey=true.
+const DTM_VISION_MAX_PAGES = 30
+const DTM_VISION_BATCH_PAGES = 3 // 24 sahifalik kitobcha ≈ 8 ta AI chaqiruv
+const DTM_MAX_QUESTIONS = 90
+
+type DtmAnswerKey = { blockType: string | null; answers: Record<string, unknown> }
+
+function buildDtmImportPrompt(params: {
+    subject: string; subject2: string; lastBlock: string; pageLabel: string
+}): string {
+    const { subject, subject2, lastBlock, pageLabel } = params
+    return `Bu — DTM blok test kitobchasining ${pageLabel}. Undagi TAYYOR savollarni AYNAN ko'chirib JSON qaytar — o'zing savol to'qima.
+
+KITOBCHA TARTIBI (blok aniqlashda shundan foydalaning):
+1) Majburiy fanlar: Ona tili (10 savol) → Matematika (10 savol) → O'zbekiston tarixi (10 savol)
+2) 1-ixtisoslik: ${subject} (30 savol)
+3) 2-ixtisoslik: ${subject2} (30 savol)
+
+BLOK ANIQLASH QOIDALARI:
+- Sahifada bo'lim sarlavhasi ko'rinsa (masalan "ONA TILI", "MATEMATIKA", "O'ZBEKISTON TARIXI", "${subject.toUpperCase()}", "${subject2.toUpperCase()}") — keyingi savollar o'sha blokka tegishli
+- Sarlavha ko'rinmasa — savollar ${lastBlock} blokining DAVOMI
+- blockType qiymatlari: MANDATORY_LANGUAGE (ona tili), MANDATORY_MATH (majburiy matematika, 10 talik), MANDATORY_HISTORY (tarix), SPECIALTY_1 (${subject}, 30 talik), SPECIALTY_2 (${subject2}, 30 talik)
+- DIQQAT: majburiy fanlar kitob BOSHIDA 10 tadan keladi; 30 talik bo'limlar — ixtisoslik. Ixtisoslik fani majburiy fan bilan bir xil bo'lsa (masalan ikkalasi ham Matematika) — savol soni va joylashuvidan farqlang.
+
+HAR SAVOL shu formatda:
+{"num": <savolning kitobchadagi raqami>, "blockType": "...", "text": "...", "options": ["...","...","...","..."], "correctIdx": 0}
+- correctIdx: kitobda to'g'ri javob belgilangan bo'lsa — o'shani ol; belgilanmagan bo'lsa savolni O'ZING yechib eng ishonchli javobni tanla
+
+JAVOBLAR JADVALI: sahifada "JAVOBLAR" / "KALIT" / javoblar jadvali (raqam→harf) ko'rsang, uni savol sifatida EMAS, shunday element sifatida qaytar:
+{"answerKey": true, "blockType": "SPECIALTY_1 (jadval qaysi fanga tegishli bo'lsa; umumiy bo'lsa null)", "answers": {"1":"A","2":"C"}}
+
+- Chizma/grafik/jadvalli savolda matnga "[Chizma: qisqa tavsif]" qo'shib qo'y
+- Formulalar FAQAT KaTeX: $\\frac{a}{b}$, $\\sqrt{x}$, $x^{2}$
+- Sahifadagi BARCHA savollarni qaytar, tashlab ketma
+
+Javob FAQAT JSON array, boshqa hech narsa yozma.`
+}
+
+// AI javobidan savollar va javob-kalit jadvallarini ajratadi
+function collectDtmGeneratedItems(items: any[]): { questions: any[]; answerKeys: DtmAnswerKey[] } {
+    const letterToIdx = (s: unknown) => ['a', 'b', 'c', 'd'].indexOf(String(s ?? '').trim().toLowerCase())
+    const questions: any[] = []
+    const answerKeys: DtmAnswerKey[] = []
+    for (const item of Array.isArray(items) ? items : []) {
+        if (!item) continue
+        if (item.answerKey && item.answers && typeof item.answers === 'object') {
+            const blockType = normalizeDtmBlockType(typeof item.blockType === 'string' ? item.blockType : undefined)
+            answerKeys.push({ blockType: blockType === 'GENERIC' ? null : blockType, answers: item.answers })
+            continue
+        }
+        if (!item.text || !Array.isArray(item.options)) continue
+        const options = item.options.filter((o: any) => typeof o === 'string' && o.trim().length > 0).slice(0, 4)
+        if (options.length < 2) continue
+        let correctIdx = typeof item.correctIdx === 'number' ? item.correctIdx : letterToIdx(item.correctIdx ?? item.correct ?? item.answer)
+        if (correctIdx < 0 || correctIdx >= options.length) correctIdx = 0
+        const blockType = normalizeDtmBlockType(typeof item.blockType === 'string' ? item.blockType : undefined)
+        const num = Number.parseInt(String(item.num ?? ''), 10)
+        questions.push({
+            text: String(item.text).trim(),
+            options,
+            correctIdx,
+            blockType: blockType === 'GENERIC' ? null : blockType,
+            num: Number.isFinite(num) ? num : null,
+            fromKey: false,
+        })
+    }
+    return { questions, answerKeys }
+}
+
+// Javob-kalit jadvalini savollarga qo'llaydi (AI taxminidan ustun) — nechtasi qo'llanganini qaytaradi
+function applyDtmAnswerKeys(questions: any[], answerKeys: DtmAnswerKey[]): number {
+    let applied = 0
+    for (const key of answerKeys) {
+        for (const [numStr, rawAnswer] of Object.entries(key.answers)) {
+            const num = Number.parseInt(numStr, 10)
+            if (!Number.isFinite(num)) continue
+            const idx = typeof rawAnswer === 'number'
+                ? rawAnswer
+                : ['a', 'b', 'c', 'd'].indexOf(String(rawAnswer ?? '').trim().toLowerCase())
+            if (idx < 0 || idx > 3) continue
+            // Jadval bloki ma'lum bo'lsa faqat o'sha blokda qidiramiz, bo'lmasa hamma savolda
+            const pool = key.blockType ? questions.filter(q => q.blockType === key.blockType) : questions
+            const target = pool.find(q => q.num === num)
+            if (target && idx < target.options.length) {
+                target.correctIdx = idx
+                target.fromKey = true
+                applied++
+            }
+        }
+    }
+    return applied
+}
+
+async function generateDtmQuestionsFromPdf(buffer: Buffer, subject: string, subject2: string) {
+    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs' as any)
+    const { createCanvas } = await import('@napi-rs/canvas')
+
+    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) })
+    const pdfDoc = await loadingTask.promise
+    const pageLimit = Math.min(pdfDoc.numPages, DTM_VISION_MAX_PAGES)
+    const truncated = pdfDoc.numPages > DTM_VISION_MAX_PAGES
+
+    let allQuestions: any[] = []
+    const allAnswerKeys: DtmAnswerKey[] = []
+    // Batch orasida blok kontekstini tashiymiz — sarlavhasiz sahifa oldingi blokning davomi
+    let lastBlock = 'MANDATORY_LANGUAGE (kitob boshi — ona tili)'
+
+    // DIQQAT: savol soni yetganda ham TO'XTAMAYMIZ — javoblar jadvali kitob OXIRIDA bo'ladi
+    for (let startPage = 1; startPage <= pageLimit; startPage += DTM_VISION_BATCH_PAGES) {
+        const endPage = Math.min(pageLimit, startPage + DTM_VISION_BATCH_PAGES - 1)
+        const imageMessages: any[] = []
+        for (let pageNumber = startPage; pageNumber <= endPage; pageNumber++) {
+            const page = await pdfDoc.getPage(pageNumber)
+            const viewport = page.getViewport({ scale: 1.5 })
+            const canvas = createCanvas(viewport.width, viewport.height)
+            const ctx = canvas.getContext('2d')
+            await page.render({ canvasContext: ctx as any, viewport }).promise
+            const base64 = canvas.toBuffer('image/png').toString('base64')
+            imageMessages.push({ type: 'image_url', image_url: { url: `data:image/png;base64,${base64}` } })
+        }
+        if (imageMessages.length === 0) continue
+
+        try {
+            const aiContent = await generateQuestionJson([{
+                role: 'user',
+                content: [
+                    ...imageMessages,
+                    { type: 'text', text: buildDtmImportPrompt({ subject, subject2, lastBlock, pageLabel: `${startPage}-${endPage} sahifalari` }) }
+                ]
+            }], true)
+            const { questions, answerKeys } = collectDtmGeneratedItems(parseQuestionJson(aiContent))
+            allQuestions = dedupeGeneratedQuestions([...allQuestions, ...questions])
+            allAnswerKeys.push(...answerKeys)
+            const lastTagged = [...questions].reverse().find(q => q.blockType)
+            if (lastTagged) lastBlock = lastTagged.blockType
+        } catch (batchErr: any) {
+            console.warn(`DTM PDF pages ${startPage}-${endPage} generation failed:`, batchErr?.message || batchErr)
+        }
+    }
+
+    const keyApplied = applyDtmAnswerKeys(allQuestions, allAnswerKeys)
+    return { questions: allQuestions.slice(0, DTM_MAX_QUESTIONS), truncated, keyApplied }
+}
+
 async function generateQuestionJson(messages: any[], isVision = false): Promise<string> {
     const client = isVision ? gptClient : aiClient
     const model = isVision ? VISION_MODEL : aiModel
@@ -1086,6 +1232,26 @@ router.post('/generate-from-file', authenticate, requireRole('TEACHER', 'ADMIN')
         if (!req.file) return res.status(400).json({ error: 'Fayl yuklanmadi' })
         const { mimetype, buffer } = req.file
         const subject = (req.body.subject as string) || ''
+
+        // TO'LIQ DTM BLOK REJIMI: bitta kitobcha PDF → 90 savol blockType teglari bilan.
+        // Har doim vision yo'li (matnli PDF ham render qilinadi — blok sarlavhalari va
+        // javoblar jadvali sahifada KO'RINGANIDAY o'qiladi, matn oqimida adashmaydi).
+        if (req.body.dtmBlock === '1') {
+            if (mimetype !== 'application/pdf') {
+                return res.status(400).json({ error: 'To\'liq DTM import faqat PDF qabul qiladi' })
+            }
+            if (!process.env.GEMINI_API_KEY) {
+                return res.status(400).json({ error: 'DTM PDF tahlili uchun vision AI kaliti sozlanmagan' })
+            }
+            const dtmSubject = subject || 'Ixtisoslik fani'
+            const dtmSubject2 = (req.body.subject2 as string) || '2-ixtisoslik fani'
+            const dtmResult = await generateDtmQuestionsFromPdf(buffer, dtmSubject, dtmSubject2)
+            return res.json({
+                questions: dtmResult.questions,
+                truncated: dtmResult.truncated,
+                keyApplied: dtmResult.keyApplied, // javoblar jadvalidan olingan javoblar soni
+            })
+        }
         // MCQ va Moslashtirish (matching) format namunasi
         const jsonFormat = `[
   {"text":"MCQ savol matni?","options":["A variant","B variant","C variant","D variant"],"correctIdx":0},

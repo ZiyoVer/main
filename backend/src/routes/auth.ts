@@ -14,6 +14,7 @@ import { normalizeSubject } from '../utils/subjects'
 import { parseOptionalExamDate, parseOptionalExamType, validateTargetScore } from '../utils/profileValidation'
 import { isValidDtmPair } from '../utils/dtmPairs'
 import { logAdminAction } from '../utils/adminAudit'
+import { getAiQuotaStatus } from '../utils/aiQuota'
 
 const router = Router()
 const JWT_SECRET = process.env.JWT_SECRET!
@@ -382,6 +383,15 @@ router.get('/me', authenticate, async (req: AuthRequest, res) => {
         })
         if (!user) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' })
         res.json(user)
+    } catch (e) {
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+// AI kvota holati — frontend limit bar uchun (faqat o'qiydi, kvota yemaydi)
+router.get('/ai-quota', authenticate, async (req: AuthRequest, res) => {
+    try {
+        res.json(await getAiQuotaStatus(req.user.id, req.user.role))
     } catch (e) {
         res.status(500).json({ error: 'Server xatoligi' })
     }
