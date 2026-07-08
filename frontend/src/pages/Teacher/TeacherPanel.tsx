@@ -2142,7 +2142,9 @@ export default function TeacherPanel() {
                                                         <label className="flex flex-1 min-w-0 items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition"
                                                             style={q.correctIdx === oi ? { border: '1px solid color-mix(in srgb, var(--success) 40%, transparent)', background: 'color-mix(in srgb, var(--success) 6%, transparent)' } : { border: '1px solid var(--border)' }}>
                                                             <input type="radio" name={`correct-${q.uid}`} checked={q.correctIdx === oi} onChange={() => updateQ(qi, 'correctIdx', oi)} className="w-3 h-3 flex-shrink-0" style={{ accentColor: 'var(--success)' }} />
-                                                            <input placeholder={`Variant ${String.fromCharCode(65 + oi)}`} required={!q.imageUrl} value={o} onChange={e => updateQ(qi, `opt${oi}`, e.target.value)}
+                                                            {/* MUHIM: variantning O'Z rasmi bo'lsa ham required emas — aks holda brauzerning
+                                                                native "to'ldiring" validatsiyasi submit()dagi rasm-only tekshiruvgacha yetkazmaydi */}
+                                                            <input placeholder={`Variant ${String.fromCharCode(65 + oi)}`} required={!q.imageUrl && !(q.optionImages?.[oi] || q.optionImagePreviews?.[oi])} value={o} onChange={e => updateQ(qi, `opt${oi}`, e.target.value)}
                                                                 className="flex-1 bg-transparent outline-none text-[13px] min-w-0" />
                                                         </label>
                                                         {/* Variant rasmi: yuklanish holati / yuklash tugmasi (rasm bo'lsa pastda thumbnail) */}
