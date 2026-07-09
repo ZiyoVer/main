@@ -894,8 +894,18 @@ const ChatInputArea = memo(function ChatInputArea({
                                 PRO
                             </span>
                         </button>
-                        {/* Kunlik AI limit bar (faqat bepul user) — nechta qolgani + qachon yangilanishi */}
-                        {aiQuota && !aiQuota.unlimited && (() => {
+                        {/* Kunlik AI limit bar — HAMMAGA doim ko'rinadi: qancha qolgani + qachon yangilanishi */}
+                        {aiQuota && (() => {
+                            if (aiQuota.unlimited) {
+                                return (
+                                    <div className="h-8 px-2 flex items-center gap-1.5 rounded-lg text-[11px] font-medium select-none cursor-default"
+                                        title="Sizga kunlik AI limiti qo'llanmaydi — so'rovlar cheksiz"
+                                        style={{ color: 'var(--text-muted)' }}>
+                                        <Zap className="h-3 w-3 flex-shrink-0" />
+                                        <span>Cheksiz</span>
+                                    </div>
+                                )
+                            }
                             const left = Math.max(0, aiQuota.chat.limit - aiQuota.chat.used)
                             const ratio = left / aiQuota.chat.limit
                             const exhausted = left === 0
@@ -904,19 +914,17 @@ const ChatInputArea = memo(function ChatInputArea({
                             const accent = exhausted ? 'var(--danger)' : low ? 'var(--brand)' : 'var(--text-muted)'
                             return (
                                 <div className="h-8 px-2 flex items-center gap-1.5 rounded-lg text-[11px] font-medium select-none cursor-default"
-                                    title={`Bugungi bepul AI so'rovlari: ${aiQuota.chat.used}/${aiQuota.chat.limit} · Rasm tahlili: ${aiQuota.vision.used}/${aiQuota.vision.limit} · ~${hoursLeft} soatdan keyin (00:00, Toshkent vaqti) yangilanadi · Tayyor testlarni yechish — cheksiz`}
+                                    title={`Bugungi bepul AI so'rovlari: ${aiQuota.chat.used}/${aiQuota.chat.limit} · Rasm tahlili: ${aiQuota.vision.used}/${aiQuota.vision.limit} · 00:00 da (Toshkent vaqti) yangilanadi · Tayyor testlarni yechish — cheksiz`}
                                     style={{ color: accent }}>
                                     <Zap className="h-3 w-3 flex-shrink-0" />
-                                    {exhausted ? (
-                                        <span className="whitespace-nowrap">~{hoursLeft} soatda yangilanadi</span>
-                                    ) : (
-                                        <>
-                                            <span className="tabular-nums">{left}</span>
-                                            <span className="w-7 h-[3px] rounded-full overflow-hidden hidden sm:block" style={{ background: 'var(--border)' }}>
-                                                <span className="block h-full rounded-full transition-all" style={{ width: `${ratio * 100}%`, background: low ? 'var(--brand)' : 'var(--success)' }} />
-                                            </span>
-                                        </>
-                                    )}
+                                    <span className="tabular-nums whitespace-nowrap">{left}/{aiQuota.chat.limit}</span>
+                                    <span className="w-8 h-[3px] rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
+                                        <span className="block h-full rounded-full transition-all" style={{ width: `${ratio * 100}%`, background: exhausted ? 'var(--danger)' : low ? 'var(--brand)' : 'var(--success)' }} />
+                                    </span>
+                                    {/* Yangilanish vaqti — limit tugaganda hamma joyda, aks holda keng ekranda ko'rinadi */}
+                                    <span className={`whitespace-nowrap ${exhausted ? '' : 'hidden md:inline'}`} style={{ opacity: 0.85 }}>
+                                        · ~{hoursLeft} soatda yangilanadi
+                                    </span>
                                 </div>
                             )
                         })()}
