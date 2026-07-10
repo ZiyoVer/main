@@ -19,14 +19,23 @@ ENDSQL
 fi
 
 echo ">>> prisma migrate deploy ishlamoqda..."
-# migrate deploy mavjud migratsiyalarni qo'llaydi. Bu repoda additiv schema
-# o'zgarishlar (User.status, AdminAuditLog) uchun migratsiya fayli YO'Q —
-# shuning uchun migrate deploy "muvaffaqiyatli" bo'lsa ham yangi ustun/jadval
-# YARATILMAYDI. Buni hal qilish uchun migrate urinishidan KEYIN db push'ni
-# SHARTSIZ ishlatamiz: schema'dagi additiv o'zgarishlar jonli DBga aniq
-# qo'llanilsin. Additiv bo'lgani uchun bu xavfsiz (data-loss yo'q).
-npx prisma migrate deploy || echo ">>> migrate deploy o'tmadi (migratsiya yo'q bo'lishi mumkin) — db push davom etadi..."
-echo ">>> prisma db push ishlamoqda (additiv schema'ni jonli DBga qo'llash)..."
-npx prisma db push --skip-generate
+# P0-06: Schema drift oldini olish. Ilgari `db push` HAR deployda SHARTSIZ ishlardi —
+# u migration tarixini chetlab schema'ni majburan o'rnatardi (drift manbai) va jonli
+# DB hech qachon to'liq migration-managed bo'lmasdi.
+#
+# Endi migration bilan boshqaramiz: migrate deploy MUVAFFAQIYATLI bo'lsa, `db push`
+# butunlay o'tkazib yuboriladi (drift yo'q). `db push` faqat FALLBACK — migrate deploy
+# fail bo'lgan oraliq davr uchun (jonli DB hali baseline-resolve qilinmagan bo'lsa).
+# Fallback additiv-only (--skip-generate, data-loss'siz). Worst case = eski xatti-harakat.
+#
+# MUHIM: to'liq migration rejimida HAR schema o'zgarishi uchun migration yaratish shart
+# (aks holda deploy'da jimgina qo'llanmaydi). Jonli DB'ni migration-managed qilish va
+# workflow — backend/MIGRATIONS.md ga qarang.
+if npx prisma migrate deploy; then
+    echo ">>> migrate deploy muvaffaqiyatli — db push o'tkazib yuborildi (drift oldini olish)"
+else
+    echo ">>> migrate deploy o'tmadi — additiv db push fallback (oraliq davr)"
+    npx prisma db push --skip-generate
+fi
 echo ">>> Server ishga tushmoqda..."
 exec node dist/app.js
