@@ -1836,6 +1836,11 @@ router.post('/:chatId/upload-file', authenticate, requireVerified, uploadSingle,
                 return res.status(400).json({ error: 'Rasm hajmi juda katta (10MB dan oshmasligi kerak)' })
             }
 
+            // Bepul kunlik vision limiti (rasm/OCR — eng qimmat AI yo'l) — S3 va Vision chaqiruvidan OLDIN.
+            // PDF/Word/TXT yo'li AI ishlatmaydi (lokal extraction) — ular quotaga kirmaydi.
+            const vq = await consumeAiQuota(req.user.id, req.user.role, 'vision')
+            if (!vq.ok) return res.status(429).json({ error: quotaExceededMessage('vision'), code: 'DAILY_AI_LIMIT' })
+
             // Rasmni S3'ga saqlaymiz — chatda rasmning O'ZI ko'rinishi uchun URL qaytaramiz.
             // Saqlash xato bersa ham OCR davom etadi (imageUrl'siz, faqat matn).
             try {

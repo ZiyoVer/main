@@ -2069,6 +2069,12 @@ router.post('/analyze-result', authenticate, aiAnalysisLimiter, async (req: Auth
 
         const hasImages = questions.some((q: any) => q.imageUrl)
 
+        // Bepul kunlik AI limiti (xarajat shipi) — rasmli tahlil Vision (qimmat, 16k tok),
+        // rasmsiz DeepSeek. Kind route qaysi AI yo'liga borishiga qarab tanlanadi.
+        const quotaKind = (hasImages && process.env.GEMINI_API_KEY) ? 'vision' : 'chat'
+        const aq = await consumeAiQuota(req.user!.id, req.user!.role, quotaKind)
+        if (!aq.ok) return res.status(429).json({ error: quotaExceededMessage(quotaKind), code: 'DAILY_AI_LIMIT' })
+
         // Rasmli savollar bo'lsa vision AI (GPT-4o — rasmni aniq o'qiydi va matematikani to'g'ri yechadi)
         if (hasImages && process.env.GEMINI_API_KEY) {
             const imgQs = questions.filter((q: any) => q.imageUrl).slice(0, 10)

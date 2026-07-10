@@ -2,6 +2,7 @@ import { Router } from 'express'
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest } from '../middleware/auth'
+import { consumeAiQuota, quotaExceededMessage } from '../utils/aiQuota'
 import OpenAI from 'openai'
 
 const router = Router()
@@ -125,6 +126,11 @@ router.post('/generate', mockExamLimiter, async (req: AuthRequest, res) => {
         }
 
         const config = getMockExamConfig(subject, examType as 'DTM' | 'MS')
+
+        // Bepul kunlik AI limiti (xarajat shipi) — mock-exam generatsiya DeepSeek matn chaqiruvi (8k tok).
+        // mockExamLimiter faqat 2/daqiqa beradi, lekin kunlik cap yo'q edi — shu yerda qo'shildi.
+        const quota = await consumeAiQuota(req.user!.id, req.user!.role, 'chat')
+        if (!quota.ok) return res.status(429).json({ error: quotaExceededMessage('chat'), code: 'DAILY_AI_LIMIT' })
 
         const completion = await aiClient.chat.completions.create({
             model: aiModel,
