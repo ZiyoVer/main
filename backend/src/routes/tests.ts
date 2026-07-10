@@ -2600,6 +2600,19 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
                 if (existingAttempt) {
                     throw new AlreadySubmittedError()
                 }
+            } else if (activeSessionId) {
+                // P0-01 ATOMIK CLAIM: vaqtli test sessiyasini faqat submittedAt hali null
+                // bo'lgandagina egallaymiz (compare-and-swap). Sessiya tekshiruvi (~2404)
+                // transaction TASHQARISIDA edi — ikki parallel POST ikkalasi ham submittedAt=null
+                // ko'rib, ikki attempt yaratardi (advisory lock ularni faqat serializatsiya qilardi,
+                // to'xtatmasdi). updateMany atomik: ikkinchi POST count=0 oladi -> AlreadySubmittedError.
+                const claimed = await tx.testSession.updateMany({
+                    where: { id: activeSessionId, submittedAt: null },
+                    data: { submittedAt: new Date() }
+                })
+                if (claimed.count === 0) {
+                    throw new AlreadySubmittedError()
+                }
             }
 
             let profile = await tx.studentProfile.findUnique({
@@ -2681,12 +2694,8 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
                 })
             }
 
-            if (activeSessionId) {
-                await tx.testSession.update({
-                    where: { id: activeSessionId },
-                    data: { submittedAt: new Date() }
-                })
-            }
+            // P0-01: vaqtli test sessiyasi yuqorida ATOMIK claim qilindi (submittedAt o'rnatilgan) —
+            // bu yerda qayta yozmaymiz. Vaqt-limitsiz testlarda sessiya yo'q (activeSessionId=null).
 
             // P0-02 FREEZE: newAbility joriy qiymatda — computedScore.ability (degenerate +-5) tarqalmasin.
             return { attempt: att, newAbility: currentAbility, computedScore }
