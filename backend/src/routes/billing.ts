@@ -105,6 +105,10 @@ interface OctoPrepareResponse {
  */
 router.post('/checkout', authenticate, async (req: AuthRequest, res) => {
     try {
+        // FAIL-CLOSED: enforcement o'chiq (beta) bo'lsa hamma Pro bepul va UI ham
+        // "bepul" deb e'lon qiladi — bu holatda real to'lov OLINMASLIGI shart, aks holda
+        // foydalanuvchi ochiq imkoniyat uchun pul to'lab, refund/ishonch muammosi chiqadi.
+        if (!PRO_ENFORCED) return res.status(503).json({ error: 'billing_disabled_beta' })
         const shopId = Number(process.env.OCTO_SHOP_ID || 0)
         const secret = process.env.OCTO_SECRET || ''
         if (!shopId || !secret) return res.status(503).json({ error: 'billing_not_configured' })

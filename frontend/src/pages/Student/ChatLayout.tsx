@@ -2126,7 +2126,12 @@ Iltimos, har bir savolni tahlil qilib ber:
             }
             toast.error("To'lov boshlanmadi — qayta urinib ko'ring")
         } catch (e: any) {
-            if (e?.status === 503) toast.error("To'lov tizimi hali to'liq sozlanmagan (OCTO kalitlari)")
+            if (e?.status === 503) {
+                // billing_disabled_beta — enforcement o'chiq: hamma Pro bepul, to'lov OLINMAYDI (fail-closed).
+                // Foydalanuvchini "xato" bilan qo'rqitmasdan halol holatni aytamiz.
+                if (e?.data?.error === 'billing_disabled_beta') toast.success("Beta davrida barcha imkoniyatlar bepul — hozircha to'lovga hojat yo'q 🎉")
+                else toast.error("To'lov tizimi hali to'liq sozlanmagan (OCTO kalitlari)")
+            }
             else toast.error(e?.message || "To'lov boshlanmadi — qayta urinib ko'ring")
         }
         setCheckoutLoading(false)
