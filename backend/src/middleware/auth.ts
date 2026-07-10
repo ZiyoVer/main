@@ -46,6 +46,30 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
         return
     }
 
+    // P0-04: Akkaunt statusini DB'dan tekshiramiz. JWT 7 kun amal qiladi — suspend/o'chirish
+    // DARHOL kuchga kirsin (aks holda bloklangan yoki o'chirilgan token 7 kungacha ishlardi).
+    // requireRole/requireVerified allaqachon shuni qilardi; endi FAQAT-authenticate route'lar
+    // (submit, natijalar, checkout, chat ro'yxati) uchun ham markazlashtirildi.
+    try {
+        const dbUser = await prisma.user.findUnique({
+            where: { id: decoded.id },
+            select: { status: true }
+        })
+        if (!dbUser) {
+            res.status(401).json({ error: 'Foydalanuvchi topilmadi' })
+            return
+        }
+        if (dbUser.status === 'SUSPENDED') {
+            res.status(403).json({ error: 'Akkaunt bloklangan' })
+            return
+        }
+    } catch (dbErr) {
+        // DB ishlamasa — Redis bilan bir xil fail-closed siyosat (so'rovni rad etamiz)
+        console.error('authenticate status tekshiruvida xato:', dbErr)
+        res.status(503).json({ error: 'Autentifikatsiya xizmati vaqtincha ishlamayapti. Qayta urinib ko\'ring.' })
+        return
+    }
+
     req.user = decoded
     next()
 }

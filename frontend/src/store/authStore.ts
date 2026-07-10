@@ -28,6 +28,17 @@ export const useAuthStore = create<AuthState>((set) => ({
         set({ token: null, user: null })
     },
     logout: () => {
+        // P0-04: serverda tokenni blacklist qilamiz — o'g'irlangan/eski token qayta ishlatilmasin.
+        // keepalive: redirect darhol bo'lsa ham request yetkaziladi; offline bo'lsa .catch bilan
+        // yutiladi va lokal chiqish baribir bajariladi (user "chiqolmay" qolmaydi).
+        const token = localStorage.getItem('token')
+        if (token) {
+            fetch('/api/auth/logout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                keepalive: true,
+            }).catch(() => { /* offline yoki server xato — lokal chiqish davom etadi */ })
+        }
         localStorage.removeItem('token')
         localStorage.removeItem('user')
         window.location.href = '/'
