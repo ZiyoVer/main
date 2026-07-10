@@ -2643,7 +2643,11 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
                     rawScore: computedScore.rawScore,
                     scoreMax: computedScore.scoreMax,
                     grade: computedScore.grade,
-                    raschAbility: normalizedTestType === 'MILLIY_SERTIFIKAT' ? computedScore.ability : currentAbility
+                    // P0-02 FREEZE: MS ability yangilanishi vaqtincha to'xtatilgan — degenerate
+                    // 0%/100% test ability'ni +-5 ga reset qilardi (testScoring.ts:221) va ability
+                    // subject bo'yicha ajratilmagan (S1). Snapshot joriy (o'zgarmagan) qiymatda saqlanadi.
+                    // Batch 2: subject-specific EAP/Bayesian model.
+                    raschAbility: currentAbility
                 }
             })
 
@@ -2653,7 +2657,9 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
             await tx.studentProfile.update({
                 where: { userId: req.user.id },
                 data: {
-                    abilityLevel: normalizedTestType === 'MILLIY_SERTIFIKAT' ? computedScore.ability : profile.abilityLevel,
+                    // P0-02 FREEZE: MS ham abilityLevel'ni o'zgartirmaydi (yuqoridagi izoh). Profil
+                    // ability'si joriy qiymatda muzlatilgan — bitta perfect/nol test tarixiy profilni buzmaydi.
+                    abilityLevel: profile.abilityLevel,
                     totalTests: nextTotalTests,
                     avgScore: nextAvgScore
                 }
@@ -2676,7 +2682,8 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
                 })
             }
 
-            return { attempt: att, newAbility: computedScore.ability, computedScore }
+            // P0-02 FREEZE: newAbility joriy qiymatda — computedScore.ability (degenerate +-5) tarqalmasin.
+            return { attempt: att, newAbility: currentAbility, computedScore }
         }, { timeout: 15000, maxWait: 5000 })
 
         // Submit dan keyin to'g'ri javoblarni qaytaramiz (oldin emas!)
@@ -2764,7 +2771,8 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
             grade: computedScore.grade,
             correct,
             total: totalForResponse,
-            newAbility: normalizedTestType === 'MILLIY_SERTIFIKAT' ? attempt.newAbility : undefined,
+            // P0-02 FREEZE: ability o'zgarmagani uchun raschFeedback ("oldin -> keyin") ko'rsatilmaydi.
+            newAbility: undefined,
             testType: normalizedTestType,
             testTypeLabel: getTestTypeLabel(normalizedTestType),
             dtmBall: normalizedTestType === 'DTM_BLOCK' ? computedScore.rawScore : undefined,
