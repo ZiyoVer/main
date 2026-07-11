@@ -1147,24 +1147,24 @@ html.dark .md-content pre {
 /* ---- Mobile Responsive ---- */
 @media (max-width: 640px) {
 
-    /* Bubbles — full width, compact */
+    /* Bubbles — mobilda ham bemalol o'qiladigan o'lcham */
     .bubble-ai {
         max-width: 100%;
-        font-size: 0.8125rem;
-        line-height: 1.6;
+        font-size: 0.875rem;
+        line-height: 1.65;
     }
 
     .bubble-user {
         max-width: 86%;
-        font-size: 0.78125rem;
+        font-size: 0.8125rem;
         padding: 0.46rem 0.72rem;
         border-radius: 0.78rem;
     }
 
     /* Markdown in chat */
     .md-content {
-        font-size: 0.8125rem;
-        line-height: 1.6;
+        font-size: 0.875rem;
+        line-height: 1.65;
     }
 
     .md-content h1, .md-content h2 {

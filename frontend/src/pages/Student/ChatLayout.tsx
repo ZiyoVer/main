@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, FileText, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, ArrowUp, ArrowDown, BarChart2, User, Calendar, Shield, Sparkles, Clock, Flame, Zap, Copy, MessageSquare, Pencil } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, FileText, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, ArrowUp, ArrowDown, BarChart2, User, Calendar, Shield, Sparkles, Clock, Flame, Zap, Copy, MessageSquare, Pencil, MoreHorizontal } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import remarkGfm from 'remark-gfm'
@@ -656,6 +656,7 @@ const ChatInputArea = memo(function ChatInputArea({
     const [input, setInput] = useState('')
     const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
     const [uploadingFile, setUploadingFile] = useState(false)
+    const [showComposerOptions, setShowComposerOptions] = useState(false)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -780,6 +781,7 @@ const ChatInputArea = memo(function ChatInputArea({
         files.forEach(f => { if (f.previewUrl) blobUrlsRef.current.push(f.previewUrl) })
         setInput('')
         setAttachedFiles([])
+        setShowComposerOptions(false)
         if (textareaRef.current) textareaRef.current.style.height = 'auto'
         // Yuborish muvaffaqiyatsiz bo'lsa (masalan chat yaratilmadi) yozilgan matnni QAYTARAMIZ —
         // avval matn butunlay yo'qolardi
@@ -799,13 +801,29 @@ const ChatInputArea = memo(function ChatInputArea({
         }
     }
 
-    // 6.2: zaif mavzu chipi BIRINCHI — o'quvchiga eng kerakli keyingi qadam
-    const QUICK_ACTIONS = [
-        ...(weakTopic ? [{ Icon: Target, l: `➤ ${weakTopic}dan mashq`, p: `"${weakTopic}" mavzusi mening zaif mavzum. Shu mavzudan qisqa mashq testi ber va asosiy tushunchalarni eslatib o't.` }] : []),
-        { Icon: ClipboardList, l: 'Test yech', p: "Qisqa test ber. Hozir mavzu noaniq bo'lsa — qaysi mavzudan test berishimni so'ra. Natijadan keyin zaif joylarimni ayt." },
-        { Icon: BookOpen, l: 'Tushuntir', p: "Mavzuni oddiy va tushunarli usulda tushuntir. Mavzu noaniq bo'lsa — qaysi mavzuni tushuntirishimni so'ra." },
-        { Icon: Layers, l: 'Kartochka', p: "Eng muhim tushunchalardan 10 ta flashcard tayyorla. Mavzu noaniq bo'lsa — qaysi mavzudan ekanini so'ra." },
-    ]
+    // Chatdan keyingi yo'l qisqa bo'lsin: maksimal uchta, kontekstli action.
+    const QUICK_ACTIONS = weakTopic
+        ? [
+            { Icon: Target, l: `${weakTopic}dan mashq`, p: `"${weakTopic}" mavzusi mening zaif mavzum. Shu mavzudan qisqa mashq testi ber va asosiy tushunchalarni eslatib o't.` },
+            { Icon: ClipboardList, l: 'Test yech', p: "Qisqa test ber. Hozir mavzu noaniq bo'lsa — qaysi mavzudan test berishimni so'ra. Natijadan keyin zaif joylarimni ayt." },
+            { Icon: BookOpen, l: 'Tushuntir', p: "Mavzuni oddiy va tushunarli usulda tushuntir. Mavzu noaniq bo'lsa — qaysi mavzuni tushuntirishimni so'ra." },
+        ]
+        : [
+            { Icon: ClipboardList, l: 'Test yech', p: "Qisqa test ber. Hozir mavzu noaniq bo'lsa — qaysi mavzudan test berishimni so'ra. Natijadan keyin zaif joylarimni ayt." },
+            { Icon: BookOpen, l: 'Tushuntir', p: "Mavzuni oddiy va tushunarli usulda tushuntir. Mavzu noaniq bo'lsa — qaysi mavzuni tushuntirishimni so'ra." },
+            { Icon: Layers, l: 'Kartochka', p: "Eng muhim tushunchalardan 10 ta flashcard tayyorla. Mavzu noaniq bo'lsa — qaysi mavzudan ekanini so'ra." },
+        ]
+
+    const quotaStatus = aiQuota && !aiQuota.unlimited ? (() => {
+        const left = Math.max(0, aiQuota.chat.limit - aiQuota.chat.used)
+        const ratio = left / aiQuota.chat.limit
+        return {
+            left,
+            exhausted: left === 0,
+            low: left > 0 && ratio <= 0.2,
+            hoursLeft: Math.max(1, Math.ceil((new Date(aiQuota.resetsAt).getTime() - Date.now()) / 3600000)),
+        }
+    })() : null
 
     return (
         <div className="px-3 sm:px-6 pb-4 sm:pb-6 pt-2 chat-input-area flex-shrink-0" style={{ background: 'var(--bg-page)' }}>
@@ -819,6 +837,13 @@ const ChatInputArea = memo(function ChatInputArea({
                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                         ><a.Icon className="h-3 w-3 flex-shrink-0" />{a.l}</button>
                     ))}
+                </div>
+            )}
+            {quotaStatus && (quotaStatus.low || quotaStatus.exhausted) && (
+                <div className="max-w-3xl mx-auto mb-2 flex items-center gap-2 rounded-xl px-3 py-2 text-[12px]" style={{ background: quotaStatus.exhausted ? 'var(--danger-light)' : 'var(--brand-light)', color: quotaStatus.exhausted ? 'var(--danger)' : 'var(--brand)' }}>
+                    <Zap className="h-3.5 w-3.5 flex-shrink-0" />
+                    <span className="font-semibold">{quotaStatus.exhausted ? 'Bugungi AI limiti tugadi.' : `Bugun ${quotaStatus.left} ta AI so'rovi qoldi.`}</span>
+                    {!quotaStatus.exhausted && <span className="opacity-80">~{quotaStatus.hoursLeft} soatda yangilanadi</span>}
                 </div>
             )}
             <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
@@ -868,66 +893,38 @@ const ChatInputArea = memo(function ChatInputArea({
                         style={{ color: 'var(--text-primary)', minHeight: '64px', maxHeight: '160px', paddingTop: '14px', paddingBottom: '8px', overflowX: 'hidden', wordBreak: 'break-word' }}
                     />
                     {/* Toolbar row */}
-                    <div className="flex items-center gap-2 px-3 pb-3">
+                    <div className="relative flex items-center gap-2 px-3 pb-3">
                         {/* Attach */}
                         <button type="button" onClick={() => fileInputRef.current?.click()} disabled={loading || uploadingFile}
                             className="h-8 w-8 flex items-center justify-center rounded-lg transition disabled:opacity-40"
                             style={{ color: 'var(--text-muted)' }}
                             onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                            title="Fayl biriktirish">
+                            title="Fayl biriktirish" aria-label="Fayl biriktirish">
                             {uploadingFile
                                 ? <div className="h-3.5 w-3.5 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--text-muted)', borderTopColor: 'transparent' }} />
                                 : <Paperclip className="h-3.5 w-3.5" />}
                         </button>
-                        {/* Thinking mode — Pro imkoniyat (beta'da hammaga ochiq, bloklanmaydi) */}
-                        <button type="button" onClick={() => setThinkingMode(v => !v)}
-                            title={thinkingMode ? 'Chuqur fikrlash yoqilgan • Pro (beta\'da bepul)' : 'Chuqur fikrlash • Pro (beta\'da bepul)'}
-                            className="h-8 px-2.5 flex items-center gap-1.5 rounded-lg text-xs font-medium transition"
-                            style={thinkingMode ? { background: 'var(--brand-light)', color: 'var(--brand)' } : { color: 'var(--text-muted)' }}
-                            onMouseEnter={e => { if (!thinkingMode) e.currentTarget.style.background = 'var(--bg-surface)' }}
-                            onMouseLeave={e => { if (!thinkingMode) e.currentTarget.style.background = 'transparent' }}>
-                            <Lightbulb className="h-3.5 w-3.5" />
-                            {thinkingMode && <span>Chuqur</span>}
-                            <span className="text-[9px] font-bold leading-none px-1 py-0.5 rounded"
-                                style={{ background: thinkingMode ? 'color-mix(in srgb, var(--brand) 22%, transparent)' : 'var(--brand-light)', color: 'var(--brand)', letterSpacing: '0.02em' }}>
-                                PRO
-                            </span>
+                        <button type="button" onClick={() => setShowComposerOptions(v => !v)}
+                            aria-label="Chat sozlamalari" aria-expanded={showComposerOptions}
+                            className="h-8 w-8 flex items-center justify-center rounded-lg transition"
+                            style={showComposerOptions ? { background: 'var(--bg-surface)', color: 'var(--text-primary)' } : { color: 'var(--text-muted)' }}
+                            title="Chat sozlamalari">
+                            <MoreHorizontal className="h-4 w-4" />
                         </button>
-                        {/* Kunlik AI limit bar — HAMMAGA doim ko'rinadi: qancha qolgani + qachon yangilanishi */}
-                        {aiQuota && (() => {
-                            if (aiQuota.unlimited) {
-                                return (
-                                    <div className="h-8 px-2 flex items-center gap-1.5 rounded-lg text-[11px] font-medium select-none cursor-default"
-                                        title="Sizga kunlik AI limiti qo'llanmaydi — so'rovlar cheksiz"
-                                        style={{ color: 'var(--text-muted)' }}>
-                                        <Zap className="h-3 w-3 flex-shrink-0" />
-                                        <span>Cheksiz</span>
+                        {showComposerOptions && (
+                            <div className="absolute bottom-12 left-11 z-30 w-64 rounded-xl p-2" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: '0 12px 28px rgba(33,28,22,0.14)' }}>
+                                <button type="button" onClick={() => setThinkingMode(v => !v)} className="w-full flex items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition" style={{ background: thinkingMode ? 'var(--brand-light)' : 'transparent', color: thinkingMode ? 'var(--brand)' : 'var(--text-primary)' }}>
+                                    <Lightbulb className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                                    <span className="min-w-0"><span className="block text-[12px] font-semibold">Chuqur javob</span><span className="block text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{thinkingMode ? 'Murakkab masalalar uchun yoqilgan' : 'Murakkab masalalar uchun yoqing'}</span></span>
+                                </button>
+                                {aiQuota && (
+                                    <div className="mt-1 rounded-lg px-2.5 py-2" style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>
+                                        <div className="flex items-center gap-2 text-[11px] font-medium"><Zap className="h-3.5 w-3.5" />{aiQuota.unlimited ? "AI so'rovlari cheksiz" : `AI: ${aiQuota.chat.used}/${aiQuota.chat.limit} · Rasm: ${aiQuota.vision.used}/${aiQuota.vision.limit}`}</div>
                                     </div>
-                                )
-                            }
-                            const left = Math.max(0, aiQuota.chat.limit - aiQuota.chat.used)
-                            const ratio = left / aiQuota.chat.limit
-                            const exhausted = left === 0
-                            const low = !exhausted && ratio <= 0.2
-                            const hoursLeft = Math.max(1, Math.ceil((new Date(aiQuota.resetsAt).getTime() - Date.now()) / 3600000))
-                            const accent = exhausted ? 'var(--danger)' : low ? 'var(--brand)' : 'var(--text-muted)'
-                            return (
-                                <div className="h-8 px-2 flex items-center gap-1.5 rounded-lg text-[11px] font-medium select-none cursor-default"
-                                    title={`Bugungi bepul AI so'rovlari: ${aiQuota.chat.used}/${aiQuota.chat.limit} · Rasm tahlili: ${aiQuota.vision.used}/${aiQuota.vision.limit} · 00:00 da (Toshkent vaqti) yangilanadi · Tayyor testlarni yechish — cheksiz`}
-                                    style={{ color: accent }}>
-                                    <Zap className="h-3 w-3 flex-shrink-0" />
-                                    <span className="tabular-nums whitespace-nowrap">{left}/{aiQuota.chat.limit}</span>
-                                    <span className="w-8 h-[3px] rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
-                                        <span className="block h-full rounded-full transition-all" style={{ width: `${ratio * 100}%`, background: exhausted ? 'var(--danger)' : low ? 'var(--brand)' : 'var(--success)' }} />
-                                    </span>
-                                    {/* Yangilanish vaqti — limit tugaganda hamma joyda, aks holda keng ekranda ko'rinadi */}
-                                    <span className={`whitespace-nowrap ${exhausted ? '' : 'hidden md:inline'}`} style={{ opacity: 0.85 }}>
-                                        · ~{hoursLeft} soatda yangilanadi
-                                    </span>
-                                </div>
-                            )
-                        })()}
+                                )}
+                            </div>
+                        )}
                         <div className="flex-1" />
                         {/* Send / Stop */}
                         {loading ? (
@@ -1037,6 +1034,8 @@ export default function ChatLayout() {
     const [editingExamInfo, setEditingExamInfo] = useState(false)
     // "Bugun" ekrani rejasi — barcha chatlardagi rejalar yig'indisi (chat tanlanmaganda ko'rinadi)
     const [homeTodos, setHomeTodos] = useState<Array<TodoItem & { storageKey: string }>>([])
+    // Bosh ekranda avval bitta aniq qadamni ko'rsatamiz; qolgan statistika xohlaganda ochiladi.
+    const [showTodayDetails, setShowTodayDetails] = useState(false)
     useEffect(() => {
         if (!chatId) setHomeTodos(loadAllUserTodos(user?.id || 'guest'))
         // todoItems deps: joriy chatda reja o'zgargan bo'lsa, bosh ekranga qaytganda yangilansin
@@ -3060,10 +3059,12 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             style={chatId === c.id ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' } : { color: 'var(--text-secondary)' }}
                                             onMouseEnter={e => { if (chatId !== c.id) e.currentTarget.style.background = 'var(--bg-muted)' }}
                                             onMouseLeave={e => { if (chatId !== c.id) e.currentTarget.style.background = 'transparent' }}
-                                            onClick={() => nav(`/suhbat/${c.id}`)}
                                             title={cleanChatTitle(c.title)}>
-                                            <span className="flex-1 truncate">{cleanChatTitle(c.title)}</span>
-                                            <button onClick={(e) => deleteChat(c.id, e)} className="opacity-0 group-hover:opacity-100 h-5 w-5 flex items-center justify-center rounded transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)' }} onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)' }}><Trash2 className="h-3 w-3" /></button>
+                                            <button type="button" onClick={() => nav(`/suhbat/${c.id}`)} aria-current={chatId === c.id ? 'page' : undefined}
+                                                className="flex-1 min-w-0 truncate text-left rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)]">
+                                                {cleanChatTitle(c.title)}
+                                            </button>
+                                            <button onClick={(e) => deleteChat(c.id, e)} aria-label={`"${cleanChatTitle(c.title)}" suhbatini o'chirish`} className="opacity-70 sm:opacity-0 sm:group-hover:opacity-100 h-5 w-5 flex items-center justify-center rounded transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)' }} onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)' }}><Trash2 className="h-3 w-3" /></button>
                                         </div>
                                     ))}
                                 </div>
@@ -3460,30 +3461,16 @@ Iltimos, har bir savolni tahlil qilib ber:
                     style={mobileTabBarVisible ? { paddingBottom: MOBILE_TABBAR_PAD } : undefined}>
                     <div className="h-14 flex items-center px-4 gap-2 flex-shrink-0" style={{ borderBottom: '1px solid color-mix(in srgb, var(--border) 74%, rgba(15,23,42,0.12) 26%)' }}>
                         <button onClick={() => setSideOpen(v => !v)} className="h-8 w-8 flex items-center justify-center rounded-lg transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} title="Yonpanel"><Menu className="h-4 w-4" /></button>
-                        {currentChat?.title ? (
-                            <span className="text-sm font-medium truncate flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>{cleanChatTitle(currentChat.title)}</span>
-                        ) : (
-                            // Sarlavha yo'q (yangi/bo'sh chat) — header bo'sh qolmasin, brend ko'rinsin
-                            <span className="flex items-center gap-2 flex-1 min-w-0">
-                                <img src="/dtmmax-logo.png" alt="DtmMax" className="h-6 w-6 flex-shrink-0" style={{ objectFit: 'contain' }} />
-                                <span className="font-bold text-[15px] tracking-tight" style={{ color: 'var(--text-primary)' }}>DTM<span className="k-italic">Max</span></span>
-                            </span>
-                        )}
-                        {/* 5.1: imtihon countdown — doimiy ko'rinadigan chip (bosilsa Natijalar ochiladi) */}
-                        {(() => {
-                            if (!profile?.examDate) return null
-                            const d = Math.ceil((new Date(profile.examDate).getTime() - Date.now()) / 86400000)
-                            if (!Number.isFinite(d) || d < 0) return null
-                            const c = d > 30 ? '#2563eb' : d > 14 ? '#ea580c' : '#dc2626'
-                            return (
-                                <button onClick={() => setOverlayPanel('progress')} title="Imtihon rejangiz"
-                                    className="flex items-center gap-1.5 h-8 px-3 rounded-full text-[11px] font-bold flex-shrink-0 transition"
-                                    style={{ background: `color-mix(in srgb, ${c} 10%, transparent)`, color: c, border: `1px solid color-mix(in srgb, ${c} 25%, transparent)` }}>
-                                    <Calendar className="h-3 w-3" />
-                                    <span className="hidden sm:inline">{profile.examType === 'MS' ? 'Sertifikat' : 'DTM'}gacha</span> {d} kun
-                                </button>
-                            )
-                        })()}
+                        <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
+                                {currentChat?.title ? cleanChatTitle(currentChat.title) : 'DTMMax o‘quv yordamchisi'}
+                            </p>
+                            {([profile?.subject, profile?.subject2].filter(Boolean).join(' + ')) && (
+                                <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>
+                                    {[profile?.subject, profile?.subject2].filter(Boolean).join(' + ')} · Bugungi o‘qish
+                                </p>
+                            )}
+                        </div>
                         {/* Mobilda yangi suhbat — drawer ochmasdan bir bosishda (desktop'da sidebar doim ochiq) */}
                         {isMobile && (
                             <button onClick={createChat} disabled={creating} title="Yangi suhbat"
@@ -3535,6 +3522,61 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             )}
                                         </div>
 
+                                        {/* Avval bittagina aniq ish: o'quvchi dashboarddan emas, harakatdan boshlaydi. */}
+                                        {(() => {
+                                            const weakTopic = progressData?.weakTopics?.[0]
+                                            const unfinishedTodo = homeTodos.find(item => !item.done)
+                                            const needsDiagnostic = myResults.length === 0 && (profile?.totalTests ?? 0) === 0
+                                            let title = 'Bugungi qisqa reja tuzing'
+                                            let description = 'AI sizning maqsadingizga mos, bajariladigan reja tuzadi'
+                                            let onClick = () => { void handleSend('Menga bugun uchun qisqa, bajarsa bo‘ladigan o‘quv reja tuz — imtihonim va zaif mavzularimga mosla.', []) }
+
+                                            if (needsDiagnostic) {
+                                                const subjects = diagnosticSubjects(profile)
+                                                title = 'Darajangizni aniqlaymiz'
+                                                description = subjects.length >= 2
+                                                    ? `${subjects.join(' + ')} bo‘yicha diagnostik test`
+                                                    : `${subjects[0] || 'Asosiy faningiz'} bo‘yicha shaxsiy boshlang‘ich test`
+                                                onClick = () => { void handleSend(buildDiagnosticPrompt(profile), []) }
+                                            } else if (weakTopic) {
+                                                title = `Zaif mavzu: ${weakTopic.topic}`
+                                                description = '10 ta qisqa mashq bilan mustahkamlaymiz'
+                                                onClick = () => { void handleSend(`"${weakTopic.topic}" mavzusidan 10 ta savollik mashq testi tuz — bu mening zaif mavzum, oxirida xatolarimni tushuntir.`, []) }
+                                            } else if (unfinishedTodo) {
+                                                title = 'Bugungi rejani davom ettiring'
+                                                description = `Navbatdagi vazifa: ${unfinishedTodo.task}`
+                                                onClick = () => { void handleSend(`Bugungi rejadagi "${unfinishedTodo.task}" vazifani boshlashimga yordam ber: eng muhim birinchi qadamni ayt.`, []) }
+                                            } else if (myResults.length > 0) {
+                                                title = 'Keyingi testni tanlang'
+                                                description = `Oxirgi natija ${myResults[0].score}% — endi davom etamiz`
+                                                onClick = () => { setOverlayPanel('tests'); markTestsSeen(); void loadPublicTests(); void loadMyResults() }
+                                            }
+
+                                            return (
+                                                <button type="button" onClick={onClick}
+                                                    className="w-full text-left rounded-2xl p-4 sm:p-5 mt-5 transition hover:opacity-95"
+                                                    style={{ background: 'var(--k-accent-grad, var(--brand))', color: '#fff', boxShadow: 'var(--k-shadow-cta, none)' }}>
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.18)' }}>
+                                                            <Target className="h-5 w-5" />
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ opacity: 0.75 }}>Keyingi qadam</p>
+                                                            <p className="text-[15px] font-bold leading-snug mt-0.5">{title}</p>
+                                                            <p className="text-[11.5px] mt-0.5" style={{ opacity: 0.85 }}>{description}</p>
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            )
+                                        })()}
+
+                                        <button type="button" onClick={() => setShowTodayDetails(value => !value)}
+                                            className="mx-auto mt-3 px-3 py-1.5 text-[11px] font-medium rounded-lg transition"
+                                            style={{ display: 'block', color: 'var(--text-muted)' }}>
+                                            {showTodayDetails ? 'Kamroq ko‘rsatish' : 'Bugungi reja va natijalarni ko‘rish'}
+                                        </button>
+
+                                        {showTodayDetails && <>
                                         {/* Maqsad sari yo'l — har kirishda ko'z oldida (goal-gradient effekti) */}
                                         {(() => {
                                             if (profile?.examType !== 'DTM' || !profile?.targetScore || !progressData?.avgScore) return null
@@ -3553,32 +3595,6 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     </div>
                                                     {!isMobile && <p className="text-[11px] mt-1.5" style={{ color: 'var(--text-muted)' }}>Har bir mashq shu chiziqni oldinga suradi</p>}
                                                 </div>
-                                            )
-                                        })()}
-
-                                        {/* Diagnostik CTA — hali birorta test yechmagan yangi o'quvchiga birinchi qadam.
-                                            totalzTest ham 0 bo'lsagina: diagnostikadan keyin (ai-session totalTests'ni oshiradi)
-                                            karta yo'qoladi, o'rniga goal-progress chiqadi — "keyin osha boyicha ketadi". */}
-                                        {myResults.length === 0 && (profile?.totalTests ?? 0) === 0 && (() => {
-                                            const diagSubs = diagnosticSubjects(profile)
-                                            const subline = diagSubs.length >= 2
-                                                ? `${diagSubs.join(' + ')} · darajangni fan bo'yicha aniqlaydi`
-                                                : `${diagSubs[0] || 'Asosiy faning'} · natijaga qarab shaxsiy reja`
-                                            return (
-                                            <button type="button"
-                                                onClick={() => { void handleSend(buildDiagnosticPrompt(profile), []) }}
-                                                className="w-full text-left rounded-2xl p-3.5 sm:p-4 mt-4 sm:mt-5 transition hover:opacity-95"
-                                                style={{ background: 'var(--k-accent-grad, var(--brand))', color: '#fff', boxShadow: 'var(--k-shadow-cta, none)' }}>
-                                                <div className="flex items-center gap-3">
-                                                    <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.18)' }}>
-                                                        <Target className="h-5 w-5" />
-                                                    </div>
-                                                    <div className="min-w-0">
-                                                        <p className="text-[14px] font-bold leading-snug">Darajangni aniqlaymiz — diagnostik test</p>
-                                                        <p className="text-[11.5px] mt-0.5" style={{ opacity: 0.85 }}>{subline}</p>
-                                                    </div>
-                                                </div>
-                                            </button>
                                             )
                                         })()}
 
@@ -3686,7 +3702,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 </button>
                                             )
                                         })()}
-
+                                        </>}
                                     </div>
                                 )}
                             </div>
@@ -3704,35 +3720,56 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         if (msgDay === yesterdayKey) return 'Kecha'
                                         return new Date(m.createdAt).toLocaleDateString('uz-UZ', { day: 'numeric', month: 'long' })
                                     })()
+                                    const messageTime = m.createdAt ? new Date(m.createdAt).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' }) : ''
                                     return (
                                     <React.Fragment key={m.id || i}>
                                     {showDateSep && <div className="chat-date-sep" aria-hidden="true"><span>{dateLabel}</span></div>}
-                                    <div className={`flex ${m.role === 'user' ? 'justify-end' : ''}`}
-                                        title={m.createdAt ? new Date(m.createdAt).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' }) : undefined}>
+                                    <div className={`flex ${m.role === 'user' ? 'justify-end' : ''}`} title={messageTime || undefined}>
                                         {m.role === 'user' ? (
-                                            <div className="bubble-user">
-                                                {m.content.includes('![') ? (
-                                                    <div className="flex flex-col gap-2">
-                                                        <div className="flex flex-wrap gap-2">
-                                                            {Array.from(m.content.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)).map((match, idx) => (
-                                                                <img key={idx} src={match[1]} alt="" className="chat-img-thumb" />
-                                                            ))}
+                                            <div className="flex flex-col items-end gap-1">
+                                                <div className="bubble-user">
+                                                    {m.content.includes('![') ? (
+                                                        <div className="flex flex-col gap-2">
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {Array.from(m.content.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)).map((match, idx) => (
+                                                                    <img key={idx} src={match[1]} alt="" className="chat-img-thumb" />
+                                                                ))}
+                                                            </div>
+                                                            {m.content.replace(/!\[[^\]]*\]\([^)]+\)/g, '').trim() && (
+                                                                <p className="text-sm">{m.content.replace(/!\[[^\]]*\]\([^)]+\)/g, '').trim()}</p>
+                                                            )}
                                                         </div>
-                                                        {m.content.replace(/!\[[^\]]*\]\([^)]+\)/g, '').trim() && (
-                                                            <p className="text-sm">{m.content.replace(/!\[[^\]]*\]\([^)]+\)/g, '').trim()}</p>
-                                                        )}
-                                                    </div>
-                                                ) : m.content}
+                                                    ) : m.content}
+                                                </div>
+                                                {messageTime && <span className="text-[10px] px-1" style={{ color: 'var(--text-muted)' }}>{messageTime}</span>}
                                             </div>
                                         ) : (
                                             <div className="ai-msg-row msg-group">
                                                 <img src="/dtmmax-logo.png" alt="" aria-hidden="true" className="ai-avatar" />
                                                 <div className="flex-1 min-w-0">
                                                     <div className="bubble-ai"><MdMessage content={m.content} /></div>
-                                                    <button type="button" className="msg-copy-btn"
-                                                        onClick={() => { navigator.clipboard?.writeText(m.content).then(() => toast.success('Nusxalandi')).catch(() => toast.error("Nusxalab bo'lmadi")) }}>
-                                                        <Copy className="h-3 w-3" /> Nusxalash
-                                                    </button>
+                                                    <div className="flex items-center gap-1 mt-1">
+                                                        {messageTime && <span className="text-[10px] px-1" style={{ color: 'var(--text-muted)' }}>{messageTime}</span>}
+                                                        <button type="button" className="msg-copy-btn"
+                                                            onClick={() => { navigator.clipboard?.writeText(m.content).then(() => toast.success('Nusxalandi')).catch(() => toast.error("Nusxalab bo'lmadi")) }}>
+                                                            <Copy className="h-3 w-3" /> Nusxalash
+                                                        </button>
+                                                    </div>
+                                                    {i === messages.length - 1 && !loading && !streaming && (
+                                                        <div className="flex flex-wrap gap-1.5 mt-2">
+                                                            {[
+                                                                { label: 'Misol bilan', prompt: 'Oxirgi tushuntirgan mavzuni bitta sodda misol bilan yana tushuntir.' },
+                                                                { label: '3 ta mashq', prompt: 'Oxirgi mavzu bo‘yicha 3 ta qisqa mashq ber.' },
+                                                                { label: 'Qisqartir', prompt: 'Oxirgi javobni 4 ta asosiy nuqtaga qisqartir.' },
+                                                            ].map(action => (
+                                                                <button key={action.label} type="button" onClick={() => { void handleSend(action.prompt, []) }}
+                                                                    className="px-2.5 py-1 rounded-full text-[11px] font-medium transition"
+                                                                    style={{ color: 'var(--text-secondary)', background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                                                                    {action.label}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         )}
@@ -3740,16 +3777,11 @@ Iltimos, har bir savolni tahlil qilib ber:
                                     </React.Fragment>
                                     )
                                 })}
-                                {/* Thinking process display */}
-                                {thinkingText && (
-                                    <div className="flex gap-3 opacity-40">
-                                        <div className="h-7 w-7 rounded-full flex-shrink-0 flex items-center justify-center mt-0.5" style={{ background: 'var(--bg-muted)' }}><Lightbulb className="h-3.5 w-3.5" style={{ color: 'var(--text-muted)' }} /></div>
-                                        <div className="flex-1">
-                                            <details className="group">
-                                                <summary className="text-[11px] cursor-pointer select-none mb-1" style={{ color: 'var(--text-muted)' }}>Fikrlash jarayoni <span className="group-open:hidden">(ko'rish)</span></summary>
-                                                <div className="rounded-lg p-2.5 text-[11px] leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto mt-1" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>{thinkingText.length > 3000 ? thinkingText.slice(0, 3000) + '\n...[qisqartirildi]' : thinkingText}</div>
-                                            </details>
-                                        </div>
+                                {/* Ichki tahlil emas, foydalanuvchiga kerak bo'lgan sokin holat xabari. */}
+                                {thinkingText && !streaming && (
+                                    <div className="flex items-center gap-2 py-1">
+                                        <Lightbulb className="h-3.5 w-3.5" style={{ color: 'var(--text-muted)' }} />
+                                        <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Murakkab yechimni tartiblayapti...</span>
                                     </div>
                                 )}
                                 {streaming && (
@@ -3834,11 +3866,11 @@ Iltimos, har bir savolni tahlil qilib ber:
                         {/* Header */}
                         <div className="h-14 flex items-center justify-between px-5 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                             <p className="text-[15px] font-semibold" style={{ color: 'var(--text-primary)' }}>Reja</p>
-                            <button onClick={() => setTodoOpen(false)} className="h-7 w-7 flex items-center justify-center rounded-lg transition"
+                            <button onClick={() => setTodoOpen(false)} aria-label="Suhbatga qaytish" title="Suhbatga qaytish" className="h-8 w-8 flex items-center justify-center rounded-lg transition"
                                 style={{ color: 'var(--text-muted)' }}
                                 onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
                                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                <X className="h-4 w-4" />
+                                <ChevronLeft className="h-4 w-4" />
                             </button>
                         </div>
                         {/* Tasks */}
@@ -3946,7 +3978,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 {testPanelMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
                                             </button>
                                         )}
-                                        <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setActiveTestId(null); setActiveTestQuestions([]); setTestTimeLeft(null); setRaschFeedback(null) }} className="h-10 w-10 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><X className="h-4 w-4" /></button>
+                                        <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setActiveTestId(null); setActiveTestQuestions([]); setTestTimeLeft(null); setRaschFeedback(null) }} aria-label="Suhbatga qaytish" title="Suhbatga qaytish" className="h-10 w-10 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><ChevronLeft className="h-4 w-4" /></button>
                                     </div>
                                 </div>
 
@@ -4125,8 +4157,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             {essayMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
                                         </button>
                                     )}
-                                    <button onClick={() => { setEssayPanel(null) }} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                        <X className="h-4 w-4" />
+                                    <button onClick={() => { setEssayPanel(null) }} aria-label="Suhbatga qaytish" title="Suhbatga qaytish" className="h-8 w-8 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                        <ChevronLeft className="h-4 w-4" />
                                     </button>
                                 </div>
                             </div>
@@ -4243,12 +4275,12 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 {flashMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
                                             </button>
                                         )}
-                                        <button onClick={() => { setFlashPanel(null); setFlashMaximized(false); setFlashIsReview(false) }}
-                                            className="h-7 w-7 flex items-center justify-center rounded-lg transition"
+                                        <button onClick={() => { setFlashPanel(null); setFlashMaximized(false); setFlashIsReview(false) }} aria-label="Suhbatga qaytish" title="Suhbatga qaytish"
+                                            className="h-8 w-8 flex items-center justify-center rounded-lg transition"
                                             style={{ color: 'var(--text-muted)' }}
                                             onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
                                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                            <X className="h-4 w-4" />
+                                            <ChevronLeft className="h-4 w-4" />
                                         </button>
                                     </div>
                                 </div>
