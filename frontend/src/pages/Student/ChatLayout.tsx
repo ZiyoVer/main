@@ -44,21 +44,21 @@ function sourceBadge(source?: string | null): { label: string; bg: string; color
     return null
 }
 
-// Test katalogida rang faqat bezak emas: fanlarni bir qarashda ajratish va
-// "menga mos test" kartasini esda qoldirish uchun ishlatiladi.
+// Test katalogida rang fanlarni ajratadi, lekin DTMMax'ning warm-paper /
+// terracotta brendidan chiqmaydi: ranglar raqobat qilmaydi, bitta oilada qoladi.
 function testSubjectTheme(subject?: string | null): { accent: string; strong: string; soft: string; glow: string } {
     switch (normalizeSubjectValue(subject)) {
         case 'Matematika':
         case 'Fizika':
-            return { accent: '#2563eb', strong: '#1d4ed8', soft: '#eff6ff', glow: 'rgba(37,99,235,0.20)' }
+            return { accent: '#ea580c', strong: '#b9470d', soft: '#fff3e8', glow: 'rgba(234,88,12,0.18)' }
         case 'Kimyo':
         case 'Biologiya':
-            return { accent: '#0f766e', strong: '#0f5f59', soft: '#ecfdf5', glow: 'rgba(15,118,110,0.18)' }
+            return { accent: '#b7791f', strong: '#8a5b18', soft: '#fbf4e8', glow: 'rgba(183,121,31,0.16)' }
         case 'Ingliz tili':
-            return { accent: '#7c3aed', strong: '#6d28d9', soft: '#f5f3ff', glow: 'rgba(124,58,237,0.18)' }
+            return { accent: '#c2410c', strong: '#9a3412', soft: '#fff1e8', glow: 'rgba(194,65,12,0.16)' }
         case 'Tarix':
         case 'Geografiya':
-            return { accent: '#b45309', strong: '#92400e', soft: '#fffbeb', glow: 'rgba(180,83,9,0.18)' }
+            return { accent: '#a16207', strong: '#854d0e', soft: '#fbf6e9', glow: 'rgba(161,98,7,0.15)' }
         default:
             return { accent: '#ea580c', strong: '#c2410c', soft: '#fff7ed', glow: 'rgba(234,88,12,0.18)' }
     }
