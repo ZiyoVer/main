@@ -44,24 +44,10 @@ function sourceBadge(source?: string | null): { label: string; bg: string; color
     return null
 }
 
-// Test katalogida rang fanlarni ajratadi, lekin DTMMax'ning warm-paper /
-// terracotta brendidan chiqmaydi: ranglar raqobat qilmaydi, bitta oilada qoladi.
-function testSubjectTheme(subject?: string | null): { accent: string; strong: string; soft: string; glow: string } {
-    switch (normalizeSubjectValue(subject)) {
-        case 'Matematika':
-        case 'Fizika':
-            return { accent: '#ea580c', strong: '#b9470d', soft: '#fff3e8', glow: 'rgba(234,88,12,0.18)' }
-        case 'Kimyo':
-        case 'Biologiya':
-            return { accent: '#b7791f', strong: '#8a5b18', soft: '#fbf4e8', glow: 'rgba(183,121,31,0.16)' }
-        case 'Ingliz tili':
-            return { accent: '#c2410c', strong: '#9a3412', soft: '#fff1e8', glow: 'rgba(194,65,12,0.16)' }
-        case 'Tarix':
-        case 'Geografiya':
-            return { accent: '#a16207', strong: '#854d0e', soft: '#fbf6e9', glow: 'rgba(161,98,7,0.15)' }
-        default:
-            return { accent: '#ea580c', strong: '#c2410c', soft: '#fff7ed', glow: 'rgba(234,88,12,0.18)' }
-    }
+// Professional katalogda fanlar ranglar kamalagi bilan emas, label va nom bilan
+// ajraladi. Aksent bitta — bu CTA va DTMMax brendini esda qoldiradi.
+function testSubjectTheme(_subject?: string | null): { accent: string; strong: string; soft: string; glow: string } {
+    return { accent: '#ea580c', strong: '#c2410c', soft: '#fff5eb', glow: 'rgba(234,88,12,0.18)' }
 }
 interface MyResult {
     id: string
@@ -1030,6 +1016,7 @@ export default function ChatLayout() {
     const [testCategory, setTestCategory] = useState<string>('all') // testlar bo'limi kategoriya filtri
     const [testSearch, setTestSearch] = useState('') // 4.2: testlar qidiruvi
     const [testSort, setTestSort] = useState<'new' | 'popular'>('new') // 4.2: saralash
+    const [testQuestionIndex, setTestQuestionIndex] = useState(0)
     const [activeTestSource, setActiveTestSource] = useState<string | null>(null) // ochiq test panelining manbasi (badge uchun)
     // Test review: xato javob ostidagi per-savol AI tushuntirishi (panel ichida, mobil uchun)
     const [explanations, setExplanations] = useState<Record<number, string>>({})
@@ -2455,7 +2442,11 @@ Iltimos, har bir savolni tahlil qilib ber:
     submitTestPanelRef.current = () => { void submitTestPanel() }
 
     // Yangi test ochilganda eski tushuntirishlarni tozalaymiz (indeks bo'yicha aralashmasin)
-    useEffect(() => { setExplanations({}); setExplLoading(null) }, [testPanel])
+    useEffect(() => {
+        setExplanations({})
+        setExplLoading(null)
+        setTestQuestionIndex(0)
+    }, [testPanel])
 
     // Xato javob uchun AI tushuntirishini olib, panel ichida ko'rsatamiz
     async function explainQuestion(i: number, q: any) {
@@ -3972,6 +3963,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                             : scorePercent >= 60
                                 ? { color: 'var(--brand)', background: 'var(--brand-light)', title: 'Yaxshi harakat!', message: 'Xatolardagi izohlarni ko‘rib, keyingi testda natijani oshiramiz.' }
                                 : { color: 'var(--warning)', background: 'color-mix(in srgb, var(--warning) 12%, transparent)', title: 'Boshlanish yaxshi!', message: 'Natija zaif joylarni ko‘rsatdi — endi aynan ulardan kuch olamiz.' }
+                        const currentIndex = Math.min(testQuestionIndex, Math.max(0, questions.length - 1))
+                        const currentQuestion = questions[currentIndex]
+                        const currentHasAnswer = String(testAnswers[currentIndex] || '').trim().length > 0
+                        const nextUnansweredIndex = questions.findIndex((_: any, index: number) => index !== currentIndex && String(testAnswers[index] || '').trim().length === 0)
                         return (
                             <div className={(testPanelMaximized || isMobile) ? 'fixed inset-0 z-50 flex flex-col' : 'relative flex flex-col flex-shrink-0'}
                                 style={(testPanelMaximized || isMobile) ? { background: 'var(--bg-card)' } : { width: testWidth, background: 'var(--bg-card)', borderLeft: '1px solid var(--border)' }}>
@@ -4020,13 +4015,41 @@ Iltimos, har bir savolni tahlil qilib ber:
                                     <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--bg-muted)' }}>
                                         <div className="h-full rounded-full transition-all duration-500" style={{ width: `${testReadOnly ? 100 : progressPercent}%`, background: 'var(--k-accent-grad, var(--brand))' }} />
                                     </div>
+                                    <div className="flex gap-1.5 mt-2.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }} role="tablist" aria-label="Test savollari">
+                                        {questions.map((question: any, index: number) => {
+                                            const selected = index === currentIndex
+                                            const hasAnswer = String(testAnswers[index] || '').trim().length > 0
+                                            const correct = testSubmitted && question.correct && testAnswers[index] === question.correct
+                                            const wrong = testSubmitted && question.correct && hasAnswer && !correct
+                                            return (
+                                                <button key={index} type="button" role="tab" aria-selected={selected} aria-label={`${index + 1}-savol${hasAnswer ? ', javob berilgan' : ', javobsiz'}`}
+                                                    onClick={() => setTestQuestionIndex(index)}
+                                                    className="h-7 min-w-7 px-1.5 rounded-lg text-[10px] font-bold transition flex-shrink-0"
+                                                    style={selected
+                                                        ? { background: 'var(--brand)', color: 'white' }
+                                                        : correct
+                                                            ? { background: 'var(--success-light)', color: 'var(--success)' }
+                                                            : wrong
+                                                                ? { background: 'var(--danger-light)', color: 'var(--danger)' }
+                                                                : hasAnswer
+                                                                    ? { background: 'var(--brand-light)', color: 'var(--brand)' }
+                                                                    : { background: 'var(--bg-surface)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+                                                    {index + 1}
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
                                 </div>
 
                                 {/* Questions */}
                                 <div className="flex-1 overflow-y-auto min-h-0 p-5 space-y-5" style={{ background: 'var(--bg-page)' }}>
                                     <div className={testPanelMaximized ? 'max-w-3xl mx-auto space-y-5' : 'space-y-5'}>
-                                        {questions.map((q: any, i: number) => (
-                                            <div key={i} className="card p-5" style={{ borderColor: testAnswers[i] ? 'color-mix(in srgb, var(--brand) 28%, var(--border))' : undefined }}>
+                                        {currentQuestion && (() => {
+                                            const q = currentQuestion
+                                            const i = currentIndex
+                                            return (
+                                            <>
+                                            <div className="card p-5" style={{ borderColor: testAnswers[i] ? 'color-mix(in srgb, var(--brand) 28%, var(--border))' : undefined }}>
                                                 <div className="flex items-center justify-between gap-3 mb-2.5">
                                                     <span className="text-[10px] uppercase tracking-[0.12em] font-bold px-2 py-1 rounded-lg" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>Savol {i + 1}</span>
                                                     {testAnswers[i] && !testSubmitted && <span className="text-[10px] font-semibold" style={{ color: 'var(--success)' }}>Javob belgilandi ✓</span>}
@@ -4055,7 +4078,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                         )}
                                                     </div>
                                                 ) : (
-                                                    <div className="space-y-2.5">
+                                                    <div className="space-y-2.5" role="radiogroup" aria-label={`${i + 1}-savol variantlari`}>
                                                         {(['a', 'b', 'c', 'd'] as const).map((opt, oi) => {
                                                             const isSelected = testAnswers[i] === opt
                                                             const isCorrect = q.correct === opt
@@ -4124,7 +4147,22 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     </div>
                                                 )}
                                             </div>
-                                        ))}
+                                            <div className="flex items-center justify-between gap-3">
+                                                <button type="button" onClick={() => setTestQuestionIndex(index => Math.max(0, index - 1))} disabled={currentIndex === 0}
+                                                    className="h-10 px-3 rounded-xl text-[12px] font-semibold flex items-center gap-1.5 transition disabled:opacity-40"
+                                                    style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
+                                                    <ChevronLeft className="h-4 w-4" /> Oldingi
+                                                </button>
+                                                <span className="text-[11px] font-bold tabular-nums" style={{ color: 'var(--text-muted)' }}>{currentIndex + 1} / {questions.length}</span>
+                                                <button type="button" onClick={() => setTestQuestionIndex(index => Math.min(questions.length - 1, index + 1))} disabled={currentIndex === questions.length - 1}
+                                                    className="h-10 px-3 rounded-xl text-[12px] font-semibold flex items-center gap-1.5 transition disabled:opacity-40"
+                                                    style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
+                                                    Keyingi <ChevronRight className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                            </>
+                                            )
+                                        })()}
                                     </div>
                                 </div>
 
@@ -4138,10 +4176,20 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setTestReadOnly(false); setActiveTestId(null); setActiveTestQuestions([]); setTestTimeLeft(null); setRaschFeedback(null) }} className="text-sm font-medium transition" style={{ color: 'var(--brand)' }}>Panelni yopish</button>
                                             </div>
                                         ) : !testSubmitted ? (
-                                            <button onClick={submitTestPanel} disabled={answered < questions.length}
+                                            <button onClick={() => {
+                                                if (answered === questions.length) {
+                                                    void submitTestPanel()
+                                                } else if (nextUnansweredIndex >= 0) {
+                                                    setTestQuestionIndex(nextUnansweredIndex)
+                                                }
+                                            }} disabled={!currentHasAnswer && answered < questions.length}
                                                 className="btn btn-primary w-full h-12 flex items-center justify-center gap-2"
-                                                style={{ opacity: answered < questions.length ? 0.5 : 1 }}>
-                                                <Target className="h-4 w-4" /> {answered < questions.length ? `Yana ${questions.length - answered} ta savol qoldi` : 'Natijangni ko‘rish'}
+                                                style={{ opacity: !currentHasAnswer && answered < questions.length ? 0.5 : 1 }}>
+                                                <Target className="h-4 w-4" /> {answered === questions.length
+                                                    ? 'Natijangni ko‘rish'
+                                                    : !currentHasAnswer
+                                                        ? 'Javobni belgilang'
+                                                        : `Keyingi javobsiz savol · ${questions.length - answered} qoldi`}
                                             </button>
                                         ) : (
                                             <div className="rounded-2xl p-4 text-center space-y-2" style={{ background: resultTone.background, border: `1px solid color-mix(in srgb, ${resultTone.color} 24%, transparent)` }}>
@@ -4658,11 +4706,11 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 return (
                                                     <button key={t.id} type="button" onClick={() => { void openPublicTest(t) }}
                                                         className="w-full text-left rounded-2xl p-3.5 sm:p-4 transition group"
-                                                        style={{ background: done ? 'var(--bg-card)' : `linear-gradient(105deg, ${theme.soft} 0%, var(--bg-card) 52%)`, border: `1px solid color-mix(in srgb, ${theme.accent} ${done ? '15%' : '26%'}, var(--border))`, opacity: done ? 0.78 : 1 }}
+                                                        style={{ background: 'var(--bg-card)', border: `1px solid color-mix(in srgb, ${theme.accent} ${done ? '10%' : '18%'}, var(--border))`, opacity: done ? 0.72 : 1 }}
                                                         onMouseEnter={e => { e.currentTarget.style.borderColor = theme.accent; e.currentTarget.style.boxShadow = `0 12px 28px -22px ${theme.glow}` }}
-                                                        onMouseLeave={e => { e.currentTarget.style.borderColor = `color-mix(in srgb, ${theme.accent} ${done ? '15%' : '26%'}, var(--border))`; e.currentTarget.style.boxShadow = 'none' }}>
+                                                        onMouseLeave={e => { e.currentTarget.style.borderColor = `color-mix(in srgb, ${theme.accent} ${done ? '10%' : '18%'}, var(--border))`; e.currentTarget.style.boxShadow = 'none' }}>
                                                         <div className="flex items-center gap-3">
-                                                            <div className="h-11 w-11 rounded-2xl flex flex-col items-center justify-center flex-shrink-0" style={{ background: done ? 'var(--bg-muted)' : theme.accent, color: done ? 'var(--text-muted)' : 'white' }}>
+                                                            <div className="h-11 w-11 rounded-2xl flex flex-col items-center justify-center flex-shrink-0" style={{ background: done ? 'var(--bg-muted)' : theme.soft, color: done ? 'var(--text-muted)' : theme.strong, border: `1px solid ${done ? 'var(--border)' : `color-mix(in srgb, ${theme.accent} 18%, transparent)`}` }}>
                                                                 <span className="text-[14px] leading-none font-bold">{t._count?.questions ?? 0}</span>
                                                                 <span className="text-[8px] uppercase tracking-wide mt-0.5" style={{ opacity: 0.78 }}>savol</span>
                                                             </div>

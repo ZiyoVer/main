@@ -9,8 +9,8 @@
 ### Summary
 
 - Critical issues: 0
-- Major issues: 3
-- Minor issues: 3
+- Major issues: 4
+- Minor issues: 2
 
 Oldingi oqim texnik jihatdan to'liq edi: qidiruv, filtrlash, manba badge'lari va natijani saqlash bor. Ammo katalog hissi kuchli, “hozir qaysi testni boshlayman?” savoliga vizual javob zaif edi. Ranglar ham har testga ma'no bermasdi.
 
@@ -25,13 +25,13 @@ Oldingi oqim texnik jihatdan to'liq edi: qidiruv, filtrlash, manba badge'lari va
 - **Recommendation:** Yuqoriga profil fanlariga mos, ishlanmagan bitta “Bugungi tanlov” kartasi qo'yish.
 - **Severity:** 3
 
-#### T2 — Test kartalari bir-birini esda qoldirmaydi
+#### T2 — Test kartalarida rang iyerarxiyasi brenddan kuchli bo'lmasligi kerak
 
 - **Heuristic:** #4 — Consistency and standards; #8 — Aesthetic and minimalist design
 - **Location:** public test list
-- **Problem:** Avval barcha testlar deyarli bir xil oq karta edi; fan, savollar soni va vaqt vizual iyerarxiyasi sust.
-- **Impact:** Katalog fayl ro'yxatidek tuyuladi, mashq boshlash hissi past bo'ladi.
-- **Recommendation:** Fanlar uchun cheklangan semantic rang tizimi, savol soni uchun anchori va ko'rinadigan “Boshlash” affordance'i.
+- **Problem:** Har fan uchun alohida kuchli rang berish warm-paper fon va DTMMax apelsin CTA bilan raqobat qiladi; bir xil oq karta esa aksincha iyerarxiyani yo'qotadi.
+- **Impact:** Katalog yoki rang-barang, yoki fayl ro'yxatidek tuyulishi mumkin.
+- **Recommendation:** Bitta brand aksenti, neytral kartalar, fan uchun compact label, savol soni uchun visual anchor va ko'rinadigan “Boshlash” affordance'i.
 - **Severity:** 3
 
 #### T3 — Natija holati ballni ko'rsatadi, lekin keyingi hissiy qadamni bermaydi
@@ -43,20 +43,29 @@ Oldingi oqim texnik jihatdan to'liq edi: qidiruv, filtrlash, manba badge'lari va
 - **Recommendation:** Natijaga qarab neytral-rag'batlantiruvchi message, rangli result card va “Chatdagi tahlilga qaytish” CTA.
 - **Severity:** 3
 
+#### T4 — Barcha savollarni bitta uzun sahifada ko'rsatish fokusni buzadi
+
+- **Heuristic:** #7 — Flexibility and efficiency; #8 — Aesthetic and minimalist design
+- **Location:** test solving panel
+- **Problem:** Har savol va barcha variantlar bitta vertikal scroll'da ketadi; mobil ekranda foydalanuvchi qayerda ekanini yo'qotadi.
+- **Impact:** Kognitiv yuk, accidental scroll va javobsiz savolni topish vaqti oshadi.
+- **Recommendation:** “Bitta savol — bitta qadam” fokus rejimi, yuqorida savol navigatori, pastda oldingi/keyingi va keyingi javobsiz savolga o'tish.
+- **Severity:** 3
+
 ### Minor Issues (Fix Later)
 
 | Issue | Heuristic | Recommendation | Severity |
 |---|---|---|---|
 | “Zaif mavzularni o'rganish” tugmasi progress karta ichida tor ekranda ikkinchi darajali bo'lib qoladi | #8 | Uni progress ostidagi to'liq qator CTAga o'tkazing. | 2 |
 | Test turini va manbasini tushuntiruvchi legend yo'q | #6 | Birinchi ochilganda 1 qatorli tooltip/legend bering. | 2 |
-| Test paneli bo'ylab next-question navigatsiyasi yo'q | #7 | Uzun testlarda “Keyingi javobsiz savol” tugmasini qo'shing. | 2 |
 
 ### First-pass implementation
 
 1. Fanga mos “Bugungi tanlov” kartasi qo'shildi; u ishlanmagan testlarni profil fanlari va mashhurligiga qarab tartiblaydi.
-2. Test kartalariga limited semantic palette qo'shildi: aniq fan signalini beradi, lekin brand rangini bosib ketmaydi.
-3. Test yechish paneli progress copy, savol labeli, kuchli tanlangan variant va javob sanog'i bilan boyitildi.
-4. Natija yakuni 80%+, 60%+ va o'rganish kerak bo'lgan holatlar uchun alohida, rag'batlantiruvchi copyga o'tdi.
+2. Katalog bitta DTMMax aksentiga o'tdi; fanlar rang kamalagi bilan emas, label va nom bilan ajraladi.
+3. Test yechish paneli “bitta savol — bitta qadam” fokus rejimiga o'tdi; savol navigatori va oldingi/keyingi boshqaruvi qo'shildi.
+4. Footer keyingi javobsiz savolni topadi; barcha javoblar tayyor bo'lgandagina natijani ochadi.
+5. Natija yakuni 80%+, 60%+ va o'rganish kerak bo'lgan holatlar uchun alohida, rag'batlantiruvchi copyga o'tdi.
 
 ### Follow-up validation
 
