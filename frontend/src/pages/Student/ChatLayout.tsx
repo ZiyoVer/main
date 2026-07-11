@@ -43,6 +43,26 @@ function sourceBadge(source?: string | null): { label: string; bg: string; color
     if (source === 'UNOFFICIAL') return { label: 'Norasmiy', bg: 'var(--bg-muted)', color: 'var(--text-muted)' }
     return null
 }
+
+// Test katalogida rang faqat bezak emas: fanlarni bir qarashda ajratish va
+// "menga mos test" kartasini esda qoldirish uchun ishlatiladi.
+function testSubjectTheme(subject?: string | null): { accent: string; strong: string; soft: string; glow: string } {
+    switch (normalizeSubjectValue(subject)) {
+        case 'Matematika':
+        case 'Fizika':
+            return { accent: '#2563eb', strong: '#1d4ed8', soft: '#eff6ff', glow: 'rgba(37,99,235,0.20)' }
+        case 'Kimyo':
+        case 'Biologiya':
+            return { accent: '#0f766e', strong: '#0f5f59', soft: '#ecfdf5', glow: 'rgba(15,118,110,0.18)' }
+        case 'Ingliz tili':
+            return { accent: '#7c3aed', strong: '#6d28d9', soft: '#f5f3ff', glow: 'rgba(124,58,237,0.18)' }
+        case 'Tarix':
+        case 'Geografiya':
+            return { accent: '#b45309', strong: '#92400e', soft: '#fffbeb', glow: 'rgba(180,83,9,0.18)' }
+        default:
+            return { accent: '#ea580c', strong: '#c2410c', soft: '#fff7ed', glow: 'rgba(234,88,12,0.18)' }
+    }
+}
 interface MyResult {
     id: string
     testId: string
@@ -3945,6 +3965,13 @@ Iltimos, har bir savolni tahlil qilib ber:
                         // Faqat bo'sh bo'lmagan javoblarni sanaymiz — tozalangan ('') javob "javob berilgan" emas
                         const answered = Object.values(testAnswers).filter(v => v.trim() !== '').length
                         const score = testSubmitted ? questions.filter((q: any, i: number) => testAnswers[i] === q.correct).length : 0
+                        const progressPercent = questions.length > 0 ? Math.round((answered / questions.length) * 100) : 0
+                        const scorePercent = questions.length > 0 ? Math.round((score / questions.length) * 100) : 0
+                        const resultTone = scorePercent >= 80
+                            ? { color: 'var(--success)', background: 'var(--success-light)', title: 'Ajoyib natija!', message: 'Mavzuni yaxshi ushlabsiz. Shu ritmni saqlang.' }
+                            : scorePercent >= 60
+                                ? { color: 'var(--brand)', background: 'var(--brand-light)', title: 'Yaxshi harakat!', message: 'Xatolardagi izohlarni ko‘rib, keyingi testda natijani oshiramiz.' }
+                                : { color: 'var(--warning)', background: 'color-mix(in srgb, var(--warning) 12%, transparent)', title: 'Boshlanish yaxshi!', message: 'Natija zaif joylarni ko‘rsatdi — endi aynan ulardan kuch olamiz.' }
                         return (
                             <div className={(testPanelMaximized || isMobile) ? 'fixed inset-0 z-50 flex flex-col' : 'relative flex flex-col flex-shrink-0'}
                                 style={(testPanelMaximized || isMobile) ? { background: 'var(--bg-card)' } : { width: testWidth, background: 'var(--bg-card)', borderLeft: '1px solid var(--border)' }}>
@@ -3982,17 +4009,29 @@ Iltimos, har bir savolni tahlil qilib ber:
                                     </div>
                                 </div>
 
-                                {/* Progress bar */}
-                                <div className="h-1 progress-bar" style={{ borderRadius: 0 }}>
-                                    <div className="progress-bar-fill" style={{ width: testReadOnly ? '100%' : `${(answered / questions.length) * 100}%` }} />
+                                {/* Progress — rang keyingi qadamni ko'rsatadi, son esa yakun qanchalik yaqinligini. */}
+                                <div className="px-4 pt-2.5 pb-3 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <p className="text-[11px] font-medium" style={{ color: 'var(--text-secondary)' }}>
+                                            {testReadOnly ? 'Test yakunlangan' : answered === 0 ? 'Birinchi savoldan boshlang' : answered === questions.length ? 'Hammasi belgilandi — natijangiz tayyor' : `${questions.length - answered} ta savol qoldi`}
+                                        </p>
+                                        <span className="text-[11px] font-bold" style={{ color: 'var(--brand)' }}>{testReadOnly ? '100%' : `${answered}/${questions.length}`}</span>
+                                    </div>
+                                    <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--bg-muted)' }}>
+                                        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${testReadOnly ? 100 : progressPercent}%`, background: 'var(--k-accent-grad, var(--brand))' }} />
+                                    </div>
                                 </div>
 
                                 {/* Questions */}
                                 <div className="flex-1 overflow-y-auto min-h-0 p-5 space-y-5" style={{ background: 'var(--bg-page)' }}>
                                     <div className={testPanelMaximized ? 'max-w-3xl mx-auto space-y-5' : 'space-y-5'}>
                                         {questions.map((q: any, i: number) => (
-                                            <div key={i} className="card p-5">
-                                                <p className="text-[14px] font-semibold mb-2 leading-relaxed"><span style={{ fontFamily: 'var(--k-serif)', fontStyle: 'italic', fontWeight: 500, color: 'var(--brand)', marginRight: 5 }}>{i + 1}.</span><MathText text={q.q} /></p>
+                                            <div key={i} className="card p-5" style={{ borderColor: testAnswers[i] ? 'color-mix(in srgb, var(--brand) 28%, var(--border))' : undefined }}>
+                                                <div className="flex items-center justify-between gap-3 mb-2.5">
+                                                    <span className="text-[10px] uppercase tracking-[0.12em] font-bold px-2 py-1 rounded-lg" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>Savol {i + 1}</span>
+                                                    {testAnswers[i] && !testSubmitted && <span className="text-[10px] font-semibold" style={{ color: 'var(--success)' }}>Javob belgilandi ✓</span>}
+                                                </div>
+                                                <p className="text-[14px] font-semibold mb-3 leading-relaxed"><MathText text={q.q} /></p>
                                                 {q.imageUrl && (
                                                     <div className="mb-4 mt-1">
                                                         <img src={q.imageUrl} alt="Savol rasmi" className="max-w-full rounded-xl border shadow-sm" style={{ borderColor: 'var(--border)', maxHeight: '320px', objectFit: 'contain' }} />
@@ -4039,10 +4078,16 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                                     tabIndex={0}
                                                                     role="radio"
                                                                     aria-checked={testAnswers[i] === opt}
-                                                                    className="w-full text-left px-4 py-3 rounded-xl text-[13px] border transition-all duration-200 outline-none"
+                                                                    className="w-full text-left px-3.5 py-3 rounded-xl text-[13px] border transition-all duration-200 outline-none flex items-start gap-2.5"
                                                                     style={sty}>
-                                                                    <span className="font-bold mr-2" style={{ opacity: 0.6 }}>{opt.toUpperCase()})</span>
-                                                                    <span className="pointer-events-none">
+                                                                    <span className="h-6 w-6 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-bold" style={testSubmitted && isCorrect
+                                                                        ? { background: 'var(--success)', color: 'white' }
+                                                                        : testSubmitted && isSelected && !isCorrect
+                                                                            ? { background: 'var(--danger)', color: 'white' }
+                                                                            : isSelected
+                                                                                ? { background: 'var(--brand)', color: 'white' }
+                                                                                : { background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>{opt.toUpperCase()}</span>
+                                                                    <span className="pointer-events-none pt-0.5">
                                                                         <MathText text={q[opt]} />
                                                                         {optionImage && (
                                                                             <img src={optionImage} alt={`${opt.toUpperCase()} variant rasmi`} className="mt-1.5 rounded-lg border max-w-full block" style={{ borderColor: 'var(--border)', maxHeight: '10rem', objectFit: 'contain' }} />
@@ -4096,16 +4141,18 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             <button onClick={submitTestPanel} disabled={answered < questions.length}
                                                 className="btn btn-primary w-full h-12 flex items-center justify-center gap-2"
                                                 style={{ opacity: answered < questions.length ? 0.5 : 1 }}>
-                                                <Target className="h-4 w-4" /> Natijani ko'rish ({answered}/{questions.length})
+                                                <Target className="h-4 w-4" /> {answered < questions.length ? `Yana ${questions.length - answered} ta savol qoldi` : 'Natijangni ko‘rish'}
                                             </button>
                                         ) : (
-                                            <div className="text-center space-y-2">
-                                                <p className="text-lg font-bold">{score}/{questions.length} <span className="text-sm font-normal" style={{ color: 'var(--text-muted)' }}>— {Math.round(score / questions.length * 100)}%</span></p>
+                                            <div className="rounded-2xl p-4 text-center space-y-2" style={{ background: resultTone.background, border: `1px solid color-mix(in srgb, ${resultTone.color} 24%, transparent)` }}>
+                                                <p className="text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: resultTone.color }}>Natijang tayyor</p>
+                                                <p className="text-2xl font-bold" style={{ color: resultTone.color }}>{score}/{questions.length} <span className="text-sm font-semibold">— {scorePercent}%</span></p>
+                                                <p className="text-[13px] font-bold" style={{ color: 'var(--text-primary)' }}>{resultTone.title}</p>
+                                                <p className="text-[12px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{resultTone.message}</p>
                                                 {raschFeedback && (
                                                     <p className="text-xs font-medium flex items-center gap-1" style={{ color: 'var(--brand)' }}><TrendingUp className="h-3.5 w-3.5" /> Daraja: {raschFeedback.prev.toFixed(2)} → {raschFeedback.next.toFixed(2)}</p>
                                                 )}
-                                                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Natijalar chatga yuborildi</p>
-                                                <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setTestReadOnly(false); setActiveTestId(null); setActiveTestQuestions([]); setTestTimeLeft(null); setRaschFeedback(null) }} className="text-sm font-medium transition" style={{ color: 'var(--brand)' }}>Panelni yopish</button>
+                                                <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setTestReadOnly(false); setActiveTestId(null); setActiveTestQuestions([]); setTestTimeLeft(null); setRaschFeedback(null) }} className="text-sm font-bold transition px-3 py-1.5 rounded-lg" style={{ background: 'var(--bg-card)', color: resultTone.color }}>Chatdagi tahlilga qaytish</button>
                                             </div>
                                         )}
                                     </div>
@@ -4411,10 +4458,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                                 </div>
                                 <div className="flex-1">
                                     <h2 className="font-semibold text-base">
-                                        {overlayPanel === 'tests' ? 'Testlar' : overlayPanel === 'flashcards' ? 'Kartochkalar' : overlayPanel === 'progress' ? 'Natijalar' : 'Pro'}
+                                        {overlayPanel === 'tests' ? 'Test markazi' : overlayPanel === 'flashcards' ? 'Kartochkalar' : overlayPanel === 'progress' ? 'Natijalar' : 'Pro'}
                                     </h2>
                                     <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                                        {overlayPanel === 'tests' ? `${publicTests.length} ta test mavjud`
+                                        {overlayPanel === 'tests' ? (publicTests.length > 0 ? `${publicTests.length} ta test · bugungi natijangni ko‘r` : 'Bugungi tayyorgarlik shu yerdan boshlanadi')
                                             : overlayPanel === 'flashcards' ? `${dueFlashcards.length} ta kartochka qaytarish kerak`
                                             : overlayPanel === 'progress' ? 'O\'qish tahlili'
                                             : 'Rejalar va imkoniyatlar'}
@@ -4461,6 +4508,49 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 </button>
                                             </div>
                                         )}
+                                        {/* Birinchi ko'rinadigan karta — katalog emas, aynan hozir boshlash mumkin bo'lgan test. */}
+                                        {publicTests.length > 0 && (() => {
+                                            const isDone = (t: PublicTest) => myResults.some(r => r.testId === t.id) || completedTestIdsRef.current.has(t.id)
+                                            const primarySubject = normalizeSubjectValue(profile?.subject)
+                                            const secondarySubject = normalizeSubjectValue(profile?.subject2)
+                                            const recommended = publicTests
+                                                .filter(t => !isDone(t))
+                                                .slice()
+                                                .sort((a, b) => {
+                                                    const score = (t: PublicTest) => (normalizeSubjectValue(t.subject) === primarySubject ? 3 : 0) + (normalizeSubjectValue(t.subject) === secondarySubject ? 2 : 0) + Math.min(1, (t._count?.attempts ?? 0) / 10)
+                                                    return score(b) - score(a)
+                                                })[0]
+                                            if (!recommended) return null
+                                            const theme = testSubjectTheme(recommended.subject)
+                                            const type = testTypeBadge(recommended.testType)
+                                            return (
+                                                <div className="rounded-2xl p-4 sm:p-5 overflow-hidden relative" style={{ background: `linear-gradient(135deg, ${theme.soft} 0%, var(--bg-card) 72%)`, border: `1px solid color-mix(in srgb, ${theme.accent} 26%, var(--border))`, boxShadow: `0 12px 30px -24px ${theme.glow}` }}>
+                                                    <div className="absolute -right-7 -top-7 h-28 w-28 rounded-full" style={{ background: `color-mix(in srgb, ${theme.accent} 10%, transparent)` }} />
+                                                    <div className="relative flex items-start gap-3">
+                                                        <div className="h-11 w-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: theme.accent, color: 'white', boxShadow: `0 8px 18px -8px ${theme.glow}` }}>
+                                                            <Target className="h-5 w-5" />
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="text-[10px] font-bold tracking-[0.12em] uppercase" style={{ color: theme.strong }}>Bugungi tanlov</p>
+                                                            <p className="text-[15px] font-bold leading-snug mt-1" style={{ color: 'var(--text-primary)' }}>{recommended.title}</p>
+                                                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>
+                                                                <span>{recommended.subject || 'Umumiy'}</span>
+                                                                <span aria-hidden="true">·</span>
+                                                                <span>{recommended._count?.questions ?? 0} savol</span>
+                                                                {typeof recommended.timeLimit === 'number' && recommended.timeLimit > 0 && <><span aria-hidden="true">·</span><span>{recommended.timeLimit} daqiqa</span></>}
+                                                                {type && <span className="px-1.5 py-0.5 rounded font-bold" style={{ background: type.bg, color: type.color }}>{type.label}</span>}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="relative flex items-center justify-between gap-3 mt-4">
+                                                        <p className="text-[11px] leading-snug" style={{ color: 'var(--text-secondary)' }}>Kichik bir test bugungi tayyorgarlikni oldinga suradi.</p>
+                                                        <button type="button" onClick={() => { void openPublicTest(recommended) }} className="text-[12px] font-bold px-3.5 py-2 rounded-xl flex-shrink-0 transition" style={{ background: theme.accent, color: 'white', boxShadow: `0 8px 16px -10px ${theme.glow}` }}>
+                                                            Boshlash →
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })()}
                                         {publicTests.length > 0 && (() => {
                                             // Ishlanganlik: backend natijasi YOKI lokal belgi (by-link ham hisobga olinadi)
                                             const isDone = (t: PublicTest) => myResults.some(r => r.testId === t.id) || completedTestIdsRef.current.has(t.id)
@@ -4468,10 +4558,14 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             const donePct = Math.round((doneCount / publicTests.length) * 100)
                                             return (
                                                 <div className="rounded-2xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                                    <div className="flex items-center justify-between gap-3 mb-2.5">
-                                                        <p className="text-[13px] font-bold" style={{ color: 'var(--text-primary)' }}>
-                                                            Ishlangan: <span style={{ color: donePct === 100 ? 'var(--success)' : 'var(--brand)' }}>{doneCount}/{publicTests.length}</span>
-                                                        </p>
+                                                    <div className="flex flex-wrap items-center justify-between gap-3 mb-2.5">
+                                                        <div>
+                                                            <p className="text-[13px] font-bold" style={{ color: 'var(--text-primary)' }}>Sening test yo‘ling</p>
+                                                            <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{doneCount === publicTests.length ? 'Barcha testlar yakunlandi — zo‘r ish!' : `Yana ${publicTests.length - doneCount} ta test seni kutyapti`}</p>
+                                                        </div>
+                                                        <span className="text-[12px] font-bold px-2.5 py-1 rounded-full flex-shrink-0" style={{ background: donePct === 100 ? 'var(--success-light)' : 'var(--brand-light)', color: donePct === 100 ? 'var(--success)' : 'var(--brand)' }}>
+                                                            {doneCount}/{publicTests.length}
+                                                        </span>
                                                         {weakTopicSummary && (
                                                             <button
                                                                 onClick={() => {
@@ -4489,42 +4583,6 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     </div>
                                                 </div>
                                             )
-                                        })()}
-                                        {/* 4.3: "Siz uchun" — fan/zaif mavzuga mos, hali ishlanmagan 2-3 tavsiya.
-                                            Mobilda yashiriladi: pastdagi to'liq ro'yxatni takrorlaydi va bir qator joy yeydi */}
-                                        {publicTests.length > 4 && !isMobile && (() => {
-                                            const isDone = (t: PublicTest) => myResults.some(r => r.testId === t.id) || completedTestIdsRef.current.has(t.id)
-                                            const subj = normalizeSubjectValue(profile?.subject)
-                                            const subj2 = normalizeSubjectValue(profile?.subject2)
-                                            const recommended = publicTests
-                                                .filter(t => !isDone(t))
-                                                .sort((a, b) => {
-                                                    const ma = (a.subject === subj || a.subject === subj2) ? 1 : 0
-                                                    const mb = (b.subject === subj || b.subject === subj2) ? 1 : 0
-                                                    return mb - ma
-                                                })
-                                                .slice(0, 3)
-                                            return recommended.length > 0 ? (
-                                                <div>
-                                                    <p className="text-[11px] font-bold uppercase tracking-wide mb-2" style={{ color: 'var(--text-muted)' }}>Siz uchun</p>
-                                                    <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-                                                        {recommended.map(t => (
-                                                            <button key={t.id} onClick={() => { void openPublicTest(t) }}
-                                                                className="flex-shrink-0 text-left px-3.5 py-3 rounded-xl border transition"
-                                                                style={{ background: 'var(--bg-card)', borderColor: 'var(--border)', width: '13rem' }}
-                                                                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.boxShadow = 'var(--k-shadow-card, none)' }}
-                                                                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}>
-                                                                <div className="flex items-center gap-1.5 mb-1">
-                                                                    {(() => { const tb = testTypeBadge(t.testType); return tb ? <span className="text-[9px] px-1.5 py-0.5 rounded font-bold" style={{ background: tb.bg, color: tb.color }}>{tb.label}</span> : null })()}
-                                                                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{t.subject}</span>
-                                                                </div>
-                                                                <p className="text-[12px] font-semibold leading-snug" style={{ color: 'var(--text-primary)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{t.title}</p>
-                                                                <p className="text-[10px] mt-1" style={{ color: 'var(--brand)' }}>Boshlash →</p>
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            ) : null
                                         })()}
                                         {/* 4.2: yopishqoq qidiruv + saralash + kategoriya filtri */}
                                         {publicTests.length > 0 && (() => {
@@ -4596,22 +4654,27 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 const typeBadge = testTypeBadge(t.testType)
                                                 const source = sourceBadge(t.source)
                                                 const summary = result ? getAttemptSummary(result) : null
+                                                const theme = testSubjectTheme(t.subject)
                                                 return (
                                                     <button key={t.id} type="button" onClick={() => { void openPublicTest(t) }}
-                                                        className="w-full text-left rounded-2xl p-4 transition group"
-                                                        style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', opacity: done ? 0.8 : 1 }}
-                                                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.boxShadow = 'var(--k-shadow-card, none)' }}
-                                                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}>
+                                                        className="w-full text-left rounded-2xl p-3.5 sm:p-4 transition group"
+                                                        style={{ background: done ? 'var(--bg-card)' : `linear-gradient(105deg, ${theme.soft} 0%, var(--bg-card) 52%)`, border: `1px solid color-mix(in srgb, ${theme.accent} ${done ? '15%' : '26%'}, var(--border))`, opacity: done ? 0.78 : 1 }}
+                                                        onMouseEnter={e => { e.currentTarget.style.borderColor = theme.accent; e.currentTarget.style.boxShadow = `0 12px 28px -22px ${theme.glow}` }}
+                                                        onMouseLeave={e => { e.currentTarget.style.borderColor = `color-mix(in srgb, ${theme.accent} ${done ? '15%' : '26%'}, var(--border))`; e.currentTarget.style.boxShadow = 'none' }}>
                                                         <div className="flex items-center gap-3">
+                                                            <div className="h-11 w-11 rounded-2xl flex flex-col items-center justify-center flex-shrink-0" style={{ background: done ? 'var(--bg-muted)' : theme.accent, color: done ? 'var(--text-muted)' : 'white' }}>
+                                                                <span className="text-[14px] leading-none font-bold">{t._count?.questions ?? 0}</span>
+                                                                <span className="text-[8px] uppercase tracking-wide mt-0.5" style={{ opacity: 0.78 }}>savol</span>
+                                                            </div>
                                                             <div className="flex-1 min-w-0">
-                                                                <div className="flex items-center gap-2">
-                                                                    <p className="font-semibold text-sm leading-snug truncate" style={{ color: 'var(--text-primary)' }}>{t.title}</p>
+                                                                <div className="flex items-center gap-1.5 mb-1">
+                                                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: done ? 'var(--bg-muted)' : theme.soft, color: done ? 'var(--text-muted)' : theme.strong }}>{t.subject || 'Umumiy'}</span>
                                                                     {typeBadge && <span className="text-[9px] px-1.5 py-0.5 rounded font-bold flex-shrink-0" style={{ background: typeBadge.bg, color: typeBadge.color }}>{typeBadge.label}</span>}
                                                                     {t.premium && <Sparkles className="h-3 w-3 flex-shrink-0" style={{ color: '#B8860B' }} />}
                                                                 </div>
+                                                                <p className="font-bold text-[13.5px] leading-snug truncate" style={{ color: 'var(--text-primary)' }}>{t.title}</p>
                                                                 <p className="text-[11.5px] mt-1" style={{ color: 'var(--text-muted)' }}>
-                                                                    {t.subject} · {t._count?.questions ?? 0} savol
-                                                                    {typeof t.timeLimit === 'number' && t.timeLimit > 0 ? ` · ${t.timeLimit} daq` : ''}
+                                                                    {typeof t.timeLimit === 'number' && t.timeLimit > 0 ? `${t.timeLimit} daqiqa` : 'Vaqt chegarasi yo‘q'}
                                                                     {source ? ` · ${source.label}` : ''}
                                                                 </p>
                                                             </div>
@@ -4622,7 +4685,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                                 {done ? (
                                                                     <span className="text-[12px] font-semibold" style={{ color: 'var(--text-muted)' }}>Ko'rish</span>
                                                                 ) : (
-                                                                    <span className="inline-block text-[12px] font-bold transition group-hover:translate-x-0.5" style={{ color: 'var(--brand)' }}>Boshlash →</span>
+                                                                    <span className="inline-block text-[12px] font-bold transition group-hover:translate-x-0.5" style={{ color: theme.strong }}>Boshlash →</span>
                                                                 )}
                                                             </div>
                                                         </div>
