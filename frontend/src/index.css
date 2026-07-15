@@ -408,7 +408,7 @@ button:focus-visible {
 /* ---- Chat Bubbles ---- */
 
 .bubble-ai {
-    max-width: 78%;
+    max-width: 70ch;
     min-width: 0;
     font-size: 0.9375rem;
     line-height: 1.7;
@@ -429,7 +429,7 @@ button:focus-visible {
     border-radius: 1rem 1rem 0.3rem 1rem;
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
     padding: 0.55rem 0.85rem;
-    max-width: 68%;
+    max-width: min(72%, 42rem);
     font-size: 0.875rem;
     line-height: 1.55;
     color: #111111;
@@ -441,7 +441,7 @@ button:focus-visible {
 /* AI xabari qatori: brand avatar + kontent */
 .ai-msg-row {
     display: flex;
-    gap: 10px;
+    gap: 12px;
     align-items: flex-start;
     min-width: 0;
     flex: 1;
@@ -476,14 +476,109 @@ button:focus-visible {
 }
 .msg-group:hover .msg-copy-btn { opacity: 1; }
 .msg-copy-btn:hover { background: var(--bg-surface); color: var(--text-primary); }
-@media (max-width: 640px) {
+@media (max-width: 767px) {
     .msg-copy-btn { opacity: 0.65; } /* mobilda hover yo'q — doim biroz ko'rinadi */
     .ai-avatar { width: 22px; height: 22px; }
 }
 /* Input konteyner fokus halqasi */
 .chat-input-box:focus-within {
     border-color: color-mix(in srgb, var(--brand) 55%, var(--border-strong)) !important;
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 10%, transparent), 0 1px 4px rgba(0, 0, 0, 0.07) !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 10%, transparent), 0 2px 8px rgba(33, 28, 22, 0.06) !important;
+}
+
+/* Bugun — dashboard emas, o'qish sessiyasiga sokin kirish nuqtasi. */
+.today-shell {
+    padding-top: clamp(1rem, 7vh, 4.75rem);
+    padding-bottom: 2rem;
+}
+
+.today-intro {
+    max-width: 38rem;
+}
+
+.today-date,
+.today-focus-label {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 650;
+}
+
+.today-date {
+    margin-bottom: 0.85rem;
+    text-transform: capitalize;
+}
+
+.today-intro h1 {
+    max-width: 20ch;
+    color: var(--text-primary);
+    font-size: 1.875rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    text-wrap: balance;
+}
+
+.today-lede {
+    max-width: 34rem;
+    margin-top: 0.85rem;
+    color: var(--text-secondary);
+    font-size: 0.975rem;
+    line-height: 1.65;
+    text-wrap: pretty;
+}
+
+.today-focus {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+    margin-top: 2.5rem;
+    padding: 1.65rem 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+
+.today-focus h2 {
+    margin-top: 0.45rem;
+    color: var(--text-primary);
+    font-size: 1.125rem;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.today-focus > div > p:last-child {
+    margin-top: 0.35rem;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    line-height: 1.55;
+}
+
+.today-focus-action {
+    min-height: 42px;
+    padding: 0.65rem 1rem;
+    border-radius: 0.75rem;
+    background: var(--text-primary);
+    color: var(--text-inverse);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+    font-size: 0.875rem;
+    font-weight: 700;
+    transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease;
+}
+
+.today-focus-action:hover {
+    transform: translateY(-1px);
+}
+
+.today-focus-action:active {
+    transform: translateY(0);
+}
+
+.chat-composer-shell {
+    border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
 
 /* Chat image thumbnail */
@@ -1145,26 +1240,26 @@ html.dark .md-content pre {
 }
 
 /* ---- Mobile Responsive ---- */
-@media (max-width: 640px) {
+@media (max-width: 767px) {
 
     /* Bubbles — mobilda ham bemalol o'qiladigan o'lcham */
     .bubble-ai {
         max-width: 100%;
-        font-size: 0.875rem;
-        line-height: 1.65;
+        font-size: 0.9375rem;
+        line-height: 1.7;
     }
 
     .bubble-user {
         max-width: 86%;
-        font-size: 0.8125rem;
-        padding: 0.46rem 0.72rem;
+        font-size: 0.875rem;
+        padding: 0.52rem 0.78rem;
         border-radius: 0.78rem;
     }
 
     /* Markdown in chat */
     .md-content {
-        font-size: 0.875rem;
-        line-height: 1.65;
+        font-size: 0.9375rem;
+        line-height: 1.7;
     }
 
     .md-content h1, .md-content h2 {
@@ -1190,12 +1285,12 @@ html.dark .md-content pre {
 
     .md-content pre {
         padding: 0.625rem;
-        font-size: 0.725rem;
+        font-size: 0.8125rem;
         overflow-x: auto;
     }
 
     .md-content table {
-        font-size: 0.725rem;
+        font-size: 0.8125rem;
     }
 
     .md-content th,
@@ -1211,7 +1306,7 @@ html.dark .md-content pre {
     }
 
     .katex {
-        font-size: 0.9em;
+        font-size: 1em;
     }
 
     /* Flashcard face smaller padding */
@@ -1224,10 +1319,30 @@ html.dark .md-content pre {
     .chat-input-area {
         padding-bottom: env(safe-area-inset-bottom, 0.75rem);
     }
+
+    .today-shell {
+        padding-top: 1rem;
+    }
+
+    .today-intro h1 {
+        font-size: 1.625rem;
+    }
+
+    .today-focus {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 1.25rem;
+        margin-top: 2rem;
+        padding: 1.4rem 0;
+    }
+
+    .today-focus-action {
+        width: 100%;
+    }
 }
 
-/* ===== TABLET (641px - 1024px) ===== */
-@media (min-width: 641px) and (max-width: 1024px) {
+/* ===== TABLET (768px - 1024px) ===== */
+@media (min-width: 768px) and (max-width: 1024px) {
     /* Sidebar tor qilish */
     .sidebar-tablet {
         min-width: 200px !important;

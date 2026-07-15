@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, FileText, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, ArrowUp, ArrowDown, BarChart2, User, Calendar, Shield, Sparkles, Clock, Flame, Zap, Copy, MessageSquare, Pencil, MoreHorizontal } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, FileText, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, ArrowUp, ArrowDown, ArrowRight, BarChart2, User, Calendar, Shield, Sparkles, Clock, Flame, Zap, Copy, MessageSquare, Pencil, MoreHorizontal, House } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import remarkGfm from 'remark-gfm'
@@ -832,9 +832,9 @@ const ChatInputArea = memo(function ChatInputArea({
     })() : null
 
     return (
-        <div className="px-3 sm:px-6 pb-4 sm:pb-6 pt-2 chat-input-area flex-shrink-0" style={{ background: 'var(--bg-page)' }}>
+        <div className="px-3 sm:px-6 pb-4 sm:pb-6 pt-3 chat-input-area chat-composer-shell flex-shrink-0" style={{ background: 'var(--bg-page)' }}>
             {!loading && messagesCount > 0 && (
-                <div className="max-w-3xl mx-auto mb-2 flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+                <div className="max-w-[820px] mx-auto mb-2.5 flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
                     {QUICK_ACTIONS.map((a, i) => (
                         <button key={i} onClick={() => { if (!chatId || loading) return; onSend(a.p, []) }}
                             className="h-8 px-3 text-[12px] font-medium rounded-full transition whitespace-nowrap flex items-center gap-1.5 flex-shrink-0"
@@ -846,15 +846,15 @@ const ChatInputArea = memo(function ChatInputArea({
                 </div>
             )}
             {quotaStatus && (quotaStatus.low || quotaStatus.exhausted) && (
-                <div className="max-w-3xl mx-auto mb-2 flex items-center gap-2 rounded-xl px-3 py-2 text-[12px]" style={{ background: quotaStatus.exhausted ? 'var(--danger-light)' : 'var(--brand-light)', color: quotaStatus.exhausted ? 'var(--danger)' : 'var(--brand)' }}>
+                <div className="max-w-[820px] mx-auto mb-2 flex items-center gap-2 rounded-xl px-3 py-2 text-[12px]" style={{ background: quotaStatus.exhausted ? 'var(--danger-light)' : 'var(--brand-light)', color: quotaStatus.exhausted ? 'var(--danger)' : 'var(--brand)' }}>
                     <Zap className="h-3.5 w-3.5 flex-shrink-0" />
                     <span className="font-semibold">{quotaStatus.exhausted ? 'Bugungi AI limiti tugadi.' : `Bugun ${quotaStatus.left} ta AI so'rovi qoldi.`}</span>
                     {!quotaStatus.exhausted && <span className="opacity-80">~{quotaStatus.hoursLeft} soatda yangilanadi</span>}
                 </div>
             )}
-            <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
+            <form onSubmit={handleSubmit} className="max-w-[820px] mx-auto">
                 <input ref={fileInputRef} type="file" multiple accept=".pdf,.doc,.docx,.txt,image/*" className="hidden" onChange={handleFileSelect} />
-                <div className="rounded-2xl overflow-hidden chat-input-box" style={{ background: 'var(--bg-card)', border: '1.5px solid var(--border-strong)', boxShadow: '0 1px 4px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.03)', transition: 'border-color 0.15s, box-shadow 0.15s' }}>
+                <div className="rounded-2xl overflow-hidden chat-input-box" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-strong)', boxShadow: '0 2px 8px rgba(33,28,22,0.06)', transition: 'border-color 0.15s, box-shadow 0.15s' }}>
                     {/* Attached files */}
                     {attachedFiles.length > 0 && (
                         <div className="flex flex-wrap gap-2 px-4 pt-3">
@@ -892,7 +892,7 @@ const ChatInputArea = memo(function ChatInputArea({
                         onChange={e => { setInput(e.target.value); adjustTextareaHeight() }}
                         onKeyDown={handleKeyDown}
                         onPaste={handlePaste}
-                        placeholder="Xabar yozing..."
+                        placeholder="Savolingizni yozing yoki masala rasmini biriktiring…"
                         disabled={loading}
                         rows={1}
                         className="w-full bg-transparent outline-none text-sm resize-none leading-relaxed px-4"
@@ -996,6 +996,7 @@ export default function ChatLayout() {
     const nav = useNavigate()
     const location = useLocation()
     const { user, logout, token } = useAuthStore()
+    const isTodayView = !chatId
     // Reja (todo) CHATGA bog'lab saqlanadi — yangi chatda eski chat rejasi ko'rinmasin.
     // 'new' — hali chat tanlanmagan (/suhbat) holat uchun vaqtinchalik bo'lim.
     const todoStorageKey = `${TODO_STORAGE_PREFIX}_${user?.id || 'guest'}_${chatId || 'new'}`
@@ -2988,11 +2989,19 @@ Iltimos, har bir savolni tahlil qilib ber:
                         <button onClick={() => setSideOpen(false)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-muted)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}><X className="h-4 w-4" /></button>
                     </div>
 
-                    {/* Sidebar nav — Claude uslubi */}
-                    <div className="px-2 pt-1 pb-2 flex-shrink-0 space-y-0">
+                    {/* Asosiy o'qish navigatsiyasi */}
+                    <div className="px-2 pt-2 pb-2 flex-shrink-0 space-y-0.5">
+                        <button onClick={() => { setOverlayPanel(null); setSideOpen(!isMobile); nav('/bugun') }}
+                            className="sidebar-nav-button w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[14px] font-semibold tracking-[-0.01em] transition"
+                            style={isTodayView && !overlayPanel
+                                ? { background: 'var(--bg-card)', color: 'var(--text-primary)', borderColor: 'var(--border)' }
+                                : { color: 'var(--text-primary)' }}
+                        >
+                            <House className="h-4 w-4 flex-shrink-0" /> Bugun
+                        </button>
                         {/* Yangi suhbat */}
                         <button onClick={createChat} disabled={creating}
-                            className="sidebar-nav-button w-full flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-[14px] font-semibold tracking-[-0.01em] transition disabled:opacity-50"
+                            className="sidebar-nav-button w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[14px] font-semibold tracking-[-0.01em] transition disabled:opacity-50"
                             style={{ color: 'var(--text-primary)' }}
                             onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -3034,19 +3043,6 @@ Iltimos, har bir savolni tahlil qilib ber:
                         >
                             <Layers className="h-4 w-4 flex-shrink-0" /> Kartochkalar
                             {dueFlashcards.length > 0 && <span className="ml-auto px-1.5 rounded-full text-white text-[10px] flex items-center font-bold" style={{ background: 'var(--brand)', height: '18px' }}>{dueFlashcards.length > 9 ? '9+' : dueFlashcards.length}</span>}
-                        </button>
-                        {/* Pro — narxlar/imkoniyatlar ko'rinishi (bloklamaydi, faqat ko'rsatadi) */}
-                        <button onClick={() => setOverlayPanel(overlayPanel === 'pro' ? null : 'pro')}
-                            className="sidebar-nav-button w-full flex items-center gap-2 px-3 py-1.5 rounded-xl text-[14px] font-semibold tracking-[-0.01em] transition"
-                            style={overlayPanel === 'pro'
-                                ? { background: 'color-mix(in srgb, var(--bg-muted) 88%, white 12%)', color: 'var(--text-primary)', borderColor: 'color-mix(in srgb, var(--border) 70%, rgba(15,23,42,0.12) 30%)' }
-                                : { color: 'var(--text-primary)' }}
-                            onMouseEnter={e => { if (overlayPanel !== 'pro') e.currentTarget.style.background = 'var(--bg-muted)' }}
-                            onMouseLeave={e => { if (overlayPanel !== 'pro') e.currentTarget.style.background = 'transparent' }}
-                        >
-                            <Sparkles className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--brand)' }} />
-                            Pro
-                            <span className="ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>BEPUL</span>
                         </button>
                     </div>
 
@@ -3437,29 +3433,35 @@ Iltimos, har bir savolni tahlil qilib ber:
                             <div className="flex-1 min-w-0">
                                 <p className="text-[13px] font-medium truncate">{user?.name}</p>
                             </div>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={() => setOverlayPanel('pro')}
+                                    className="h-9 w-9 flex items-center justify-center rounded-lg transition"
+                                    style={{ color: overlayPanel === 'pro' ? 'var(--brand)' : 'var(--text-muted)' }}
+                                    title="Pro imkoniyatlari" aria-label="Pro imkoniyatlari"
+                                >
+                                    <Sparkles className="h-4 w-4" />
+                                </button>
                                 <button
                                     onClick={() => { void loadNotifications(); setShowNotifications(true) }}
-                                    className="min-w-[70px] h-10 px-2.5 flex flex-col items-center justify-center rounded-xl transition relative"
+                                    className="h-9 w-9 flex items-center justify-center rounded-lg transition relative"
                                     style={{ color: 'var(--text-muted)' }}
                                     onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
                                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                                     title="Bildirishnomalar"
                                 >
-                                    <Bell className="h-3.5 w-3.5" />
-                                    <span className="text-[10px] mt-0.5">Bildirish</span>
+                                    <Bell className="h-4 w-4" />
                                     {notifCount > 0 && <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full text-white text-[8px] flex items-center justify-center font-bold" style={{ background: 'var(--danger)' }}>{notifCount > 9 ? '9+' : notifCount}</span>}
                                 </button>
                                 <button
                                     onClick={() => { setEditingExamInfo(false); setShowSettings(true) }}
-                                    className="min-w-[58px] h-10 px-2.5 flex flex-col items-center justify-center rounded-xl transition"
+                                    className="h-9 w-9 flex items-center justify-center rounded-lg transition"
                                     style={{ color: 'var(--text-muted)' }}
                                     onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
                                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                                     title="Sozlamalar"
                                 >
-                                    <Settings className="h-3.5 w-3.5" />
-                                    <span className="text-[10px] mt-0.5">Profil</span>
+                                    <Settings className="h-4 w-4" />
                                 </button>
                             </div>
                         </div>
@@ -3474,7 +3476,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                         <button onClick={() => setSideOpen(v => !v)} className="h-8 w-8 flex items-center justify-center rounded-lg transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} title="Yonpanel"><Menu className="h-4 w-4" /></button>
                         <div className="min-w-0 flex-1">
                             <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
-                                {currentChat?.title ? cleanChatTitle(currentChat.title) : 'DTMMax o‘quv yordamchisi'}
+                                {isTodayView ? 'Bugun' : currentChat?.title ? cleanChatTitle(currentChat.title) : 'Yangi suhbat'}
                             </p>
                             {([profile?.subject, profile?.subject2].filter(Boolean).join(' + ')) && (
                                 <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>
@@ -3500,34 +3502,34 @@ Iltimos, har bir savolni tahlil qilib ber:
                             setShowScrollDown(prev => prev === far ? prev : far)
                         }}>
                         {(!chatId || (messages.length === 0 && !loading && !streaming)) ? (
-                            <div className="min-h-full flex flex-col items-center justify-center relative px-4 py-6 sm:p-5 sm:py-8" style={{ background: 'var(--bg-page)' }}>
-                                <div className="k-tex-dots absolute inset-0" style={{ zIndex: 0 }} />
+                            <div className="min-h-full flex flex-col items-center relative px-4 py-8 sm:px-8 sm:py-12" style={{ background: 'var(--bg-page)' }}>
                                 {(loading || streaming) ? (
                                     <div className="text-center px-4 anim-up relative" style={{ zIndex: 1 }}>
                                         <img src="/dtmmax-logo.png" alt="DtmMax" className="h-14 w-14 rounded-xl mx-auto mb-3" style={{ objectFit: 'contain' }} />
                                         <p className="text-base font-bold tracking-tight">AI <span className="k-italic">tayyorlayapti</span>...</p>
                                     </div>
                                 ) : (
-                                    <div className="w-full max-w-xl anim-up relative" style={{ zIndex: 1 }}>
+                                    <div className="today-shell w-full max-w-2xl anim-up relative" style={{ zIndex: 1 }}>
                                         {/* ===== "BUGUN" bosh ekrani — o'quvchi kirganda chat emas, shu dashboard ===== */}
-                                        <div className="text-center">
-                                            <img src="/dtmmax-logo.png" alt="DtmMax" className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl mx-auto mb-2 sm:mb-2.5" style={{ objectFit: 'contain' }} />
-                                            <p className="text-lg sm:text-xl font-bold" style={{ fontFamily: 'var(--k-serif)', fontWeight: 500 }}>{timeGreeting()}{user?.name ? `, ${user.name}` : ''}!</p>
-                                            <div className="flex items-center justify-center gap-2 mt-2 flex-wrap">
+                                        <div className="today-intro">
+                                            <p className="today-date">{new Intl.DateTimeFormat('uz-UZ', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())}</p>
+                                            <h1>{timeGreeting()}{user?.name ? `, ${user.name}` : ''}.</h1>
+                                            <p className="today-lede">Bugun katta reja shart emas. Eng foydali bitta qadamni tugatamiz.</p>
+                                            <div className="flex items-center gap-2 mt-5 flex-wrap">
                                                 <button type="button" onClick={() => setOverlayPanel('progress')}
-                                                    className="flex items-center gap-1.5 h-9 px-3.5 rounded-full text-[11px] font-bold transition"
-                                                    style={{ background: 'color-mix(in srgb, #ea580c 10%, transparent)', color: '#ea580c', border: '1px solid color-mix(in srgb, #ea580c 25%, transparent)' }}>
+                                                    className="flex items-center gap-1.5 h-8 px-3 rounded-full text-[12px] font-semibold transition"
+                                                    style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
                                                     <Flame className={`h-3 w-3 ${(progressData?.currentStreak ?? 0) > 0 ? 'k-flame-live' : ''}`} />
                                                     {(progressData?.currentStreak ?? 0) > 0 ? `${progressData?.currentStreak} kun ketma-ket` : 'Bugun 1-kunni boshla'}
                                                 </button>
                                                 {(progressData?.xp ?? 0) > 0 && (
-                                                    <span className="h-9 px-3.5 rounded-full text-[11px] font-bold flex items-center" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>{progressData?.xp} XP</span>
+                                                    <span className="h-8 px-3 rounded-full text-[12px] font-semibold flex items-center" style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>{progressData?.xp} XP</span>
                                                 )}
                                             </div>
                                             {/* Yo'qotish qo'rquvi — seriyani saqlash eng kuchli qaytish sababi.
                                                 Mobilda yashiriladi (vertikal joyni tejash) — chip'ning o'zi seriyani ko'rsatadi */}
                                             {(progressData?.currentStreak ?? 0) > 0 && !isMobile && (
-                                                <p className="text-[11px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
+                                                <p className="text-[12px] mt-3" style={{ color: 'var(--text-muted)' }}>
                                                     Bugun 1 ta mashq yetadi — {progressData?.currentStreak} kunlik seriyang saqlanadi
                                                 </p>
                                             )}
@@ -3564,26 +3566,22 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             }
 
                                             return (
-                                                <button type="button" onClick={onClick}
-                                                    className="w-full text-left rounded-2xl p-4 sm:p-5 mt-5 transition hover:opacity-95"
-                                                    style={{ background: 'var(--k-accent-grad, var(--brand))', color: '#fff', boxShadow: 'var(--k-shadow-cta, none)' }}>
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.18)' }}>
-                                                            <Target className="h-5 w-5" />
-                                                        </div>
-                                                        <div className="min-w-0">
-                                                            <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ opacity: 0.75 }}>Keyingi qadam</p>
-                                                            <p className="text-[15px] font-bold leading-snug mt-0.5">{title}</p>
-                                                            <p className="text-[11.5px] mt-0.5" style={{ opacity: 0.85 }}>{description}</p>
-                                                        </div>
+                                                <div className="today-focus">
+                                                    <div className="min-w-0">
+                                                        <p className="today-focus-label">Bugungi fokus</p>
+                                                        <h2>{title}</h2>
+                                                        <p>{description}</p>
                                                     </div>
-                                                </button>
+                                                    <button type="button" onClick={onClick} className="today-focus-action">
+                                                        Boshlash <ArrowRight className="h-4 w-4" />
+                                                    </button>
+                                                </div>
                                             )
                                         })()}
 
                                         <button type="button" onClick={() => setShowTodayDetails(value => !value)}
-                                            className="mx-auto mt-3 px-3 py-1.5 text-[11px] font-medium rounded-lg transition"
-                                            style={{ display: 'block', color: 'var(--text-muted)' }}>
+                                            className="mt-4 px-0 py-2 text-[12px] font-semibold transition"
+                                            style={{ display: 'block', color: 'var(--text-secondary)' }}>
                                             {showTodayDetails ? 'Kamroq ko‘rsatish' : 'Bugungi reja va natijalarni ko‘rish'}
                                         </button>
 
@@ -3718,7 +3716,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                 )}
                             </div>
                         ) : (
-                            <div className="max-w-3xl mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-3 sm:space-y-6">
+                            <div className="chat-thread max-w-[820px] mx-auto px-4 sm:px-7 py-6 sm:py-10 space-y-5 sm:space-y-8">
                                 {messages.map((m, i) => {
                                     // Sana ajratgichi — kun almashganda "Bugun/Kecha/5-iyul" chizig'i
                                     const msgDay = m.createdAt ? new Date(m.createdAt).toDateString() : ''
@@ -5019,7 +5017,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                     <nav className="fixed bottom-0 left-0 right-0 flex items-stretch"
                         style={{ zIndex: 60, background: 'var(--bg-card)', borderTop: '1px solid var(--border)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
                         {([
-                            { key: 'chat', label: 'Suhbat', Icon: MessageSquare, active: !overlayPanel && !sideOpen, tap: () => { setOverlayPanel(null); setSideOpen(false) } },
+                            { key: 'today', label: 'Bugun', Icon: House, active: isTodayView && !overlayPanel && !sideOpen, tap: () => { setOverlayPanel(null); setSideOpen(false); nav('/bugun') } },
                             { key: 'tests', label: 'Testlar', Icon: ClipboardList, active: overlayPanel === 'tests', badge: newTestIds.size, tap: () => { setSideOpen(false); setOverlayPanel('tests'); markTestsSeen(); void loadPublicTests(); void loadMyResults() } },
                             { key: 'progress', label: 'Natijalar', Icon: TrendingUp, active: overlayPanel === 'progress', tap: () => { setSideOpen(false); setOverlayPanel('progress') } },
                             { key: 'menu', label: 'Menyu', Icon: Menu, active: sideOpen, tap: () => { setOverlayPanel(null); setSideOpen(true) } },

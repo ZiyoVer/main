@@ -1221,6 +1221,13 @@ export default function AdminPanel() {
         { k: 'knowledge' as const, l: 'Bilim Bazasi', icon: BookOpen },
     ]
     type TabKey = (typeof tabs)[number]['k']
+    const tabGroups: Array<{ label: string; keys: TabKey[] }> = [
+        { label: 'Umumiy', keys: ['stats', 'presence', 'activity'] },
+        { label: 'Odamlar', keys: ['users', 'teachers'] },
+        { label: 'Kontent', keys: ['tests', 'docs', 'moderation'] },
+        { label: 'AI va bilim', keys: ['ai', 'knowledge'] },
+        { label: 'Operatsiyalar', keys: ['broadcast', 'audit'] },
+    ]
 
     // Tablist klaviatura navigatsiyasi: ←/→ qo'shni tab, Home/End — chekka tablar.
     // Fokus ko'chgan tabni darhol faollashtiramiz (roving tabindex naqshi).
@@ -1305,37 +1312,47 @@ export default function AdminPanel() {
                 </div>
             </header>
 
-            <div className="max-w-6xl mx-auto px-5 py-5">
-                {/* Tabs */}
-                <div role="tablist" aria-label="Admin paneli bo'limlari"
-                    className="flex gap-0.5 mb-5 rounded-xl p-1 w-fit overflow-x-auto" style={{ background: 'var(--bg-surface)' }}
-                    onKeyDown={onTabKeyDown}>
-                    {tabs.map(t => {
-                        const selected = tab === t.k
-                        return (
-                            <button key={t.k} onClick={() => setTab(t.k)}
-                                role="tab"
-                                id={`admin-tab-${t.k}`}
-                                aria-selected={selected}
-                                aria-controls={`admin-tabpanel-${t.k}`}
-                                tabIndex={selected ? 0 : -1}
-                                ref={el => { tabRefs.current[t.k] = el }}
-                                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[13px] font-medium transition whitespace-nowrap"
-                                style={selected ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { color: 'var(--text-secondary)' }}>
-                                <t.icon className="h-3.5 w-3.5" /> {t.l}
-                                {t.k === 'moderation' && pendingCount > 0 && (
-                                    <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold leading-none text-white"
-                                        style={{ background: 'var(--brand)' }}>
-                                        {pendingCount > 99 ? '99+' : pendingCount}
-                                    </span>
-                                )}
-                            </button>
-                        )
-                    })}
-                </div>
+            <div className="max-w-7xl mx-auto px-5 py-6">
+                <div className="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] gap-5 lg:gap-8">
+                    <aside role="tablist" aria-label="Admin paneli bo'limlari"
+                        className="flex lg:block gap-2 overflow-x-auto lg:overflow-visible lg:sticky lg:top-20 lg:self-start"
+                        onKeyDown={onTabKeyDown}>
+                        {tabGroups.map(group => (
+                            <div key={group.label} className="min-w-fit lg:min-w-0 lg:mb-5">
+                                <p className="hidden lg:block px-3 mb-1.5 text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>{group.label}</p>
+                                <div className="flex lg:flex-col gap-1">
+                                    {group.keys.map(key => tabs.find(item => item.k === key)).filter((item): item is (typeof tabs)[number] => Boolean(item)).map(t => {
+                                        const selected = tab === t.k
+                                        return (
+                                            <button key={t.k} onClick={() => setTab(t.k)}
+                                                role="tab"
+                                                id={`admin-tab-${t.k}`}
+                                                aria-selected={selected}
+                                                aria-controls={`admin-tabpanel-${t.k}`}
+                                                tabIndex={selected ? 0 : -1}
+                                                ref={el => { tabRefs.current[t.k] = el }}
+                                                className="w-auto lg:w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-[13px] font-medium transition whitespace-nowrap text-left"
+                                                style={selected
+                                                    ? { background: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border)' }
+                                                    : { color: 'var(--text-secondary)', border: '1px solid transparent' }}>
+                                                <t.icon className="h-4 w-4" /> {t.l}
+                                                {t.k === 'moderation' && pendingCount > 0 && (
+                                                    <span className="ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold leading-none text-white"
+                                                        style={{ background: 'var(--brand)' }}>
+                                                        {pendingCount > 99 ? '99+' : pendingCount}
+                                                    </span>
+                                                )}
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        ))}
+                    </aside>
 
-                {/* Tab paneli — faqat faol bo'lim render qilinadi, ARIA bilan bog'langan */}
-                <div role="tabpanel" id={`admin-tabpanel-${tab}`} aria-labelledby={`admin-tab-${tab}`} tabIndex={0} className="focus:outline-none">
+                    <main className="min-w-0">
+                        {/* Tab paneli — faqat faol bo'lim render qilinadi, ARIA bilan bog'langan */}
+                        <div role="tabpanel" id={`admin-tabpanel-${tab}`} aria-labelledby={`admin-tab-${tab}`} tabIndex={0} className="focus:outline-none">
 
                 {/* === STATS === */}
                 {tab === 'stats' && loading && (
@@ -3038,6 +3055,8 @@ export default function AdminPanel() {
                         </div>
                     )
                 })()}
+                        </div>
+                    </main>
                 </div>
             </div>
 

@@ -46,7 +46,7 @@ export default function VerifyEmailNotice() {
     // Allaqachon tasdiqlangan bo'lsa — bu ekranni ko'rsatmaymiz
     useEffect(() => {
         if (user?.emailVerified === true) {
-            nav('/suhbat', { replace: true })
+            nav('/bugun', { replace: true })
         }
     }, [user?.emailVerified, nav])
 
@@ -91,7 +91,7 @@ export default function VerifyEmailNotice() {
             login(token, { ...user, emailVerified: true })
         }
         successOkTimer.current = setTimeout(() => {
-            nav('/suhbat', { replace: true })
+            nav('/bugun', { replace: true })
         }, 1200)
     }, [token, user, login, nav])
 

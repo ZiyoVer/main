@@ -28,7 +28,7 @@ export default function Login() {
                 nav('/suhbat?analyzeTest=1', { replace: true })
             } else if (user.role === 'ADMIN') nav('/boshqaruv', { replace: true })
             else if (user.role === 'TEACHER') nav('/oqituvchi', { replace: true })
-            else nav('/suhbat', { replace: true })
+            else nav('/bugun', { replace: true })
         }
     }, [token, user])
 

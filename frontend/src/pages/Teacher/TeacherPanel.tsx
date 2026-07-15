@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Copy, Check, Globe, Lock, ClipboardList, Upload, Sparkles, FileText, Image, BarChart2, X, Users, Bell, AlertTriangle } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Copy, Check, Globe, Lock, ClipboardList, Upload, Sparkles, FileText, Image, BarChart2, X, Users, Bell, AlertTriangle, MoreHorizontal } from 'lucide-react'
 import { fetchApi, uploadFile } from '@/lib/api'
 import { saveScopedItem } from '@/lib/storagePrune'
 import { renderMathHtml } from '@/lib/mathRender'
@@ -334,6 +334,7 @@ export default function TeacherPanel() {
     const nav = useNavigate()
     const { logout, user } = useAuthStore()
     const [tab, setTab] = useState<'create' | 'list'>('list')
+    const [builderStep, setBuilderStep] = useState(1)
     const [tests, setTests] = useState<TeacherTestListItem[]>([])
 
     const [title, setTitle] = useState('')
@@ -499,6 +500,7 @@ export default function TeacherPanel() {
             setQuestions(draft.questions.length > 0
                 ? draft.questions.map(q => ({ ...q, uid: q.uid || nextQuestionUid() }))
                 : [createEmptyQuestion()])
+            setBuilderStep(1)
             setTab('create')
             setMsg('')
             setDraftMeta(null)
@@ -759,6 +761,7 @@ export default function TeacherPanel() {
                     solutionImagePreviewUrl: question.solutionImagePreviewUrl ?? null
                 }))
                 : [createEmptyQuestion()])
+            setBuilderStep(1)
             setTab('create')
             setMsg('')
             setAiFile(null)
@@ -1523,6 +1526,7 @@ export default function TeacherPanel() {
                             setTimeLimit(0)
                             setTimeLimitTouched(false)
                             setQuestions([createEmptyQuestion()])
+                            setBuilderStep(1)
                             setTab('create')
                             setMsg('')
                         }}
@@ -1610,32 +1614,28 @@ export default function TeacherPanel() {
                                     >
                                         {t._count?.attempts ? 'Nusxa' : 'Tahrirlash'}
                                     </button>
-                                    <button
-                                        onClick={() => toggleVisibility(t.id, t.isPublic)}
-                                        className="h-7 px-2.5 flex items-center gap-1 rounded-lg text-[11px] font-medium transition flex-shrink-0"
-                                        style={t.isPublic
-                                            ? { color: 'var(--success)', background: 'var(--success-light)' }
-                                            : { color: 'var(--text-muted)', background: 'var(--bg-surface)' }
-                                        }
-                                        title={t.isPublic ? 'Private qilish' : 'Public qilish'}
-                                    >
-                                        {t.isPublic ? <Globe className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
-                                        {t.isPublic ? 'Public' : 'Private'}
-                                    </button>
-                                    <button onClick={() => openAnalytics(t.id)} className="h-7 px-2.5 flex items-center gap-1 rounded-lg text-[11px] font-medium transition flex-shrink-0"
-                                        style={{ color: 'var(--info)', background: 'var(--info-light)' }}>
-                                        <BarChart2 className="h-3 w-3" /> Statistika
-                                    </button>
-                                    <button onClick={() => copyLink(t.shareLink, t.isPublic && t.approved === false)} className="h-7 px-2.5 flex items-center gap-1 rounded-lg text-[11px] font-medium transition flex-shrink-0"
-                                        style={{ color: 'var(--text-secondary)', background: 'var(--bg-surface)' }}>
-                                        {copied === t.shareLink ? <><Check className="h-3 w-3" style={{ color: 'var(--success)' }} /> Nusxalandi</> : <><Copy className="h-3 w-3" /> Link</>}
-                                    </button>
-                                    <button onClick={() => deleteTest(t.id)} className="h-7 w-7 flex items-center justify-center rounded-lg transition flex-shrink-0"
-                                        style={{ color: 'var(--border-strong)' }}
-                                        onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.background = 'var(--danger-light)' }}
-                                        onMouseLeave={e => { e.currentTarget.style.color = 'var(--border-strong)'; e.currentTarget.style.background = 'transparent' }}>
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                    </button>
+                                    <details className="relative flex-shrink-0">
+                                        <summary className="list-none h-7 w-8 flex items-center justify-center rounded-lg cursor-pointer transition"
+                                            style={{ color: 'var(--text-secondary)', background: 'var(--bg-surface)' }} aria-label="Test amallari">
+                                            <MoreHorizontal className="h-4 w-4" />
+                                        </summary>
+                                        <div className="absolute right-0 top-9 z-20 w-44 rounded-xl p-1.5 space-y-0.5"
+                                            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: '0 8px 16px rgba(33,28,22,0.12)' }}>
+                                            <button onClick={() => toggleVisibility(t.id, t.isPublic)} type="button" className="w-full px-2.5 py-2 flex items-center gap-2 rounded-lg text-[12px] text-left hover:bg-slate-100 dark:hover:bg-slate-800">
+                                                {t.isPublic ? <Globe className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}{t.isPublic ? 'Private qilish' : 'Public qilish'}
+                                            </button>
+                                            <button onClick={() => openAnalytics(t.id)} type="button" className="w-full px-2.5 py-2 flex items-center gap-2 rounded-lg text-[12px] text-left hover:bg-slate-100 dark:hover:bg-slate-800">
+                                                <BarChart2 className="h-3.5 w-3.5" /> Statistika
+                                            </button>
+                                            <button onClick={() => copyLink(t.shareLink, t.isPublic && t.approved === false)} type="button" className="w-full px-2.5 py-2 flex items-center gap-2 rounded-lg text-[12px] text-left hover:bg-slate-100 dark:hover:bg-slate-800">
+                                                {copied === t.shareLink ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}{copied === t.shareLink ? 'Nusxalandi' : 'Linkni nusxalash'}
+                                            </button>
+                                            <button onClick={() => deleteTest(t.id)} type="button" className="w-full px-2.5 py-2 flex items-center gap-2 rounded-lg text-[12px] text-left"
+                                                style={{ color: 'var(--danger)' }}>
+                                                <Trash2 className="h-3.5 w-3.5" /> O'chirish
+                                            </button>
+                                        </div>
+                                    </details>
                                 </div>
                             ))}
                         </div>
@@ -1643,7 +1643,7 @@ export default function TeacherPanel() {
 
                     {/* Create Test */}
                     {tab === 'create' && (
-                        <form onSubmit={submit} className="space-y-3 anim-up max-w-2xl">
+                        <form onSubmit={submit} className="space-y-4 anim-up max-w-3xl">
                             {msg === 'success' && (
                                 <div className="text-[13px] px-3 py-2 rounded-lg" style={{ background: 'var(--success-light)', color: 'var(--success)' }}>
                                     Test muvaffaqiyatli saqlandi
@@ -1653,9 +1653,31 @@ export default function TeacherPanel() {
                                 <div className="text-[13px] px-3 py-2 rounded-lg" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>{msg}</div>
                             )}
 
+                            <nav aria-label="Test yaratish bosqichlari" className="sticky top-[57px] z-30 rounded-xl p-1 flex gap-1 overflow-x-auto"
+                                style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                                {[
+                                    { step: 1, label: 'Format', target: 'teacher-step-format' },
+                                    { step: 2, label: 'Ma’lumot', target: 'teacher-step-details' },
+                                    { step: 3, label: 'Savollar', target: 'teacher-step-questions' },
+                                    { step: 4, label: 'Tekshirish', target: 'teacher-step-publish' },
+                                ].map(item => (
+                                    <button key={item.step} type="button" onClick={() => {
+                                        setBuilderStep(item.step)
+                                        document.getElementById(item.target)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                                    }} className="min-w-fit flex-1 h-9 px-3 rounded-lg text-[12px] font-semibold transition flex items-center justify-center gap-2"
+                                        style={builderStep === item.step ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { color: 'var(--text-muted)' }}>
+                                        <span className="h-5 w-5 rounded-full flex items-center justify-center text-[10px]"
+                                            style={builderStep >= item.step ? { background: 'var(--brand)', color: '#fff' } : { background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
+                                            {builderStep > item.step ? '✓' : item.step}
+                                        </span>
+                                        {item.label}
+                                    </button>
+                                ))}
+                            </nav>
+
                             {/* DTM nazorat — yopishqoq panel: 90 savol orasida ham holat va Saqlash doim ko'z oldida */}
                             {testType === 'DTM_BLOCK' && (
-                                <div className="rounded-xl px-3 py-2 space-y-1" style={{ position: 'sticky', top: 58, zIndex: 30, background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: '0 4px 12px rgba(0,0,0,0.07)' }}>
+                                <div className="rounded-xl px-3 py-2 space-y-1" style={{ position: 'sticky', top: 106, zIndex: 29, background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: '0 4px 12px rgba(0,0,0,0.07)' }}>
                                     <div className="flex items-center gap-2 flex-wrap">
                                         <span className="text-[12px] font-bold flex-shrink-0" style={{ color: dtmControlStats.officialReady ? 'var(--success)' : 'var(--brand)' }}>
                                             {dtmControlStats.total}/{DTM_OFFICIAL_QUESTION_TOTAL}
@@ -1738,7 +1760,7 @@ export default function TeacherPanel() {
                             )}
 
                             {/* Test turi — birinchi va eng muhim */}
-                            <div className="rounded-xl p-4" style={cardStyle}>
+                            <div id="teacher-step-format" className="rounded-xl p-5" style={{ ...cardStyle, scrollMarginTop: 118 }}>
                                 <p className="text-[11px] font-semibold mb-2.5 uppercase tracking-wide" style={mutedText}>Test turi</p>
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                     {TEST_TYPES.map(type => (
@@ -1756,7 +1778,7 @@ export default function TeacherPanel() {
                             </div>
 
                             {/* Umumiy ma'lumot */}
-                            <div className="rounded-xl p-4 space-y-2.5" style={cardStyle}>
+                            <div id="teacher-step-details" className="rounded-xl p-5 space-y-3" style={{ ...cardStyle, scrollMarginTop: 118 }}>
                                 <h3 className="text-[13px] font-semibold" style={secondaryText}>Umumiy ma'lumot</h3>
                                 <input placeholder="Test nomi" required value={title} onChange={e => setTitle(e.target.value)}
                                     className="input" />
@@ -1907,7 +1929,7 @@ export default function TeacherPanel() {
                             )}
 
                             {/* Savollar */}
-                            <div className="flex items-center justify-between">
+                            <div id="teacher-step-questions" className="flex items-center justify-between pt-3" style={{ scrollMarginTop: 118 }}>
                                 <p className="text-[12px] font-semibold" style={secondaryText}>{questions.length} ta savol</p>
                                 {aiDone && <span className="text-[11px] px-2 py-0.5 rounded" style={{ color: 'var(--info)', background: 'color-mix(in srgb, var(--info) 10%, transparent)' }}>✨ AI yaratgan</span>}
                             </div>
@@ -2339,10 +2361,19 @@ export default function TeacherPanel() {
                                     <Plus className="h-3.5 w-3.5" /> Savol qo'shish
                                 </button>
                             )}
-                            <button type="submit" disabled={loading}
-                                className="btn btn-primary" style={{ width: '100%', height: '2.5rem' }}>
-                                {loading ? 'Saqlanmoqda...' : editingTestId ? `Testni Yangilash (${questions.length} savol)` : `Testni Saqlash (${questions.length} savol)`}
-                            </button>
+                            <div id="teacher-step-publish" className="rounded-xl p-5" style={{ ...cardStyle, scrollMarginTop: 118 }}>
+                                <p className="text-[13px] font-semibold">Tekshirish va saqlash</p>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 mb-4">
+                                    <div><p className="text-[10px]" style={mutedText}>Format</p><p className="text-[12px] font-semibold mt-1">{getTestTypeLabel(testType)}</p></div>
+                                    <div><p className="text-[10px]" style={mutedText}>Fan</p><p className="text-[12px] font-semibold mt-1">{subject}{subject2 ? ` + ${subject2}` : ''}</p></div>
+                                    <div><p className="text-[10px]" style={mutedText}>Savollar</p><p className="text-[12px] font-semibold mt-1">{questions.length} ta</p></div>
+                                    <div><p className="text-[10px]" style={mutedText}>Ko'rinishi</p><p className="text-[12px] font-semibold mt-1">{isPublic ? 'Public' : 'Private'}</p></div>
+                                </div>
+                                <button type="submit" disabled={loading}
+                                    className="btn btn-primary" style={{ width: '100%', height: '2.75rem' }}>
+                                    {loading ? 'Saqlanmoqda...' : editingTestId ? `Testni Yangilash (${questions.length} savol)` : `Testni Saqlash (${questions.length} savol)`}
+                                </button>
+                            </div>
                         </form>
                     )}
                 </div>

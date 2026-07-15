@@ -161,7 +161,7 @@ function LogoMark({ size = 52, radius = 13 }: { size?: number; radius?: number; 
   return (
     <img
       src="/dtmmax-logo.png"
-      alt="DtmMax"
+      alt="DTMMax"
       width={size}
       height={size}
       style={{ width: size, height: size, borderRadius: radius, objectFit: 'contain', display: 'block', flexShrink: 0 }}
@@ -170,7 +170,7 @@ function LogoMark({ size = 52, radius = 13 }: { size?: number; radius?: number; 
 }
 
 function Wordmark({ size = 19 }: { size?: number }) {
-  return <span style={{ fontSize: size, fontWeight: 700, letterSpacing: '-0.02em', color: C.ink }}>DtmMax</span>
+  return <span style={{ fontSize: size, fontWeight: 700, letterSpacing: '-0.02em', color: C.ink }}>DTMMax</span>
 }
 
 /* ===================================================================== */
@@ -262,91 +262,9 @@ function Reveal({ children, delay = 0, style }: { children: ReactNode; delay?: n
 /* NAV                                                                     */
 /* ===================================================================== */
 
-const SUBJECTS = ['Matematika', 'Fizika', 'Kimyo', 'Biologiya', 'Ona tili', 'Ingliz tili', 'Tarix', 'Geografiya'] as const
-
-/* Dependency-free "Fanlar" dropdown — reproduces the mockup's Radix dropdown
-   look (white card, hairline border, accent shadow) without adding a package. */
-function SubjectsDropdown() {
-  const [open, setOpen] = useState(false)
-  const wrapRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const onDown = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
-    }
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open])
-
-  return (
-    <div ref={wrapRef} style={{ position: 'relative' }}>
-      <button
-        type="button"
-        className="lp-btn lp-link"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-        style={{ background: 'transparent', border: 'none', color: C.gray, fontSize: 15, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 6, padding: 0 }}
-      >
-        Fanlar
-        <span aria-hidden="true" style={{ fontSize: 10 }}>▾</span>
-      </button>
-      {open && (
-        <div
-          role="menu"
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + 14px)',
-            left: 0,
-            background: '#FFFFFF',
-            borderRadius: 14,
-            border: `1px solid ${C.line}`,
-            boxShadow: '0 18px 40px -14px rgba(192,65,15,.16), 0 4px 10px -4px rgba(33,28,22,.07)',
-            padding: 12,
-            minWidth: 200,
-            zIndex: 60,
-          }}
-        >
-          {SUBJECTS.map((s) => (
-            <a
-              key={s}
-              role="menuitem"
-              href="#imkoniyatlar"
-              className="lp-link"
-              onClick={() => setOpen(false)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '9px 10px',
-                borderRadius: 8,
-                fontSize: 15,
-                fontWeight: 500,
-                color: C.gray,
-                textDecoration: 'none',
-                outline: 'none',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = C.bg2; e.currentTarget.style.color = C.ink }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.gray }}
-            >
-              <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 2, background: C.accent, flexShrink: 0 }} />
-              {s}
-            </a>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 function Nav() {
   const [scrolled, setScrolled] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8)
     onScroll()
@@ -379,19 +297,34 @@ function Nav() {
         <div className="lp-nav-links" style={{ display: 'flex', alignItems: 'center', gap: 32, fontSize: 15, fontWeight: 500 }}>
           <a href="#imkoniyatlar" className="lp-link" style={{ color: C.gray, textDecoration: 'none' }}>Imkoniyatlar</a>
 
-          <SubjectsDropdown />
-
           <a href="#natijalar" className="lp-link" style={{ color: C.gray, textDecoration: 'none' }}>Natijalar</a>
           <a href="#narxlar" className="lp-link" style={{ color: C.gray, textDecoration: 'none' }}>Narxlar</a>
           <a href="#faq" className="lp-link" style={{ color: C.gray, textDecoration: 'none' }}>FAQ</a>
         </div>
 
         {/* Right — actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+        <div className="lp-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
           <Link to={ROUTE_LOGIN} className="lp-link" style={{ color: C.ink, fontSize: 15, fontWeight: 500, textDecoration: 'none' }}>Kirish</Link>
-          <Button to={ROUTE_REGISTER} variant="primary" size="sm">Boshlash</Button>
+          <span className="lp-nav-cta"><Button to={ROUTE_REGISTER} variant="primary" size="sm">Boshlash</Button></span>
+          <button type="button" className="lp-mobile-menu-button" aria-label={mobileOpen ? 'Menyuni yopish' : 'Menyuni ochish'} aria-expanded={mobileOpen}
+            onClick={() => setMobileOpen(open => !open)}>
+            <span /><span /><span />
+          </button>
         </div>
       </div>
+      {mobileOpen && (
+        <div className="lp-mobile-menu">
+          {[
+            ['Imkoniyatlar', '#imkoniyatlar'],
+            ['Natijalar', '#natijalar'],
+            ['Narxlar', '#narxlar'],
+            ['FAQ', '#faq'],
+          ].map(([label, href]) => (
+            <a key={href} href={href} onClick={() => setMobileOpen(false)}>{label}</a>
+          ))}
+          <Button to={ROUTE_REGISTER} variant="primary" size="md">Bepul boshlash</Button>
+        </div>
+      )}
     </nav>
   )
 }
@@ -578,45 +511,37 @@ function MathZone() {
   )
 }
 
-/* Faint chat-bubble wireframe placeholder inside the screenshot well */
+/* Mahsulotning haqiqiy oqimiga yaqin, statik product proof. */
 function ScreenshotWell() {
-  const bubble = (align: 'start' | 'end', w: number, lines: number): CSSProperties => ({
-    alignSelf: align === 'end' ? 'flex-end' : 'flex-start',
-    width: `${w}%`,
-    height: lines * 12 + (lines - 1) * 8,
-    background: align === 'end' ? '#fff' : C.soft,
-    border: `1px solid ${C.line}`,
-    borderRadius: 12,
-  })
   return (
-    <div
-      aria-hidden="true"
-      style={{
-        maxWidth: 900,
-        margin: '48px auto 0',
-        background: C.bg2,
-        borderTopLeftRadius: 16,
-        borderTopRightRadius: 16,
-        border: `1px solid ${C.line}`,
-        borderBottom: 'none',
-        height: 150,
-        overflow: 'hidden',
-        boxShadow: '0 -8px 30px rgba(10,10,16,.04)',
-        padding: '24px 32px 0',
-      }}
-    >
-      {/* window dots */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 18 }}>
-        {[C.line2, C.line2, C.line2].map((c, i) => (
-          <span key={i} style={{ width: 9, height: 9, borderRadius: '50%', background: c }} />
-        ))}
+    <div className="lp-product-proof" aria-label="DTMMax ichidagi Bugun va AI chat ekranining namunasi">
+      <div className="lp-proof-topbar">
+        <div className="lp-proof-brand"><LogoMark size={30} radius={8} /><strong>DTMMax</strong></div>
+        <span>Mahsulot ko‘rinishi</span>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div style={bubble('end', 38, 1)} />
-        <div style={bubble('start', 64, 2)} />
-        {/* faint formula chip */}
-        <div style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 18, color: C.tex }}>x² − 5x + 6 = 0</span>
+      <div className="lp-proof-layout">
+        <aside className="lp-proof-sidebar" aria-hidden="true">
+          <span className="is-active">Bugun</span>
+          <span>Yangi suhbat</span>
+          <span>Testlar</span>
+          <span>Natijalar</span>
+        </aside>
+        <div className="lp-proof-main">
+          <p className="lp-proof-date">Bugungi o‘qish</p>
+          <h3>Xayrli tong, Shahzoda.</h3>
+          <p className="lp-proof-lede">Eng foydali bitta qadamni tugatamiz.</p>
+          <div className="lp-proof-focus">
+            <div>
+              <span>Bugungi fokus</span>
+              <strong>Kvadrat tenglama bo‘yicha 10 ta mashq</strong>
+              <p>Oxirgi natijangizga mos qisqa mashg‘ulot</p>
+            </div>
+            <b>Boshlash →</b>
+          </div>
+          <div className="lp-proof-chat">
+            <span className="lp-proof-avatar">AI</span>
+            <p>Avval bitta sodda misol: <strong>x² − 5x + 6 = 0</strong>. Uni ikki ko‘paytuvchiga ajratib ko‘ramiz.</p>
+          </div>
         </div>
       </div>
     </div>
@@ -735,9 +660,9 @@ function Features() {
 
 type Stat = { value: number; suffix: string; label: string; literal?: string }
 const STATS: Stat[] = [
-  { value: 7000, suffix: '+', label: "o'quvchi tayyorlandi" },
-  { value: 189, suffix: '', label: 'maksimal ball' },
-  { value: 7, suffix: '+', label: 'fan' },
+  { value: 0, suffix: '', label: 'imtihon formati', literal: 'DTM + MS' },
+  { value: 8, suffix: '+', label: 'asosiy fan' },
+  { value: 3, suffix: '', label: 'o‘rganish usuli' },
   { value: 0, suffix: '', label: 'AI yordamchi', literal: '24/7' },
 ]
 
@@ -806,50 +731,43 @@ function Stats() {
 }
 
 /* ===================================================================== */
-/* TESTIMONIALS                                                            */
+/* STUDY FLOW                                                              */
 /* ===================================================================== */
 
-type Testimonial = { quote: string; name: string; initial: string; meta: string }
-const TESTIMONIALS: Testimonial[] = [
-  { quote: 'Har kuni 30 daqiqa ishladim, ball 40 punktga oshdi.', name: 'Diyora A.', initial: 'D', meta: 'DTM 2025 · 178 ball' },
-  { quote: 'Flashcardlar formula yodlashni osonlashtirdi.', name: 'Sardor M.', initial: 'S', meta: 'Milliy Sert. · B2' },
-  { quote: 'Xatolarimni AI tushuntirgani uchun qaytarmadim.', name: 'Nilufar T.', initial: 'N', meta: 'DTM 2025 · 181 ball' },
+type StudyStep = { number: string; title: string; body: string; result: string }
+const STUDY_FLOW: StudyStep[] = [
+  { number: '1', title: 'Darajangni aniqlaydi', body: 'Qisqa diagnostika qaysi mavzu kuchli, qaysi biri ustida ishlash kerakligini ko‘rsatadi.', result: 'Aniq boshlanish nuqtasi' },
+  { number: '2', title: 'Bugungi fokusni beradi', body: 'Uzun reja o‘rniga natijangga mos bitta test, mavzu yoki takrorlash vazifasi chiqadi.', result: 'Har kuni bitta tugallangan qadam' },
+  { number: '3', title: 'Xatoni mashqqa aylantiradi', body: 'AI noto‘g‘ri javobni tushuntiradi va shu mavzudan keyingi mashqni tayyorlaydi.', result: 'Xato qayta takrorlanmaydi' },
 ]
 
-function Testimonials() {
+function StudyFlow() {
   return (
     <section id="natijalar" style={{ ...container, padding: '96px 56px' }} className="lp-container">
       <Reveal>
-        <div style={{ maxWidth: 680, margin: '0 auto 56px', textAlign: 'center' }}>
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
-            <Eyebrow align="center">ULAR ORZUSIGA YETDI</Eyebrow>
+        <div style={{ maxWidth: 720, margin: '0 0 56px' }}>
+          <div style={{ marginBottom: 18 }}>
+            <Eyebrow>NATIJAGA OLIB BORADIGAN OQIM</Eyebrow>
           </div>
           <h2 className="lp-h2" style={{ fontFamily: SERIF, fontSize: 50, fontWeight: 500, letterSpacing: '-0.015em', lineHeight: 1.12, margin: 0, color: C.ink }}>
-            Sendan oldin <Em>boshlaganlar</Em>
+            Har safar <Em>nimadan boshlashni</Em> bilasan
           </h2>
-          <p style={{ fontSize: 20, lineHeight: 1.6, color: C.gray, maxWidth: '42ch', margin: '20px auto 0' }}>
-            Bir vaqtlar ular ham xuddi sendek boshlagan edi — o'z so'zlari bilan.
+          <p style={{ fontSize: 20, lineHeight: 1.6, color: C.gray, maxWidth: '46ch', margin: '20px 0 0' }}>
+            Platforma shunchaki javob bermaydi — bugungi vazifani tanlaydi, xatoni tushuntiradi va keyingi qadamga olib o‘tadi.
           </p>
         </div>
       </Reveal>
 
-      <div className="lp-grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
-        {TESTIMONIALS.map((t, i) => (
-          <Reveal key={t.name} delay={i * 60}>
-            <div className="lp-card" style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 18, padding: 28, boxShadow: SHADOW.card, height: '100%' }}>
-              <p style={{ fontSize: 16, lineHeight: 1.6, color: C.ink, margin: 0 }}>{t.quote}</p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 20 }}>
-                <div
-                  aria-hidden="true"
-                  style={{ width: 44, height: 44, borderRadius: '50%', background: C.soft, color: C.accentStrong, display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 16, flexShrink: 0 }}
-                >
-                  {t.initial}
-                </div>
-                <div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: C.ink }}>{t.name}</div>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: C.gray2, marginTop: 2 }}>{t.meta}</div>
-                </div>
+      <div className="lp-study-flow">
+        {STUDY_FLOW.map((step, i) => (
+          <Reveal key={step.number} delay={i * 60}>
+            <div className="lp-study-row">
+              <span className="lp-study-number">{step.number}</span>
+              <div>
+                <h3>{step.title}</h3>
+                <p>{step.body}</p>
               </div>
+              <strong>{step.result}</strong>
             </div>
           </Reveal>
         ))}
@@ -865,8 +783,8 @@ function Testimonials() {
 type Faq = { q: string; a: string }
 const FAQS: Faq[] = [
   {
-    q: 'DtmMax nima?',
-    a: "DtmMax — DTM va Milliy Sertifikat imtihonlariga tayyorlanish uchun sun'iy intellektli o'quv platformasi. U sizga mavzularni tushuntiradi, test tuzadi va natijangizni kuzatib boradi — xuddi shaxsiy repetitordek.",
+    q: 'DTMMax nima?',
+    a: "DTMMax — DTM va Milliy Sertifikat imtihonlariga tayyorlanish uchun sun'iy intellektli o'quv platformasi. U sizga mavzularni tushuntiradi, test tuzadi va natijangizni kuzatib boradi — xuddi shaxsiy repetitordek.",
   },
   {
     q: 'Platforma bepulmi?',
@@ -882,11 +800,11 @@ const FAQS: Faq[] = [
   },
   {
     q: "DTM va Milliy Sertifikat o'rtasida farq bormi?",
-    a: "Ha. DTM — oliygohga kirish imtihoni, Milliy Sertifikat esa alohida fan bo'yicha bilim darajangizni tasdiqlaydi. DtmMax ikkalasiga ham alohida tayyorlaydi va har biriga mos test uslubini qo'llaydi.",
+    a: "Ha. DTM — oliygohga kirish imtihoni, Milliy Sertifikat esa alohida fan bo'yicha bilim darajangizni tasdiqlaydi. DTMMax ikkalasiga ham alohida tayyorlaydi va har biriga mos test uslubini qo'llaydi.",
   },
   {
     q: 'Platforma imtihon savollarini bashorat qiladimi?',
-    a: "DtmMax kafolatlangan savollarni bermaydi. Lekin oldingi yillardagi imtihon tahlili asosida eng ko'p uchraydigan mavzular va savol turlariga urg'u berib, sizni aniq yo'nalishda tayyorlaydi.",
+    a: "DTMMax kafolatlangan savollarni bermaydi. Lekin oldingi yillardagi imtihon tahlili asosida eng ko'p uchraydigan mavzular va savol turlariga urg'u berib, sizni aniq yo'nalishda tayyorlaydi.",
   },
   {
     q: 'Testlar va tahlil qanday tuzilgan?',
@@ -910,7 +828,7 @@ function FaqSection() {
             Tez-tez so'raladigan <Em>savollar</Em>
           </h2>
           <p style={{ fontSize: 20, lineHeight: 1.6, color: C.gray, maxWidth: '42ch', margin: '20px auto 0' }}>
-            DtmMax haqida eng ko'p so'raladigan savollarga javoblar.
+            DTMMax haqida eng ko'p so'raladigan savollarga javoblar.
           </p>
         </div>
       </Reveal>
@@ -1237,7 +1155,7 @@ function Footer() {
           ))}
         </div>
         <div style={{ borderTop: `1px solid ${C.line}`, marginTop: 48, paddingTop: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
-          <span style={{ fontSize: 13, fontWeight: 500, color: C.gray2 }}>© 2026 DtmMax</span>
+          <span style={{ fontSize: 13, fontWeight: 500, color: C.gray2 }}>© 2026 DTMMax</span>
           {/* Ijtimoiy tarmoq ikonkalari real havolalar tayyor bo'lganda qaytariladi (o'lik '#' ishonchni yemiradi) */}
         </div>
       </div>
@@ -1265,7 +1183,7 @@ export default function Landing() {
       } catch { /* ignore */ }
       if (user.role === 'ADMIN') nav('/boshqaruv', { replace: true })
       else if (user.role === 'TEACHER') nav('/oqituvchi', { replace: true })
-      else nav('/suhbat', { replace: true })
+      else nav('/bugun', { replace: true })
     }
   }, [nav, token, user])
 
@@ -1285,7 +1203,7 @@ export default function Landing() {
         <Hero />
         <Features />
         <Stats />
-        <Testimonials />
+        <StudyFlow />
         <Pricing />
         <FaqSection />
         <CtaSection />

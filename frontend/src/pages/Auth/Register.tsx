@@ -27,7 +27,7 @@ export default function Register() {
             }
             const safeRedirect = getSafeRegisterRedirect(from)
             if (safeRedirect) nav(safeRedirect, { replace: true })
-            else nav('/suhbat', { replace: true })
+            else nav('/bugun', { replace: true })
         }
     }, [from, nav, token, user])
 
@@ -79,7 +79,7 @@ export default function Register() {
             } else if (hasGuestTestResult()) {
                 nav('/suhbat?analyzeTest=1', { replace: true })
             } else {
-                nav('/suhbat', { replace: true })
+                nav('/bugun', { replace: true })
             }
         } catch (e) {
             setErr(e instanceof Error ? e.message : 'Ro\'yxatdan o\'tishda xato. Qayta urinib ko\'ring.')

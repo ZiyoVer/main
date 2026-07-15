@@ -129,7 +129,7 @@ function ProtectedRoute({ children, roles }: { children: React.ReactNode, roles?
 function LandingRoute() {
     const { token, user } = useAuthStore()
     if (token && user) {
-        const to = user.role === 'ADMIN' ? '/boshqaruv' : user.role === 'TEACHER' ? '/oqituvchi' : '/suhbat'
+        const to = user.role === 'ADMIN' ? '/boshqaruv' : user.role === 'TEACHER' ? '/oqituvchi' : '/bugun'
         return <Navigate to={to} replace />
     }
     return <Landing />
@@ -160,6 +160,7 @@ function AppContent() {
                     <Route path="/auth/google/callback" element={<GoogleCallback />} />
                     {/* O'zbek tilidagi asosiy routelar */}
                     <Route path="/pro/natija" element={<ProtectedRoute><ProResult /></ProtectedRoute>} />
+                    <Route path="/bugun" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
                     <Route path="/suhbat" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
                     <Route path="/suhbat/:chatId" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
                     <Route path="/oqituvchi" element={<ProtectedRoute roles={['TEACHER', 'ADMIN']}><TeacherPanel /></ProtectedRoute>} />

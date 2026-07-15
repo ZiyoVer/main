@@ -18,7 +18,7 @@ O'zbekistonda **Milliy Sertifikat** imtihonlariga tayyorlanayotgan o'quvchilar u
 | RAG | Fayllar yuklash (PDF, Word, rasm) + vektorli qidiruv |
 | Auth | JWT (jsonwebtoken + bcryptjs) |
 | Deploy | Railway (monolith — Express static serve) |
-| Shrift | Inter (Google Fonts) |
+| Shrift | Hanken Grotesk (product UI), Fraunces (landing display) |
 
 ---
 
@@ -168,8 +168,8 @@ Barcha testlar Rasch modeli bo'yicha baholanadi:
 
 - **Minimalistik** — ortiqcha element yo'q
 - **Premium** — gradientlar, glassmorphism, micro-animatsiyalar
-- **Inter shrift** — Google Fonts
-- **Rang sxemasi** — ko'k-cyan gradient (asosiy), emerald (AI), qora mesh (hero)
+- **Hanken Grotesk** — product UI va body matnlari; **Fraunces** faqat landing display sarlavhalarida
+- **Rang sxemasi** — warm paper neytrallari, orange `#F15A24` asosiy aksent; yashil success va qizil danger holatlari semantik rang sifatida saqlanadi
 - **Responsive** — mobil va desktop uchun moslashgan
 
 ---
