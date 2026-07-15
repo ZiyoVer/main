@@ -4,6 +4,7 @@ import prisma from '../utils/db'
 import { authenticate, AuthRequest } from '../middleware/auth'
 import { consumeAiQuota, quotaExceededMessage } from '../utils/aiQuota'
 import OpenAI from 'openai'
+import { AI_MODELS, deepseekThinking } from '../utils/aiModels'
 
 const router = Router()
 router.use(authenticate)
@@ -20,10 +21,10 @@ const mockExamLimiter = rateLimit({
 
 const hasDeepseek = !!process.env.DEEPSEEK_API_KEY
 const aiClient = new OpenAI({
-    baseURL: hasDeepseek ? 'https://api.deepseek.com' : undefined,
-    apiKey: process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY || ''
+    baseURL: hasDeepseek ? 'https://api.deepseek.com' : 'https://generativelanguage.googleapis.com/v1beta/openai/',
+    apiKey: process.env.DEEPSEEK_API_KEY || process.env.GEMINI_API_KEY || ''
 })
-const aiModel = hasDeepseek ? 'deepseek-chat' : 'gpt-4.1-mini'
+const aiModel = hasDeepseek ? AI_MODELS.deepseekPro : AI_MODELS.geminiFlash
 
 function repairAiJson(raw: string): string {
     return raw
@@ -132,15 +133,17 @@ router.post('/generate', mockExamLimiter, async (req: AuthRequest, res) => {
         const quota = await consumeAiQuota(req.user!.id, req.user!.role, 'chat')
         if (!quota.ok) return res.status(429).json({ error: quotaExceededMessage('chat'), code: 'DAILY_AI_LIMIT' })
 
-        const completion = await aiClient.chat.completions.create({
+        const completionRequest = {
             model: aiModel,
             messages: [
-                { role: 'system', content: config.prompt },
-                { role: 'user', content: `${subject} fanidan ${config.count} ta ${examType} format test savol yarat.` }
+                { role: 'system' as const, content: config.prompt },
+                { role: 'user' as const, content: `${subject} fanidan ${config.count} ta ${examType} format test savol yarat.` }
             ],
             temperature: 0.7,
             max_tokens: 8000,
-        })
+            ...(hasDeepseek ? deepseekThinking(false) : { reasoning_effort: 'low' as const }),
+        }
+        const completion = await aiClient.chat.completions.create(completionRequest)
 
         const raw = completion.choices[0]?.message?.content || ''
 

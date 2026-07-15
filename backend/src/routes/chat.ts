@@ -11,6 +11,7 @@ import { aiSettingsCache, aiSettingsCacheTime, AI_SETTINGS_TTL, setAISettingsCac
 import { cosineSimilarity, createEmbedding, createEmbeddings, parseEmbedding, serializeEmbedding } from '../utils/embeddings'
 import { getSubjectVariants, normalizeSubject } from '../utils/subjects'
 import { uploadToS3, getSignedS3Url } from '../utils/s3'
+import { AI_MODELS, deepseekThinking } from '../utils/aiModels'
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -40,7 +41,7 @@ const router = Router()
 // (Gemini 3.5 Flash chatда ```test/```essay bloklarini ishonchli bermadi — DeepSeek beradi.)
 const hasGemini = !!process.env.GEMINI_API_KEY
 const hasDeepseek = !!process.env.DEEPSEEK_API_KEY
-const VISION_MODEL = 'gemini-2.5-flash'
+const VISION_MODEL = AI_MODELS.geminiFlash
 
 // Gemini OpenAI-mos endpoint — vision + zaxira
 const geminiClient = new OpenAI({
@@ -55,8 +56,161 @@ const deepseekClient = new OpenAI({
 
 // chatClient/chatModel ASOSIY = DeepSeek (key bo'lsa). gptClient = Gemini (vision + 429 fallback).
 const chatClient = hasDeepseek ? deepseekClient : geminiClient
-const chatModel = hasDeepseek ? 'deepseek-chat' : 'gemini-2.5-flash'
+const chatModel = hasDeepseek ? AI_MODELS.deepseekPro : AI_MODELS.geminiFlash
 const gptClient = geminiClient
+
+function shouldUseThinking(requested: unknown, content: string): boolean {
+    if (requested === true) return true
+    const normalized = content.toLowerCase()
+    return /(?:yech|isbot|tahlil|murakkab|integral|hosila|limit|tenglama|geometriya|ehtimol|algoritm|koddagi xato)/i.test(normalized)
+        || /(?:\$[^$]+\$|\\frac|\\int|√|\d+\s*[+*/^=-]\s*\d+)/.test(content)
+}
+
+interface LearningSessionContext {
+    id: string
+    topic: string
+    stage: string
+    stepIndex: number
+    plan: string
+    prerequisites: string | null
+    prerequisiteState: string | null
+    lastCheckpoint: string | null
+}
+
+function detectBroadLearningTopic(content: string): string | null {
+    const cleaned = content.trim().replace(/[.!?]+$/g, '')
+    const match = cleaned.match(/^(.{2,100}?)\s+(?:haqida\s+)?(?:tushuntir(?:ib ber)?|o['‘’`]?rgat(?:ib ber)?|o['‘’`]?rganmoqchiman)$/i)
+    if (!match?.[1]) return null
+    const topic = match[1]
+        .replace(/\s+mavzusini$/i, '')
+        .replace(/ni$/i, '')
+        .replace(/integeral/gi, 'integral')
+        .trim()
+    if (!topic || /^(bu|shu|uni)$/i.test(topic)) return null
+    return topic.charAt(0).toUpperCase() + topic.slice(1)
+}
+
+function getLearningPlan(topic: string): { plan: string[]; prerequisites: string[] } {
+    if (/integral/i.test(topic)) {
+        return {
+            prerequisites: ['Funksiya va grafiklar', 'Hosilaning ma’nosi va asosiy qoidalari'],
+            plan: [
+                'Integralning intuitiv ma’nosi',
+                'Aniqmas integral va +C',
+                'Asosiy integral qoidalari',
+                'Aniq integral va Newton–Leybnits formulasi',
+                'O‘rniga qo‘yish usuli',
+                'Aralash masalalar bilan mustahkamlash',
+            ],
+        }
+    }
+    return {
+        prerequisites: [`${topic} uchun zarur asosiy tushunchalar`],
+        plan: [
+            `${topic}ning intuitiv ma’nosi va asosiy atamalari`,
+            `${topic}ning asosiy qoida va usullari`,
+            `${topic} bo‘yicha bosqichma-bosqich misollar`,
+            `${topic} bo‘yicha aralash mustahkamlash`,
+        ],
+    }
+}
+
+function parseStringArray(value: string | null): string[] {
+    if (!value) return []
+    try {
+        const parsed: unknown = JSON.parse(value)
+        return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []
+    } catch {
+        return []
+    }
+}
+
+async function prepareLearningSession(
+    userId: string,
+    chatId: string,
+    subject: string | null,
+    content: string,
+    requestedSessionId?: string,
+): Promise<LearningSessionContext | null> {
+    const detectedTopic = detectBroadLearningTopic(content)
+    if (detectedTopic) {
+        const existing = await prisma.learningSession.findFirst({
+            where: { userId, chatId, topic: { equals: detectedTopic, mode: 'insensitive' }, status: 'ACTIVE' },
+            orderBy: { updatedAt: 'desc' },
+        })
+        if (existing) return existing
+
+        await prisma.learningSession.updateMany({
+            where: { userId, chatId, status: 'ACTIVE' },
+            data: { status: 'ABANDONED' },
+        })
+        const template = getLearningPlan(detectedTopic)
+        return prisma.learningSession.create({
+            data: {
+                userId,
+                chatId,
+                subject,
+                topic: detectedTopic,
+                plan: JSON.stringify(template.plan),
+                prerequisites: JSON.stringify(template.prerequisites),
+            },
+        })
+    }
+
+    const continuesLesson = /^\s*---\s*YANGI TEST NATIJASI/im.test(content)
+        || /^(davom et|davom ettir|keyingi dars|keyingi bosqich)[.!?]*$/i.test(content.trim())
+    if (!continuesLesson) return null
+
+    if (requestedSessionId) {
+        const requested = await prisma.learningSession.findFirst({
+            where: { id: requestedSessionId, userId, chatId },
+        })
+        if (requested) return requested
+    }
+
+    return prisma.learningSession.findFirst({
+        where: { userId, chatId, status: 'ACTIVE' },
+        orderBy: { updatedAt: 'desc' },
+    })
+}
+
+function buildLearningGuidance(session: LearningSessionContext | null): string {
+    if (!session) return ''
+    const plan = parseStringArray(session.plan)
+    const prerequisites = parseStringArray(session.prerequisites)
+    const currentStep = plan[Math.min(session.stepIndex, Math.max(0, plan.length - 1))] || session.topic
+    const planLines = plan.map((step, index) => `${index + 1}. ${step}`).join('\n')
+
+    if (session.stage === 'PREREQUISITE') {
+        return `\n\n# AKTIV O'QUV SESSIYASI — ENG YUQORI USTUVORLIK
+Mavzu: ${session.topic}
+Avval o'quvchiga quyidagi o'quv yo'lini qisqa va aniq ko'rsat:
+${planLines}
+
+Keyin ushbu prerequisite bilimlarni tekshir: ${prerequisites.join(', ')}.
+Javob oxirida AYNAN 3 ta savolli bitta interaktiv \`\`\`test JSON blok ber. Bu prerequisite mikro-diagnostika bo'lgani uchun umumiy "minimum 10" va "o'zing test berma" qoidalaridan ISTISNO. Test chatga javob yozdirish uchun emas, alohida panelda ishlanadi. Har savolda q/a/b/c/d/correct/topic bo'lsin. Testdan keyin matn yozma.`
+    }
+
+    if (session.stage === 'REMEDIATION') {
+        return `\n\n# AKTIV O'QUV SESSIYASI — ENG YUQORI USTUVORLIK
+Mavzu: ${session.topic}. O'quvchi "${currentStep}" checkpointidan yetarli natija olmadi.
+Xatolarning sababini hukm qilmasdan, shu qismni oldingidan sodda, mayda qadamlarda va bitta to'liq yechilgan misol bilan qayta tushuntir. Tayyor javoblar jadvalini tashlab qo'yma.
+Oxirida AYNAN 3 ta savolli bitta \`\`\`test JSON blok ber. Bu remediation checkpointi umumiy test minimumidan ISTISNO. Har savolda q/a/b/c/d/correct/topic bo'lsin. Testdan keyin matn yozma.`
+    }
+
+    if (session.stage === 'COMPLETED') {
+        return `\n\n# O'QUV SESSIYASI YAKUNLANDI
+${session.topic} bo'yicha o'quv yo'li tugadi. O'quvchi nimalarni egallaganini qisqa xulosa qil va keyingi mustaqil mashq yo'nalishini bitta jumlada ayt. Test qo'shma.`
+    }
+
+    return `\n\n# AKTIV O'QUV SESSIYASI — ENG YUQORI USTUVORLIK
+Mavzu: ${session.topic}
+Joriy bosqich: ${session.stepIndex + 1}/${plan.length} — ${currentStep}
+Oldingi natija: ${session.lastCheckpoint || session.prerequisiteState || 'hali yo‘q'}
+
+Faqat joriy bosqichni tushuntir: avval intuitiv ma'no, keyin qoida, keyin kamida bitta mayda qadamli to'liq misol, so'ng keng tarqalgan xato. O'quvchi prerequisite bilimni biladi deb taxmin qilma; zarur bog'lanishni bir jumlada eslat. Formulalar ro'yxatini tushuntirish o'rniga almashtirma.
+Oxirida AYNAN 5 ta savolli bitta interaktiv \`\`\`test JSON checkpoint ber. Bu o'quv sessiyasi checkpointi umumiy "minimum 10" va "o'zing test berma" qoidalaridan ISTISNO. Har savolda q/a/b/c/d/correct/topic bo'lsin. Testdan keyin matn yozma.`
+}
 
 // AI Settings — umumiy cache modulidan foydalanamiz (aiSettings.ts bilan shared)
 async function getAISettings(): Promise<AISettingsData> {
@@ -1853,7 +2007,7 @@ router.post('/:chatId/upload-file', authenticate, requireVerified, uploadSingle,
             }
 
             try {
-                // GPT-4o Vision orqali rasmni to'liq tahlil qilish
+                // Gemini 3.5 Flash orqali rasmni to'liq OCR/tahlil qilish
                 const base64Image = buffer.toString('base64')
                 const visionResponse = await gptClient.chat.completions.create({
                     model: VISION_MODEL,
@@ -1870,7 +2024,8 @@ router.post('/:chatId/upload-file', authenticate, requireVerified, uploadSingle,
                             }
                         ]
                     }],
-                    max_tokens: 4096
+                    max_tokens: 4096,
+                    reasoning_effort: 'low',
                 })
                 const visionText = visionResponse.choices[0]?.message?.content?.trim() || ''
                 if (visionText) {
@@ -1879,7 +2034,7 @@ router.post('/:chatId/upload-file', authenticate, requireVerified, uploadSingle,
                     extractedText = `[Rasm: ${originalname}] - Tahlil uchun yuborildi (matn topilmadi)`
                 }
             } catch (err: any) {
-                console.error("GPT-4o Vision xatoligi:", err.message)
+                console.error("Gemini Vision xatoligi:", err.message)
                 extractedText = `[Rasm: ${originalname}] - Rasm tahlil qilib bo'lmadi (${err.message})`
             }
 
@@ -1929,7 +2084,7 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
     // try'dan TASHQARIDA e'lon qilinadi.
     let userMessageSaved = false
     try {
-        const { content, thinking, displayText, todoContext } = req.body
+        const { content, thinking, displayText, todoContext, learningSessionId } = req.body
         if (!content?.trim()) return res.status(400).json({ error: 'Xabar bo\'sh' })
 
         // Bepul kunlik AI limiti (xarajat shipi) — SSE boshlanishidan OLDIN tekshiriladi,
@@ -2007,9 +2162,17 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
             : ''
         const toolIntentSection = buildToolIntentGuidance(content)
         const retentionSection = buildRetentionGuidance(content, pendingTodoContext.length > 0, isFirstMessage)
+        const learningSession = await prepareLearningSession(
+            req.user.id,
+            chat.id,
+            chat.subject || profile?.subject || null,
+            content,
+            typeof learningSessionId === 'string' ? learningSessionId : undefined,
+        )
+        const learningSection = buildLearningGuidance(learningSession)
 
         const measured = await getMeasuredTopics(req.user.id)
-        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, chat.subject2 || undefined, aiSettings.extraRules, aiSettings.promptOverrides, isFirstMessage, measured, getFirstName(chatUser?.name)) + ragSection + todoSection + toolIntentSection + retentionSection
+        const systemPrompt = buildSystemPrompt(profile, chat.subject || undefined, chat.subject2 || undefined, aiSettings.extraRules, aiSettings.promptOverrides, isFirstMessage, measured, getFirstName(chatUser?.name)) + ragSection + todoSection + toolIntentSection + retentionSection + learningSection
 
         // DeepSeek image_url qabul qilmaydi — OCR matni content ichida keladi
         const currentUserContent: any = content
@@ -2020,19 +2183,27 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
             { role: 'user', content: currentUserContent }
         ]
 
-        // Model tanlash: ASOSIY Gemini 3.5 Flash (thinking ham shu modelda — ichki fikrlaydi).
-        // Gemini kaliti yo'q bo'lsa DeepSeek (thinking -> reasoner).
-        // Agar umuman DeepSeek ulangan bo'lmasa, Gemini'ga fallback qilamiz
-        const model = hasDeepseek ? (thinking ? 'deepseek-reasoner' : 'deepseek-chat') : 'gemini-2.5-flash'
+        // Oddiy va chuqur javob bir xil sifatli V4 Pro modelida ishlaydi; farqi faqat
+        // thinking rejimi. Matematik/murakkab so'rovda bu rejim avtomatik yoqiladi.
+        const effectiveThinking = shouldUseThinking(thinking, content)
+        const model = hasDeepseek ? AI_MODELS.deepseekPro : AI_MODELS.geminiFlash
 
         // SSE headers
         res.setHeader('Content-Type', 'text/event-stream')
         res.setHeader('Cache-Control', 'no-cache')
         res.setHeader('Connection', 'keep-alive')
         res.flushHeaders()
+        res.write(`data: ${JSON.stringify({ learningSessionId: learningSession?.id ?? null })}\n\n`)
 
         let fullReply = ''
         let aborted = false
+        const aiStartedAt = Date.now()
+        let reasoningDetected = false
+        let tokenUsage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined
+        if (effectiveThinking) {
+            reasoningDetected = true
+            res.write(`data: ${JSON.stringify({ thinkingActive: true })}\n\n`)
+        }
 
         // Client disconnect detection
         req.on('close', () => { aborted = true })
@@ -2040,20 +2211,15 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
         const streamOptions: any = {
             model: model,
             messages,
-            stream: true
+            stream: true,
+            max_tokens: effectiveThinking ? 8192 : aiSettings.maxTokens,
         }
 
-        if (model === 'deepseek-reasoner') {
-            streamOptions.max_tokens = 8192
+        if (hasDeepseek) {
+            Object.assign(streamOptions, deepseekThinking(effectiveThinking))
+            if (!effectiveThinking) streamOptions.temperature = aiSettings.temperature
         } else {
-            // Gemini yoki oddiy V3 model
-            streamOptions.max_tokens = aiSettings.maxTokens
             streamOptions.temperature = aiSettings.temperature
-        }
-        // TEZLIK: Gemini 3.5 Flash "fikrlovchi" model — ichki mulohaza birinchi token
-        // kechikishini oshiradi. reasoning_effort=low -> kam fikrlash -> sezilarli tezroq
-        // (OpenAI-mos qatlam buni Gemini thinking_level'iga o'giradi). DeepSeek'ga yubormaymiz.
-        if (model.startsWith('gemini')) {
             streamOptions.reasoning_effort = 'low'
         }
 
@@ -2069,75 +2235,71 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
             console.error('User message save failed:', userSaveErr)
         }
 
-        // DeepSeek ishlamasa OpenAI ga fallback qilamiz
+        // Fallback tartibi: V4 Pro -> V4 Flash -> Gemini 3.5 Flash.
         let activeClient = chatClient
-        let activeModel = model
+        let activeModel: string = model
         let stream: any
-        try {
+        const isRetryableRateLimit = (error: any) => {
+            const message = String(error?.message || '').toLowerCase()
+            return (error?.status ?? 0) === 429
+                || message.includes('rate limit')
+                || message.includes('resource_exhausted')
+                || message.includes('quota')
+        }
+        const createStreamWithRetry = async (client: OpenAI, options: any) => {
             try {
-                stream = await chatClient.chat.completions.create(streamOptions) as any
-            } catch (rlErr: any) {
-                // 429 (rate-limit) — o'sib boruvchi kutish bilan bir necha marta qayta urinamiz.
-                // GPT fallback yo'q paytida bu yagona resilience (DeepSeek spike'larini yengadi).
-                const isRL = (e: any) => (e?.status ?? 0) === 429 || (e?.message || '').toLowerCase().includes('rate limit')
-                if (!isRL(rlErr)) throw rlErr
-                let lastErr = rlErr
-                let recovered = false
+                return await client.chat.completions.create(options) as any
+            } catch (firstError: any) {
+                if (!isRetryableRateLimit(firstError)) throw firstError
+                let lastError = firstError
                 for (const delay of [800, 2000, 3500]) {
-                    await new Promise(r => setTimeout(r, delay))
+                    await new Promise(resolve => setTimeout(resolve, delay))
                     try {
-                        stream = await chatClient.chat.completions.create(streamOptions) as any
-                        recovered = true
-                        break
-                    } catch (e: any) {
-                        lastErr = e
-                        if (!isRL(e)) throw e // boshqa xato — fallback/error blokiga o'tsin
+                        return await client.chat.completions.create(options) as any
+                    } catch (retryError: any) {
+                        lastError = retryError
+                        if (!isRetryableRateLimit(retryError)) throw retryError
                     }
                 }
-                if (!recovered) throw lastErr
+                throw lastError
             }
+        }
+        try {
+            stream = await createStreamWithRetry(chatClient, streamOptions)
         } catch (firstErr: any) {
             const status = firstErr?.status ?? 0
             const msg = (firstErr?.message || '').toLowerCase()
-            // Auth xatosi bo'lsa fallback qilmaymiz (konfiguratsiya muammosi — yashirmaymiz)
             const isAuthErr = status === 401 || msg.includes('auth') || msg.includes('invalid api key')
-            // DeepSeek 429 (rate-limit) yoki 402 (balans tugashi) — Gemini zaxiraga o'tamiz
-            const isBalanceErr = status === 402 || msg.includes('insufficient balance') || msg.includes('insufficient_quota') || msg.includes('payment required')
-            // ASOSIY (DeepSeek) ishlamadi → Gemini ZAXIRAga o'tamiz (uzilish bo'lmaydi)
-            if (!isAuthErr && hasDeepseek && hasGemini) {
-                console.warn(isBalanceErr
-                    ? '⚠️ DeepSeek balansi tugadi → Gemini zaxiraga o\'tildi (uzilishsiz).'
-                    : 'DeepSeek xatosi → Gemini zaxiraga fallback:', firstErr.message)
+            if (isAuthErr || !hasDeepseek) throw firstErr
+
+            activeClient = deepseekClient
+            activeModel = AI_MODELS.deepseekFlash
+            const flashOptions = {
+                ...streamOptions,
+                model: activeModel,
+                ...deepseekThinking(effectiveThinking),
+            }
+            console.warn('V4 Pro xatosi → V4 Flash zaxira:', firstErr.message)
+            try {
+                stream = await createStreamWithRetry(activeClient, flashOptions)
+            } catch (flashErr: any) {
+                if (!hasGemini) throw flashErr
                 activeClient = gptClient
-                activeModel = VISION_MODEL
-                const fallbackOpts = { ...streamOptions, model: activeModel, reasoning_effort: 'low', temperature: 0.7 }
-                // Zaxira (Gemini) chaqiruvini ham 429/quota'da qayta uramiz — primary bilan bir xil
-                // resilience (aks holda Gemini bir sekundlik spike'da butun so'rov yiqilar edi).
-                const isRLErr = (er: any) => {
-                    const m = (er?.message || '').toLowerCase()
-                    return (er?.status ?? 0) === 429 || m.includes('rate limit') || m.includes('resource_exhausted') || m.includes('quota')
+                activeModel = AI_MODELS.geminiFlash
+                const geminiOptions = {
+                    model: activeModel,
+                    messages,
+                    stream: true,
+                    max_tokens: effectiveThinking ? 8192 : aiSettings.maxTokens,
+                    temperature: aiSettings.temperature,
+                    reasoning_effort: effectiveThinking ? 'high' : 'low',
                 }
+                console.warn('V4 Flash xatosi → Gemini 3.5 Flash zaxira:', flashErr.message)
                 try {
-                    stream = await gptClient.chat.completions.create(fallbackOpts) as any
-                } catch (fbErr: any) {
-                    if (!isRLErr(fbErr)) throw fbErr
-                    let fbLast = fbErr
-                    let fbRecovered = false
-                    for (const delay of [800, 2000, 3500]) {
-                        await new Promise(r => setTimeout(r, delay))
-                        try {
-                            stream = await gptClient.chat.completions.create(fallbackOpts) as any
-                            fbRecovered = true
-                            break
-                        } catch (e2: any) {
-                            fbLast = e2
-                            if (!isRLErr(e2)) throw e2
-                        }
-                    }
-                    if (!fbRecovered) throw fbLast
+                    stream = await createStreamWithRetry(activeClient, geminiOptions)
+                } catch (geminiErr) {
+                    throw geminiErr
                 }
-            } else {
-                throw firstErr
             }
         }
 
@@ -2156,10 +2318,13 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
                 if (aborted) break
                 try {
                     const delta = chunk.choices[0]?.delta?.content || ''
-                    // Reasoning tokens (thinking process — faqat deepseek-reasoner da bo'ladi)
+                    const usage = chunk.usage as { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined
+                    if (usage) tokenUsage = usage
+                    // Ichki reasoning matni klientga yuborilmaydi. UI faqat umumiy holatni ko'radi.
                     const reasoning = (chunk.choices[0]?.delta as any)?.reasoning_content || ''
-                    if (reasoning) {
-                        res.write(`data: ${JSON.stringify({ thinking: reasoning })}\n\n`)
+                    if (reasoning && !reasoningDetected) {
+                        reasoningDetected = true
+                        res.write(`data: ${JSON.stringify({ thinkingActive: true })}\n\n`)
                     }
                     if (delta) {
                         fullReply += delta
@@ -2217,6 +2382,15 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
         }
 
         res.write(`data: ${JSON.stringify({ done: true, id: saved.id })}\n\n`)
+        console.info('AI_CHAT', {
+            model: activeModel,
+            thinking: effectiveThinking,
+            fallback: activeModel !== model,
+            latencyMs: Date.now() - aiStartedAt,
+            usage: tokenUsage,
+            chatId: chat.id,
+            learningSessionId: learningSession?.id ?? null,
+        })
         res.end()
     } catch (e: any) {
         const status = e?.status ?? 0
@@ -2304,12 +2478,14 @@ router.post('/:chatId/send', authenticate, requireVerified, async (req: AuthRequ
             ...history.map(m => ({ role: m.role, content: m.content }))
         ]
 
-        const completion = await chatClient.chat.completions.create({
+        const completionRequest = {
             model: chatModel,
             messages: msgs,
             max_tokens: aiSettings.maxTokens,
             temperature: aiSettings.temperature,
-        }, { timeout: 60000 })
+            ...(hasDeepseek ? deepseekThinking(false) : { reasoning_effort: 'low' as const }),
+        }
+        const completion = await chatClient.chat.completions.create(completionRequest, { timeout: 60000 })
 
         const reply = completion.choices[0]?.message?.content || 'Javob olinmadi'
         const saved = await prisma.message.create({

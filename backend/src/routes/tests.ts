@@ -13,6 +13,7 @@ import { uploadToS3, getSignedS3Url, resolveStoredS3Url, toStoredS3Ref, isStorag
 import { logAdminAction } from '../utils/adminAudit'
 import { getSubjectVariants, normalizeSubject, categoryForTest } from '../utils/subjects'
 import { getEntitlement } from './billing'
+import { AI_MODELS, deepseekThinking } from '../utils/aiModels'
 import {
     getDefaultDtmCoefficient,
     getMsGrade,
@@ -218,15 +219,17 @@ async function evaluateOpenAnswer(studentAnswer: string, correctAnswer: string):
     // AI semantik tekshiruv — 2 urinish (avval bitta xato = o'quvchi javobi jimgina 0 olardi)
     for (let attempt = 0; attempt < 2; attempt++) {
         try {
-            const aiCheck = await aiClient.chat.completions.create({
+            const aiCheckRequest = {
                 model: aiModel,
                 messages: [{
-                    role: 'user',
+                    role: 'user' as const,
                     content: `Test savoli uchun to'g'ri javob variantlari:\n${acceptedAnswers.map((answer, index) => `${index + 1}) "${answer}"`).join('\n')}\n\nO'quvchi javobi: "${studentAnswer.trim()}"\n\nO'quvchining javobi shu variantlardan biriga ma'nosi bo'yicha mos keladimi? Faqat "HA" yoki "YOQ" deb javob ber.`
                 }],
                 max_tokens: 5,
-                temperature: 0
-            }, { timeout: 8000 })
+                temperature: 0,
+                ...(hasDeepseek ? deepseekThinking(false) : { reasoning_effort: 'low' as const }),
+            }
+            const aiCheck = await aiClient.chat.completions.create(aiCheckRequest, { timeout: 8000 })
             const reply = aiCheck.choices[0]?.message?.content?.trim().toUpperCase() || ''
             return { correct: reply.startsWith('HA'), aiVerified: true }
         } catch (e) {
@@ -301,7 +304,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 
 // ASOSIY: DeepSeek (test generatsiya — JSON bloklarni ishonchli beradi). Gemini — FAQAT vision (rasm/OCR).
 const hasGemini = !!process.env.GEMINI_API_KEY
 const hasDeepseek = !!process.env.DEEPSEEK_API_KEY
-const VISION_MODEL = 'gemini-2.5-flash'
+const VISION_MODEL = AI_MODELS.geminiFlash
 
 const geminiClient = new OpenAI({
     apiKey: process.env.GEMINI_API_KEY || '',
@@ -313,7 +316,7 @@ const deepseekClient = new OpenAI({
 })
 // aiClient/aiModel ASOSIY = DeepSeek (key bo'lsa). gptClient = Gemini (vision).
 const aiClient = hasDeepseek ? deepseekClient : geminiClient
-const aiModel = hasDeepseek ? 'deepseek-chat' : 'gemini-2.5-flash'
+const aiModel = hasDeepseek ? AI_MODELS.deepseekPro : AI_MODELS.geminiFlash
 const gptClient = geminiClient // vision (OCR) — Gemini
 
 const QUESTION_GENERATION_MAX_OUTPUT_TOKENS = 8000
@@ -336,6 +339,8 @@ interface IncomingCreateQuestion {
     difficulty?: number
     blockType?: DtmBlockType | string | null
     coefficient?: number | string | null
+    answerSource?: string | null
+    answerVerified?: boolean
 }
 
 const DTM_OFFICIAL_TOTAL_QUESTIONS = 90
@@ -724,7 +729,7 @@ function collectDtmGeneratedItems(items: any[]): { questions: any[]; answerKeys:
         const options = item.options.filter((o: any) => typeof o === 'string' && o.trim().length > 0).slice(0, 4)
         if (options.length < 2) continue
         let correctIdx = typeof item.correctIdx === 'number' ? item.correctIdx : letterToIdx(item.correctIdx ?? item.correct ?? item.answer)
-        if (correctIdx < 0 || correctIdx >= options.length) correctIdx = 0
+        if (correctIdx < 0 || correctIdx >= options.length) correctIdx = -1
         const blockType = normalizeDtmBlockType(typeof item.blockType === 'string' ? item.blockType : undefined)
         const num = Number.parseInt(String(item.num ?? ''), 10)
         questions.push({
@@ -811,14 +816,22 @@ async function generateDtmQuestionsFromPdf(buffer: Buffer, subject: string, subj
     }
 
     const keyApplied = applyDtmAnswerKeys(allQuestions, allAnswerKeys)
-    return { questions: allQuestions.slice(0, DTM_MAX_QUESTIONS), truncated, keyApplied }
+    const questionsWithProvenance = allQuestions.slice(0, DTM_MAX_QUESTIONS).map(question => ({
+        ...question,
+        answerSource: question.fromKey ? 'PDF_KEY' : 'AI_INFERRED',
+        answerVerified: question.fromKey === true,
+    }))
+    const verifiedQuestions = await verifyGeneratedAnswers(questionsWithProvenance)
+    return { questions: verifiedQuestions, truncated, keyApplied }
 }
 
 async function generateQuestionJson(messages: any[], isVision = false): Promise<string> {
     const client = isVision ? gptClient : aiClient
     const model = isVision ? VISION_MODEL : aiModel
+    const startedAt = Date.now()
+    let activeModel: string = model
 
-    const completion = await client.chat.completions.create({
+    const completionRequest = {
         model,
         messages: [
             { role: 'system', content: buildQuestionGeneratorSystemPrompt() },
@@ -826,9 +839,97 @@ async function generateQuestionJson(messages: any[], isVision = false): Promise<
         ],
         max_tokens: QUESTION_GENERATION_MAX_OUTPUT_TOKENS,
         temperature: 0.1,
-    }, { timeout: 180000 })
+        ...(isVision || !hasDeepseek ? { reasoning_effort: 'low' as const } : deepseekThinking(false)),
+    }
+    let completion
+    try {
+        completion = await client.chat.completions.create(completionRequest, { timeout: 180000 })
+    } catch (primaryError) {
+        if (isVision || !hasDeepseek) throw primaryError
+        try {
+            completion = await deepseekClient.chat.completions.create({
+                ...completionRequest,
+                model: AI_MODELS.deepseekFlash,
+                ...deepseekThinking(false),
+            }, { timeout: 180000 })
+            activeModel = AI_MODELS.deepseekFlash
+            console.warn('Test generatsiyasi V4 Flash zaxirada bajarildi')
+        } catch (flashError) {
+            if (!hasGemini) throw flashError
+            completion = await geminiClient.chat.completions.create({
+                model: AI_MODELS.geminiFlash,
+                messages: completionRequest.messages,
+                max_tokens: QUESTION_GENERATION_MAX_OUTPUT_TOKENS,
+                temperature: 0.1,
+                reasoning_effort: 'low',
+            }, { timeout: 180000 })
+            activeModel = AI_MODELS.geminiFlash
+            console.warn('Test generatsiyasi Gemini 3.5 Flash zaxirada bajarildi')
+        }
+    }
+
+    console.info('AI_TEST_GENERATION', {
+        model: activeModel,
+        thinking: false,
+        fallback: activeModel !== model,
+        latencyMs: Date.now() - startedAt,
+        usage: completion.usage,
+    })
 
     return completion.choices[0]?.message?.content || '[]'
+}
+
+async function verifyGeneratedAnswers(questions: any[]): Promise<any[]> {
+    if (!hasDeepseek || questions.length === 0) return questions
+    const verified = questions.map(question => ({ ...question }))
+    const candidates = verified
+        .map((question, index) => ({ question, index }))
+        .filter(({ question }) => question.questionType !== 'matching' && question.answerVerified !== true && Array.isArray(question.options))
+
+    for (let start = 0; start < candidates.length; start += 20) {
+        const batch = candidates.slice(start, start + 20)
+        const payload = batch.map(({ question, index }) => ({
+            index,
+            text: question.text,
+            options: question.options,
+            proposedCorrectIdx: question.correctIdx,
+        }))
+        const prompt = `Quyidagi test savollarini mustaqil yechib, javob kalitini tekshir. Taklif qilingan javobga ishonib qolma.
+Noaniq, buzilgan yoki bir nechta to'g'ri javobli savolda verified=false qil.
+Faqat JSON array qaytar: [{"index":0,"correctIdx":2,"verified":true}].
+
+${JSON.stringify(payload)}`
+        try {
+            const request = {
+                model: AI_MODELS.deepseekPro,
+                messages: [{ role: 'user' as const, content: prompt }],
+                max_tokens: 2500,
+                ...deepseekThinking(true),
+            }
+            const completion = await deepseekClient.chat.completions.create(request, { timeout: 90000 })
+            const results = parseQuestionJson(completion.choices[0]?.message?.content || '[]')
+            for (const result of results) {
+                const index = typeof result?.index === 'number' ? result.index : -1
+                const correctIdx = typeof result?.correctIdx === 'number' ? result.correctIdx : -1
+                const target = verified[index]
+                if (!target || result?.verified !== true || !Array.isArray(target.options)
+                    || correctIdx < 0 || correctIdx >= target.options.length) continue
+                target.correctIdx = correctIdx
+                target.answerSource = 'AI_INFERRED'
+                target.answerVerified = true
+            }
+        } catch (error) {
+            console.warn('AI javob kaliti verifikatsiyasi ishlamadi:', error instanceof Error ? error.message : error)
+        }
+    }
+    console.info('AI_TEST_VALIDATION', {
+        model: AI_MODELS.deepseekPro,
+        thinking: true,
+        total: verified.length,
+        verified: verified.filter(question => question.answerVerified === true).length,
+        unverified: verified.filter(question => question.answerVerified !== true).length,
+    })
+    return verified
 }
 
 function parseQuestionJson(aiContent: string): any[] {
@@ -875,36 +976,48 @@ function validateGeneratedQuestions(questions: any[]): any[] {
                         .filter((sq: any) => sq && typeof sq.text === 'string' && sq.text.trim())
                         .map((sq: any) => ({
                             text: sq.text.trim(),
-                            correctIdx: typeof sq.correctIdx === 'number'
-                                ? Math.max(0, Math.min(sq.correctIdx, answers.length - 1))
-                                : 0
+                            correctIdx: typeof sq.correctIdx === 'number' ? sq.correctIdx : -1,
                         }))
                     : []
-                if (answers.length < 2 || subQuestions.length < 1) return null
-                return { text: q.text.trim(), questionType: 'matching', answers, subQuestions }
+                if (answers.length < 2 || subQuestions.length < 1
+                    || subQuestions.some((subQuestion: { correctIdx: number }) => subQuestion.correctIdx < 0 || subQuestion.correctIdx >= answers.length)) return null
+                return {
+                    text: q.text.trim(),
+                    questionType: 'matching',
+                    answers,
+                    subQuestions,
+                    answerSource: 'AI_INFERRED',
+                    answerVerified: false,
+                }
             }
 
             if (!q.options || !Array.isArray(q.options)) return null
             const options = q.options.filter((o: any) => typeof o === 'string' && o.trim().length > 0)
             if (options.length < 2) return null
 
-            let correctIdx = 0
+            let correctIdx = -1
             if (typeof q.correctIdx === 'number') {
                 correctIdx = q.correctIdx
             } else if (typeof q.correctIdx === 'string') {
                 const i = letterToIdx(q.correctIdx)
-                correctIdx = i >= 0 ? i : 0
+                correctIdx = i
             } else {
                 const raw = q.correct ?? q.correctAnswer ?? q.answer ?? q.correct_answer ?? null
                 if (typeof raw === 'number') correctIdx = raw
                 else if (typeof raw === 'string') {
                     const i = letterToIdx(raw)
-                    correctIdx = i >= 0 ? i : 0
+                    correctIdx = i
                 }
             }
 
-            if (correctIdx < 0 || correctIdx >= options.length) correctIdx = 0
-            return { text: q.text.trim(), options: options.slice(0, 4), correctIdx }
+            if (correctIdx < 0 || correctIdx >= options.length) return null
+            return {
+                text: q.text.trim(),
+                options: options.slice(0, 4),
+                correctIdx,
+                answerSource: 'AI_INFERRED',
+                answerVerified: false,
+            }
         })
         .filter(Boolean)
 }
@@ -1105,7 +1218,9 @@ router.get('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), async (req
                         ? roundScore(question.coefficient)
                         : (normalizedTestType === 'DTM_BLOCK'
                             ? getDefaultDtmCoefficient(normalizeDtmBlockType(question.blockType), test.subject)
-                            : null)
+                            : null),
+                    answerSource: question.answerSource,
+                    answerVerified: question.answerVerified,
                 }
             }))
 
@@ -1270,7 +1385,7 @@ router.post('/generate-from-file', authenticate, requireRole('TEACHER', 'ADMIN')
 
             if (needsVisionPdf) {
                 if (!process.env.GEMINI_API_KEY) {
-                    return res.status(400).json({ error: 'Skanerlangan PDF tahlili uchun OpenAI API kalit kerak. Iltimos, OCR qilingan PDF yoki Word fayl yuklang.' })
+                    return res.status(400).json({ error: 'Skanerlangan PDF tahlili uchun Gemini API kaliti kerak. Iltimos, OCR qilingan PDF yoki Word fayl yuklang.' })
                 }
 
                 try {
@@ -1371,10 +1486,10 @@ ${jsonFormat}`
             return res.status(400).json({ error: 'Faqat PDF va rasm fayllari qo\'llab-quvvatlanadi' })
         }
 
-        // Rasm tahlili: DeepSeek vision qabul qilmaydi, OpenAI kerak
+        // Rasm tahlili: DeepSeek vision qabul qilmaydi, Gemini kerak
         const isVision = messages.some(m => Array.isArray(m.content));
         if (isVision && !process.env.GEMINI_API_KEY) {
-            return res.status(400).json({ error: 'Rasm/screenshot tahlili uchun OpenAI API kalit kerak. Iltimos, matnli PDF yoki Word fayl yuklang.' })
+            return res.status(400).json({ error: 'Rasm/screenshot tahlili uchun Gemini API kaliti kerak. Iltimos, matnli PDF yoki Word fayl yuklang.' })
         }
         if (messages.length > 0) {
             try {
@@ -1396,10 +1511,11 @@ ${jsonFormat}`
             return res.status(500).json({ error: 'Savollar formati to\'g\'ri emas. PDF yoki rasmni tekshiring.' })
         }
 
+        const verifiedQuestions = await verifyGeneratedAnswers(validatedQuestions)
         res.json({
-            questions: validatedQuestions,
+            questions: verifiedQuestions,
             truncated: truncated || false,
-            total: validatedQuestions.length
+            total: verifiedQuestions.length
         })
     } catch (e: any) {
         console.error('AI test generation error:', e.message)
@@ -1526,6 +1642,9 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
         // Har bir savol validatsiyasi
         for (let i = 0; i < questions.length; i++) {
             const q = questions[i] as IncomingCreateQuestion
+            if (q.answerSource && q.answerVerified !== true) {
+                return res.status(400).json({ error: `${i + 1}-savol: AI javobi tasdiqlanmagan` })
+            }
             const questionType = q.questionType || 'mcq'
             const hasText = q.text && typeof q.text === 'string' && q.text.trim().length > 0
             const hasImage = q.imageUrl && typeof q.imageUrl === 'string' && q.imageUrl.trim().length > 0
@@ -1655,6 +1774,8 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
                         correctIdx: (questionType === 'open' || questionType === 'matching' || questionType === 'multipart_open') ? -1 : (q.correctIdx ?? 0),
                         correctText: questionType === 'open' ? (q.correctText?.trim() || null) : null,
                         questionType,
+                        answerSource: q.answerSource || null,
+                        answerVerified: q.answerVerified !== false,
                         difficulty: q.difficulty || 0.0,
                         orderIdx: i,
                         blockType,
@@ -1739,6 +1860,9 @@ router.patch('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), testMuta
 
         for (let i = 0; i < questions.length; i++) {
             const q = questions[i] as IncomingCreateQuestion
+            if (q.answerSource && q.answerVerified !== true) {
+                return res.status(400).json({ error: `${i + 1}-savol: AI javobi tasdiqlanmagan` })
+            }
             const questionType = q.questionType || 'mcq'
             const hasText = q.text && typeof q.text === 'string' && q.text.trim().length > 0
             const hasImage = q.imageUrl && typeof q.imageUrl === 'string' && q.imageUrl.trim().length > 0
@@ -1865,6 +1989,8 @@ router.patch('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), testMuta
                             correctIdx: (questionType === 'open' || questionType === 'matching' || questionType === 'multipart_open') ? -1 : (q.correctIdx ?? 0),
                             correctText: questionType === 'open' ? (q.correctText?.trim() || null) : null,
                             questionType,
+                            answerSource: q.answerSource || null,
+                            answerVerified: q.answerVerified !== false,
                             difficulty: q.difficulty || 0,
                             orderIdx: i,
                             blockType,
@@ -1962,7 +2088,8 @@ Matematik belgilar va formulalarni LaTeX formatida yoz ($\\frac{a}{b}$, $x^2$, $
             model: VISION_MODEL,
             messages: [{ role: 'user', content: extractContent }],
             max_tokens: 2000,
-            temperature: 0.1
+            temperature: 0.1,
+            reasoning_effort: 'low',
         })
 
         const extractedText = extractResult.choices[0]?.message?.content || ''
@@ -1989,12 +2116,13 @@ Iltimos:
 
 Javoblar O'zbek tilida, KaTeX formulalar bilan ($\\frac{a}{b}$ formatida) bo'lsin.`
 
-        const solveCompletion = await aiClient.chat.completions.create({
+        const solveRequest = {
             model: aiModel,
-            messages: [{ role: 'user', content: solvePrompt }],
+            messages: [{ role: 'user' as const, content: solvePrompt }],
             max_tokens: 2500,
-            temperature: 0.1
-        })
+            ...(hasDeepseek ? deepseekThinking(true) : { reasoning_effort: 'high' as const }),
+        }
+        const solveCompletion = await aiClient.chat.completions.create(solveRequest)
 
         res.json({ analysis: solveCompletion.choices[0]?.message?.content || null })
     } catch (e: any) {
@@ -2031,7 +2159,7 @@ Nega to'g'ri javob ${String(correctAnswer).toUpperCase()} ekanini soddagina tush
             max_tokens: 500,
             temperature: 0.4,
         }
-        if (aiModel.startsWith('gemini')) completionOpts.reasoning_effort = 'low'
+        Object.assign(completionOpts, hasDeepseek ? deepseekThinking(false) : { reasoning_effort: 'low' })
         let explanation = ''
         try {
             const completion = await aiClient.chat.completions.create(completionOpts)
@@ -2116,7 +2244,8 @@ QOIDALAR:
                     { role: 'user', content }
                 ],
                 max_tokens: 16000,
-                temperature: 0.2
+                temperature: 0.2,
+                reasoning_effort: 'low',
             })
             return res.json({ analysis: completion.choices[0]?.message?.content || null, type: 'vision' })
         }
@@ -2141,7 +2270,13 @@ O'zbek tilida yoz. Matematik formulalar uchun KaTeX ($...$ formatda) ishlat.`
 
         // DeepSeek-chat max output: 8192 tokens; GPT modellari ko'proq qo'llab-quvvatlaydi
         const maxTok = hasDeepseek ? 8000 : 16000
-        const completion = await aiClient.chat.completions.create({ model: aiModel, messages: [{ role: 'user', content: prompt }], max_tokens: maxTok, temperature: 0.3 })
+        const resultRequest = {
+            model: aiModel,
+            messages: [{ role: 'user' as const, content: prompt }],
+            max_tokens: maxTok,
+            ...(hasDeepseek ? deepseekThinking(true) : { reasoning_effort: 'high' as const }),
+        }
+        const completion = await aiClient.chat.completions.create(resultRequest)
         res.json({ analysis: completion.choices[0]?.message?.content || null, type: 'text' })
     } catch (e: any) {
         console.error('analyze-result:', e.message)
@@ -2233,7 +2368,7 @@ router.post('/submit-ai', authenticate, submitLimiter, async (req: AuthRequest, 
 // muammosi). Kalit yo'q bo'lsa ham ishlaydi (AI bloki chat streamдan keladi).
 router.post('/ai-session', authenticate, createLimiter, async (req: AuthRequest, res) => {
     try {
-        const { questions, subject } = req.body
+        const { questions, subject, learningSessionId, chatId } = req.body
         if (!Array.isArray(questions) || questions.length === 0) {
             return res.status(400).json({ error: 'questions massiv bo\'lishi kerak' })
         }
@@ -2251,12 +2386,65 @@ router.post('/ai-session', authenticate, createLimiter, async (req: AuthRequest,
             topic: typeof q?.topic === 'string' ? q.topic.slice(0, 120) : '',
             difficulty: typeof q?.difficulty === 'number' && Number.isFinite(q.difficulty) ? q.difficulty : null,
         }))
+        const invalidQuestion = cleaned.some((question) =>
+            !question.q.trim()
+            || !question.a.trim()
+            || !question.b.trim()
+            || !question.c.trim()
+            || !question.d.trim()
+            || !['a', 'b', 'c', 'd'].includes(question.correct)
+        )
+        if (invalidQuestion) {
+            return res.status(400).json({ error: 'AI testida savol, 4 ta variant yoki tasdiqlangan to‘g‘ri javob yetishmaydi' })
+        }
+
+        let linkedLearningSessionId: string | null = null
+        let purpose: string | null = null
+        const requestedLearningSession = typeof learningSessionId === 'string' && learningSessionId.trim()
+            ? await prisma.learningSession.findFirst({
+                where: { id: learningSessionId.trim(), userId: req.user.id, status: 'ACTIVE' },
+            })
+            : (typeof chatId === 'string' && chatId.trim()
+                ? await prisma.learningSession.findFirst({
+                    where: { chatId: chatId.trim(), userId: req.user.id, status: 'ACTIVE' },
+                    orderBy: { updatedAt: 'desc' },
+                })
+                : null)
+        if (typeof learningSessionId === 'string' && learningSessionId.trim() && !requestedLearningSession) {
+            return res.status(404).json({ error: 'O‘quv sessiyasi topilmadi' })
+        }
+        if (requestedLearningSession) {
+            const learningSession = requestedLearningSession
+            linkedLearningSessionId = learningSession.id
+            if (learningSession.stage === 'PREREQUISITE') {
+                purpose = 'PREREQUISITE'
+            } else if (learningSession.stage === 'REMEDIATION') {
+                let previousPurpose = ''
+                try {
+                    const checkpoint: unknown = JSON.parse(learningSession.lastCheckpoint || '{}')
+                    if (checkpoint && typeof checkpoint === 'object' && 'purpose' in checkpoint) {
+                        previousPurpose = String((checkpoint as { purpose?: unknown }).purpose || '')
+                    }
+                } catch { /* eski/buzilgan holatda oddiy checkpoint sifatida davom etadi */ }
+                purpose = previousPurpose.startsWith('PREREQUISITE')
+                    ? 'PREREQUISITE_REMEDIATION'
+                    : 'CHECKPOINT_REMEDIATION'
+            } else {
+                purpose = 'CHECKPOINT'
+            }
+        }
         const subjectKey = normalizeSubject(typeof subject === 'string' ? subject : '')
             ?? (typeof subject === 'string' && subject.trim() ? subject.trim() : null)
         const sess = await prisma.aiTestSession.create({
-            data: { userId: req.user.id, subject: subjectKey, questions: JSON.stringify(cleaned) }
+            data: {
+                userId: req.user.id,
+                subject: subjectKey,
+                learningSessionId: linkedLearningSessionId,
+                purpose,
+                questions: JSON.stringify(cleaned),
+            }
         })
-        res.json({ sessionId: sess.id })
+        res.json({ sessionId: sess.id, learningSessionId: linkedLearningSessionId })
     } catch (e) {
         console.error('ai-session create xato:', e)
         res.status(500).json({ error: 'Server xatoligi' })
@@ -2310,6 +2498,7 @@ router.post('/ai-session/:sessionId/submit', authenticate, submitLimiter, async 
             topicAgg.set(topic, cur)
         }
 
+        let learningProgress: { sessionId: string; stage: string; stepIndex: number; status: string } | null = null
         await prisma.$transaction(async (tx) => {
             // Idempotentlik (poyga): sessiyani lock qilib, qayta submitni to'samiz.
             await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${'aisess:' + sess.id}, 0))`
@@ -2337,6 +2526,75 @@ router.post('/ai-session/:sessionId/submit', authenticate, submitLimiter, async 
                     create: { userId: req.user.id, subject: subjectKey, topic, correct: agg.correct, total: agg.total, lastPracticed: practicedAt },
                 })
             }
+
+            if (sess.learningSessionId) {
+                const learningSession = await tx.learningSession.findFirst({
+                    where: { id: sess.learningSessionId, userId: req.user.id, status: 'ACTIVE' },
+                })
+                if (learningSession) {
+                    let plan: string[] = []
+                    try {
+                        const parsed: unknown = JSON.parse(learningSession.plan)
+                        if (Array.isArray(parsed)) plan = parsed.filter((item): item is string => typeof item === 'string')
+                    } catch { /* planLength=0 xavfsiz yakunlanadi */ }
+
+                    const passed = scorePercent >= 70
+                    const checkpoint = {
+                        purpose: sess.purpose || 'CHECKPOINT',
+                        score: scorePercent,
+                        correct: correctCount,
+                        total,
+                        passed,
+                        at: new Date().toISOString(),
+                    }
+                    let stage = learningSession.stage
+                    let status = learningSession.status
+                    let stepIndex = learningSession.stepIndex
+                    let prerequisiteState = learningSession.prerequisiteState
+                    let masteryState = learningSession.masteryState
+
+                    if ((sess.purpose || '').startsWith('PREREQUISITE')) {
+                        prerequisiteState = JSON.stringify(checkpoint)
+                        stage = passed ? 'LESSON' : 'REMEDIATION'
+                    } else {
+                        let mastery: unknown[] = []
+                        try {
+                            const parsed: unknown = JSON.parse(masteryState || '[]')
+                            if (Array.isArray(parsed)) mastery = parsed
+                        } catch { /* yangi massivdan boshlanadi */ }
+                        masteryState = JSON.stringify([...mastery, { ...checkpoint, stepIndex }])
+                        if (passed) {
+                            stepIndex += 1
+                            if (stepIndex >= plan.length) {
+                                stage = 'COMPLETED'
+                                status = 'COMPLETED'
+                            } else {
+                                stage = 'LESSON'
+                            }
+                        } else {
+                            stage = 'REMEDIATION'
+                        }
+                    }
+
+                    const updatedLearningSession = await tx.learningSession.update({
+                        where: { id: learningSession.id },
+                        data: {
+                            stage,
+                            status,
+                            stepIndex,
+                            prerequisiteState,
+                            masteryState,
+                            lastCheckpoint: JSON.stringify(checkpoint),
+                        },
+                    })
+                    learningProgress = {
+                        sessionId: updatedLearningSession.id,
+                        stage: updatedLearningSession.stage,
+                        stepIndex: updatedLearningSession.stepIndex,
+                        status: updatedLearningSession.status,
+                    }
+                }
+            }
         }, { timeout: 15000 })
 
         res.json({
@@ -2344,7 +2602,8 @@ router.post('/ai-session/:sessionId/submit', authenticate, submitLimiter, async 
             score: scorePercent,
             correct: correctCount,
             total,
-            perQuestion: perQuestion.map(p => ({ index: p.index, isCorrect: p.isCorrect, correct: p.correct }))
+            perQuestion: perQuestion.map(p => ({ index: p.index, isCorrect: p.isCorrect, correct: p.correct })),
+            learningProgress,
         })
     } catch (e) {
         if (e instanceof AlreadySubmittedError) {

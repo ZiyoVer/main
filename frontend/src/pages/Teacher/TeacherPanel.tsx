@@ -93,6 +93,8 @@ interface Question {
     multipartSubQuestions?: MultipartOpenSubQ[]
     blockType?: DtmBlockTypeValue
     coefficient?: number | null
+    answerSource?: 'PDF_KEY' | 'AI_INFERRED' | 'MANUAL'
+    answerVerified?: boolean
 }
 
 interface TeacherTestListItem {
@@ -580,7 +582,7 @@ export default function TeacherPanel() {
 
     // AI javobidagi MCQ savolni forma savoliga aylantirish — global va blok importlari
     // BIR XIL qoidada ishlasin (drift bo'lsa bir import boshqasidan farqli savol chiqarardi)
-    function mapAiMcqQuestion(q: { text?: string; options?: unknown[]; correctIdx?: number }, blockType: DtmBlockTypeValue, coefficient: number): Question {
+    function mapAiMcqQuestion(q: { text?: string; options?: unknown[]; correctIdx?: number; answerSource?: Question['answerSource']; answerVerified?: boolean; fromKey?: boolean }, blockType: DtmBlockTypeValue, coefficient: number): Question {
         // Variantlar POZITSIYASI saqlanadi — bo'shlarini filter qilish indekslarni surib,
         // correctIdx boshqa variantga ko'rsatib qolardi (noto'g'ri javob "to'g'ri" bo'lib saqlanardi)
         const opts = (Array.isArray(q.options) ? q.options.map(option => (option == null ? '' : String(option))) : []).slice(0, 4)
@@ -589,11 +591,13 @@ export default function TeacherPanel() {
             ...createEmptyQuestion(),
             text: q.text || '',
             options: opts.slice(0, 4),
-            // correctIdx 0-3 oralig'iga clamp — AI ba'zan chegaradan tashqari indeks qaytaradi
-            correctIdx: typeof q.correctIdx === 'number' ? Math.max(0, Math.min(q.correctIdx, 3)) : 0,
+            // Javob yo'q bo'lsa A ga default qilmaymiz — o'qituvchi aniq tanlashi kerak.
+            correctIdx: typeof q.correctIdx === 'number' && q.correctIdx >= 0 && q.correctIdx <= 3 ? q.correctIdx : -1,
             questionType: 'mcq',
             blockType,
-            coefficient
+            coefficient,
+            answerSource: q.answerSource || (q.fromKey ? 'PDF_KEY' : 'AI_INFERRED'),
+            answerVerified: q.answerVerified === true || q.fromKey === true,
         }
     }
 
@@ -672,7 +676,7 @@ export default function TeacherPanel() {
             formData.append('subject2', subject2)
             formData.append('dtmBlock', '1')
             const data = await uploadFile('/tests/generate-from-file', formData)
-            const raw: Array<{ text?: string; options?: unknown[]; correctIdx?: number; blockType?: string; fromKey?: boolean }> = data.questions || []
+            const raw: Array<{ text?: string; options?: unknown[]; correctIdx?: number; blockType?: string; fromKey?: boolean; answerSource?: Question['answerSource']; answerVerified?: boolean }> = data.questions || []
             if (raw.length === 0) { toast.error('PDF\'dan savol topilmadi — skan sifatini tekshiring'); return }
             const untagged = raw.filter(q => !DTM_BLOCK_OPTIONS.some(option => option.value === q.blockType)).length
             const mapped: Question[] = raw.map(q => {
@@ -956,7 +960,8 @@ export default function TeacherPanel() {
             if (field === 'text') return { ...q, text: value }
             if (field === 'imageUrl') return { ...q, imageUrl: value, imagePreviewUrl: value ? q.imagePreviewUrl : null }
             if (field === 'imagePreviewUrl') return { ...q, imagePreviewUrl: value }
-            if (field === 'correctIdx') return { ...q, correctIdx: value }
+            if (field === 'correctIdx') return { ...q, correctIdx: value, answerSource: 'MANUAL', answerVerified: true }
+            if (field === 'answerVerified') return { ...q, answerVerified: value === true, answerSource: value === true ? 'MANUAL' : q.answerSource }
             if (field === 'correctText') return { ...q, correctText: value }
             if (field === 'blockType') {
                 const blockType = value as DtmBlockTypeValue
@@ -995,7 +1000,9 @@ export default function TeacherPanel() {
                 const subField = parts[2]
                 const newSubs = [...(q.matchingSubQuestions || [])]
                 newSubs[si] = { ...newSubs[si], [subField]: subField === 'correctIdx' ? parseInt(value) : value }
-                return { ...q, matchingSubQuestions: newSubs }
+                return subField === 'correctIdx'
+                    ? { ...q, matchingSubQuestions: newSubs, answerSource: 'MANUAL', answerVerified: true }
+                    : { ...q, matchingSubQuestions: newSubs }
             }
             if (field === 'addMatchingSubQ') {
                 return { ...q, matchingSubQuestions: [...(q.matchingSubQuestions || []), { text: '', correctIdx: 0 }] }
@@ -1069,7 +1076,9 @@ export default function TeacherPanel() {
                         matchingAnswers,
                         matchingSubQuestions,
                         blockType: 'SPECIALTY_1',
-                        coefficient: 3.1
+                        coefficient: 3.1,
+                        answerSource: q.answerSource || 'AI_INFERRED',
+                        answerVerified: q.answerVerified === true,
                     }
                 }
                 // MCQ savol — blok importi bilan BIR XIL mapper (indeks/clamp qoidalari yagona)
@@ -1180,6 +1189,12 @@ export default function TeacherPanel() {
                 // Variant matni YOKI rasmi bo'lsa yetarli — rasm-only variantlar ruxsat etiladi
                 if (!finalQuestions[i].options[j]?.trim() && !finalQuestions[i].optionImages?.[j]) { setMsg(`${questionLabel(i)}, variant ${String.fromCharCode(65 + j)} bo'sh — matn yozing yoki rasm yuklang`); return }
             }
+        }
+
+        const unverifiedAnswerIndex = finalQuestions.findIndex(question => question.answerVerified === false)
+        if (unverifiedAnswerIndex >= 0) {
+            setMsg(`${questionLabel(unverifiedAnswerIndex)}: AI topgan javob hali tasdiqlanmagan. Tanlangan javobni tekshirib, “Javobni tasdiqlash”ni bosing.`)
+            return
         }
 
         if (testType === 'DTM_BLOCK') {
@@ -2005,6 +2020,20 @@ export default function TeacherPanel() {
                                                     </button>
                                                 )}
                                             </div>
+                                            {q.answerVerified === false ? (
+                                                <button type="button"
+                                                    onClick={() => updateQ(qi, 'answerVerified', true)}
+                                                    disabled={q.questionType === 'mcq' && q.correctIdx < 0}
+                                                    className="text-[10px] font-semibold px-2 py-1 rounded-md transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    style={{ color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a' }}>
+                                                    {q.questionType === 'mcq' && q.correctIdx < 0 ? 'Avval to‘g‘ri javobni tanlang' : 'AI javobi — tekshiring · Tasdiqlash'}
+                                                </button>
+                                            ) : q.answerSource ? (
+                                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-md"
+                                                    style={{ color: 'var(--success)', background: 'color-mix(in srgb, var(--success) 9%, transparent)', border: '1px solid color-mix(in srgb, var(--success) 22%, transparent)' }}>
+                                                    <Check className="h-3 w-3" /> {q.answerSource === 'PDF_KEY' ? 'PDF kaliti tasdiqlagan' : 'Javob tasdiqlandi'}
+                                                </span>
+                                            ) : null}
                                         </div>
                                         {questions.length > 1 && (
                                             <button type="button" onClick={() => removeQ(qi)} className="h-6 w-6 flex items-center justify-center rounded-md transition"

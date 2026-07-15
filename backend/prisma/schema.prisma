@@ -44,6 +44,7 @@ model User {
   subscriptions Subscription[]
   payments      Payment[]
   aiTestSessions AiTestSession[]
+  learningSessions LearningSession[]
   aiDailyUsage  AiDailyUsage[]
   aiSubmitDedups AiSubmitDedup[]
 }
@@ -114,6 +115,7 @@ model Chat {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   messages  Message[]
+  learningSessions LearningSession[]
 
   @@index([userId])
   @@index([userId, subject])
@@ -183,6 +185,8 @@ model TestQuestion {
   solutionImageUrl String? // Yechim/javob rasmi (submitdan KEYIN ko'rsatiladi)
   questionType String  @default("mcq") // "mcq" | "open"
   topic        String? // Mavzu tegi (zaiflik tahlili uchun) — AI generatsiya to'ldiradi; null bo'lsa blockType/subject'ga tushadi
+  answerSource String? // PDF_KEY | AI_INFERRED | MANUAL
+  answerVerified Boolean @default(true)
   difficulty   Float   @default(0.0)   // Rasch difficulty
   blockType    DtmBlockType @default(GENERIC)
   coefficient  Float?
@@ -457,10 +461,42 @@ model AiTestSession {
   userId      String
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   subject     String?
+  learningSessionId String?
+  learningSession LearningSession? @relation(fields: [learningSessionId], references: [id], onDelete: SetNull)
+  purpose     String?   // PREREQUISITE | CHECKPOINT | REMEDIATION
   questions   String    // JSON: [{q,a,b,c,d,correct,topic,difficulty}] — to'g'ri javoblar bilan (server-only)
   submittedAt DateTime?
   createdAt   DateTime  @default(now())
 
   @@index([userId])
   @@index([userId, createdAt])
+  @@index([learningSessionId])
+}
+
+// ============ PERSISTENT O'QUV SESSIYASI ============
+// Keng mavzu so'rovi uchun reja, prerequisite diagnostika va ketma-ket checkpointlarni
+// chat xabarlaridan alohida saqlaydi. Shu sabab reload yoki yangi so'rovda dars uzilmaydi.
+model LearningSession {
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatId            String?
+  chat              Chat?    @relation(fields: [chatId], references: [id], onDelete: SetNull)
+  subject           String?
+  topic             String
+  status            String   @default("ACTIVE")       // ACTIVE | COMPLETED | ABANDONED
+  stage             String   @default("PREREQUISITE") // PREREQUISITE | LESSON | REMEDIATION | COMPLETED
+  stepIndex         Int      @default(0)
+  plan              String   // JSON string[]
+  prerequisites     String?  // JSON string[]
+  prerequisiteState String?  // so'nggi prerequisite natijasi JSON
+  masteryState      String?  // bosqichlar bo'yicha natijalar JSON
+  lastCheckpoint    String?  // so'nggi checkpoint JSON
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  aiTestSessions    AiTestSession[]
+
+  @@index([userId, status, updatedAt])
+  @@index([chatId, status])
+  @@index([userId, topic, status])
 }

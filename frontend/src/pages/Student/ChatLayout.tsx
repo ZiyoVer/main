@@ -1081,6 +1081,8 @@ export default function ChatLayout() {
     // (Birinchi xabarda handleSend chat yaratib nav qiladi -> effekt endigina boshlangan stream'ni
     // o'ldirardi -> "salom yozsam javob kelmayapti, qayta yozish kerak" bug'i.)
     const streamChatIdRef = useRef<string | null>(null)
+    const learningSessionIdRef = useRef<string | null>(null)
+    const aiSessionPromiseRef = useRef<Promise<string | null> | null>(null)
     const chatIdRef = useRef<string | undefined>(chatId)
     const profileRef = useRef<Profile | null>(null)
     const [testsLoading, setTestsLoading] = useState(false)
@@ -1890,7 +1892,13 @@ Iltimos, har bir savolni tahlil qilib ber:
             const res = await fetch(`/api/chat/${targetChatId}/stream`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ content: prompt, thinking: requestThinkingMode, ...(displayText !== undefined && { displayText }), todoContext: requestTodoContext }),
+                body: JSON.stringify({
+                    content: prompt,
+                    thinking: requestThinkingMode,
+                    learningSessionId: learningSessionIdRef.current || undefined,
+                    ...(displayText !== undefined && { displayText }),
+                    todoContext: requestTodoContext,
+                }),
                 signal: controller.signal
             })
             if (!res.ok) {
@@ -1900,7 +1908,6 @@ Iltimos, har bir savolni tahlil qilib ber:
             }
             const reader = res.body?.getReader()
             const decoder = new TextDecoder()
-            let thinkBuf = ''
             let streamErrored = false
 
             // Bitta `data:` qatorini qayta ishlaydi. `true` qaytarsa — oqimni to'xtatamiz.
@@ -1922,7 +1929,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                         streamErrored = true
                         return true
                     }
-                    if (d.thinking) { thinkBuf += d.thinking; if (isCurrentChat()) setThinkingText(thinkBuf) }
+                    if (Object.prototype.hasOwnProperty.call(d, 'learningSessionId')) {
+                        learningSessionIdRef.current = typeof d.learningSessionId === 'string' ? d.learningSessionId : null
+                    }
+                    if (d.thinkingActive === true && isCurrentChat()) setThinkingText('active')
                     if (d.content) {
                         fullText += d.content
                         // Throttle: og'ir markdown/KaTeX re-render'ni har tokenda emas, ~33ms da bajaramiz.
@@ -1948,7 +1958,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                             if (testMatch) {
                                 const parsedTest = parseStructuredJson<unknown[]>(testMatch[1].trim())
                                 if (Array.isArray(parsedTest) && parsedTest.length > 0) {
-                                    setTimeout(() => { setTodoOpen(false); openTestPanel(testMatch[1].trim()) }, 400)
+                                    setTimeout(() => { handleOpenTest(testMatch[1].trim()) }, 400)
                                 }
                             }
                         }
@@ -2173,6 +2183,7 @@ Iltimos, har bir savolni tahlil qilib ber:
 
     // Test panel ochish (todo ni yopadi)
     const handleOpenTest = useCallback((jsonStr: string) => {
+        aiSessionPromiseRef.current = null
         setTodoOpen(false)
         // AI chat testi efemer (DB da yo'q). Eski public test id'sini tozalamasak,
         // submit xato qilib /tests/{eskiId}/submit ga ketib "Test sessiyasi topilmadi" (403)
@@ -2188,12 +2199,21 @@ Iltimos, har bir savolni tahlil qilib ber:
             const parsedForSession = parseStructuredJson<unknown[]>(extractStructuredPayload(jsonStr))
             if (Array.isArray(parsedForSession) && parsedForSession.length > 0) {
                 const subjectHint = profileRef.current?.subject || undefined
-                fetchApi('/tests/ai-session', {
+                aiSessionPromiseRef.current = fetchApi('/tests/ai-session', {
                     method: 'POST',
-                    body: JSON.stringify({ questions: parsedForSession, subject: subjectHint }),
+                    body: JSON.stringify({
+                        questions: parsedForSession,
+                        subject: subjectHint,
+                        chatId: chatIdRef.current,
+                        learningSessionId: learningSessionIdRef.current || undefined,
+                    }),
                     silent: true,
-                }).then((r: { sessionId?: string }) => { if (r?.sessionId) setAiSessionId(r.sessionId) })
-                    .catch(() => { /* fallback: /submit-ai */ })
+                }).then((r: { sessionId?: string; learningSessionId?: string | null }) => {
+                    const sessionId = r?.sessionId || null
+                    if (sessionId) setAiSessionId(sessionId)
+                    if (typeof r?.learningSessionId === 'string') learningSessionIdRef.current = r.learningSessionId
+                    return sessionId
+                }).catch(() => null)
             }
         } catch { /* parse xato — fallback */ }
     }, [openTestPanel, setActiveTestId, setActiveTestQuestions, setAiSessionId])
@@ -2512,6 +2532,34 @@ Iltimos, har bir savolni tahlil qilib ber:
                 return
             }
         }
+        let resolvedAiSessionId = aiSessionId
+        if (!activeTestId && !resolvedAiSessionId && aiSessionPromiseRef.current) {
+            resolvedAiSessionId = await aiSessionPromiseRef.current
+        }
+        if (!activeTestId && learningSessionIdRef.current && !resolvedAiSessionId) {
+            toast.error('Checkpoint sessiyasi tayyor bo‘lmadi. Testni yopib, qayta oching.')
+            isSubmittingRef.current = false
+            return
+        }
+        if (!activeTestId && resolvedAiSessionId) {
+            const answerLetters: Record<number, string> = {}
+            questions.forEach((_question: any, index: number) => {
+                if (testAnswers[index]) answerLetters[index] = testAnswers[index]
+            })
+            try {
+                backendSubmitResult = await fetchApi(`/tests/ai-session/${resolvedAiSessionId}/submit`, {
+                    method: 'POST',
+                    body: JSON.stringify({ answers: answerLetters }),
+                })
+                backendSubmitHandled = true
+            } catch (err: any) {
+                if (learningSessionIdRef.current) {
+                    toast.error(err?.message || 'Checkpoint natijasini saqlab bo‘lmadi. Qayta urinib ko‘ring.')
+                    isSubmittingRef.current = false
+                    return
+                }
+            }
+        }
         setTestSubmitted(true)
         setTestTimeLeft(null)
         const results = questions.map((q: any, i: number) => {
@@ -2683,18 +2731,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                 // 1.1: SERVER-GRADE. Sessiya ro'yxatga olingan bo'lsa (aiSessionId), FAQAT javob
                 // harflarini yuboramiz — server o'zi baholaydi (klient ballni soxtalashtira olmaydi).
                 // Ro'yxatga olinmagan/xato bo'lsa eski /submit-ai'ga fallback (statistika yoziladi).
-                let serverGraded = false
-                if (aiSessionId) {
-                    const answerLetters: Record<number, string> = {}
-                    questions.forEach((_q: any, i: number) => { if (testAnswers[i]) answerLetters[i] = testAnswers[i] })
-                    try {
-                        await fetchApi(`/tests/ai-session/${aiSessionId}/submit`, {
-                            method: 'POST',
-                            body: JSON.stringify({ answers: answerLetters }),
-                        })
-                        serverGraded = true
-                    } catch { serverGraded = false }
-                }
+                const serverGraded = backendSubmitHandled
                 if (!serverGraded) {
                     const scorePercent = (score / questions.length) * 100
                     const raschResults = questions.map((q: any, i: number) => {
