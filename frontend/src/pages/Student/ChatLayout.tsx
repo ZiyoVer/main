@@ -23,6 +23,12 @@ import ChatContext, { useChatContext, EssayPanel, TodoItem } from '../../context
 import { useTestPanel } from '../../hooks/useTestPanel'
 import { useFlashPanel } from '../../hooks/useFlashPanel'
 import { useIsPro, PRO_PRICE, PRO_PRICE_PERIOD, PRO_STATUS_LABEL, PRO_FEATURES, FREE_FEATURES, PRO_DISCLAIMER } from '@/lib/pro'
+import { AiQuotaRail } from './chat/AiQuotaRail'
+import { useAiQuota } from './chat/useAiQuota'
+import type { AiQuota } from './chat/useAiQuota'
+import { TestCatalogControls } from './chat/TestCatalogControls'
+import { useTestCatalog } from './chat/useTestCatalog'
+import type { TestCatalogFormat, TestCatalogSort, TestCatalogView } from './chat/useTestCatalog'
 
 interface Chat { id: string; title: string; subject?: string; subject2?: string; updatedAt: string; messageCount?: number }
 interface Msg { id: string; role: string; content: string; createdAt: string }
@@ -649,15 +655,16 @@ interface ChatInputAreaProps {
     onSend: (text: string, files: AttachedFile[]) => void
     onStop: () => void
     blobUrlsRef: React.MutableRefObject<string[]>
-    messagesCount: number
     // chatId yo'q bo'lsa (yangi suhbat) chat yaratib id qaytaradi — paste/rasm shu holatda ham ishlasin
     onEnsureChat: () => Promise<string | null>
-    // 6.2: o'lchangan eng zaif mavzu — kontekstual chip birinchi bo'lib chiqadi
-    weakTopic?: string
+    aiQuota: AiQuota | null
+    refreshAiQuota: () => Promise<void>
+    onOpenTests: () => void
 }
 
 const ChatInputArea = memo(function ChatInputArea({
-    chatId, loading, thinkingMode, setThinkingMode, onSend, onStop, blobUrlsRef, messagesCount, onEnsureChat, weakTopic
+    chatId, loading, thinkingMode, setThinkingMode, onSend, onStop, blobUrlsRef, onEnsureChat,
+    aiQuota, refreshAiQuota, onOpenTests
 }: ChatInputAreaProps) {
     const [input, setInput] = useState('')
     const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
@@ -665,25 +672,6 @@ const ChatInputArea = memo(function ChatInputArea({
     const [showComposerOptions, setShowComposerOptions] = useState(false)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
-
-    // Kunlik AI limit bar — bepul userga qancha so'rov qolgani va qachon yangilanishi ko'rinadi.
-    // unlimited (Pro/o'qituvchi/admin) yoki fetch xatosida indikator umuman chiqmaydi.
-    const [aiQuota, setAiQuota] = useState<{
-        unlimited: boolean
-        chat: { used: number; limit: number }
-        vision: { used: number; limit: number }
-        resetsAt: string
-    } | null>(null)
-    const refreshAiQuota = useCallback(() => {
-        fetchApi('/auth/ai-quota', { silent: true }).then(setAiQuota).catch(() => { })
-    }, [])
-    useEffect(() => { refreshAiQuota() }, [refreshAiQuota])
-    // Har AI javob tugaganda (loading true→false) hisoblagich yangilanadi
-    const prevLoadingRef = useRef(loading)
-    useEffect(() => {
-        if (prevLoadingRef.current && !loading) refreshAiQuota()
-        prevLoadingRef.current = loading
-    }, [loading, refreshAiQuota])
 
     const adjustTextareaHeight = useCallback(() => {
         const el = textareaRef.current
@@ -739,6 +727,7 @@ const ChatInputArea = memo(function ChatInputArea({
             }
         }))
         setUploadingFile(false)
+        void refreshAiQuota()
         // Upload tugagach textarea ga focus qaytaramiz — Enter ishlashi uchun
         setTimeout(() => textareaRef.current?.focus(), 50)
     }
@@ -777,6 +766,10 @@ const ChatInputArea = memo(function ChatInputArea({
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault()
         if ((!input.trim() && attachedFiles.length === 0) || loading) return
+        if (aiQuota && !aiQuota.unlimited && aiQuota.chat.used >= aiQuota.chat.limit) {
+            toast("Bugungi AI limiti tugadi — tayyor testlarni limitsiz yechishingiz mumkin", { icon: '⚡' })
+            return
+        }
         // Rasm hali yuklanayotgan bo'lsa — kutish kerakligini AYTAMIZ (jim emas)
         if (attachedFiles.some(f => f.uploading)) {
             toast('Rasm hali yuklanmoqda — bir soniya kuting', { icon: '⏳' })
@@ -807,52 +800,17 @@ const ChatInputArea = memo(function ChatInputArea({
         }
     }
 
-    // Chatdan keyingi yo'l qisqa bo'lsin: maksimal uchta, kontekstli action.
-    const QUICK_ACTIONS = weakTopic
-        ? [
-            { Icon: Target, l: `${weakTopic}dan mashq`, p: `"${weakTopic}" mavzusi mening zaif mavzum. Shu mavzudan qisqa mashq testi ber va asosiy tushunchalarni eslatib o't.` },
-            { Icon: ClipboardList, l: 'Test yech', p: "Qisqa test ber. Hozir mavzu noaniq bo'lsa — qaysi mavzudan test berishimni so'ra. Natijadan keyin zaif joylarimni ayt." },
-            { Icon: BookOpen, l: 'Tushuntir', p: "Mavzuni oddiy va tushunarli usulda tushuntir. Mavzu noaniq bo'lsa — qaysi mavzuni tushuntirishimni so'ra." },
-        ]
-        : [
-            { Icon: ClipboardList, l: 'Test yech', p: "Qisqa test ber. Hozir mavzu noaniq bo'lsa — qaysi mavzudan test berishimni so'ra. Natijadan keyin zaif joylarimni ayt." },
-            { Icon: BookOpen, l: 'Tushuntir', p: "Mavzuni oddiy va tushunarli usulda tushuntir. Mavzu noaniq bo'lsa — qaysi mavzuni tushuntirishimni so'ra." },
-            { Icon: Layers, l: 'Kartochka', p: "Eng muhim tushunchalardan 10 ta flashcard tayyorla. Mavzu noaniq bo'lsa — qaysi mavzudan ekanini so'ra." },
-        ]
-
-    const quotaStatus = aiQuota && !aiQuota.unlimited ? (() => {
-        const left = Math.max(0, aiQuota.chat.limit - aiQuota.chat.used)
-        const ratio = left / aiQuota.chat.limit
-        return {
-            left,
-            exhausted: left === 0,
-            low: left > 0 && ratio <= 0.2,
-            hoursLeft: Math.max(1, Math.ceil((new Date(aiQuota.resetsAt).getTime() - Date.now()) / 3600000)),
-        }
-    })() : null
+    const chatQuotaExhausted = !!aiQuota && !aiQuota.unlimited && aiQuota.chat.used >= aiQuota.chat.limit
+    const visionLeft = aiQuota && !aiQuota.unlimited
+        ? Math.max(0, aiQuota.vision.limit - aiQuota.vision.used)
+        : null
+    const attachLabel = visionLeft === null
+        ? 'Fayl biriktirish'
+        : `Fayl biriktirish · rasm tahlili ${visionLeft}/${aiQuota?.vision.limit ?? 0}`
 
     return (
         <div className="px-3 sm:px-6 pb-4 sm:pb-6 pt-3 chat-input-area chat-composer-shell flex-shrink-0" style={{ background: 'var(--bg-page)' }}>
-            {!loading && messagesCount > 0 && (
-                <div className="max-w-[820px] mx-auto mb-2.5 flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-                    {QUICK_ACTIONS.map((a, i) => (
-                        <button key={i} onClick={() => { if (!chatId || loading) return; onSend(a.p, []) }}
-                            className="h-8 px-3 text-[12px] font-medium rounded-full transition whitespace-nowrap flex items-center gap-1.5 flex-shrink-0"
-                            style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)', background: 'transparent' }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                        ><a.Icon className="h-3 w-3 flex-shrink-0" />{a.l}</button>
-                    ))}
-                </div>
-            )}
-            {quotaStatus && (quotaStatus.low || quotaStatus.exhausted) && (
-                <div className="max-w-[820px] mx-auto mb-2 flex items-center gap-2 rounded-xl px-3 py-2 text-[12px]" style={{ background: quotaStatus.exhausted ? 'var(--danger-light)' : 'var(--brand-light)', color: quotaStatus.exhausted ? 'var(--danger)' : 'var(--brand)' }}>
-                    <Zap className="h-3.5 w-3.5 flex-shrink-0" />
-                    <span className="font-semibold">{quotaStatus.exhausted ? 'Bugungi AI limiti tugadi.' : `Bugun ${quotaStatus.left} ta AI so'rovi qoldi.`}</span>
-                    {!quotaStatus.exhausted && <span className="opacity-80">~{quotaStatus.hoursLeft} soatda yangilanadi</span>}
-                </div>
-            )}
-            <form onSubmit={handleSubmit} className="max-w-[820px] mx-auto">
+            <form onSubmit={handleSubmit} className="max-w-[760px] mx-auto">
                 <input ref={fileInputRef} type="file" multiple accept=".pdf,.doc,.docx,.txt,image/*" className="hidden" onChange={handleFileSelect} />
                 <div className="rounded-2xl overflow-hidden chat-input-box" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-strong)', boxShadow: '0 2px 8px rgba(33,28,22,0.06)', transition: 'border-color 0.15s, box-shadow 0.15s' }}>
                     {/* Attached files */}
@@ -906,7 +864,7 @@ const ChatInputArea = memo(function ChatInputArea({
                             style={{ color: 'var(--text-muted)' }}
                             onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                            title="Fayl biriktirish" aria-label="Fayl biriktirish">
+                            title={attachLabel} aria-label={attachLabel}>
                             {uploadingFile
                                 ? <div className="h-3.5 w-3.5 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--text-muted)', borderTopColor: 'transparent' }} />
                                 : <Paperclip className="h-3.5 w-3.5" />}
@@ -941,7 +899,7 @@ const ChatInputArea = memo(function ChatInputArea({
                                 <Square className="h-3 w-3" fill="currentColor" />
                             </button>
                         ) : (
-                            <button type="submit" disabled={!input.trim() && attachedFiles.length === 0}
+                            <button type="submit" disabled={chatQuotaExhausted || (!input.trim() && attachedFiles.length === 0)}
                                 className="h-9 w-9 flex items-center justify-center rounded-xl transition disabled:opacity-30"
                                 style={{ background: 'var(--k-accent-grad)', color: 'white', boxShadow: 'var(--k-shadow-cta)' }}
                                 title="Yuborish">
@@ -949,6 +907,7 @@ const ChatInputArea = memo(function ChatInputArea({
                             </button>
                         )}
                     </div>
+                    <AiQuotaRail quota={aiQuota} onOpenTests={onOpenTests} />
                 </div>
             </form>
         </div>
@@ -1014,9 +973,11 @@ export default function ChatLayout() {
     const [profileLoaded, setProfileLoaded] = useState(false)
     const [showOnboarding, setShowOnboarding] = useState(false)
     const [overlayPanel, setOverlayPanel] = useState<'tests' | 'flashcards' | 'progress' | 'pro' | null>(null)
-    const [testCategory, setTestCategory] = useState<string>('all') // testlar bo'limi kategoriya filtri
-    const [testSearch, setTestSearch] = useState('') // 4.2: testlar qidiruvi
-    const [testSort, setTestSort] = useState<'new' | 'popular'>('new') // 4.2: saralash
+    const [testCatalogView, setTestCatalogView] = useState<TestCatalogView>('recommended')
+    const [testSubject, setTestSubject] = useState('all')
+    const [testFormat, setTestFormat] = useState<TestCatalogFormat>('all')
+    const [testSearch, setTestSearch] = useState('')
+    const [testSort, setTestSort] = useState<TestCatalogSort>('recommended')
     const [testQuestionIndex, setTestQuestionIndex] = useState(0)
     const [activeTestSource, setActiveTestSource] = useState<string | null>(null) // ochiq test panelining manbasi (badge uchun)
     // Test review: xato javob ostidagi per-savol AI tushuntirishi (panel ichida, mobil uchun)
@@ -1111,6 +1072,7 @@ export default function ChatLayout() {
     const thinkingModeRef = useRef(thinkingMode)
     // Pro tier modeli (non-enforcing): faqat ko'rinish/teglar uchun — hech narsani bloklamaydi
     const pro = useIsPro()
+    const { quota: aiQuota, refresh: refreshAiQuota } = useAiQuota({ generationLoading: loading })
     const todoItemsRef = useRef<TodoItem[]>([])
     const todoAutoCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const visionIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -1206,6 +1168,26 @@ export default function ChatLayout() {
         flashMaximized, setFlashMaximized, flashWidth, setFlashWidth,
         flashDragRef, flashWidthRef, openFlashPanel,
     } = useFlashPanel()
+
+    const {
+        visibleTests,
+        recommendedTest,
+        subjects: testSubjects,
+        counts: testCatalogCounts,
+        resultCount: testCatalogResultCount,
+        isDone: isCatalogTestDone,
+    } = useTestCatalog({
+        tests: publicTests,
+        results: myResults,
+        completedTestIds: completedTestIdsRef.current,
+        view: testCatalogView,
+        subject: testSubject,
+        format: testFormat,
+        search: testSearch,
+        sort: testSort,
+        primarySubject: profile?.subject,
+        secondarySubject: profile?.subject2,
+    })
 
     // Essay panel states
     const [essayPanel, setEssayPanel] = useState<EssayPanel | null>(null)
@@ -2073,6 +2055,14 @@ Iltimos, har bir savolni tahlil qilib ber:
 
     const handleSend = useCallback(async (text: string, files: AttachedFile[]) => {
         if (loading) return
+        if (aiQuota && !aiQuota.unlimited && aiQuota.chat.used >= aiQuota.chat.limit) {
+            toast("Bugungi AI limiti tugadi — tayyor testlarni limitsiz yechishingiz mumkin", { icon: '⚡' })
+            setOverlayPanel('tests')
+            markTestsSeen()
+            void loadPublicTests()
+            void loadMyResults()
+            return false
+        }
 
         // chatId yo'q bo'lsa yangi chat yaratib, unga o'tamiz
         let targetChatId = chatId
@@ -2119,7 +2109,7 @@ Iltimos, har bir savolni tahlil qilib ber:
             const success = await streamToChat(targetChatId!, text)
             if (success) logActivity(5)
         }
-    }, [chatId, loading, profile])
+    }, [aiQuota, chatId, loading, profile])
 
     // Octo orqali Pro to'lovini boshlash — checkout URL'ga yo'naltiradi
     async function startProCheckout() {
@@ -3716,7 +3706,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                 )}
                             </div>
                         ) : (
-                            <div className="chat-thread max-w-[820px] mx-auto px-4 sm:px-7 py-6 sm:py-10 space-y-5 sm:space-y-8">
+                            <div className="chat-thread max-w-[760px] mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6 sm:space-y-9">
                                 {messages.map((m, i) => {
                                     // Sana ajratgichi — kun almashganda "Bugun/Kecha/5-iyul" chizig'i
                                     const msgDay = m.createdAt ? new Date(m.createdAt).toDateString() : ''
@@ -3767,9 +3757,9 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     {i === messages.length - 1 && !loading && !streaming && (
                                                         <div className="flex flex-wrap gap-1.5 mt-2">
                                                             {[
-                                                                { label: 'Misol bilan', prompt: 'Oxirgi tushuntirgan mavzuni bitta sodda misol bilan yana tushuntir.' },
+                                                                { label: 'Sodda tushuntir', prompt: 'Oxirgi javobni yanada sodda, qisqa va tushunarli qilib qayta tushuntir.' },
+                                                                { label: 'Misol ko‘rsat', prompt: 'Oxirgi tushuntirgan mavzuni bitta sodda misol bilan yana tushuntir.' },
                                                                 { label: '3 ta mashq', prompt: 'Oxirgi mavzu bo‘yicha 3 ta qisqa mashq ber.' },
-                                                                { label: 'Qisqartir', prompt: 'Oxirgi javobni 4 ta asosiy nuqtaga qisqartir.' },
                                                             ].map(action => (
                                                                 <button key={action.label} type="button" onClick={() => { void handleSend(action.prompt, []) }}
                                                                     className="px-2.5 py-1 rounded-full text-[11px] font-medium transition"
@@ -3862,9 +3852,15 @@ Iltimos, har bir savolni tahlil qilib ber:
                         onSend={handleSend}
                         onStop={stopGeneration}
                         blobUrlsRef={blobUrlsRef}
-                        messagesCount={messages.length}
                         onEnsureChat={ensureChatForUpload}
-                        weakTopic={progressData?.weakTopics?.[0]?.topic}
+                        aiQuota={aiQuota}
+                        refreshAiQuota={refreshAiQuota}
+                        onOpenTests={() => {
+                            setOverlayPanel('tests')
+                            markTestsSeen()
+                            void loadPublicTests()
+                            void loadMyResults()
+                        }}
                     />
                 </div>
 
@@ -4554,30 +4550,36 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 </button>
                                             </div>
                                         )}
+                                        {publicTests.length > 0 && (
+                                            <TestCatalogControls
+                                                view={testCatalogView}
+                                                onViewChange={setTestCatalogView}
+                                                counts={testCatalogCounts}
+                                                search={testSearch}
+                                                onSearchChange={setTestSearch}
+                                                subjects={testSubjects}
+                                                subject={testSubject}
+                                                onSubjectChange={setTestSubject}
+                                                format={testFormat}
+                                                onFormatChange={setTestFormat}
+                                                sort={testSort}
+                                                onSortChange={setTestSort}
+                                                resultCount={testCatalogResultCount}
+                                            />
+                                        )}
                                         {/* Birinchi ko'rinadigan karta — katalog emas, aynan hozir boshlash mumkin bo'lgan test. */}
-                                        {publicTests.length > 0 && (() => {
-                                            const isDone = (t: PublicTest) => myResults.some(r => r.testId === t.id) || completedTestIdsRef.current.has(t.id)
-                                            const primarySubject = normalizeSubjectValue(profile?.subject)
-                                            const secondarySubject = normalizeSubjectValue(profile?.subject2)
-                                            const recommended = publicTests
-                                                .filter(t => !isDone(t))
-                                                .slice()
-                                                .sort((a, b) => {
-                                                    const score = (t: PublicTest) => (normalizeSubjectValue(t.subject) === primarySubject ? 3 : 0) + (normalizeSubjectValue(t.subject) === secondarySubject ? 2 : 0) + Math.min(1, (t._count?.attempts ?? 0) / 10)
-                                                    return score(b) - score(a)
-                                                })[0]
-                                            if (!recommended) return null
+                                        {testCatalogView === 'recommended' && recommendedTest && (() => {
+                                            const recommended = recommendedTest
                                             const theme = testSubjectTheme(recommended.subject)
                                             const type = testTypeBadge(recommended.testType)
                                             return (
-                                                <div className="rounded-2xl p-4 sm:p-5 overflow-hidden relative" style={{ background: `linear-gradient(135deg, ${theme.soft} 0%, var(--bg-card) 72%)`, border: `1px solid color-mix(in srgb, ${theme.accent} 26%, var(--border))`, boxShadow: `0 12px 30px -24px ${theme.glow}` }}>
-                                                    <div className="absolute -right-7 -top-7 h-28 w-28 rounded-full" style={{ background: `color-mix(in srgb, ${theme.accent} 10%, transparent)` }} />
-                                                    <div className="relative flex items-start gap-3">
-                                                        <div className="h-11 w-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: theme.accent, color: 'white', boxShadow: `0 8px 18px -8px ${theme.glow}` }}>
+                                                <div className="test-recommendation" style={{ background: theme.soft, borderColor: `color-mix(in srgb, ${theme.accent} 24%, var(--border))` }}>
+                                                    <div className="flex items-start gap-3">
+                                                        <div className="test-recommendation__icon" style={{ background: theme.accent }}>
                                                             <Target className="h-5 w-5" />
                                                         </div>
                                                         <div className="min-w-0 flex-1">
-                                                            <p className="text-[10px] font-bold tracking-[0.12em] uppercase" style={{ color: theme.strong }}>Bugungi tanlov</p>
+                                                            <p className="text-[11px] font-semibold" style={{ color: theme.strong }}>Sizga mos</p>
                                                             <p className="text-[15px] font-bold leading-snug mt-1" style={{ color: 'var(--text-primary)' }}>{recommended.title}</p>
                                                             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>
                                                                 <span>{recommended.subject || 'Umumiy'}</span>
@@ -4585,12 +4587,13 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                                 <span>{recommended._count?.questions ?? 0} savol</span>
                                                                 {typeof recommended.timeLimit === 'number' && recommended.timeLimit > 0 && <><span aria-hidden="true">·</span><span>{recommended.timeLimit} daqiqa</span></>}
                                                                 {type && <span className="px-1.5 py-0.5 rounded font-bold" style={{ background: type.bg, color: type.color }}>{type.label}</span>}
+                                                                {recommended.premium && <span className="test-premium-badge"><Sparkles aria-hidden="true" /> Pro</span>}
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    <div className="relative flex items-center justify-between gap-3 mt-4">
+                                                    <div className="flex items-center justify-between gap-3 mt-4">
                                                         <p className="text-[11px] leading-snug" style={{ color: 'var(--text-secondary)' }}>Kichik bir test bugungi tayyorgarlikni oldinga suradi.</p>
-                                                        <button type="button" onClick={() => { void openPublicTest(recommended) }} className="text-[12px] font-bold px-3.5 py-2 rounded-xl flex-shrink-0 transition" style={{ background: theme.accent, color: 'white', boxShadow: `0 8px 16px -10px ${theme.glow}` }}>
+                                                        <button type="button" onClick={() => { void openPublicTest(recommended) }} className="test-recommendation__action" style={{ background: theme.accent }}>
                                                             Boshlash →
                                                         </button>
                                                     </div>
@@ -4630,83 +4633,23 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 </div>
                                             )
                                         })()}
-                                        {/* 4.2: yopishqoq qidiruv + saralash + kategoriya filtri */}
-                                        {publicTests.length > 0 && (() => {
-                                            const cats = Array.from(new Set(publicTests.map(pt => pt.category || 'Boshqa')))
-                                            const hasPremium = publicTests.some(pt => pt.premium)
-                                            const chips = ['all', ...(hasPremium ? ['premium'] : []), ...cats]
-                                            return (
-                                                <div className="sticky -top-4 z-10 -mx-1 px-1 py-2 space-y-2" style={{ background: 'var(--bg-page)' }}>
-                                                    <div className="flex gap-2">
-                                                        <input
-                                                            value={testSearch}
-                                                            onChange={e => setTestSearch(e.target.value)}
-                                                            placeholder="Test qidirish..."
-                                                            className="flex-1 h-9 rounded-xl border px-3 text-[13px] outline-none transition"
-                                                            style={{ background: 'var(--bg-card)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
-                                                        />
-                                                        <div className="flex rounded-xl overflow-hidden border flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
-                                                            {([['new', 'Yangi'], ['popular', 'Mashhur']] as const).map(([key, label]) => (
-                                                                <button key={key} onClick={() => setTestSort(key)}
-                                                                    className="text-[11px] font-semibold px-3 transition"
-                                                                    style={testSort === key
-                                                                        ? { background: 'var(--brand)', color: 'white' }
-                                                                        : { background: 'var(--bg-card)', color: 'var(--text-secondary)' }}>
-                                                                    {label}
-                                                                </button>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                    {(cats.length > 1 || hasPremium) && (
-                                                        // Mobilda 2 qatorga o'ralib joy yemasin — bitta gorizontal scroll qatori
-                                                        <div className="flex gap-2 overflow-x-auto sm:flex-wrap" style={{ scrollbarWidth: 'none' }}>
-                                                            {chips.map(c => {
-                                                                const active = testCategory === c
-                                                                const isPrem = c === 'premium'
-                                                                return (
-                                                                    <button key={c} onClick={() => setTestCategory(c)}
-                                                                        className="text-xs font-semibold px-3 py-1.5 rounded-full transition inline-flex items-center gap-1 flex-shrink-0 whitespace-nowrap"
-                                                                        style={active
-                                                                            ? { background: isPrem ? '#B8860B' : 'var(--brand)', color: 'white' }
-                                                                            : { background: 'var(--bg-muted)', color: isPrem ? '#B8860B' : 'var(--text-secondary)' }}>
-                                                                        {isPrem && <Sparkles className="h-3 w-3" />}{c === 'all' ? 'Hammasi' : isPrem ? 'Premium' : c}
-                                                                    </button>
-                                                                )
-                                                            })}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )
-                                        })()}
-                                        {publicTests
-                                            .filter(t => testCategory === 'all' ? true : testCategory === 'premium' ? !!t.premium : (t.category || 'Boshqa') === testCategory)
-                                            // 4.2: qidiruv — nom va fan bo'yicha (registrsiz)
-                                            .filter(t => !testSearch.trim() || `${t.title} ${t.subject || ''}`.toLowerCase().includes(testSearch.trim().toLowerCase()))
-                                            // Ishlanmaganlar YUQORIDA (keyingi ish aniq ko'rinsin), ishlanganlar pastda
-                                            .slice()
-                                            .sort((a, b) => {
-                                                const da = myResults.some(r => r.testId === a.id) || completedTestIdsRef.current.has(a.id) ? 1 : 0
-                                                const db = myResults.some(r => r.testId === b.id) || completedTestIdsRef.current.has(b.id) ? 1 : 0
-                                                if (da !== db) return da - db
-                                                // 4.2: saralash — 'Mashhur' urinishlar soni bo'yicha, 'Yangi' backend tartibida (createdAt desc)
-                                                if (testSort === 'popular') return (b._count?.attempts ?? 0) - (a._count?.attempts ?? 0)
-                                                return 0
-                                            })
-                                            .map(t => {
+                                        {visibleTests.map(t => {
                                                 // Premium-minimal karta: butun karta bosiladigan, BITTA meta-qator,
                                                 // bitta tur-badge — rangli chegara/ikonka/badge shovqini olib tashlandi
                                                 const result = myResults.find(r => r.testId === t.id)
-                                                const done = !!result || completedTestIdsRef.current.has(t.id)
+                                                const done = isCatalogTestDone(t)
                                                 const typeBadge = testTypeBadge(t.testType)
                                                 const source = sourceBadge(t.source)
                                                 const summary = result ? getAttemptSummary(result) : null
                                                 const theme = testSubjectTheme(t.subject)
                                                 return (
                                                     <button key={t.id} type="button" onClick={() => { void openPublicTest(t) }}
-                                                        className="w-full text-left rounded-2xl p-3.5 sm:p-4 transition group"
-                                                        style={{ background: 'var(--bg-card)', border: `1px solid color-mix(in srgb, ${theme.accent} ${done ? '10%' : '18%'}, var(--border))`, opacity: done ? 0.72 : 1 }}
-                                                        onMouseEnter={e => { e.currentTarget.style.borderColor = theme.accent; e.currentTarget.style.boxShadow = `0 12px 28px -22px ${theme.glow}` }}
-                                                        onMouseLeave={e => { e.currentTarget.style.borderColor = `color-mix(in srgb, ${theme.accent} ${done ? '10%' : '18%'}, var(--border))`; e.currentTarget.style.boxShadow = 'none' }}>
+                                                        className="test-catalog-row w-full text-left rounded-2xl p-3.5 sm:p-4 group"
+                                                        style={{
+                                                            '--test-accent': theme.accent,
+                                                            '--test-border': `color-mix(in srgb, ${theme.accent} ${done ? '10%' : '18%'}, var(--border))`,
+                                                            opacity: done ? 0.72 : 1,
+                                                        } as React.CSSProperties}>
                                                         <div className="flex items-center gap-3">
                                                             <div className="h-11 w-11 rounded-2xl flex flex-col items-center justify-center flex-shrink-0" style={{ background: done ? 'var(--bg-muted)' : theme.soft, color: done ? 'var(--text-muted)' : theme.strong, border: `1px solid ${done ? 'var(--border)' : `color-mix(in srgb, ${theme.accent} 18%, transparent)`}` }}>
                                                                 <span className="text-[14px] leading-none font-bold">{t._count?.questions ?? 0}</span>
@@ -4716,7 +4659,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                                 <div className="flex items-center gap-1.5 mb-1">
                                                                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: done ? 'var(--bg-muted)' : theme.soft, color: done ? 'var(--text-muted)' : theme.strong }}>{t.subject || 'Umumiy'}</span>
                                                                     {typeBadge && <span className="text-[9px] px-1.5 py-0.5 rounded font-bold flex-shrink-0" style={{ background: typeBadge.bg, color: typeBadge.color }}>{typeBadge.label}</span>}
-                                                                    {t.premium && <Sparkles className="h-3 w-3 flex-shrink-0" style={{ color: '#B8860B' }} />}
+                                                                    {t.premium && <span className="test-premium-badge"><Sparkles aria-hidden="true" /> Pro</span>}
                                                                 </div>
                                                                 <p className="font-bold text-[13.5px] leading-snug truncate" style={{ color: 'var(--text-primary)' }}>{t.title}</p>
                                                                 <p className="text-[11.5px] mt-1" style={{ color: 'var(--text-muted)' }}>
@@ -4738,6 +4681,23 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     </button>
                                                 )
                                             })}
+                                        {publicTests.length > 0 && visibleTests.length === 0 && !(testCatalogView === 'recommended' && recommendedTest) && (
+                                            <div className="test-catalog-empty">
+                                                <ClipboardList aria-hidden="true" />
+                                                <div>
+                                                    <p>Bu tanlovga mos test topilmadi</p>
+                                                    <span>Fan yoki format filtrini o‘zgartiring, yoxud AI bilan yangi mashq tuzing.</span>
+                                                </div>
+                                                <button type="button" onClick={() => {
+                                                    setTestCatalogView('all')
+                                                    setTestSubject('all')
+                                                    setTestFormat('all')
+                                                    setTestSearch('')
+                                                }}>
+                                                    Barcha testlar
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
