@@ -29,7 +29,6 @@ import type { AiQuota } from './chat/useAiQuota'
 import { TestCatalogControls } from './chat/TestCatalogControls'
 import { useTestCatalog } from './chat/useTestCatalog'
 import type { TestCatalogFormat, TestCatalogSort, TestCatalogView } from './chat/useTestCatalog'
-import { testSubjectTheme } from './chat/testCatalogTheme'
 
 interface Chat { id: string; title: string; subject?: string; subject2?: string; updatedAt: string; messageCount?: number }
 interface Msg { id: string; role: string; content: string; createdAt: string }
@@ -51,6 +50,11 @@ function sourceBadge(source?: string | null): { label: string; bg: string; color
     return null
 }
 
+// Professional katalogda fanlar ranglar kamalagi bilan emas, label va nom bilan
+// ajraladi. Aksent bitta — bu CTA va DTMMax brendini esda qoldiradi.
+function testSubjectTheme(_subject?: string | null): { accent: string; strong: string; soft: string; glow: string } {
+    return { accent: '#ea580c', strong: '#c2410c', soft: '#fff5eb', glow: 'rgba(234,88,12,0.18)' }
+}
 interface MyResult {
     id: string
     testId: string
@@ -4643,8 +4647,6 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                         className="test-catalog-row w-full text-left rounded-2xl p-3.5 sm:p-4 group"
                                                         style={{
                                                             '--test-accent': theme.accent,
-                                                            '--test-strong': theme.strong,
-                                                            '--test-soft': theme.soft,
                                                             '--test-border': `color-mix(in srgb, ${theme.accent} ${done ? '10%' : '18%'}, var(--border))`,
                                                             opacity: done ? 0.72 : 1,
                                                         } as React.CSSProperties}>
