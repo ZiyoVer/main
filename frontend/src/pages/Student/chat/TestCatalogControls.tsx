@@ -1,5 +1,7 @@
 import { Search, SlidersHorizontal, X } from 'lucide-react'
+import type { CSSProperties } from 'react'
 import type { TestCatalogFormat, TestCatalogSort, TestCatalogView } from './useTestCatalog'
+import { testSubjectTheme } from './testCatalogTheme'
 
 interface TestCatalogControlsProps {
     view: TestCatalogView
@@ -98,17 +100,27 @@ export function TestCatalogControls({
                 <div className="test-subject-filter" aria-label="Fan bo‘yicha filter">
                     <span>Fan</span>
                     <div>
-                        {['all', ...subjects].map(item => (
-                            <button
-                                key={item}
-                                type="button"
-                                className={subject === item ? 'is-active' : ''}
-                                aria-pressed={subject === item}
-                                onClick={() => onSubjectChange(item)}
-                            >
-                                {item === 'all' ? 'Hammasi' : item}
-                            </button>
-                        ))}
+                        {['all', ...subjects].map(item => {
+                            const theme = item === 'all'
+                                ? { accent: 'var(--brand)', strong: 'var(--brand-hover)', soft: 'var(--brand-light)' }
+                                : testSubjectTheme(item)
+                            return (
+                                <button
+                                    key={item}
+                                    type="button"
+                                    className={`test-subject-chip${subject === item ? ' is-active' : ''}`}
+                                    style={{
+                                        '--subject-accent': theme.accent,
+                                        '--subject-strong': theme.strong,
+                                        '--subject-soft': theme.soft,
+                                    } as CSSProperties}
+                                    aria-pressed={subject === item}
+                                    onClick={() => onSubjectChange(item)}
+                                >
+                                    {item === 'all' ? 'Hammasi' : item}
+                                </button>
+                            )
+                        })}
                     </div>
                 </div>
             )}
