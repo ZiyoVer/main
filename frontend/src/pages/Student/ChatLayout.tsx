@@ -190,6 +190,7 @@ function StudentQuestionImage({ src }: { src: string }) {
     return (
         <div className="mb-4 mt-1">
             <img src={src} alt="Savol rasmi" onError={() => setFailed(true)}
+                loading="eager" decoding="async" fetchPriority="high"
                 className="max-w-full rounded-xl border shadow-sm"
                 style={{ borderColor: 'var(--border)', maxHeight: '320px', objectFit: 'contain' }} />
         </div>
@@ -4175,7 +4176,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                                     <span className="pointer-events-none pt-0.5">
                                                                         <MathText text={q[opt]} />
                                                                         {optionImage && (
-                                                                            <img src={optionImage} alt={`${opt.toUpperCase()} variant rasmi`} className="mt-1.5 rounded-lg border max-w-full block" style={{ borderColor: 'var(--border)', maxHeight: '10rem', objectFit: 'contain' }} />
+                                                                            <img src={optionImage} alt={`${opt.toUpperCase()} variant rasmi`} loading="eager" decoding="async"
+                                                                                className="mt-1.5 rounded-lg border max-w-full block" style={{ borderColor: 'var(--border)', maxHeight: '10rem', objectFit: 'contain' }} />
                                                                         )}
                                                                     </span>
                                                                     {testSubmitted && isCorrect && <span className="ml-2 inline-flex items-center justify-center h-5 w-5 rounded-full text-xs" style={{ background: 'var(--success-light)', color: 'var(--success)' }}>✓</span>}
@@ -4189,7 +4191,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 {testSubmitted && q.solutionImage && (
                                                     <div className="mt-3 p-2.5 rounded-xl" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
                                                         <p className="text-[11px] font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>Yechim:</p>
-                                                        <img src={q.solutionImage} alt="Yechim rasmi" className="max-w-full rounded-lg" style={{ maxHeight: '240px', objectFit: 'contain' }} />
+                                                        <img src={q.solutionImage} alt="Yechim rasmi" loading="lazy" decoding="async" fetchPriority="low"
+                                                            className="max-w-full rounded-lg" style={{ maxHeight: '240px', objectFit: 'contain' }} />
                                                     </div>
                                                 )}
                                                 {testSubmitted && q.questionType !== 'open' && q.correct && testAnswers[i] !== q.correct && (

@@ -57,7 +57,7 @@ function getStudentQuestionText(question: unknown): string {
     return ''
 }
 
-function StudentQuestionImage({ src, compact = false }: { src: string; compact?: boolean }) {
+function StudentQuestionImage({ src, compact = false, priority = false }: { src: string; compact?: boolean; priority?: boolean }) {
     const [failed, setFailed] = useState(false)
     useEffect(() => setFailed(false), [src])
     if (failed) {
@@ -69,6 +69,7 @@ function StudentQuestionImage({ src, compact = false }: { src: string; compact?:
         )
     }
     return <img src={src} alt="Savol" onError={() => setFailed(true)}
+        loading={priority ? 'eager' : 'lazy'} decoding="async" fetchPriority={priority ? 'high' : 'low'}
         className={`${compact ? 'mt-3' : 'max-w-full rounded-lg border mb-3'}`}
         style={{ borderColor: 'var(--border)', maxHeight: compact ? 240 : undefined, maxWidth: '100%', objectFit: 'contain' }} />
 }
@@ -600,7 +601,7 @@ export default function TestPage() {
                     const serverResult = result?.results?.find((r: any) => r.questionId === q.id)
                     const isCorrectOpen = submitted && correct?.type === 'open' ? (serverResult ? serverResult.isCorrect : textAnswer.trim().toLowerCase() === (correct.text || '').trim().toLowerCase()) : false
                     return (
-                        <div key={q.id} className="rounded-xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                        <div key={q.id} className="rounded-xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', contentVisibility: 'auto', containIntrinsicSize: 'auto 420px' }}>
                             <div className="flex items-start gap-2 mb-3">
                                 <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold mt-0.5" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>{qi + 1}</span>
                                 {questionText ? (
@@ -609,7 +610,7 @@ export default function TestPage() {
                                     <p className="text-[12px] font-medium leading-relaxed flex-1" style={{ color: 'var(--danger)' }}>Savol matni saqlanmagan.</p>
                                 ) : null}
                             </div>
-                            {q.imageUrl && <StudentQuestionImage src={q.imageUrl} />}
+                            {q.imageUrl && <StudentQuestionImage src={q.imageUrl} priority={qi === 0} />}
                             {isMatching && matchingData ? (
                                 /* Moslashtirish savoli */
                                 <div>
@@ -719,7 +720,9 @@ export default function TestPage() {
                                                     <TextWithMath text={opt} />
                                                     {/* FAZA 3: variant rasmi */}
                                                     {Array.isArray(q.optionImages) && q.optionImages[oi] && (
-                                                        <img src={q.optionImages[oi]} alt={`${OPTS[oi]} variant rasmi`} className="mt-1.5 rounded-lg border max-w-full" style={{ borderColor: 'var(--border)', maxHeight: '10rem' }} />
+                                                        <img src={q.optionImages[oi]} alt={`${OPTS[oi]} variant rasmi`}
+                                                            loading={qi === 0 ? 'eager' : 'lazy'} decoding="async" fetchPriority={qi === 0 ? 'high' : 'low'}
+                                                            className="mt-1.5 rounded-lg border max-w-full" style={{ borderColor: 'var(--border)', maxHeight: '10rem' }} />
                                                     )}
                                                 </span>
                                                 {submitted && oi === correctIdx && <CheckCircle className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--success)' }} />}
@@ -733,7 +736,8 @@ export default function TestPage() {
                             {submitted && correct?.solutionImage && (
                                 <div className="mt-3 p-2.5 rounded-lg" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
                                     <p className="text-[11px] font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>Yechim:</p>
-                                    <img src={correct.solutionImage} alt="Yechim rasmi" className="max-w-full rounded-lg" style={{ maxHeight: '16rem' }} />
+                                    <img src={correct.solutionImage} alt="Yechim rasmi" loading="lazy" decoding="async" fetchPriority="low"
+                                        className="max-w-full rounded-lg" style={{ maxHeight: '16rem' }} />
                                 </div>
                             )}
                         </div>
@@ -1057,7 +1061,9 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                 style={{
                                     background: 'var(--bg-card)',
                                     border: `1.5px solid ${borderCol}`,
-                                    boxShadow: isFocused ? '0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent)' : 'none'
+                                    boxShadow: isFocused ? '0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent)' : 'none',
+                                    contentVisibility: 'auto',
+                                    containIntrinsicSize: 'auto 420px'
                                 }}>
                                 {/* Question number + text */}
                                 <div className="flex items-start gap-2.5">
@@ -1071,7 +1077,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                         <p className="text-[12px] leading-relaxed flex-1 font-medium" style={{ color: 'var(--danger)' }}>Savol matni saqlanmagan.</p>
                                     ) : null}
                                 </div>
-                                {q.imageUrl && <StudentQuestionImage src={q.imageUrl} compact />}
+                                {q.imageUrl && <StudentQuestionImage src={q.imageUrl} compact priority={qi === 0} />}
 
                                 {isMatching && matchingData ? (
                                     /* Matching question in DTM left panel */
@@ -1139,7 +1145,9 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                                         <TextWithMath text={opt} />
                                                         {/* FAZA 3: variant rasmi (DTM chap panel) */}
                                                         {Array.isArray(q.optionImages) && q.optionImages[oi] && (
-                                                            <img src={q.optionImages[oi]} alt={`${OPTS[oi]} variant rasmi`} className="mt-1.5 rounded-lg border max-w-full" style={{ borderColor: 'var(--border)', maxHeight: '9rem', objectFit: 'contain' }} />
+                                                            <img src={q.optionImages[oi]} alt={`${OPTS[oi]} variant rasmi`}
+                                                                loading={qi === 0 ? 'eager' : 'lazy'} decoding="async" fetchPriority={qi === 0 ? 'high' : 'low'}
+                                                                className="mt-1.5 rounded-lg border max-w-full" style={{ borderColor: 'var(--border)', maxHeight: '9rem', objectFit: 'contain' }} />
                                                         )}
                                                     </span>
                                                     {submitted && oi === correctIdx && <CheckCircle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" style={{ color: 'var(--success)' }} />}
@@ -1153,7 +1161,8 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                 {submitted && correct?.solutionImage && (
                                     <div className="mt-3 p-2.5 rounded-lg" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
                                         <p className="text-[11px] font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>Yechim:</p>
-                                        <img src={correct.solutionImage} alt="Yechim rasmi" className="max-w-full rounded-lg" style={{ maxHeight: 240, objectFit: 'contain' }} />
+                                        <img src={correct.solutionImage} alt="Yechim rasmi" loading="lazy" decoding="async" fetchPriority="low"
+                                            className="max-w-full rounded-lg" style={{ maxHeight: 240, objectFit: 'contain' }} />
                                     </div>
                                 )}
                             </div>
