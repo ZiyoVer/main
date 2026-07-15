@@ -166,6 +166,36 @@ function MathText({ text }: { text: string }) {
     } catch { return <>{text}</> }
 }
 
+function getStudentQuestionText(question: unknown): string {
+    if (!question || typeof question !== 'object') return ''
+    const record = question as Record<string, unknown>
+    for (const key of ['q', 'text', 'question', 'prompt']) {
+        const value = record[key]
+        if (typeof value === 'string' && value.trim()) return value.trim()
+    }
+    return ''
+}
+
+function StudentQuestionImage({ src }: { src: string }) {
+    const [failed, setFailed] = useState(false)
+    useEffect(() => setFailed(false), [src])
+    if (failed) {
+        return (
+            <div className="mb-4 mt-1 rounded-xl px-3 py-2.5 text-[12px] font-medium"
+                style={{ color: 'var(--danger)', background: 'var(--danger-light)', border: '1px solid color-mix(in srgb, var(--danger) 25%, transparent)' }}>
+                Savol rasmi ochilmadi. Test muallifi rasmni qayta yuklashi kerak.
+            </div>
+        )
+    }
+    return (
+        <div className="mb-4 mt-1">
+            <img src={src} alt="Savol rasmi" onError={() => setFailed(true)}
+                className="max-w-full rounded-xl border shadow-sm"
+                style={{ borderColor: 'var(--border)', maxHeight: '320px', objectFit: 'contain' }} />
+        </div>
+    )
+}
+
 function detectStructuredBlockType(raw: string, className?: string): StructuredBlockType {
     const lowerClass = className?.toLowerCase() || ''
     if (lowerClass.includes('language-test')) return 'test'
@@ -2392,7 +2422,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                 }
                 return {
                     id: q.id,
-                    q: q.text,
+                    q: getStudentQuestionText(q),
                     imageUrl: q.imageUrl || null,
                     questionType: q.questionType || 'mcq',
                     a: opts[0] || '', b: opts[1] || '', c: opts[2] || '', d: opts[3] || '',
@@ -4072,6 +4102,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         {currentQuestion && (() => {
                                             const q = currentQuestion
                                             const i = currentIndex
+                                            const questionText = getStudentQuestionText(q)
                                             return (
                                             <>
                                             <div className="card p-5" style={{ borderColor: testAnswers[i] ? 'color-mix(in srgb, var(--brand) 28%, var(--border))' : undefined }}>
@@ -4079,12 +4110,18 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     <span className="text-[10px] uppercase tracking-[0.12em] font-bold px-2 py-1 rounded-lg" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>Savol {i + 1}</span>
                                                     {testAnswers[i] && !testSubmitted && <span className="text-[10px] font-semibold" style={{ color: 'var(--success)' }}>Javob belgilandi ✓</span>}
                                                 </div>
-                                                <p className="text-[14px] font-semibold mb-3 leading-relaxed"><MathText text={q.q} /></p>
-                                                {q.imageUrl && (
-                                                    <div className="mb-4 mt-1">
-                                                        <img src={q.imageUrl} alt="Savol rasmi" className="max-w-full rounded-xl border shadow-sm" style={{ borderColor: 'var(--border)', maxHeight: '320px', objectFit: 'contain' }} />
+                                                {questionText ? (
+                                                    <p className="text-[14px] font-semibold mb-3 leading-relaxed"
+                                                        style={{ color: 'var(--text-primary)', opacity: 1 }}>
+                                                        <MathText text={questionText} />
+                                                    </p>
+                                                ) : !q.imageUrl ? (
+                                                    <div className="mb-3 rounded-xl px-3 py-2.5 text-[12px] font-medium"
+                                                        style={{ color: 'var(--danger)', background: 'var(--danger-light)', border: '1px solid color-mix(in srgb, var(--danger) 25%, transparent)' }}>
+                                                        Bu savolning matni saqlanmagan. Test muallifi savolni tahrirlashi kerak.
                                                     </div>
-                                                )}
+                                                ) : null}
+                                                {q.imageUrl && <StudentQuestionImage src={q.imageUrl} />}
                                                 {q.questionType === 'open' ? (
                                                     <div className="space-y-2">
                                                         <textarea

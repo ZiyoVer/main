@@ -47,6 +47,32 @@ function TextWithMath({ text }: { text: string }) {
     </>
 }
 
+function getStudentQuestionText(question: unknown): string {
+    if (!question || typeof question !== 'object') return ''
+    const record = question as Record<string, unknown>
+    for (const key of ['text', 'q', 'question', 'prompt']) {
+        const value = record[key]
+        if (typeof value === 'string' && value.trim()) return value.trim()
+    }
+    return ''
+}
+
+function StudentQuestionImage({ src, compact = false }: { src: string; compact?: boolean }) {
+    const [failed, setFailed] = useState(false)
+    useEffect(() => setFailed(false), [src])
+    if (failed) {
+        return (
+            <div className="mt-3 rounded-lg px-3 py-2 text-[12px] font-medium"
+                style={{ color: 'var(--danger)', background: 'var(--danger-light)', border: '1px solid color-mix(in srgb, var(--danger) 25%, transparent)' }}>
+                Savol rasmi ochilmadi. Test muallifi rasmni qayta yuklashi kerak.
+            </div>
+        )
+    }
+    return <img src={src} alt="Savol" onError={() => setFailed(true)}
+        className={`${compact ? 'mt-3' : 'max-w-full rounded-lg border mb-3'}`}
+        style={{ borderColor: 'var(--border)', maxHeight: compact ? 240 : undefined, maxWidth: '100%', objectFit: 'contain' }} />
+}
+
 function formatAcceptedAnswerText(text: string | null | undefined) {
     return String(text || '')
         .split(/\r?\n+/)
@@ -560,6 +586,7 @@ export default function TestPage() {
 
                 {/* Questions */}
                 {test?.questions?.map((q: any, qi: number) => {
+                    const questionText = getStudentQuestionText(q)
                     const opts = parseChoiceOptions(q.options)
                     const matchingData = q.questionType === 'matching' ? parseMatchingOptions(q.options) : null
                     const multipartData = q.questionType === 'multipart_open' ? (parseMultipartOptions(q.options) || { subQuestions: [] }) : { subQuestions: [] }
@@ -576,9 +603,13 @@ export default function TestPage() {
                         <div key={q.id} className="rounded-xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
                             <div className="flex items-start gap-2 mb-3">
                                 <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold mt-0.5" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>{qi + 1}</span>
-                                <p className="text-[13px] font-medium leading-relaxed flex-1"><TextWithMath text={q.text} /></p>
+                                {questionText ? (
+                                    <p className="text-[13px] font-medium leading-relaxed flex-1" style={{ color: 'var(--text-primary)', opacity: 1 }}><TextWithMath text={questionText} /></p>
+                                ) : !q.imageUrl ? (
+                                    <p className="text-[12px] font-medium leading-relaxed flex-1" style={{ color: 'var(--danger)' }}>Savol matni saqlanmagan.</p>
+                                ) : null}
                             </div>
-                            {q.imageUrl && <img src={q.imageUrl} alt="Test savoli" className="max-w-full rounded-lg border mb-3" style={{ borderColor: 'var(--border)' }} />}
+                            {q.imageUrl && <StudentQuestionImage src={q.imageUrl} />}
                             {isMatching && matchingData ? (
                                 /* Moslashtirish savoli */
                                 <div>
@@ -998,6 +1029,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                 {/* ════ LEFT: Questions ════ */}
                 <div ref={questionsRef} className={`flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4 min-w-0 min-h-0 ${isCompactLayout ? 'pb-28 sm:pb-32' : ''}`}>
                     {questions.map((q: any, qi: number) => {
+                        const questionText = getStudentQuestionText(q)
                         const opts = parseChoiceOptions(q.options)
                         const matchingData = q.questionType === 'matching' ? parseMatchingOptions(q.options) : null
                         const correct = submitted ? correctMap[q.id] : null
@@ -1033,9 +1065,13 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                         style={{ background: answered ? 'var(--brand)' : 'var(--bg-surface)', color: answered ? 'white' : 'var(--text-muted)' }}>
                                         {qi + 1}
                                     </span>
-                                    <p className="text-[13px] leading-relaxed flex-1 font-medium"><TextWithMath text={q.text} /></p>
+                                    {questionText ? (
+                                        <p className="text-[13px] leading-relaxed flex-1 font-medium" style={{ color: 'var(--text-primary)', opacity: 1 }}><TextWithMath text={questionText} /></p>
+                                    ) : !q.imageUrl ? (
+                                        <p className="text-[12px] leading-relaxed flex-1 font-medium" style={{ color: 'var(--danger)' }}>Savol matni saqlanmagan.</p>
+                                    ) : null}
                                 </div>
-                                {q.imageUrl && <img src={q.imageUrl} alt="Savol" className="mt-3 max-w-full rounded-lg border" style={{ borderColor: 'var(--border)', maxHeight: 240, objectFit: 'contain' }} />}
+                                {q.imageUrl && <StudentQuestionImage src={q.imageUrl} compact />}
 
                                 {isMatching && matchingData ? (
                                     /* Matching question in DTM left panel */
