@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import './landing.css'
@@ -463,50 +464,76 @@ function PixelTarget() {
   )
 }
 
-/* HERO — "Cho'qqi sari yo'l": pastdan yuqoriga ko'tarilgan yo'l, cho'qqida 189
-   va orzu universiteti; marker yo'lni bosib chiqadi, orqasidan yo'l brend rangida
-   to'ladi. Safar/o'sish/maqsad tuyg'usi. Faqat dekorativ (aria-hidden). */
-const CLIMB_PATH = 'M18 232 L96 176 L150 196 L214 120 L280 40'
-function HeroClimb() {
+/* OriginKit Text Morph yondashuviga mos o'quvchi transformatsiyasi.
+   Abstrakt ball cho'qqisi o'rniga mahsulotning foydasi uch qisqa holatda ko'rinadi. */
+const LEARNING_STATES = [
+  { word: 'Savol bor', step: 'Savol' },
+  { word: 'Tushundim', step: 'Izoh' },
+  { word: 'Yechdim', step: 'Mashq' },
+] as const
+
+function HeroLearningMorph() {
+  const [activeIndex, setActiveIndex] = useState(0)
+  const shouldReduceMotion = useReducedMotion()
+
+  useEffect(() => {
+    if (shouldReduceMotion) return
+    const timer = window.setInterval(() => {
+      setActiveIndex((current) => (current + 1) % LEARNING_STATES.length)
+    }, 2200)
+    return () => window.clearInterval(timer)
+  }, [shouldReduceMotion])
+
+  const visibleIndex = shouldReduceMotion ? 1 : activeIndex
+  const activeState = LEARNING_STATES[visibleIndex]
+
   return (
-    <div className="lp-climb-scene" aria-hidden="true">
-      <div className="lp-climb-float">
-        <div className="lp-climb-card">
-          <div className="lp-climb-flag">
-            <span className="b">189</span>
-            <span className="l">orzu · universitet</span>
-          </div>
-          <svg className="lp-climb-svg" viewBox="0 0 300 260">
-            <defs>
-              <linearGradient id="lpClimbGrad" x1="0" y1="1" x2="1" y2="0">
-                <stop offset="0" stopColor={C.accent} />
-                <stop offset="1" stopColor={C.accent2} />
-              </linearGradient>
-            </defs>
-            <path className="lp-climb-ridge" d={CLIMB_PATH} />
-            <path className="lp-climb-fill" d={CLIMB_PATH} />
-            <circle className="lp-climb-dot" cx="96" cy="176" r="4" />
-            <circle className="lp-climb-dot" cx="214" cy="120" r="4" />
-            <circle className="lp-climb-dot" cx="280" cy="40" r="5" />
-            <circle className="lp-climb-runner" r="7" />
-          </svg>
-          <div className="lp-climb-base"><span className="who">S</span> Sen — bugun</div>
-        </div>
+    <div className="lp-learning-scene" aria-hidden="true">
+      <div className="lp-learning-kicker">
+        <span />
+        DTMMax AI bilan
+      </div>
+
+      <div className="lp-morph-stage">
+        <AnimatePresence initial={false}>
+          <motion.span
+            key={activeState.word}
+            className="lp-morph-word"
+            initial={{ opacity: 0, filter: 'blur(14px)', scale: 0.88, y: 12 }}
+            animate={{ opacity: 1, filter: 'blur(0px)', scale: 1, y: 0 }}
+            exit={{ opacity: 0, filter: 'blur(14px)', scale: 1.08, y: -10 }}
+            transition={{ duration: 0.58, ease: [0.22, 1, 0.36, 1] }}
+          >
+            {activeState.word}<i>.</i>
+          </motion.span>
+        </AnimatePresence>
+      </div>
+
+      <p className="lp-learning-caption">Savoldan tushunishga. Tushunishdan yechimga.</p>
+
+      <div className="lp-learning-steps">
+        {LEARNING_STATES.map((state, index) => (
+          <span
+            className={index === visibleIndex ? 'is-current' : index < visibleIndex ? 'is-complete' : ''}
+            key={state.step}
+          >
+            {state.step}
+          </span>
+        ))}
       </div>
     </div>
   )
 }
 
 function MathZone() {
-  // Suzuvchi matematik belgilar (Σ, √, ∫, x²…) va uchqunlar olib tashlandi —
-  // faqat "Cho'qqi sari yo'l" hero grafigi qoladi (sokin, fokus bitta g'oyada).
+  // Hero'da fokus bitta g'oyada: savol → tushunish → yechim.
   return (
     <div
       aria-hidden="true"
       className="lp-math-zone"
       style={{ position: 'absolute', top: 92, right: 36, width: 512, height: 360, zIndex: 3 }}
     >
-      <HeroClimb />
+      <HeroLearningMorph />
     </div>
   )
 }
