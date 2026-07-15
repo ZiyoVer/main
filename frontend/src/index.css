@@ -795,6 +795,7 @@ button:focus-visible {
     background: transparent;
     color: var(--text-primary);
     font-size: 0.75rem;
+    font-weight: 500;
 }
 
 .test-catalog-search input::placeholder {
@@ -893,6 +894,7 @@ button:focus-visible {
     color: var(--text-primary);
     cursor: pointer;
     font-size: 0.75rem;
+    font-weight: 500;
 }
 
 .test-catalog-select select:focus-visible {
@@ -948,6 +950,7 @@ button:focus-visible {
     justify-content: space-between;
     gap: 0.75rem;
     font-size: 0.6875rem;
+    font-weight: 500;
 }
 
 .test-catalog-summary > div {
@@ -1036,6 +1039,7 @@ button:focus-visible {
     margin-top: 0.5rem;
     color: var(--text-muted);
     font-size: 0.6875rem;
+    font-weight: 500;
     line-height: 1.35;
 }
 
