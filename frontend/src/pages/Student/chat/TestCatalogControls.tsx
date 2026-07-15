@@ -1,4 +1,5 @@
 import { Search, SlidersHorizontal, X } from 'lucide-react'
+import { useState } from 'react'
 import type { TestCatalogFormat, TestCatalogSort, TestCatalogView } from './useTestCatalog'
 
 interface TestCatalogControlsProps {
@@ -39,6 +40,8 @@ export function TestCatalogControls({
     resultCount,
 }: TestCatalogControlsProps) {
     const hasFilters = !!search.trim() || subject !== 'all' || format !== 'all'
+    const activeFilterCount = Number(subject !== 'all') + Number(format !== 'all')
+    const [filtersOpen, setFiltersOpen] = useState(false)
     const clearFilters = () => {
         onSearchChange('')
         onSubjectChange('all')
@@ -66,6 +69,8 @@ export function TestCatalogControls({
                 <label className="test-catalog-search">
                     <Search aria-hidden="true" />
                     <input
+                        type="search"
+                        aria-label="Test yoki fan qidirish"
                         value={search}
                         onChange={event => onSearchChange(event.target.value)}
                         placeholder="Test yoki fan qidirish"
@@ -76,45 +81,67 @@ export function TestCatalogControls({
                         </button>
                     )}
                 </label>
-                <label className="test-catalog-select">
+                <button
+                    type="button"
+                    className={`test-catalog-filter-toggle${filtersOpen ? ' is-open' : ''}`}
+                    aria-expanded={filtersOpen}
+                    aria-controls="test-catalog-filter-panel"
+                    onClick={() => setFiltersOpen(current => !current)}
+                >
                     <SlidersHorizontal aria-hidden="true" />
-                    <select value={format} onChange={event => onFormatChange(event.target.value as TestCatalogFormat)} aria-label="Test formati">
-                        <option value="all">Barcha format</option>
-                        <option value="REGULAR">Oddiy</option>
-                        <option value="DTM_BLOCK">DTM blok</option>
-                        <option value="MILLIY_SERTIFIKAT">Milliy sertifikat</option>
-                    </select>
-                </label>
-                <label className="test-catalog-select">
-                    <select value={sort} onChange={event => onSortChange(event.target.value as TestCatalogSort)} aria-label="Testlarni saralash">
-                        <option value="recommended">Eng mos</option>
-                        <option value="new">Yangi</option>
-                        <option value="popular">Mashhur</option>
-                    </select>
-                </label>
+                    Filterlar
+                    {activeFilterCount > 0 && <span>{activeFilterCount}</span>}
+                </button>
             </div>
 
-            {subjects.length > 0 && (
-                <div className="test-subject-filter" aria-label="Fan bo‘yicha filter">
-                    <span>Fan</span>
-                    <div>
-                        {['all', ...subjects].map(item => (
-                            <button
-                                key={item}
-                                type="button"
-                                className={subject === item ? 'is-active' : ''}
-                                aria-pressed={subject === item}
-                                onClick={() => onSubjectChange(item)}
-                            >
-                                {item === 'all' ? 'Hammasi' : item}
-                            </button>
-                        ))}
+            {filtersOpen && (
+                <div id="test-catalog-filter-panel" className="test-catalog-filter-panel">
+                    <div className="test-catalog-filter-fields">
+                        <label className="test-catalog-select">
+                            <span>Format</span>
+                            <select value={format} onChange={event => onFormatChange(event.target.value as TestCatalogFormat)}>
+                                <option value="all">Barcha formatlar</option>
+                                <option value="REGULAR">Oddiy test</option>
+                                <option value="DTM_BLOCK">DTM blok</option>
+                                <option value="MILLIY_SERTIFIKAT">Milliy sertifikat</option>
+                            </select>
+                        </label>
+                        <label className="test-catalog-select">
+                            <span>Saralash</span>
+                            <select value={sort} onChange={event => onSortChange(event.target.value as TestCatalogSort)}>
+                                <option value="recommended">Eng mos</option>
+                                <option value="new">Yangi</option>
+                                <option value="popular">Mashhur</option>
+                            </select>
+                        </label>
                     </div>
+
+                    {subjects.length > 0 && (
+                        <div className="test-subject-filter" aria-label="Fan bo‘yicha filter">
+                            <span>Fan</span>
+                            <div>
+                                {['all', ...subjects].map(item => (
+                                    <button
+                                        key={item}
+                                        type="button"
+                                        className={subject === item ? 'is-active' : ''}
+                                        aria-pressed={subject === item}
+                                        onClick={() => onSubjectChange(item)}
+                                    >
+                                        {item === 'all' ? 'Hammasi' : item}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
             <div className="test-catalog-summary">
-                <span>{resultCount} ta mos test</span>
+                <div>
+                    <span>{resultCount} ta test</span>
+                    <span>{counts.completed}/{counts.all} yechilgan</span>
+                </div>
                 {hasFilters && <button type="button" onClick={clearFilters}>Filtrlarni tozalash</button>}
             </div>
         </div>

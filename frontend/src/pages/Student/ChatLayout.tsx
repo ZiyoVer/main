@@ -35,10 +35,9 @@ interface Msg { id: string; role: string; content: string; createdAt: string }
 interface Profile { onboardingDone: boolean; examType?: 'DTM' | 'MS' | null; subject?: string; subject2?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string; totalTests?: number; avgScore?: number; abilityLevel?: number }
 interface PublicTest { id: string; title: string; shareLink: string; subject?: string; category?: string; source?: string; premium?: boolean; testType?: string; timeLimit?: number | null; _count?: { questions: number; attempts: number } }
 
-/* Test turi badge'i — birinchi qarashda format ko'rinsin (4.1). REGULAR uchun badge yo'q (clutter emas). */
-function testTypeBadge(testType?: string | null): { label: string; bg: string; color: string } | null {
-    if (testType === 'DTM_BLOCK') return { label: 'DTM · 189', bg: 'color-mix(in srgb, var(--brand) 12%, transparent)', color: 'var(--brand)' }
-    if (testType === 'MILLIY_SERTIFIKAT') return { label: 'MS · 75', bg: 'rgba(99,102,241,0.12)', color: '#6366f1' }
+function testTypeLabel(testType?: string | null): string | null {
+    if (testType === 'DTM_BLOCK') return 'DTM 189'
+    if (testType === 'MILLIY_SERTIFIKAT') return 'MS 75'
     return null
 }
 
@@ -50,11 +49,6 @@ function sourceBadge(source?: string | null): { label: string; bg: string; color
     return null
 }
 
-// Professional katalogda fanlar ranglar kamalagi bilan emas, label va nom bilan
-// ajraladi. Aksent bitta — bu CTA va DTMMax brendini esda qoldiradi.
-function testSubjectTheme(_subject?: string | null): { accent: string; strong: string; soft: string; glow: string } {
-    return { accent: '#ea580c', strong: '#c2410c', soft: '#fff5eb', glow: 'rgba(234,88,12,0.18)' }
-}
 interface MyResult {
     id: string
     testId: string
@@ -4503,7 +4497,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         {overlayPanel === 'tests' ? 'Test markazi' : overlayPanel === 'flashcards' ? 'Kartochkalar' : overlayPanel === 'progress' ? 'Natijalar' : 'Pro'}
                                     </h2>
                                     <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                                        {overlayPanel === 'tests' ? (publicTests.length > 0 ? `${publicTests.length} ta test · bugungi natijangni ko‘r` : 'Bugungi tayyorgarlik shu yerdan boshlanadi')
+                                        {overlayPanel === 'tests' ? (publicTests.length > 0 ? `${publicTests.length} ta test` : 'Bugungi tayyorgarlik shu yerdan boshlanadi')
                                             : overlayPanel === 'flashcards' ? `${dueFlashcards.length} ta kartochka qaytarish kerak`
                                             : overlayPanel === 'progress' ? 'O\'qish tahlili'
                                             : 'Rejalar va imkoniyatlar'}
@@ -4520,19 +4514,17 @@ Iltimos, har bir savolni tahlil qilib ber:
                             {/* Content */}
                             <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-3.5 sm:py-4">
                                 {overlayPanel === 'tests' && (
-                                    <div className="space-y-3">
+                                    <div className="test-catalog-content">
                                         {/* 4.4: ma'lumot kelguncha skeleton kartalar */}
                                         {testsLoading && publicTests.length === 0 && (
-                                            <div className="space-y-3">
+                                            <div className="test-catalog-list test-catalog-skeleton" aria-label="Testlar yuklanmoqda">
                                                 {[0, 1, 2, 3].map(i => (
-                                                    <div key={i} className="rounded-2xl p-4 animate-pulse" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                                        <div className="flex items-start gap-3">
-                                                            <div className="h-10 w-10 rounded-xl flex-shrink-0" style={{ background: 'var(--bg-muted)' }} />
-                                                            <div className="flex-1 space-y-2">
-                                                                <div className="h-3.5 rounded w-2/3" style={{ background: 'var(--bg-muted)' }} />
-                                                                <div className="h-3 rounded w-1/3" style={{ background: 'var(--bg-muted)' }} />
-                                                            </div>
+                                                    <div key={i} className="test-catalog-skeleton__row animate-pulse">
+                                                        <div className="flex-1 space-y-2">
+                                                            <div className="h-3.5 rounded w-2/3" style={{ background: 'var(--bg-muted)' }} />
+                                                            <div className="h-3 rounded w-1/3" style={{ background: 'var(--bg-muted)' }} />
                                                         </div>
+                                                        <div className="h-8 w-20 rounded-lg flex-shrink-0" style={{ background: 'var(--bg-muted)' }} />
                                                     </div>
                                                 ))}
                                             </div>
@@ -4567,137 +4559,73 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 resultCount={testCatalogResultCount}
                                             />
                                         )}
-                                        {/* Birinchi ko'rinadigan karta — katalog emas, aynan hozir boshlash mumkin bo'lgan test. */}
-                                        {testCatalogView === 'recommended' && recommendedTest && (() => {
-                                            const recommended = recommendedTest
-                                            const theme = testSubjectTheme(recommended.subject)
-                                            const type = testTypeBadge(recommended.testType)
-                                            return (
-                                                <div className="test-recommendation" style={{ background: theme.soft, borderColor: `color-mix(in srgb, ${theme.accent} 24%, var(--border))` }}>
-                                                    <div className="flex items-start gap-3">
-                                                        <div className="test-recommendation__icon" style={{ background: theme.accent }}>
-                                                            <Target className="h-5 w-5" />
+                                        {publicTests.length > 0 && (() => {
+                                            const rows: Array<{ test: PublicTest; recommended: boolean }> = []
+                                            if (testCatalogView === 'recommended' && recommendedTest) {
+                                                rows.push({ test: recommendedTest, recommended: true })
+                                            }
+                                            visibleTests.forEach(test => rows.push({ test, recommended: false }))
+
+                                            if (rows.length === 0) {
+                                                return (
+                                                    <div className="test-catalog-empty">
+                                                        <ClipboardList aria-hidden="true" />
+                                                        <div>
+                                                            <p>Bu tanlovga mos test topilmadi</p>
+                                                            <span>Filtrlarni tozalang yoki boshqa bo‘limni tanlang.</span>
                                                         </div>
-                                                        <div className="min-w-0 flex-1">
-                                                            <p className="text-[11px] font-semibold" style={{ color: theme.strong }}>Sizga mos</p>
-                                                            <p className="text-[15px] font-bold leading-snug mt-1" style={{ color: 'var(--text-primary)' }}>{recommended.title}</p>
-                                                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>
-                                                                <span>{recommended.subject || 'Umumiy'}</span>
-                                                                <span aria-hidden="true">·</span>
-                                                                <span>{recommended._count?.questions ?? 0} savol</span>
-                                                                {typeof recommended.timeLimit === 'number' && recommended.timeLimit > 0 && <><span aria-hidden="true">·</span><span>{recommended.timeLimit} daqiqa</span></>}
-                                                                {type && <span className="px-1.5 py-0.5 rounded font-bold" style={{ background: type.bg, color: type.color }}>{type.label}</span>}
-                                                                {recommended.premium && <span className="test-premium-badge"><Sparkles aria-hidden="true" /> Pro</span>}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center justify-between gap-3 mt-4">
-                                                        <p className="text-[11px] leading-snug" style={{ color: 'var(--text-secondary)' }}>Kichik bir test bugungi tayyorgarlikni oldinga suradi.</p>
-                                                        <button type="button" onClick={() => { void openPublicTest(recommended) }} className="test-recommendation__action" style={{ background: theme.accent }}>
-                                                            Boshlash →
+                                                        <button type="button" onClick={() => {
+                                                            setTestCatalogView('all')
+                                                            setTestSubject('all')
+                                                            setTestFormat('all')
+                                                            setTestSearch('')
+                                                        }}>
+                                                            Barcha testlar
                                                         </button>
                                                     </div>
-                                                </div>
-                                            )
-                                        })()}
-                                        {publicTests.length > 0 && (() => {
-                                            // Ishlanganlik: backend natijasi YOKI lokal belgi (by-link ham hisobga olinadi)
-                                            const isDone = (t: PublicTest) => myResults.some(r => r.testId === t.id) || completedTestIdsRef.current.has(t.id)
-                                            const doneCount = publicTests.filter(isDone).length
-                                            const donePct = Math.round((doneCount / publicTests.length) * 100)
-                                            return (
-                                                <div className="rounded-2xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                                    <div className="flex flex-wrap items-center justify-between gap-3 mb-2.5">
-                                                        <div>
-                                                            <p className="text-[13px] font-bold" style={{ color: 'var(--text-primary)' }}>Sening test yo‘ling</p>
-                                                            <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{doneCount === publicTests.length ? 'Barcha testlar yakunlandi — zo‘r ish!' : `Yana ${publicTests.length - doneCount} ta test seni kutyapti`}</p>
-                                                        </div>
-                                                        <span className="text-[12px] font-bold px-2.5 py-1 rounded-full flex-shrink-0" style={{ background: donePct === 100 ? 'var(--success-light)' : 'var(--brand-light)', color: donePct === 100 ? 'var(--success)' : 'var(--brand)' }}>
-                                                            {doneCount}/{publicTests.length}
-                                                        </span>
-                                                        {weakTopicSummary && (
-                                                            <button
-                                                                onClick={() => {
-                                                                    setOverlayPanel(null)
-                                                                    void handleSend(`Mening zaif mavzularim: ${weakTopicSummary}. Shu mavzularni bugun o'rganish uchun qisqa reja tuzing va asosiy tushunchalarni tushuntiring.`, [])
-                                                                }}
-                                                                className="text-[11px] font-semibold px-3 py-1.5 rounded-xl transition flex-shrink-0"
-                                                                style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
-                                                                Zaif mavzularni o'rganish
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-muted)' }}>
-                                                        <div className="h-full rounded-full transition-all" style={{ width: `${donePct}%`, background: donePct === 100 ? 'var(--success)' : 'var(--k-accent-grad, var(--brand))' }} />
-                                                    </div>
-                                                </div>
-                                            )
-                                        })()}
-                                        {visibleTests.map(t => {
-                                                // Premium-minimal karta: butun karta bosiladigan, BITTA meta-qator,
-                                                // bitta tur-badge — rangli chegara/ikonka/badge shovqini olib tashlandi
-                                                const result = myResults.find(r => r.testId === t.id)
-                                                const done = isCatalogTestDone(t)
-                                                const typeBadge = testTypeBadge(t.testType)
-                                                const source = sourceBadge(t.source)
-                                                const summary = result ? getAttemptSummary(result) : null
-                                                const theme = testSubjectTheme(t.subject)
-                                                return (
-                                                    <button key={t.id} type="button" onClick={() => { void openPublicTest(t) }}
-                                                        className="test-catalog-row w-full text-left rounded-2xl p-3.5 sm:p-4 group"
-                                                        style={{
-                                                            '--test-accent': theme.accent,
-                                                            '--test-border': `color-mix(in srgb, ${theme.accent} ${done ? '10%' : '18%'}, var(--border))`,
-                                                            opacity: done ? 0.72 : 1,
-                                                        } as React.CSSProperties}>
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="h-11 w-11 rounded-2xl flex flex-col items-center justify-center flex-shrink-0" style={{ background: done ? 'var(--bg-muted)' : theme.soft, color: done ? 'var(--text-muted)' : theme.strong, border: `1px solid ${done ? 'var(--border)' : `color-mix(in srgb, ${theme.accent} 18%, transparent)`}` }}>
-                                                                <span className="text-[14px] leading-none font-bold">{t._count?.questions ?? 0}</span>
-                                                                <span className="text-[8px] uppercase tracking-wide mt-0.5" style={{ opacity: 0.78 }}>savol</span>
-                                                            </div>
-                                                            <div className="flex-1 min-w-0">
-                                                                <div className="flex items-center gap-1.5 mb-1">
-                                                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: done ? 'var(--bg-muted)' : theme.soft, color: done ? 'var(--text-muted)' : theme.strong }}>{t.subject || 'Umumiy'}</span>
-                                                                    {typeBadge && <span className="text-[9px] px-1.5 py-0.5 rounded font-bold flex-shrink-0" style={{ background: typeBadge.bg, color: typeBadge.color }}>{typeBadge.label}</span>}
-                                                                    {t.premium && <span className="test-premium-badge"><Sparkles aria-hidden="true" /> Pro</span>}
-                                                                </div>
-                                                                <p className="font-bold text-[13.5px] leading-snug truncate" style={{ color: 'var(--text-primary)' }}>{t.title}</p>
-                                                                <p className="text-[11.5px] mt-1" style={{ color: 'var(--text-muted)' }}>
-                                                                    {typeof t.timeLimit === 'number' && t.timeLimit > 0 ? `${t.timeLimit} daqiqa` : 'Vaqt chegarasi yo‘q'}
-                                                                    {source ? ` · ${source.label}` : ''}
-                                                                </p>
-                                                            </div>
-                                                            <div className="flex items-center gap-2.5 flex-shrink-0">
-                                                                {done && summary && (
-                                                                    <span className="text-[12px] font-bold" style={{ color: 'var(--success)' }}>{summary.percent}%</span>
-                                                                )}
-                                                                {done ? (
-                                                                    <span className="text-[12px] font-semibold" style={{ color: 'var(--text-muted)' }}>Ko'rish</span>
-                                                                ) : (
-                                                                    <span className="inline-block text-[12px] font-bold transition group-hover:translate-x-0.5" style={{ color: theme.strong }}>Boshlash →</span>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </button>
                                                 )
-                                            })}
-                                        {publicTests.length > 0 && visibleTests.length === 0 && !(testCatalogView === 'recommended' && recommendedTest) && (
-                                            <div className="test-catalog-empty">
-                                                <ClipboardList aria-hidden="true" />
-                                                <div>
-                                                    <p>Bu tanlovga mos test topilmadi</p>
-                                                    <span>Fan yoki format filtrini o‘zgartiring, yoxud AI bilan yangi mashq tuzing.</span>
+                                            }
+
+                                            return (
+                                                <div className="test-catalog-list">
+                                                    {rows.map(({ test: t, recommended }) => {
+                                                        const result = myResults.find(item => item.testId === t.id)
+                                                        const done = isCatalogTestDone(t)
+                                                        const type = testTypeLabel(t.testType)
+                                                        const source = sourceBadge(t.source)
+                                                        const summary = result ? getAttemptSummary(result) : null
+                                                        return (
+                                                            <button
+                                                                key={t.id}
+                                                                type="button"
+                                                                onClick={() => { void openPublicTest(t) }}
+                                                                className={`test-catalog-row${recommended ? ' is-recommended' : ''}${done ? ' is-completed' : ''}`}
+                                                            >
+                                                                <div className="test-catalog-row__main">
+                                                                    <div className="test-catalog-row__labels">
+                                                                        {recommended && <span className="test-catalog-recommended-label"><Target aria-hidden="true" /> Sizga mos</span>}
+                                                                        <span>{t.subject || 'Umumiy'}</span>
+                                                                    </div>
+                                                                    <p className="test-catalog-row__title">{t.title}</p>
+                                                                    <div className="test-catalog-row__meta">
+                                                                        <span>{t._count?.questions ?? 0} savol</span>
+                                                                        <span>{typeof t.timeLimit === 'number' && t.timeLimit > 0 ? `${t.timeLimit} daqiqa` : 'Vaqtsiz'}</span>
+                                                                        {type && <span>{type}</span>}
+                                                                        {source && <span>{source.label}</span>}
+                                                                        {t.premium && <span className="test-premium-badge"><Sparkles aria-hidden="true" /> Pro</span>}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="test-catalog-row__action">
+                                                                    {done && summary && <span className="test-catalog-row__score">{summary.percent}%</span>}
+                                                                    <span>{done ? 'Ko‘rish' : 'Boshlash'}</span>
+                                                                    <ArrowRight aria-hidden="true" />
+                                                                </div>
+                                                            </button>
+                                                        )
+                                                    })}
                                                 </div>
-                                                <button type="button" onClick={() => {
-                                                    setTestCatalogView('all')
-                                                    setTestSubject('all')
-                                                    setTestFormat('all')
-                                                    setTestSearch('')
-                                                }}>
-                                                    Barcha testlar
-                                                </button>
-                                            </div>
-                                        )}
+                                            )
+                                        })()}
                                     </div>
                                 )}
 
