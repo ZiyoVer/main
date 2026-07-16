@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { CheckCircle, Clock, XCircle, Sparkles } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 
-// Octo to'lovidan qaytish sahifasi: ?tx=<shop_transaction_id> bo'yicha holatni
+// Paylov hosted checkout'dan qaytish sahifasi: ?tx=<order_id> bo'yicha holatni
 // kuzatadi. Webhook bir necha soniya kechikishi mumkin — shuning uchun polling.
 const POLL_INTERVAL_MS = 2500
 const MAX_POLLS = 12 // ~30 soniya

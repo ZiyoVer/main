@@ -440,9 +440,9 @@ model Payment {
   subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
   amount         Int                              // so'mda (tiyin emas) — masalan 35000
   currency       String   @default("UZS")
-  status         String   @default("CREATED")     // CREATED | PAID | FAILED | REFUNDED
-  provider       String?                          // "octo" | "multicard" | ...
-  providerTxnId  String?  @unique                  // agregator tranzaksiya id'si (idempotentlik)
+  status         String   @default("CREATED")     // CREATED | PROCESSING | PAID | FAILED | REFUNDED
+  provider       String?                          // "paylov" | "octo" | ...
+  providerTxnId  String?  @unique                  // merchant order ID (idempotentlik); provider transaction meta'da
   meta           String?                          // xom webhook payload (JSON)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

@@ -815,7 +815,7 @@ const FAQS: Faq[] = [
   },
   {
     q: 'Platforma bepulmi?',
-    a: "Ro'yxatdan o'tish va boshlash mutlaqo bepul, karta ma'lumotlari kerak emas. Kengaytirilgan imkoniyatlar uchun keyinchalik hamyonbop obuna rejalari ham bo'ladi.",
+    a: "Ro'yxatdan o'tish va asosiy imkoniyatlardan foydalanish bepul, karta ma'lumotlari kerak emas. Qo'shimcha imkoniyatlar uchun ixtiyoriy Pro obuna mavjud.",
   },
   {
     q: "Qaysi fanlarni o'rganish mumkin?",
@@ -1058,6 +1058,29 @@ function PlanCard({ plan }: { plan: Plan }) {
 }
 
 function Pricing() {
+  const [billingEnforced, setBillingEnforced] = useState(false)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    void fetch('/api/billing/config', { signal: controller.signal })
+      .then(response => response.ok ? response.json() as Promise<unknown> : Promise.reject(new Error('billing_config_failed')))
+      .then(data => {
+        if (data && typeof data === 'object') {
+          setBillingEnforced((data as Record<string, unknown>).enforced === true)
+        }
+      })
+      .catch(error => {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) setBillingEnforced(false)
+      })
+    return () => controller.abort()
+  }, [])
+
+  const plans = PLANS.map(plan => plan.name !== 'Pro' || !billingEnforced ? plan : {
+    ...plan,
+    cta: "Pro'ga o'tish",
+    badge: 'Paylov orqali',
+  })
+
   return (
     <section id="narxlar" style={{ ...container, padding: '96px 56px', position: 'relative' }} className="lp-container">
       <Reveal>
@@ -1066,16 +1089,18 @@ function Pricing() {
             <Eyebrow align="center">NARXLAR</Eyebrow>
           </div>
           <h2 className="lp-h2" style={{ fontFamily: SERIF, fontSize: 50, fontWeight: 500, letterSpacing: '-0.015em', lineHeight: 1.12, margin: 0, color: C.ink }}>
-            Hozir <Em>hammasi</Em> bepul
+            {billingEnforced ? <>Bepul boshlang, <Em>Pro</Em> bilan kuchaytiring</> : <>Hozir <Em>hammasi</Em> bepul</>}
           </h2>
           <p style={{ fontSize: 20, lineHeight: 1.6, color: C.gray, maxWidth: '44ch', margin: '20px auto 0' }}>
-            Barcha asosiy imkoniyatlar hammaga ochiq. Pro reja — orzuingga tezroq yetmoqchilar uchun qo'shimcha kuch, tez kunda.
+            {billingEnforced
+              ? "Asosiy tayyorgarlik imkoniyatlari bepul. Pro reja cheksiz AI yordami va qo'shimcha imkoniyatlarni ochadi."
+              : "Barcha asosiy imkoniyatlar hammaga ochiq. Pro reja — orzuingga tezroq yetmoqchilar uchun qo'shimcha kuch."}
           </p>
         </div>
       </Reveal>
 
       <div className="lp-grid-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20, maxWidth: 880, margin: '0 auto' }}>
-        {PLANS.map((p, i) => (
+        {plans.map((p, i) => (
           <Reveal key={p.name} delay={i * 80}>
             <PlanCard plan={p} />
           </Reveal>
@@ -1083,7 +1108,8 @@ function Pricing() {
       </div>
 
       <p style={{ fontSize: 13.5, lineHeight: 1.6, color: C.gray2, textAlign: 'center', maxWidth: '60ch', margin: '28px auto 0' }}>
-        DTM savol-bashorati — kafolat emas: 5 yillik DTM tahlillarimizga ko'ra eng ehtimoliy mavzu va savol turlari. To'lov hali ishga tushmagan — hozircha barcha imkoniyatlardan bepul foydalaning.
+        DTM savol-bashorati — kafolat emas: 5 yillik DTM tahlillarimizga ko'ra eng ehtimoliy mavzu va savol turlari.
+        {!billingEnforced && " Beta davrida barcha imkoniyatlardan bepul foydalaning."}
       </p>
     </section>
   )

@@ -1,17 +1,16 @@
+import { useEffect, useState } from 'react'
+import { fetchApi } from '@/lib/api'
+
 /* =========================================================================
-   DtmMax — Pro tier model (FRONTEND SCAFFOLDING, non-enforcing)
+   DtmMax — Pro tier model
    ---------------------------------------------------------------------------
    This file encodes the Pro tier *model* so the UI can label and present it
    consistently with the landing pricing section (Landing.tsx → PLANS).
 
-   IMPORTANT (decided by O'ktam):
-   - Pro is VISIBLE in-app, but NOT enforced. Everyone uses everything for free
-     during beta. There is NO payment system yet and NO feature gating here.
-   - `useIsPro()` is the single seam a real entitlement (server flag / billing)
-     will plug into later. Until then it ALWAYS reports the open-beta state, so
-     no feature is ever blocked. Do NOT use it to hide or disable functionality
-     — only to drive cosmetic "Pro" tags and the upgrade view.
-   - No Prisma/DB field, no migration, no checkout. Those ship with payment.
+   `useIsPro()` backend /billing/status bilan yagona entitlement manbasi bo'ladi.
+   PRO_ENFORCED=false paytida backend beta holatini, true paytida esa haqiqiy
+   Subscription holatini qaytaradi. Feature gate'ning yakuniy qarori baribir
+   serverda qoladi — klient holatiga ishonilmaydi.
 
    HONESTY: the DTM question-prediction copy must stay "tahlilga asoslangan,
    kafolat emas" — never promise a guaranteed score or a fixed percentage.
@@ -87,30 +86,57 @@ export const FREE_FEATURES: readonly string[] = [
  * Keep wording aligned with the landing footnote.
  */
 export const PRO_DISCLAIMER =
-    "DTM savol-bashorati — kafolat emas: 5 yillik DTM tahlillarimizga ko'ra eng ehtimoliy mavzu va savol turlari. To'lov hali ishga tushmagan — hozircha barcha imkoniyatlardan bepul foydalaning." as const
+    "DTM savol-bashorati — kafolat emas: 5 yillik DTM tahlillarimizga ko'ra eng ehtimoliy mavzu va savol turlari." as const
 
 /**
- * Tier seam for a future real entitlement.
- *
- * Returns the current tier state. During open beta this is intentionally a
- * constant: `isPro` is reported `true` for everyone AND `enforced` is `false`,
- * so callers must NEVER gate a feature on it — it exists only to (a) drive
- * cosmetic Pro tags and (b) be the one place a server-backed entitlement is
- * wired in later (e.g. read `user.proUntil` once payment lands).
- *
- * Deliberately takes no arguments and reads no store so it cannot accidentally
- * become a gate; swap the body for a real check when billing exists.
+ * Server-backed entitlement. Network xatosida pullik holat taxmin qilinmaydi;
+ * backend feature endpointlari baribir requirePro/kvota bilan fail-closed.
  */
 export interface ProState {
-    /** Open beta → everyone is effectively Pro. */
     isPro: boolean
-    /** Beta → tier limits are NOT enforced anywhere. Always false for now. */
     enforced: boolean
-    /** Display status, e.g. "Beta'da bepul ochiq". */
     statusLabel: string
+    until: string | null
+    loading: boolean
 }
 
 export function useIsPro(): ProState {
-    // Open beta: full access for everyone, nothing enforced.
-    return { isPro: true, enforced: false, statusLabel: PRO_STATUS_LABEL }
+    const [state, setState] = useState<ProState>({
+        isPro: false,
+        enforced: false,
+        statusLabel: 'Holat tekshirilmoqda...',
+        until: null,
+        loading: true,
+    })
+
+    useEffect(() => {
+        const controller = new AbortController()
+        void fetchApi('/billing/status', { signal: controller.signal, silent: true })
+            .then((data: unknown) => {
+                if (!data || typeof data !== 'object') throw new Error('billing_status_invalid')
+                const status = data as Record<string, unknown>
+                const enforced = status.enforced === true
+                const isPro = status.isPro === true
+                setState({
+                    isPro,
+                    enforced,
+                    statusLabel: !enforced ? PRO_STATUS_LABEL : isPro ? 'Pro obuna faol' : 'Bepul reja',
+                    until: typeof status.until === 'string' ? status.until : null,
+                    loading: false,
+                })
+            })
+            .catch(error => {
+                if (error instanceof DOMException && error.name === 'AbortError') return
+                setState({
+                    isPro: false,
+                    enforced: true,
+                    statusLabel: 'Obuna holati aniqlanmadi',
+                    until: null,
+                    loading: false,
+                })
+            })
+        return () => controller.abort()
+    }, [])
+
+    return state
 }

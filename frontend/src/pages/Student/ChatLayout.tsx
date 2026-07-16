@@ -22,7 +22,7 @@ import { useAuthStore } from '@/store/authStore'
 import ChatContext, { useChatContext, EssayPanel, TodoItem } from '../../contexts/ChatContext'
 import { useTestPanel } from '../../hooks/useTestPanel'
 import { useFlashPanel } from '../../hooks/useFlashPanel'
-import { useIsPro, PRO_PRICE, PRO_PRICE_PERIOD, PRO_STATUS_LABEL, PRO_FEATURES, FREE_FEATURES, PRO_DISCLAIMER } from '@/lib/pro'
+import { useIsPro, PRO_PRICE, PRO_PRICE_PERIOD, PRO_FEATURES, FREE_FEATURES, PRO_DISCLAIMER } from '@/lib/pro'
 import { AiQuotaRail } from './chat/AiQuotaRail'
 import { useAiQuota } from './chat/useAiQuota'
 import type { AiQuota } from './chat/useAiQuota'
@@ -2146,7 +2146,8 @@ Iltimos, har bir savolni tahlil qilib ber:
         }
     }, [aiQuota, chatId, loading, profile])
 
-    // Octo orqali Pro to'lovini boshlash — checkout URL'ga yo'naltiradi
+    // Paylov hosted checkout orqali Pro to'lovini boshlash.
+    // Karta va OTP DTMMax frontend/backend'iga kirmaydi.
     async function startProCheckout() {
         if (checkoutLoading) return
         setCheckoutLoading(true)
@@ -2162,7 +2163,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                 // billing_disabled_beta — enforcement o'chiq: hamma Pro bepul, to'lov OLINMAYDI (fail-closed).
                 // Foydalanuvchini "xato" bilan qo'rqitmasdan halol holatni aytamiz.
                 if (e?.data?.error === 'billing_disabled_beta') toast.success("Beta davrida barcha imkoniyatlar bepul — hozircha to'lovga hojat yo'q 🎉")
-                else toast.error("To'lov tizimi hali to'liq sozlanmagan (OCTO kalitlari)")
+                else toast.error("To'lov tizimi hali to'liq sozlanmagan (Paylov sozlamalari)")
             }
             else toast.error(e?.message || "To'lov boshlanmadi — qayta urinib ko'ring")
         }
@@ -4871,10 +4872,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                                     </div>
                                 )}
 
-                                {/* PRO — narxlar/imkoniyatlar (landing #narxlar bilan bir xil; to'lov YO'Q, bloklash YO'Q) */}
+                                {/* PRO — billing/status serverdagi entitlement bilan bir xil holatni ko'rsatadi */}
                                 {overlayPanel === 'pro' && (
                                     <div className="space-y-4">
-                                        {/* Status banner — beta'da bepul */}
+                                        {/* Status banner */}
                                         <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: 'var(--brand-light)', border: '1px solid color-mix(in srgb, var(--brand) 24%, transparent)' }}>
                                             <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--brand) 16%, transparent)' }}>
                                                 <Sparkles className="h-5 w-5" style={{ color: 'var(--brand)' }} />
@@ -4884,7 +4885,13 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     {pro.statusLabel}
                                                 </p>
                                                 <p className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                                                    Hozir <strong style={{ color: 'var(--brand)' }}>barcha imkoniyatlar</strong> hammaga bepul ochiq — Pro xususiyatlari ham. To'lov keyinroq ulanadi.
+                                                    {pro.loading
+                                                        ? "Obuna ma'lumotlari serverdan olinmoqda."
+                                                        : !pro.enforced
+                                                            ? <>Hozir <strong style={{ color: 'var(--brand)' }}>barcha imkoniyatlar</strong> beta davrida hammaga bepul ochiq.</>
+                                                            : pro.isPro
+                                                                ? <>Barcha Pro imkoniyatlari ochiq{pro.until ? ` — ${new Date(pro.until).toLocaleDateString('uz-UZ')} gacha` : ''}.</>
+                                                                : "Hozir Bepul rejadasiz. Pro obuna cheksiz AI so'rovlari va qo'shimcha imkoniyatlarni ochadi."}
                                                 </p>
                                             </div>
                                         </div>
@@ -4898,7 +4905,9 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>so'm</span>
                                                 </div>
                                             </div>
-                                            <p className="text-xs mt-1.5" style={{ color: 'var(--text-secondary)' }}>Hammaga to'liq ochiq — bugun va doimo.</p>
+                                            <p className="text-xs mt-1.5" style={{ color: 'var(--text-secondary)' }}>
+                                                {pro.enforced ? "Asosiy tayyorgarlik imkoniyatlari bilan boshlang." : "Beta davrida hammaga to'liq ochiq."}
+                                            </p>
                                             <ul className="mt-3 space-y-2">
                                                 {FREE_FEATURES.map(f => (
                                                     <li key={f} className="flex items-start gap-2 text-[13px] leading-snug" style={{ color: 'var(--text-primary)' }}>
@@ -4912,7 +4921,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         {/* Pro tier card */}
                                         <div className="rounded-2xl p-4 relative" style={{ background: 'var(--bg-card)', border: '1.5px solid var(--brand)', boxShadow: '0 8px 28px -16px color-mix(in srgb, var(--brand) 60%, transparent)' }}>
                                             <span className="absolute top-3 right-3 text-[10px] font-bold px-2 py-1 rounded-full" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
-                                                {PRO_STATUS_LABEL}
+                                                {pro.statusLabel}
                                             </span>
                                             <div className="flex items-baseline gap-2">
                                                 <span className="text-[11px] font-bold uppercase tracking-[0.06em]" style={{ color: 'var(--brand)' }}>Pro</span>
@@ -4933,7 +4942,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                                 <span className="text-[13px] font-semibold" style={{ color: 'var(--text-primary)' }}>{feat.title}</span>
                                                                 {feat.available ? (
                                                                     <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full inline-flex items-center gap-1" style={{ background: 'var(--success-light)', color: 'var(--success)' }}>
-                                                                        <CheckCircle className="h-2.5 w-2.5" /> {pro.isPro ? 'Hozir ochiq' : 'Pro'}
+                                                                        <CheckCircle className="h-2.5 w-2.5" /> {pro.isPro ? (pro.enforced ? 'Faol' : 'Hozir ochiq') : 'Pro'}
                                                                     </span>
                                                                 ) : (
                                                                     <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full inline-flex items-center gap-1" style={{ background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>
@@ -4947,20 +4956,24 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 ))}
                                             </ul>
 
-                                            {/* CTA — Octo checkout (kalitlar sozlanmagan bo'lsa backend 503 -> toast) */}
+                                            {/* CTA — Paylov hosted checkout */}
                                             <button
                                                 type="button"
                                                 onClick={() => { void startProCheckout() }}
-                                                disabled={checkoutLoading}
+                                                disabled={checkoutLoading || pro.loading || (pro.enforced && pro.isPro)}
                                                 className="mt-4 w-full h-10 rounded-xl text-sm font-bold inline-flex items-center justify-center gap-1.5 transition disabled:opacity-60"
                                                 style={{ background: 'var(--k-accent-grad, var(--brand))', color: '#fff', boxShadow: 'var(--k-shadow-cta, none)' }}
                                             >
                                                 {checkoutLoading
                                                     ? <>Yo'naltirilmoqda...</>
-                                                    : <><Sparkles className="h-4 w-4" /> Pro sotib olish — {PRO_PRICE} {PRO_PRICE_PERIOD}</>}
+                                                    : pro.enforced && pro.isPro
+                                                        ? <><CheckCircle className="h-4 w-4" /> Pro obuna faol</>
+                                                        : <><Sparkles className="h-4 w-4" /> Pro sotib olish — {PRO_PRICE} {PRO_PRICE_PERIOD}</>}
                                             </button>
                                             <p className="text-[11px] mt-2 text-center" style={{ color: 'var(--text-muted)' }}>
-                                                Octo orqali xavfsiz to'lov (Uzcard · Humo · Visa). Beta davrida Pro baribir hammaga ochiq.
+                                                {pro.enforced
+                                                    ? "Paylov orqali xavfsiz to'lov. Karta va SMS-kod DTMMax'da saqlanmaydi."
+                                                    : "Beta davrida Pro hammaga ochiq — hozircha to'lov olinmaydi."}
                                             </p>
                                         </div>
 

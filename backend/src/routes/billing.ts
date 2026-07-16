@@ -4,20 +4,21 @@ import prisma from '../utils/db'
 import { authenticate, AuthRequest } from '../middleware/auth'
 
 /* =========================================================================
-   DtmMax — To'lov / obuna (OCTO agregator)
+   DtmMax — To'lov / obuna (Paylov hosted checkout, Octo zaxira)
    ---------------------------------------------------------------------------
    Oqim:
-     1) Frontend  -> POST /api/billing/checkout  (auth)  -> Octo pay URL qaytadi
-     2) User Octo sahifasida to'laydi
-     3) Octo -> POST /api/billing/octo/notify (webhook) -> obuna faollashadi
-   Kalit yo'q bo'lsa (OCTO_SHOP_ID/OCTO_SECRET) endpointlar INERT (503) — xavfsiz.
+     1) Frontend -> POST /api/billing/checkout (auth) -> Paylov checkout URL qaytadi
+     2) User Paylov sahifasida to'laydi (karta/OTP DTMMax serveriga kirmaydi)
+     3) Paylov -> POST /api/billing/paylov/callback -> check/perform -> Pro faollashadi
+   Kalit yo'q bo'lsa endpointlar INERT (503) — xavfsiz.
 
-   Kerakli env (Octo MChJ onboarding'idan keyin):
-     OCTO_SHOP_ID, OCTO_SECRET, OCTO_NOTIFY_SECRET (webhook unique_key — Octo beradi),
-     OCTO_TEST=true (sandbox), PRO_PRICE_UZS (default 35000), FRONTEND_URL.
+   Kerakli Paylov env:
+     merchant_id (yoki PAYLOV_MERCHANT_ID), Token (yoki PAYLOV_TOKEN),
+     PAYLOV_CALLBACK_LOGIN, PAYLOV_CALLBACK_PASSWORD, PRO_PRICE_UZS, FRONTEND_URL.
 
    GATING: PRO_ENFORCED !== 'true' bo'lsa hamma uchun Pro ochiq (beta). To'lovni
-   yoqish = OCTO_* env + PRO_ENFORCED=true. Frontend useIsPro() /status ga ulanadi.
+   yoqish = Paylov callback sozlamalari + PRO_ENFORCED=true. Frontend useIsPro()
+   /status ga ulanadi.
    ========================================================================= */
 
 const router = Router()
@@ -25,7 +26,86 @@ const router = Router()
 const PRO_ENFORCED = process.env.PRO_ENFORCED === 'true'
 const PRO_PRICE_UZS = Number(process.env.PRO_PRICE_UZS || 35000)
 const OCTO_PREPARE_URL = 'https://secure.octo.uz/prepare_payment'
+const PAYLOV_CHECKOUT_URL = 'https://my.paylov.uz/checkout/create/'
 const MONTH_MS = 30 * 24 * 60 * 60 * 1000
+
+function envAny(...names: string[]): string {
+    for (const name of names) {
+        const value = process.env[name]
+        if (value?.trim()) return value.trim()
+    }
+    return ''
+}
+
+// Paylov emailida aynan `merchant_id` va `Token` nomlari berilgan. Railway'dagi
+// mavjud nomlarni buzmaymiz, lekin standart uppercase aliaslarni ham qo'llaymiz.
+const PAYLOV_MERCHANT_ID = envAny('PAYLOV_MERCHANT_ID', 'merchant_id')
+const PAYLOV_TOKEN = envAny('PAYLOV_TOKEN', 'Token')
+const PAYLOV_CALLBACK_LOGIN = envAny('PAYLOV_CALLBACK_LOGIN', 'PAYLOV_CALLBACK_USERNAME')
+const PAYLOV_CALLBACK_PASSWORD = envAny('PAYLOV_CALLBACK_PASSWORD')
+const configuredProvider = envAny('BILLING_PROVIDER').toLowerCase()
+const BILLING_PROVIDER = configuredProvider === 'octo' || configuredProvider === 'paylov'
+    ? configuredProvider
+    : (PAYLOV_MERCHANT_ID && PAYLOV_TOKEN ? 'paylov' : 'octo')
+
+function secureEqual(left: string, right: string): boolean {
+    const leftBuffer = Buffer.from(left)
+    const rightBuffer = Buffer.from(right)
+    return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer)
+}
+
+function hasValidPaylovCallbackAuth(authorization?: string): boolean {
+    if (!PAYLOV_CALLBACK_LOGIN || !PAYLOV_CALLBACK_PASSWORD || !authorization) return false
+    const match = authorization.match(/^Basic\s+(.+)$/i)
+    if (!match) return false
+    try {
+        const decoded = Buffer.from(match[1], 'base64').toString('utf8')
+        const separator = decoded.indexOf(':')
+        if (separator < 0) return false
+        return secureEqual(decoded.slice(0, separator), PAYLOV_CALLBACK_LOGIN)
+            && secureEqual(decoded.slice(separator + 1), PAYLOV_CALLBACK_PASSWORD)
+    } catch {
+        return false
+    }
+}
+
+function paylovRpcResult(id: unknown, status: string, statusText: string) {
+    return { jsonrpc: '2.0', id: id ?? null, result: { status, statusText } }
+}
+
+function parsePaymentMeta(meta?: string | null): Record<string, unknown> {
+    if (!meta) return {}
+    try {
+        const parsed = JSON.parse(meta) as unknown
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+            ? parsed as Record<string, unknown>
+            : {}
+    } catch {
+        return {}
+    }
+}
+
+type PaylovParams = {
+    transaction_id?: unknown
+    account?: { order_id?: unknown }
+    amount?: unknown
+    amount_tiyin?: unknown
+    currency?: unknown
+}
+
+function paylovPaymentMatches(params: PaylovParams, expectedAmount: number): boolean {
+    const amount = Number(params.amount)
+    const amountTiyin = Number(params.amount_tiyin)
+    const currency = Number(params.currency)
+    if (currency !== 860) return false
+
+    const hasAmount = Number.isFinite(amount)
+    const hasAmountTiyin = Number.isFinite(amountTiyin)
+    if (!hasAmount && !hasAmountTiyin) return false
+    if (hasAmount && Math.round(amount) !== expectedAmount) return false
+    if (hasAmountTiyin && Math.round(amountTiyin) !== expectedAmount * 100) return false
+    return true
+}
 
 export interface Entitlement {
     isPro: boolean
@@ -83,11 +163,24 @@ async function extendProSubscription(userId: string, provider: string) {
         })
 }
 
+/** Frontend uchun maxfiy bo'lmagan billing konfiguratsiyasi. */
+router.get('/config', (_req, res) => {
+    const checkoutConfigured = BILLING_PROVIDER === 'paylov'
+        ? Boolean(PAYLOV_MERCHANT_ID && PAYLOV_TOKEN && PAYLOV_CALLBACK_LOGIN && PAYLOV_CALLBACK_PASSWORD)
+        : Boolean(process.env.OCTO_SHOP_ID && process.env.OCTO_SECRET)
+    res.json({
+        enforced: PRO_ENFORCED,
+        priceUzs: PRO_PRICE_UZS,
+        provider: BILLING_PROVIDER,
+        checkoutConfigured,
+    })
+})
+
 /** Joriy foydalanuvchining obuna holati. */
 router.get('/status', authenticate, async (req: AuthRequest, res) => {
     try {
         const ent = await getEntitlement(req.user!.id)
-        res.json({ ...ent, priceUzs: PRO_PRICE_UZS })
+        res.json({ ...ent, priceUzs: PRO_PRICE_UZS, provider: BILLING_PROVIDER })
     } catch {
         res.status(500).json({ error: 'Server xatoligi' })
     }
@@ -109,10 +202,53 @@ router.post('/checkout', authenticate, async (req: AuthRequest, res) => {
         // "bepul" deb e'lon qiladi — bu holatda real to'lov OLINMASLIGI shart, aks holda
         // foydalanuvchi ochiq imkoniyat uchun pul to'lab, refund/ishonch muammosi chiqadi.
         if (!PRO_ENFORCED) return res.status(503).json({ error: 'billing_disabled_beta' })
+        if (!req.user) return res.status(401).json({ error: 'Avval kiring' })
+
+        if (BILLING_PROVIDER === 'paylov') {
+            const merchantUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+            if (!merchantUuid.test(PAYLOV_MERCHANT_ID) || !PAYLOV_TOKEN
+                || !PAYLOV_CALLBACK_LOGIN || !PAYLOV_CALLBACK_PASSWORD) {
+                return res.status(503).json({ error: 'billing_not_configured' })
+            }
+
+            // Paylov account.order_id callback'da aynan shu qiymat bilan qaytadi.
+            // UUID taxmin qilinmaydi va Payment.providerTxnId unique bo'lgani uchun
+            // bir checkout ikkinchi buyurtmaga ulanib qolmaydi.
+            const orderId = crypto.randomUUID()
+            const returnUrl = `${process.env.FRONTEND_URL || 'https://www.dtmmax.uz'}/pro/natija?tx=${encodeURIComponent(orderId)}`
+            const query = new URLSearchParams({
+                merchant_id: PAYLOV_MERCHANT_ID,
+                amount: String(PRO_PRICE_UZS),
+                currency_id: '860',
+                amount_in_tiyin: 'False',
+                return_url: returnUrl,
+                'account.order_id': orderId,
+            })
+            const encodedQuery = Buffer.from(query.toString(), 'utf8').toString('base64')
+
+            await prisma.payment.create({
+                data: {
+                    userId: req.user.id,
+                    amount: PRO_PRICE_UZS,
+                    currency: 'UZS',
+                    status: 'CREATED',
+                    provider: 'paylov',
+                    providerTxnId: orderId,
+                    // OAuth token bu yerga ham, linkka ham yozilmaydi.
+                    meta: JSON.stringify({ checkout: 'hosted', createdBy: 'dtmmax' }),
+                },
+            })
+
+            return res.json({
+                payUrl: `${PAYLOV_CHECKOUT_URL}${encodedQuery}`,
+                shopTransactionId: orderId,
+                provider: 'paylov',
+            })
+        }
+
         const shopId = Number(process.env.OCTO_SHOP_ID || 0)
         const secret = process.env.OCTO_SECRET || ''
         if (!shopId || !secret) return res.status(503).json({ error: 'billing_not_configured' })
-        if (!req.user) return res.status(401).json({ error: 'Avval kiring' })
 
         // shop_transaction_id — biz generatsiya qilamiz, webhook shu bo'yicha topadi (idempotentlik kaliti)
         const shopTxnId = `dtmmax_${req.user.id}_${Date.now()}`
@@ -184,6 +320,165 @@ router.get('/payment/:txnId', authenticate, async (req: AuthRequest, res) => {
         res.json({ status: p.status, amount: p.amount, currency: p.currency, createdAt: p.createdAt })
     } catch {
         res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+/**
+ * Paylov hosted checkout callback'i (JSON-RPC 2.0).
+ * Paylov bu endpointni avval transaction.check, keyin transaction.perform bilan
+ * chaqiradi. Pro faqat perform kelib, summa/valyuta/order tekshirilgach ochiladi.
+ */
+router.post('/paylov/callback', async (req, res) => {
+    if (!PAYLOV_CALLBACK_LOGIN || !PAYLOV_CALLBACK_PASSWORD) {
+        return res.status(503).json({ error: 'billing_callback_not_configured' })
+    }
+    if (!hasValidPaylovCallbackAuth(req.header('authorization'))) {
+        res.setHeader('WWW-Authenticate', 'Basic realm="DTMMax Paylov callback"')
+        return res.status(401).json({ error: 'unauthorized' })
+    }
+
+    try {
+        const payload = req.body && typeof req.body === 'object'
+            ? req.body as Record<string, unknown>
+            : {}
+        const id = payload.id
+        const method = typeof payload.method === 'string' ? payload.method : ''
+        const rawParams = payload.params
+        const params = rawParams && typeof rawParams === 'object' && !Array.isArray(rawParams)
+            ? rawParams as PaylovParams
+            : {}
+        const rawAccount = params.account
+        const orderId = rawAccount && typeof rawAccount === 'object'
+            ? String(rawAccount.order_id || '')
+            : ''
+
+        if (!orderId) return res.json(paylovRpcResult(id, '303', 'Order not found'))
+
+        const payment = await prisma.payment.findUnique({ where: { providerTxnId: orderId } })
+        if (!payment || payment.provider !== 'paylov') {
+            return res.json(paylovRpcResult(id, '303', 'Order not found'))
+        }
+        if (!paylovPaymentMatches(params, payment.amount)) {
+            return res.json(paylovRpcResult(id, '5', 'Invalid amount'))
+        }
+        if (payment.status === 'REFUNDED') {
+            return res.json(paylovRpcResult(id, '+1', 'order_refunded'))
+        }
+
+        if (method === 'transaction.check') {
+            return res.json(paylovRpcResult(id, '0', 'OK'))
+        }
+        if (method !== 'transaction.perform') {
+            return res.json(paylovRpcResult(id, '+1', 'unsupported_method'))
+        }
+
+        const paylovTransactionId = typeof params.transaction_id === 'string'
+            ? params.transaction_id.trim()
+            : ''
+        const transactionUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+        if (!transactionUuid.test(paylovTransactionId)) {
+            return res.json(paylovRpcResult(id, '+1', 'invalid_transaction_id'))
+        }
+
+        const outcome = await prisma.$transaction(async tx => {
+            const current = await tx.payment.findUnique({ where: { id: payment.id } })
+            if (!current) return 'not_found' as const
+
+            const currentMeta = parsePaymentMeta(current.meta)
+            const storedTransactionId = typeof currentMeta.paylovTransactionId === 'string'
+                ? currentMeta.paylovTransactionId
+                : ''
+            if (current.status === 'PAID') {
+                return storedTransactionId === paylovTransactionId ? 'paid' as const : 'already_paid' as const
+            }
+            if (current.status === 'REFUNDED') return 'refunded' as const
+
+            // Bir Paylov transaction_id boshqa DTMMax order'ga replay qilinmasin.
+            const duplicate = await tx.payment.findFirst({
+                where: {
+                    id: { not: current.id },
+                    provider: 'paylov',
+                    status: 'PAID',
+                    meta: { contains: `"paylovTransactionId":"${paylovTransactionId}"` },
+                },
+                select: { id: true },
+            })
+            if (duplicate) return 'duplicate_transaction' as const
+
+            // Atomic claim: parallel perform callback'lar obunani ikki marta uzaytirmaydi.
+            const claimed = await tx.payment.updateMany({
+                where: { id: current.id, status: { in: ['CREATED', 'FAILED'] } },
+                data: { status: 'PROCESSING' },
+            })
+            if (claimed.count !== 1) {
+                const refreshed = await tx.payment.findUnique({ where: { id: current.id } })
+                const refreshedMeta = parsePaymentMeta(refreshed?.meta)
+                const refreshedTransactionId = typeof refreshedMeta.paylovTransactionId === 'string'
+                    ? refreshedMeta.paylovTransactionId
+                    : ''
+                if (refreshed?.status === 'PAID') {
+                    return refreshedTransactionId === paylovTransactionId ? 'paid' as const : 'already_paid' as const
+                }
+                return 'busy' as const
+            }
+
+            // Bir user bir vaqtda ikki checkout to'lasa ham oylar yo'qolmasin:
+            // PostgreSQL transaction-level advisory lock obuna uzaytirishni ketma-ket qiladi.
+            await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${current.userId}))`
+
+            const now = new Date()
+            const active = await tx.subscription.findFirst({
+                where: { userId: current.userId, status: 'ACTIVE', expiresAt: { gt: now } },
+                orderBy: { expiresAt: 'desc' },
+            })
+            const base = active?.expiresAt && active.expiresAt > now ? active.expiresAt : now
+            const expiresAt = new Date(base.getTime() + MONTH_MS)
+            const subscription = active
+                ? await tx.subscription.update({
+                    where: { id: active.id },
+                    data: { expiresAt, provider: 'paylov', status: 'ACTIVE' },
+                })
+                : await tx.subscription.create({
+                    data: {
+                        userId: current.userId,
+                        plan: 'PRO',
+                        status: 'ACTIVE',
+                        startedAt: now,
+                        expiresAt,
+                        provider: 'paylov',
+                    },
+                })
+
+            await tx.payment.update({
+                where: { id: current.id },
+                data: {
+                    status: 'PAID',
+                    subscriptionId: subscription.id,
+                    meta: JSON.stringify({
+                        ...currentMeta,
+                        paylovTransactionId,
+                        performedAt: now.toISOString(),
+                        callback: {
+                            rpcId: id ?? null,
+                            amount: params.amount,
+                            amountTiyin: params.amount_tiyin,
+                            currency: params.currency,
+                        },
+                    }),
+                },
+            })
+            return 'activated' as const
+        })
+
+        if (outcome === 'not_found') return res.json(paylovRpcResult(id, '303', 'Order not found'))
+        if (outcome === 'refunded') return res.json(paylovRpcResult(id, '+1', 'order_refunded'))
+        if (outcome === 'already_paid') return res.json(paylovRpcResult(id, '+1', 'order_already_paid'))
+        if (outcome === 'duplicate_transaction') return res.json(paylovRpcResult(id, '+1', 'duplicate_transaction'))
+        if (outcome === 'busy') return res.json(paylovRpcResult(id, '+1', 'transaction_processing'))
+        return res.json(paylovRpcResult(id, '0', 'OK'))
+    } catch (error) {
+        console.error('paylov callback xato:', error)
+        return res.status(500).json({ error: 'server_error' })
     }
 })
 
