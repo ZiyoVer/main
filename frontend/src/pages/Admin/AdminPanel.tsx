@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BrainCircuit, Users, UserCheck, GraduationCap, BarChart3, MessageSquare, FileText, Layers, Target, LogOut, Upload, Trash2, Activity, Bot, Save, Globe, Lock, TrendingUp, UserPlus, BookOpen, RefreshCw, Wifi, Search, Filter, ClipboardList, CheckCircle2, Award, Clock3, ExternalLink, Send, Download, Mail, KeyRound, MoreVertical, AlertTriangle, Bell, X, Shield, Flame, Zap, CalendarClock, Gauge, ThumbsUp, ThumbsDown, Pencil, ScrollText, Ban, ShieldCheck } from 'lucide-react'
+import { BrainCircuit, Users, UserCheck, GraduationCap, BarChart3, MessageSquare, FileText, Layers, Target, LogOut, Upload, Trash2, Activity, Bot, Save, Globe, Lock, TrendingUp, UserPlus, BookOpen, RefreshCw, Wifi, Search, Filter, ClipboardList, CheckCircle2, Award, Clock3, ExternalLink, Send, Download, Mail, KeyRound, MoreVertical, AlertTriangle, Bell, X, Shield, Flame, Zap, CalendarClock, Gauge, ThumbsUp, ThumbsDown, Pencil, ScrollText, Ban, ShieldCheck, CreditCard } from 'lucide-react'
 import { AreaChart, Area, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { fetchApi, uploadFile } from '@/lib/api'
 import { SUBJECTS } from '@/constants'
 import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
+import PaylovSandboxPanel from './PaylovSandboxPanel'
 
 interface TimeSpentUser {
     id: string
@@ -286,7 +287,7 @@ export default function AdminPanel() {
     const [editName, setEditName] = useState('')
     const [editNameDirty, setEditNameDirty] = useState(false)
     const [savingUser, setSavingUser] = useState(false)
-    const [tab, setTab] = useState<'stats' | 'presence' | 'users' | 'teachers' | 'docs' | 'tests' | 'ai' | 'knowledge' | 'activity' | 'audit' | 'moderation' | 'broadcast'>('stats')
+    const [tab, setTab] = useState<'stats' | 'presence' | 'users' | 'teachers' | 'docs' | 'tests' | 'ai' | 'knowledge' | 'activity' | 'audit' | 'moderation' | 'broadcast' | 'billing'>('stats')
     const [stats, setStats] = useState<any>(null)
     const [statsError, setStatsError] = useState('')
     // Kunlik AI sarfi (bepul limitlar hisobi) — xarajat ko'zgusi
@@ -1216,6 +1217,7 @@ export default function AdminPanel() {
         { k: 'teachers' as const, l: 'O\'qituvchi', icon: UserCheck },
         { k: 'tests' as const, l: 'Testlar', icon: Layers },
         { k: 'docs' as const, l: 'Materiallar', icon: FileText },
+        { k: 'billing' as const, l: 'To‘lov', icon: CreditCard },
         { k: 'broadcast' as const, l: 'Xabarnoma', icon: Bell },
         { k: 'ai' as const, l: 'AI Sozlamalar', icon: Bot },
         { k: 'knowledge' as const, l: 'Bilim Bazasi', icon: BookOpen },
@@ -1226,7 +1228,7 @@ export default function AdminPanel() {
         { label: 'Odamlar', keys: ['users', 'teachers'] },
         { label: 'Kontent', keys: ['tests', 'docs', 'moderation'] },
         { label: 'AI va bilim', keys: ['ai', 'knowledge'] },
-        { label: 'Operatsiyalar', keys: ['broadcast', 'audit'] },
+        { label: 'Operatsiyalar', keys: ['billing', 'broadcast', 'audit'] },
     ]
 
     // Tablist klaviatura navigatsiyasi: ←/→ qo'shni tab, Home/End — chekka tablar.
@@ -2850,6 +2852,9 @@ export default function AdminPanel() {
                         )}
                     </div>
                 )}
+
+                {/* === PAYLOV BILLING === */}
+                {tab === 'billing' && <PaylovSandboxPanel />}
 
                 {/* === XABARNOMA (BROADCAST) === */}
                 {tab === 'broadcast' && (
