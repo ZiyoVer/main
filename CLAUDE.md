@@ -104,7 +104,7 @@ PORT, ADMIN_EMAIL, ADMIN_PASSWORD, GOOGLE_CLIENT_ID,
 S3_ACCESS_KEY, S3_SECRET_KEY, S3_BUCKET, S3_ENDPOINT, S3_REGION=auto,
 # To'lov (Paylov hosted checkout):
 merchant_id, Token, PAYLOV_CALLBACK_LOGIN, PAYLOV_CALLBACK_PASSWORD,
-BILLING_PROVIDER=paylov, PRO_ENFORCED=false
+BILLING_PROVIDER=paylov, PRO_ENFORCED=false, BILLING_SANDBOX_TEST=false
 ```
 
 > **Rasm saqlash:** Railway Bucket (S3-mos, private). Kod `s3.ts` env'ni bir nechta

@@ -24,6 +24,7 @@ import { authenticate, AuthRequest } from '../middleware/auth'
 const router = Router()
 
 const PRO_ENFORCED = process.env.PRO_ENFORCED === 'true'
+const BILLING_SANDBOX_TEST = process.env.BILLING_SANDBOX_TEST === 'true'
 const PRO_PRICE_UZS = Number(process.env.PRO_PRICE_UZS || 35000)
 const OCTO_PREPARE_URL = 'https://secure.octo.uz/prepare_payment'
 const PAYLOV_CHECKOUT_URL = 'https://my.paylov.uz/checkout/create/'
@@ -173,6 +174,7 @@ router.get('/config', (_req, res) => {
         priceUzs: PRO_PRICE_UZS,
         provider: BILLING_PROVIDER,
         checkoutConfigured,
+        sandboxTestMode: BILLING_SANDBOX_TEST,
     })
 })
 
@@ -198,11 +200,15 @@ interface OctoPrepareResponse {
  */
 router.post('/checkout', authenticate, async (req: AuthRequest, res) => {
     try {
+        if (!req.user) return res.status(401).json({ error: 'Avval kiring' })
+        const adminSandboxCheckout = BILLING_SANDBOX_TEST && req.user.role === 'ADMIN'
         // FAIL-CLOSED: enforcement o'chiq (beta) bo'lsa hamma Pro bepul va UI ham
         // "bepul" deb e'lon qiladi — bu holatda real to'lov OLINMASLIGI shart, aks holda
         // foydalanuvchi ochiq imkoniyat uchun pul to'lab, refund/ishonch muammosi chiqadi.
-        if (!PRO_ENFORCED) return res.status(503).json({ error: 'billing_disabled_beta' })
-        if (!req.user) return res.status(401).json({ error: 'Avval kiring' })
+        // Faqat BILLING_SANDBOX_TEST=true + ADMIN test akkaunti bundan mustasno.
+        if (!PRO_ENFORCED && !adminSandboxCheckout) {
+            return res.status(503).json({ error: 'billing_disabled_beta' })
+        }
 
         if (BILLING_PROVIDER === 'paylov') {
             const merchantUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -235,7 +241,7 @@ router.post('/checkout', authenticate, async (req: AuthRequest, res) => {
                     provider: 'paylov',
                     providerTxnId: orderId,
                     // OAuth token bu yerga ham, linkka ham yozilmaydi.
-                    meta: JSON.stringify({ checkout: 'hosted', createdBy: 'dtmmax' }),
+                    meta: JSON.stringify({ checkout: 'hosted', createdBy: 'dtmmax', sandboxTest: adminSandboxCheckout }),
                 },
             })
 
