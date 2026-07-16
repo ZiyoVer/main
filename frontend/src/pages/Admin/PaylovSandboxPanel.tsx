@@ -49,9 +49,10 @@ function formatExpiry(value: string) {
 }
 
 function errorMessage(error: unknown): string {
-    const apiError = error as { message?: string; data?: { error?: string; providerCode?: string } }
+    const apiError = error as { message?: string; data?: { error?: string; providerCode?: string; networkCode?: string } }
     const code = apiError?.data?.error || apiError?.message || ''
     const providerCode = apiError?.data?.providerCode
+    const networkCode = apiError?.data?.networkCode
     const messages: Record<string, string> = {
         billing_not_configured: 'Railway’da merchant_id yoki Token topilmadi/yaroqsiz. UUID va OAuth2 test tokenini tekshiring.',
         billing_price_invalid: 'PRO_PRICE_UZS musbat butun son bo‘lishi kerak.',
@@ -63,14 +64,21 @@ function errorMessage(error: unknown): string {
         paylov_card_invalid: 'Karta raqami 16 ta raqamdan iborat bo‘lishi kerak.',
         paylov_expiry_invalid: 'Amal muddatini YY/MM formatida kiriting.',
         paylov_otp_invalid: 'Tasdiqlash kodi 6 ta raqamdan iborat bo‘lishi kerak.',
+        paylov_token_prefix_invalid: 'Railway’dagi Token qiymatidan “Bearer” yoki “Token:” prefiksini olib tashlang. Faqat tokenning o‘zi qolishi kerak.',
+        paylov_token_quotes_invalid: 'Railway’dagi Token qiymati qo‘shtirnoqsiz yozilishi kerak.',
+        paylov_token_format_invalid: 'Railway’dagi Token bir qatorli bo‘lishi va ichida bo‘shliq yoki yashirin yangi qator bo‘lmasligi kerak.',
         paylov_token_rejected: 'Paylov Tokenni rad etdi. Railway’dagi Token OAuth2 sandbox uchun berilganini tekshiring.',
         paylov_provider_rejected: 'Paylov so‘rovni rad etdi.',
         paylov_gateway_error: 'Paylov gateway xato javob qaytardi.',
         paylov_invalid_response: 'Paylov javobi kutilgan formatga mos kelmadi.',
         paylov_transaction_invalid: 'Paylov transaction ID qaytarmadi.',
         paylov_confirmation_invalid: 'Paylov tasdiqlash natijasini ishonchli tekshirib bo‘lmadi.',
-        paylov_timeout: 'Paylov 20 soniyada javob bermadi. Birozdan keyin qayta urinib ko‘ring.',
+        paylov_timeout: 'Paylov 20 soniyada javob bermadi. Railway’dan sandbox gateway’gacha ulanishni tekshirish kerak.',
         paylov_unavailable: 'Paylov gateway bilan aloqa o‘rnatilmadi.',
+        paylov_dns_error: 'Railway Paylov sandbox domenini DNS orqali topa olmadi.',
+        paylov_connection_error: 'Railway va Paylov o‘rtasidagi ulanish uzildi yoki rad etildi.',
+        paylov_tls_error: 'Railway Paylov TLS sertifikatini tasdiqlay olmadi.',
+        paylov_response_too_large: 'Paylov kutilganidan juda katta javob qaytardi va so‘rov xavfsiz to‘xtatildi.',
         paylov_too_many_attempts: 'Urinishlar ko‘payib ketdi. 10 daqiqadan keyin qayta sinang.',
         payment_not_found: 'Boshlangan to‘lov topilmadi. Yangi sinov boshlang.',
         payment_processing: 'To‘lov hozir qayta ishlanmoqda. Bir necha soniyadan keyin qayta urinib ko‘ring.',
@@ -81,7 +89,11 @@ function errorMessage(error: unknown): string {
         paylov_transaction_mismatch: 'Paylov tranzaksiyasi mahalliy buyurtmaga mos kelmadi.',
     }
     const base = messages[code] || 'To‘lov sinovida kutilmagan xatolik yuz berdi.'
-    return providerCode ? `${base} Paylov kodi: ${providerCode}.` : base
+    const details = [
+        providerCode ? `Paylov kodi: ${providerCode}.` : '',
+        networkCode ? `Texnik kod: ${networkCode}.` : '',
+    ].filter(Boolean).join(' ')
+    return details ? `${base} ${details}` : base
 }
 
 export default function PaylovSandboxPanel() {

@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import crypto from 'crypto'
+import https from 'node:https'
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest } from '../middleware/auth'
@@ -37,6 +38,7 @@ const PAYLOV_CHECKOUT_URL = 'https://my.paylov.uz/checkout/create/'
 const PAYLOV_SANDBOX_API_BASE = 'https://dev.gw.paylov.uz/merchant'
 const PAYLOV_PRODUCTION_API_BASE = 'https://gw.paylov.uz/merchant'
 const PAYLOV_REQUEST_TIMEOUT_MS = 20_000
+const PAYLOV_MAX_RESPONSE_BYTES = 64 * 1024
 const MONTH_MS = 30 * 24 * 60 * 60 * 1000
 const TRANSACTION_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -154,10 +156,16 @@ class PaylovGatewayError extends Error {
         public readonly code: string,
         public readonly httpStatus = 502,
         public readonly providerCode?: string,
+        public readonly networkCode?: string,
     ) {
         super(code)
         this.name = 'PaylovGatewayError'
     }
+}
+
+interface PaylovHttpResponse {
+    statusCode: number
+    body: string
 }
 
 function sanitizedProviderCode(error: unknown): string | undefined {
@@ -171,31 +179,132 @@ function sanitizedProviderCode(error: unknown): string | undefined {
     return safe || undefined
 }
 
-async function requestPaylov<T>(endpoint: 'paymentWithoutRegistration/' | 'confirmPayment/', payload: Record<string, unknown>): Promise<T> {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), PAYLOV_REQUEST_TIMEOUT_MS)
-    try {
-        const response = await fetch(`${PAYLOV_API_BASE}/${endpoint}`, {
+function paylovTokenFormatError(token: string): string | null {
+    if (/^(?:Bearer\s+|Token\s*:)/i.test(token)) return 'paylov_token_prefix_invalid'
+    if (/["']/.test(token)) return 'paylov_token_quotes_invalid'
+    if (!token || /\s|[\u0000-\u001f\u007f]/.test(token)) return 'paylov_token_format_invalid'
+    return null
+}
+
+function safeNetworkCode(error: unknown): string | undefined {
+    if (!error || typeof error !== 'object') return undefined
+    const code = (error as NodeJS.ErrnoException).code
+    if (!code) return undefined
+    const safe = String(code).replace(/[^A-Z0-9_.-]/gi, '_').slice(0, 64)
+    return safe || undefined
+}
+
+function mapPaylovTransportError(error: unknown): PaylovGatewayError {
+    const networkCode = safeNetworkCode(error)
+    if (networkCode === 'ETIMEDOUT' || networkCode === 'ERR_SOCKET_CONNECTION_TIMEOUT') {
+        return new PaylovGatewayError('paylov_timeout', 504, undefined, networkCode)
+    }
+    if (networkCode === 'ENOTFOUND' || networkCode === 'EAI_AGAIN') {
+        return new PaylovGatewayError('paylov_dns_error', 503, undefined, networkCode)
+    }
+    if (networkCode === 'ECONNRESET' || networkCode === 'EPIPE' || networkCode === 'ECONNREFUSED') {
+        return new PaylovGatewayError('paylov_connection_error', 503, undefined, networkCode)
+    }
+    if (networkCode === 'CERT_HAS_EXPIRED'
+        || networkCode === 'ERR_TLS_CERT_ALTNAME_INVALID'
+        || networkCode === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE'
+        || networkCode === 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY'
+        || networkCode === 'DEPTH_ZERO_SELF_SIGNED_CERT') {
+        return new PaylovGatewayError('paylov_tls_error', 502, undefined, networkCode)
+    }
+    if (networkCode === 'PAYLOV_RESPONSE_TOO_LARGE') {
+        return new PaylovGatewayError('paylov_response_too_large', 502, undefined, networkCode)
+    }
+    return new PaylovGatewayError('paylov_unavailable', 503, undefined, networkCode)
+}
+
+/**
+ * Rasmiy Paylov hostiga bitta HTTP so'rov yuboradi. IPv4 majburiy — Railway
+ * egress/DNS yo'lida dual-stack ulanish qotib qolmasin. Avtomatik retry YO'Q:
+ * payment yaratish so'rovini takrorlash providerda duplicate tranzaksiya ochishi mumkin.
+ */
+function postPaylov(endpoint: 'paymentWithoutRegistration/' | 'confirmPayment/', payload: Record<string, unknown>): Promise<PaylovHttpResponse> {
+    const target = new URL(`${PAYLOV_API_BASE}/${endpoint}`)
+    const requestBody = Buffer.from(JSON.stringify(payload), 'utf8')
+
+    return new Promise((resolve, reject) => {
+        let responseStream: import('node:http').IncomingMessage | null = null
+        let overallTimeout: NodeJS.Timeout
+        const request = https.request({
+            protocol: target.protocol,
+            hostname: target.hostname,
+            port: 443,
+            path: `${target.pathname}${target.search}`,
             method: 'POST',
+            family: 4,
             headers: {
                 Authorization: `Bearer ${PAYLOV_TOKEN}`,
                 'Content-Type': 'application/json',
                 Accept: 'application/json',
+                'Content-Length': requestBody.length,
+                'User-Agent': 'DTMMax/2.0',
             },
-            body: JSON.stringify(payload),
-            signal: controller.signal,
+        }, response => {
+            responseStream = response
+            const chunks: Buffer[] = []
+            let receivedBytes = 0
+
+            response.on('data', chunk => {
+                const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+                receivedBytes += buffer.length
+                if (receivedBytes > PAYLOV_MAX_RESPONSE_BYTES) {
+                    const tooLarge = new Error('Paylov response too large') as NodeJS.ErrnoException
+                    tooLarge.code = 'PAYLOV_RESPONSE_TOO_LARGE'
+                    response.destroy(tooLarge)
+                    request.destroy(tooLarge)
+                    return
+                }
+                chunks.push(buffer)
+            })
+            response.on('end', () => {
+                clearTimeout(overallTimeout)
+                resolve({
+                    statusCode: response.statusCode || 0,
+                    body: Buffer.concat(chunks).toString('utf8'),
+                })
+            })
+            response.on('error', error => {
+                clearTimeout(overallTimeout)
+                reject(error)
+            })
         })
 
-        const raw = await response.text()
+        // ClientRequest.setTimeout faqat socket ulanganidan keyingi inactivity'ni
+        // hisoblaydi. Bu umumiy timer DNS + connect + TLS + response'ni ham qamraydi.
+        overallTimeout = setTimeout(() => {
+            const timeout = new Error('Paylov connection timed out') as NodeJS.ErrnoException
+            timeout.code = 'ETIMEDOUT'
+            responseStream?.destroy(timeout)
+            request.destroy(timeout)
+        }, PAYLOV_REQUEST_TIMEOUT_MS)
+        request.on('error', error => {
+            clearTimeout(overallTimeout)
+            reject(error)
+        })
+        request.end(requestBody)
+    })
+}
+
+async function requestPaylov<T>(endpoint: 'paymentWithoutRegistration/' | 'confirmPayment/', payload: Record<string, unknown>): Promise<T> {
+    const tokenError = paylovTokenFormatError(PAYLOV_TOKEN)
+    if (tokenError) throw new PaylovGatewayError(tokenError, 503)
+
+    try {
+        const response = await postPaylov(endpoint, payload)
         let envelope: PaylovEnvelope<T> | null = null
         try {
-            envelope = raw ? JSON.parse(raw) as PaylovEnvelope<T> : null
+            envelope = response.body ? JSON.parse(response.body) as PaylovEnvelope<T> : null
         } catch {
             throw new PaylovGatewayError('paylov_invalid_response')
         }
 
-        if (!response.ok) {
-            const code = response.status === 401 || response.status === 403
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+            const code = response.statusCode === 401 || response.statusCode === 403
                 ? 'paylov_token_rejected'
                 : 'paylov_gateway_error'
             throw new PaylovGatewayError(code, 502, sanitizedProviderCode(envelope?.error))
@@ -206,22 +315,25 @@ async function requestPaylov<T>(endpoint: 'paymentWithoutRegistration/' | 'confi
         return envelope.result
     } catch (error) {
         if (error instanceof PaylovGatewayError) throw error
-        if (error instanceof Error && error.name === 'AbortError') {
-            throw new PaylovGatewayError('paylov_timeout', 504)
-        }
-        throw new PaylovGatewayError('paylov_unavailable', 503)
-    } finally {
-        clearTimeout(timeout)
+        const mapped = mapPaylovTransportError(error)
+        // Karta/OTP/token loglanmaydi; faqat muhit va xavfsiz tarmoq kodi.
+        console.warn('paylov transport xato:', {
+            environment: PAYLOV_ENVIRONMENT,
+            error: mapped.code,
+            networkCode: mapped.networkCode || 'unknown',
+        })
+        throw mapped
     }
 }
 
-function paylovGatewayErrorResponse(error: unknown): { status: number; body: { error: string; providerCode?: string } } {
+function paylovGatewayErrorResponse(error: unknown): { status: number; body: { error: string; providerCode?: string; networkCode?: string } } {
     if (error instanceof PaylovGatewayError) {
         return {
             status: error.httpStatus,
             body: {
                 error: error.code,
                 ...(error.providerCode ? { providerCode: error.providerCode } : {}),
+                ...(error.networkCode ? { networkCode: error.networkCode } : {}),
             },
         }
     }
