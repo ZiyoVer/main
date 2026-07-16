@@ -28,13 +28,6 @@ interface StartResponse {
     status: 'OTP_SENT'
 }
 
-const TEST_CARDS = [
-    { id: 'humo-1', label: 'Humo · 9377', number: '9860090101059377', expiry: '2803', otp: '456788' },
-    { id: 'humo-2', label: 'Humo · 9903', number: '9860090101999903', expiry: '2803', otp: '456789' },
-    { id: 'uzcard-1', label: 'Uzcard · 7878', number: '8600001234567878', expiry: '2909', otp: '456799' },
-    { id: 'uzcard-2', label: 'Uzcard · 8989', number: '8600001234678989', expiry: '2912', otp: '456719' },
-] as const
-
 function digits(value: string, limit: number) {
     return value.replace(/\D/g, '').slice(0, limit)
 }
@@ -46,6 +39,22 @@ function formatCardNumber(value: string) {
 function formatExpiry(value: string) {
     const clean = digits(value, 4)
     return clean.length > 2 ? `${clean.slice(0, 2)}/${clean.slice(2)}` : clean
+}
+
+function cardNetwork(value: string): 'HUMO' | 'UZCARD' | null {
+    const clean = digits(value, 16)
+    if (clean.startsWith('9860')) return 'HUMO'
+    if (['8600', '5614', '6262', '5440'].some(prefix => clean.startsWith(prefix))) return 'UZCARD'
+    return null
+}
+
+// Karta yuzida muddat odatda MM/YY ko‘rinadi, Paylov esa YYMM kutadi.
+function paylovExpireDate(value: string): string | null {
+    const clean = digits(value, 4)
+    if (clean.length !== 4) return null
+    const month = Number(clean.slice(0, 2))
+    if (!Number.isInteger(month) || month < 1 || month > 12) return null
+    return `${clean.slice(2)}${clean.slice(0, 2)}`
 }
 
 function errorMessage(error: unknown): string {
@@ -62,7 +71,7 @@ function errorMessage(error: unknown): string {
         paylov_sandbox_admin_only: 'Sandbox to‘lovi faqat administrator uchun ochiq.',
         paylov_environment_conflict: 'Sandbox va production sozlamalari bir vaqtda yoqilgan. Muhitlarni ajrating.',
         paylov_card_invalid: 'Karta raqami 16 ta raqamdan iborat bo‘lishi kerak.',
-        paylov_expiry_invalid: 'Amal muddatini YY/MM formatida kiriting.',
+        paylov_expiry_invalid: 'Amal muddatini kartada yozilgan MM/YY formatida kiriting.',
         paylov_otp_invalid: 'Tasdiqlash kodi 6 ta raqamdan iborat bo‘lishi kerak.',
         paylov_token_prefix_invalid: 'Railway’dagi Token qiymatidan “Bearer” yoki “Token:” prefiksini olib tashlang. Faqat tokenning o‘zi qolishi kerak.',
         paylov_token_quotes_invalid: 'Railway’dagi Token qiymati qo‘shtirnoqsiz yozilishi kerak.',
@@ -101,10 +110,8 @@ export default function PaylovSandboxPanel() {
     const [configLoading, setConfigLoading] = useState(true)
     const [configError, setConfigError] = useState('')
     const [phase, setPhase] = useState<'card' | 'otp' | 'success'>('card')
-    const [selectedCard, setSelectedCard] = useState('')
     const [cardNumber, setCardNumber] = useState('')
     const [expiry, setExpiry] = useState('')
-    const [expectedOtp, setExpectedOtp] = useState('')
     const [orderId, setOrderId] = useState('')
     const [maskedPhone, setMaskedPhone] = useState('')
     const [otp, setOtp] = useState('')
@@ -140,31 +147,24 @@ export default function PaylovSandboxPanel() {
         && config.checkoutConfigured
         && config.officialGateway,
     )
-
-    function chooseTestCard(id: string) {
-        setSelectedCard(id)
-        setError('')
-        const card = TEST_CARDS.find(item => item.id === id)
-        if (!card) {
-            setCardNumber('')
-            setExpiry('')
-            setExpectedOtp('')
-            return
-        }
-        setCardNumber(formatCardNumber(card.number))
-        setExpiry(formatExpiry(card.expiry))
-        setExpectedOtp(card.otp)
-    }
+    const enteredCardDigits = digits(cardNumber, 16)
+    const detectedCardNetwork = cardNetwork(enteredCardDigits)
 
     async function startPayment(event: FormEvent) {
         event.preventDefault()
         setError('')
-        if (digits(cardNumber, 16).length !== 16) {
+        const normalizedCardNumber = digits(cardNumber, 16)
+        if (normalizedCardNumber.length !== 16) {
             setError('Karta raqami 16 ta raqamdan iborat bo‘lishi kerak.')
             return
         }
-        if (digits(expiry, 4).length !== 4) {
-            setError('Amal muddatini YY/MM formatida kiriting.')
+        if (!cardNetwork(normalizedCardNumber)) {
+            setError('Faqat HUMO yoki UZCARD karta raqamini kiriting.')
+            return
+        }
+        const expireDate = paylovExpireDate(expiry)
+        if (!expireDate) {
+            setError('Amal muddatini kartada yozilgan MM/YY formatida kiriting.')
             return
         }
 
@@ -173,8 +173,8 @@ export default function PaylovSandboxPanel() {
             const data = await fetchApi('/billing/paylov/oauth/start', {
                 method: 'POST',
                 body: JSON.stringify({
-                    cardNumber: digits(cardNumber, 16),
-                    expireDate: digits(expiry, 4),
+                    cardNumber: normalizedCardNumber,
+                    expireDate,
                 }),
                 silent: true,
             }) as StartResponse
@@ -217,10 +217,8 @@ export default function PaylovSandboxPanel() {
 
     function resetTest() {
         setPhase('card')
-        setSelectedCard('')
         setCardNumber('')
         setExpiry('')
-        setExpectedOtp('')
         setOrderId('')
         setMaskedPhone('')
         setOtp('')
@@ -350,14 +348,9 @@ export default function PaylovSandboxPanel() {
 
                         {phase === 'card' && (
                             <form onSubmit={startPayment} className="space-y-4" autoComplete="off">
-                                <div>
-                                    <label htmlFor="paylov-test-card" className="text-[12px] font-semibold block mb-1.5" style={{ color: 'var(--text-secondary)' }}>
-                                        Paylov sandbox kartasi
-                                    </label>
-                                    <select id="paylov-test-card" className="input" value={selectedCard} onChange={event => chooseTestCard(event.target.value)}>
-                                        <option value="">Sinov kartasini tanlang</option>
-                                        {TEST_CARDS.map(card => <option key={card.id} value={card.id}>{card.label}</option>)}
-                                    </select>
+                                <div className="rounded-xl px-3.5 py-3 text-[12px] leading-relaxed"
+                                    style={{ color: 'var(--text-secondary)', background: 'var(--bg-surface)' }}>
+                                    Faqat Paylov taqdim etgan rasmiy sandbox karta ma’lumotlarini kiriting. Paylov tasdiqlamaguncha haqiqiy kartadan foydalanmang.
                                 </div>
                                 <div className="grid sm:grid-cols-[minmax(0,1fr)_130px] gap-3">
                                     <div>
@@ -366,7 +359,15 @@ export default function PaylovSandboxPanel() {
                                         </label>
                                         <input id="paylov-card-number" className="input font-mono tracking-wide" inputMode="numeric"
                                             value={cardNumber} onChange={event => setCardNumber(formatCardNumber(event.target.value))}
-                                            placeholder="0000 0000 0000 0000" maxLength={19} required />
+                                            placeholder="9860 yoki 8600" maxLength={19} required />
+                                        <p className="text-[10px] mt-1.5"
+                                            style={{ color: detectedCardNetwork && enteredCardDigits.length === 16 ? 'var(--success)' : 'var(--text-muted)' }}>
+                                            {detectedCardNetwork
+                                                ? enteredCardDigits.length === 16
+                                                    ? `${detectedCardNetwork} · format to‘g‘ri`
+                                                    : `${detectedCardNetwork} · yana ${16 - enteredCardDigits.length} ta raqam kiriting`
+                                                : 'HUMO: 9860 · UZCARD: 8600'}
+                                        </p>
                                     </div>
                                     <div>
                                         <label htmlFor="paylov-expiry" className="text-[12px] font-semibold block mb-1.5" style={{ color: 'var(--text-secondary)' }}>
@@ -374,7 +375,7 @@ export default function PaylovSandboxPanel() {
                                         </label>
                                         <input id="paylov-expiry" className="input font-mono" inputMode="numeric"
                                             value={expiry} onChange={event => setExpiry(formatExpiry(event.target.value))}
-                                            placeholder="YY/MM" maxLength={5} required />
+                                            placeholder="MM/YY" maxLength={5} required />
                                     </div>
                                 </div>
                                 <p className="text-[11px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
@@ -392,7 +393,6 @@ export default function PaylovSandboxPanel() {
                                     <p className="text-sm font-semibold">Tasdiqlash kodini kiriting</p>
                                     <p className="text-[12px] mt-1" style={{ color: 'var(--text-muted)' }}>
                                         {maskedPhone ? `Kod ${maskedPhone} raqamiga yuborildi.` : 'Paylov tasdiqlash kodini yubordi.'}
-                                        {expectedOtp ? ` Sandbox OTP: ${expectedOtp}.` : ''}
                                     </p>
                                 </div>
                                 <div className="max-w-[220px]">
@@ -424,7 +424,7 @@ export default function PaylovSandboxPanel() {
                                     <div>
                                         <h3 className="text-sm font-bold">Sandbox to‘lovi muvaffaqiyatli</h3>
                                         <p className="text-[12px] mt-1 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                                            Payment PAID holatiga o‘tdi va 30 kunlik Pro obuna bazada yaratildi. Haqiqiy mablag‘ yechilmadi.
+                                            Payment PAID holatiga o‘tdi va 30 kunlik Pro obuna bazada yaratildi. Tranzaksiya mablag‘i holatini Paylov sandbox shartlari bo‘yicha tekshiring.
                                         </p>
                                         <button type="button" onClick={resetTest} className="btn btn-outline btn-sm mt-4 inline-flex items-center gap-1.5">
                                             <RefreshCw className="h-3.5 w-3.5" /> Yangi sinov
