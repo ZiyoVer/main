@@ -1,17 +1,15 @@
+import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import compression from 'compression'
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
-import dotenv from 'dotenv'
 import path from 'path'
 import fs from 'fs'
 import crypto from 'crypto'
 import prisma from './utils/db'
 import bcrypt from 'bcryptjs'
-import { optionalAuthenticate } from './middleware/auth'
-
-dotenv.config()
+import { tokenBlacklist } from './utils/tokenBlacklist'
 
 // Muhim env varlarni tekshirish
 const REQUIRED_ENV = ['DATABASE_URL', 'JWT_SECRET', 'ADMIN_PASSWORD', 'ADMIN_EMAIL']
@@ -27,6 +25,13 @@ if (process.env.JWT_SECRET === 'dtmmax-dev-secret') {
 }
 if (process.env.JWT_SECRET!.length < 32) {
     console.error('❌ JWT_SECRET kamida 32 ta belgi bo\'lishi kerak! Hozir:', process.env.JWT_SECRET!.length, 'ta belgi.')
+    process.exit(1)
+}
+
+const railwayEnvironment = process.env.RAILWAY_ENVIRONMENT_NAME || ''
+const isRailwayPreview = /(^|-)pr-\d+($|-)/i.test(railwayEnvironment)
+if (isRailwayPreview && process.env.PREVIEW_ISOLATION_CONFIRMED !== 'true') {
+    console.error('❌ PR preview resurslari izolatsiya qilingani tasdiqlanmagan. PREVIEW_ISOLATION_CONFIRMED=true kerak.')
     process.exit(1)
 }
 
@@ -134,19 +139,19 @@ app.get('/api/health', async (_req, res) => {
 })
 
 app.use('/api/auth', apiLimiter, authRoutes)
-app.use('/api/chat', optionalAuthenticate, apiLimiter, chatRoutes)
-app.use('/api/tests', optionalAuthenticate, apiLimiter, testRoutes)
-app.use('/api/documents', optionalAuthenticate, apiLimiter, docRoutes)
-app.use('/api/analytics', optionalAuthenticate, apiLimiter, analyticsRoutes)
-app.use('/api/profile', optionalAuthenticate, apiLimiter, profileRoutes)
-app.use('/api/ai-settings', optionalAuthenticate, apiLimiter, aiSettingsRoutes)
-app.use('/api/progress', optionalAuthenticate, apiLimiter, progressRoutes)
-app.use('/api/flashcards', optionalAuthenticate, apiLimiter, flashcardsRoutes)
-app.use('/api/mock-exam', optionalAuthenticate, apiLimiter, mockExamRoutes)
-app.use('/api/notifications', optionalAuthenticate, apiLimiter, notificationsRoutes)
-app.use('/api/knowledge', optionalAuthenticate, apiLimiter, knowledgeRoutes)
-app.use('/api/admin', optionalAuthenticate, apiLimiter, adminRoutes)
-app.use('/api/billing', optionalAuthenticate, apiLimiter, billingRoutes)
+app.use('/api/chat', apiLimiter, chatRoutes)
+app.use('/api/tests', apiLimiter, testRoutes)
+app.use('/api/documents', apiLimiter, docRoutes)
+app.use('/api/analytics', apiLimiter, analyticsRoutes)
+app.use('/api/profile', apiLimiter, profileRoutes)
+app.use('/api/ai-settings', apiLimiter, aiSettingsRoutes)
+app.use('/api/progress', apiLimiter, progressRoutes)
+app.use('/api/flashcards', apiLimiter, flashcardsRoutes)
+app.use('/api/mock-exam', apiLimiter, mockExamRoutes)
+app.use('/api/notifications', apiLimiter, notificationsRoutes)
+app.use('/api/knowledge', apiLimiter, knowledgeRoutes)
+app.use('/api/admin', apiLimiter, adminRoutes)
+app.use('/api/billing', apiLimiter, billingRoutes)
 
 // 404 handler (API)
 app.use('/api', (_req, res) => {
@@ -189,6 +194,14 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 const PORT = process.env.PORT || 8080
 
 async function bootstrap() {
+    // lazyConnect ishlatilgani uchun Redis sozlangan har qanday muhitda birinchi
+    // auth so'rovidan oldin ulanishni ochamiz. Aks holda offlineQueue=false
+    // birinchi blacklist GET'ini cold-start paytida 503 bilan rad etadi.
+    if (process.env.REDIS_URL || process.env.REDIS_REQUIRED === 'true') {
+        await tokenBlacklist.ready()
+        console.log('✅ Redis auth revocation store tayyor')
+    }
+
     const adminEmail = process.env.ADMIN_EMAIL!
     const adminExists = await prisma.user.findUnique({ where: { email: adminEmail } })
     if (!adminExists) {
@@ -202,7 +215,10 @@ async function bootstrap() {
         const passwordMatch = await bcrypt.compare(process.env.ADMIN_PASSWORD!, adminExists.password)
         if (!passwordMatch) {
             const pw = await bcrypt.hash(process.env.ADMIN_PASSWORD!, 10)
-            await prisma.user.update({ where: { email: adminEmail }, data: { password: pw } })
+            await prisma.user.update({
+                where: { email: adminEmail },
+                data: { password: pw, authVersion: { increment: 1 } }
+            })
             console.log('✅ Admin paroli yangilandi')
         }
     }

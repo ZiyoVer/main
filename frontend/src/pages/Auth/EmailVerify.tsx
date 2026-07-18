@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { BrainCircuit, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { CheckCircle, XCircle, Loader2 } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 
@@ -18,7 +18,7 @@ export default function EmailVerify() {
         if (ran.current) return
         ran.current = true
         if (!token) { setStatus('error'); setMessage('Noto\'g\'ri havola'); return }
-        fetchApi(`/auth/verify-email/${token}`, { method: 'GET' })
+        fetchApi(`/auth/verify-email/${token}`, { method: 'POST', authFailure: 'throw' })
             .then(() => {
                 setStatus('success')
                 // authStore da user ni yangilash — /auth/me orqali yangi user'ni olib kelamiz,

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { fetchApi } from '@/lib/api'
 import { startGoogleLogin } from '@/lib/googleAuth'
 
@@ -17,6 +18,7 @@ function GoogleG() {
 }
 
 export default function GoogleSignInButton() {
+    const location = useLocation()
     const [clientId, setClientId] = useState<string | null>(null)
 
     useEffect(() => {
@@ -40,7 +42,7 @@ export default function GoogleSignInButton() {
             </div>
             <button
                 type="button"
-                onClick={() => startGoogleLogin(clientId)}
+                onClick={() => startGoogleLogin(clientId, (location.state as { from?: unknown } | null)?.from)}
                 className="w-full flex items-center justify-center gap-2.5 rounded-full font-medium transition-colors"
                 style={{
                     height: 44,

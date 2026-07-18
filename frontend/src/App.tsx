@@ -1,8 +1,7 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useState, useEffect, lazy, Suspense } from 'react'
 import { Toaster } from 'react-hot-toast'
-import { useAuthStore } from './store/authStore'
-import { fetchApi } from './lib/api'
+import { useAuthStore, type AuthUser } from './store/authStore'
 import ErrorBoundary from './components/ErrorBoundary'
 import EmailVerifyBanner from './components/EmailVerifyBanner'
 
@@ -52,74 +51,115 @@ function PageLoader() {
 }
 
 function ProtectedRoute({ children, roles }: { children: React.ReactNode, roles?: string[] }) {
-    const { user, token, login } = useAuthStore()
+    const { user, token } = useAuthStore()
     const location = useLocation()
-
-    // Token bor lekin user store da yo'q — /auth/me orqali tiklaymiz
-    const [storedToken, setStoredToken] = useState(() => localStorage.getItem('token'))
-    const [checking, setChecking] = useState(!user && !!storedToken)
-    // STUDENT emailVerified===false localStorage'dan o'qilgan bo'lsa — bloklashdan oldin
-    // serverdan bir marta qayta tekshiramiz (mobil cross-browser tasdiq holatini ko'rish uchun).
-    const [verifyChecked, setVerifyChecked] = useState(false)
-
-    useEffect(() => {
-        const syncToken = () => setStoredToken(localStorage.getItem('token'))
-        window.addEventListener('storage', syncToken)
-        return () => window.removeEventListener('storage', syncToken)
-    }, [])
-
-    useEffect(() => {
-        if (!storedToken || user) {
-            setChecking(false)
-            return
-        }
-
-        let active = true
-        if (!user && storedToken) {
-            fetchApi('/auth/me')
-                .then(data => {
-                    if (!active) return
-                    login(storedToken, data)
-                    setChecking(false)
-                })
-                .catch(() => {
-                    if (!active) return
-                    localStorage.removeItem('token')
-                    localStorage.removeItem('user')
-                    setStoredToken(null)
-                    setChecking(false)
-                })
-        }
-        return () => { active = false }
-    }, [user, storedToken, login])
-
-    // Stale localStorage himoyasi: STUDENT'da emailVerified===false bo'lsa, darhol
-    // /email-tasdiqlang'ga otmaymiz — avval /auth/me bilan yangi holatni olamiz.
-    // Bir martalik (verifyChecked) — verified bo'lsa store yangilanadi, aks holsa bloklanadi.
-    const needsVerifyRecheck = !!token && !!user && user.role === 'STUDENT' && user.emailVerified === false && !verifyChecked
-    useEffect(() => {
-        if (!needsVerifyRecheck || !token) {
-            return
-        }
-        let active = true
-        fetchApi('/auth/me', { silent: true })
-            .then(data => {
-                if (!active) return
-                login(token, data)
-            })
-            .catch(() => { /* tarmoq xatosi — eski holatda bloklanadi */ })
-            .finally(() => { if (active) setVerifyChecked(true) })
-        return () => { active = false }
-    }, [needsVerifyRecheck, token, login])
-
-    if (checking) return <PageLoader />
     if (!token || !user) return <Navigate to="/kirish" state={{ from: location.pathname }} replace />
     if (roles && !roles.includes(user.role)) return <Navigate to="/" replace />
     // SOFT-GATE: email tasdiqlamagan o'quvchini ENDI BLOKLAMAYMIZ — platformaga kiradi,
     // ichkarida diqqat tortuvchi banner (EmailVerifyBanner) tasdiqlashga undaydi (odam qotib qolmaydi).
-    // Avval serverdan holatni yangilaymiz (needsVerifyRecheck) — banner to'g'ri ko'rinishi uchun.
-    if (needsVerifyRecheck) return <PageLoader />
     return <><EmailVerifyBanner />{children}</>
+}
+
+/**
+ * localStorage faqat kesh. Har bir yangi tab/refreshda token `/auth/me` orqali
+ * tekshirilmaguncha hech qanday role-based route render qilinmaydi.
+ */
+function SessionBootstrap({ children }: { children: React.ReactNode }) {
+    const token = useAuthStore(s => s.token)
+    const hydrated = useAuthStore(s => s.hydrated)
+    const restore = useAuthStore(s => s.restore)
+    const beginHydration = useAuthStore(s => s.beginHydration)
+    const markHydrated = useAuthStore(s => s.markHydrated)
+    const clearSession = useAuthStore(s => s.clearSession)
+    const syncFromStorage = useAuthStore(s => s.syncFromStorage)
+    const [retryKey, setRetryKey] = useState(0)
+    const [serviceError, setServiceError] = useState<string | null>(null)
+
+    useEffect(() => {
+        const sync = (event: StorageEvent) => {
+            if (event.key === 'token' || event.key === 'user' || event.key === null) {
+                syncFromStorage()
+            }
+        }
+        window.addEventListener('storage', sync)
+        return () => window.removeEventListener('storage', sync)
+    }, [syncFromStorage])
+
+    useEffect(() => {
+        let active = true
+        setServiceError(null)
+
+        if (!token) {
+            markHydrated()
+            return () => { active = false }
+        }
+
+        beginHydration()
+        const controller = new AbortController()
+        const timeoutId = window.setTimeout(() => controller.abort(), 10_000)
+        fetch('/api/auth/me', {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: 'no-store',
+            signal: controller.signal,
+        })
+            .then(async response => {
+                const body = await response.json().catch(() => ({}))
+                if (!active) return
+                if (response.ok) {
+                    restore(token, body as AuthUser)
+                    return
+                }
+                // Token/user yaroqsiz yoki bloklangan — lokal sessionni ham tugatamiz.
+                if (response.status === 401 || response.status === 403) {
+                    clearSession()
+                    return
+                }
+                setServiceError(body?.error || 'Sessiyani tekshirish xizmati vaqtincha ishlamayapti.')
+            })
+            .catch((error: unknown) => {
+                if (!active) return
+                const timedOut = error instanceof DOMException && error.name === 'AbortError'
+                setServiceError(timedOut
+                    ? 'Server 10 soniyada javob bermadi. Qayta urinib ko‘ring yoki sessiyani tugating.'
+                    : 'Server bilan aloqa o‘rnatilmadi. Internetni tekshirib, qayta urinib ko‘ring.')
+            })
+            .finally(() => window.clearTimeout(timeoutId))
+
+        return () => {
+            active = false
+            controller.abort()
+            window.clearTimeout(timeoutId)
+        }
+    }, [beginHydration, clearSession, markHydrated, restore, retryKey, token])
+
+    if (serviceError) {
+        return (
+            <div className="kelviq min-h-screen flex items-center justify-center p-5" style={{ background: 'var(--bg-page)' }}>
+                <div className="card w-full max-w-sm text-center" style={{ padding: '1.75rem' }}>
+                    <h1 className="text-lg font-bold mb-2">Sessiyani tekshirib bo‘lmadi</h1>
+                    <p className="text-sm mb-5" style={{ color: 'var(--text-secondary)' }}>{serviceError}</p>
+                    <div className="flex flex-col gap-2">
+                        <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => setRetryKey(key => key + 1)}>
+                            Qayta urinish
+                        </button>
+                        <button
+                            className="btn"
+                            style={{ width: '100%' }}
+                            onClick={() => {
+                                clearSession()
+                                window.location.assign('/kirish')
+                            }}
+                        >
+                            Sessiyani tugatib, kirish
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    if (!hydrated) return <PageLoader />
+    return <>{children}</>
 }
 
 // Kirgan foydalanuvchi "/" ga kelsa, landing CHIZILISHIDAN OLDIN (sinxron) o'z
@@ -148,8 +188,9 @@ function AppContent() {
                     error: { style: { background: 'var(--danger-light)', color: 'var(--danger)', border: '1px solid var(--danger)' } }
                 }}
             />
-            <Suspense fallback={<PageLoader />}>
-                <Routes>
+            <SessionBootstrap>
+                <Suspense fallback={<PageLoader />}>
+                    <Routes>
                     <Route path="/" element={<LandingRoute />} />
                     <Route path="/kirish" element={<Login />} />
                     <Route path="/royxat" element={<Register />} />
@@ -178,8 +219,9 @@ function AppContent() {
                     <Route path="/maxfiylik" element={<Privacy />} />
                     <Route path="/oferta" element={<Oferta />} />
                     <Route path="*" element={<NotFound />} />
-                </Routes>
-            </Suspense>
+                    </Routes>
+                </Suspense>
+            </SessionBootstrap>
         </ErrorBoundary>
     )
 }

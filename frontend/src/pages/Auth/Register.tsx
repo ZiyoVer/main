@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
-import { BrainCircuit, Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 import GoogleSignInButton from '@/components/GoogleSignInButton'
@@ -21,10 +21,6 @@ export default function Register() {
 
     useEffect(() => {
         if (token && user) {
-            if (user.role === 'STUDENT' && user.emailVerified === false) {
-                nav('/email-tasdiqlang', { replace: true })
-                return
-            }
             const safeRedirect = getSafeRegisterRedirect(from)
             if (safeRedirect) nav(safeRedirect, { replace: true })
             else nav('/bugun', { replace: true })
@@ -48,15 +44,8 @@ export default function Register() {
         setLoading(true)
         setErr('')
         try {
-            // Yuborishdan oldin email band emasligini tekshiramiz (aniqroq xato uchun)
-            const check = await fetchApi(`/auth/check-email?email=${encodeURIComponent(form.email.trim())}`)
-            if (!check.available) {
-                setErr('Bu email allaqachon ro\'yxatdan o\'tilgan. Kirish sahifasiga o\'ting.')
-                setLoading(false)
-                return
-            }
-
-            // Faqat akkaunt maydonlari — imtihon ma'lumotlari onboarding'da
+            // Dublikat email serverdagi atomik unique constraint orqali tekshiriladi.
+            // Alohida availability endpoint ishlatilmaydi — user enumeration bo'lmaydi.
             const data = await fetchApi('/auth/register', {
                 method: 'POST',
                 body: JSON.stringify({
@@ -67,11 +56,6 @@ export default function Register() {
             })
             // Register javobidan to'g'ridan-to'g'ri token — alohida login shart emas
             login(data.token, data.user)
-            // Email tasdiqlanmagan bo'lsa — boshqa hamma narsadan oldin bloklash ekraniga (faqat STUDENT)
-            if (data.user?.role === 'STUDENT' && data.user?.emailVerified === false) {
-                nav('/email-tasdiqlang', { replace: true })
-                return
-            }
             // Test linki orqali kelgan bo'lsa — o'sha testga qaytamiz
             const safeRedirect = getSafeRegisterRedirect(from)
             if (safeRedirect) {

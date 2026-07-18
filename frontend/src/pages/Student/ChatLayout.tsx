@@ -988,7 +988,7 @@ export default function ChatLayout() {
     const { chatId } = useParams()
     const nav = useNavigate()
     const location = useLocation()
-    const { user, logout, token } = useAuthStore()
+    const { user, logout, token, clearSession } = useAuthStore()
     const isTodayView = !chatId
     // Reja (todo) CHATGA bog'lab saqlanadi — yangi chatda eski chat rejasi ko'rinmasin.
     // 'new' — hali chat tanlanmagan (/suhbat) holat uchun vaqtinchalik bo'lim.
@@ -3445,35 +3445,45 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             <div className="space-y-3">
                                                 <p className="text-sm font-semibold flex items-center gap-2">
                                                     <User className="h-4 w-4" />
-                                                    Parolni o'zgartirish
+                                                    {user?.passwordConfigured === false ? 'Parol yaratish' : 'Parolni o\'zgartirish'}
                                                 </p>
+                                                {user?.passwordConfigured === false && (
+                                                    <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                                                        Siz Google orqali kirgansiz. Parol yaratsangiz email va parol bilan ham kira olasiz.
+                                                    </p>
+                                                )}
                                                 {changePwOk && <div className="text-sm px-3 py-2 rounded-lg" style={{ background: '#D1FAE5', color: '#065F46' }}>Parol muvaffaqiyatli yangilandi!</div>}
                                                 {changePwErr && <div className="text-sm px-3 py-2 rounded-lg" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>{changePwErr}</div>}
-                                                <input type="password" placeholder="Joriy parol" value={changePwForm.current} onChange={e => setChangePwForm(f => ({ ...f, current: e.target.value }))} className="input text-sm h-9" />
+                                                {user?.passwordConfigured !== false && (
+                                                    <input type="password" placeholder="Joriy parol" value={changePwForm.current} onChange={e => setChangePwForm(f => ({ ...f, current: e.target.value }))} className="input text-sm h-9" />
+                                                )}
                                                 <input type="password" placeholder="Yangi parol (kamida 8 belgi)" value={changePwForm.newPw} onChange={e => setChangePwForm(f => ({ ...f, newPw: e.target.value }))} className="input text-sm h-9" />
                                                 <input type="password" placeholder="Yangi parolni tasdiqlang" value={changePwForm.confirm} onChange={e => setChangePwForm(f => ({ ...f, confirm: e.target.value }))} className="input text-sm h-9" />
-                                                <button disabled={changePwLoading || !changePwForm.current || !changePwForm.newPw || !changePwForm.confirm}
+                                                <button disabled={changePwLoading || (user?.passwordConfigured !== false && !changePwForm.current) || !changePwForm.newPw || !changePwForm.confirm}
                                                     onClick={async () => {
                                                         setChangePwErr(''); setChangePwOk(false)
                                                         if (changePwForm.newPw !== changePwForm.confirm) { setChangePwErr('Yangi parollar mos kelmadi'); return }
                                                         setChangePwLoading(true)
                                                         try {
                                                             await fetchApi('/auth/change-password', { method: 'PUT', body: JSON.stringify({ currentPassword: changePwForm.current, newPassword: changePwForm.newPw }) })
-                                                            setChangePwOk(true); setChangePwForm({ current: '', newPw: '', confirm: '' })
+                                                            setChangePwForm({ current: '', newPw: '', confirm: '' })
+                                                            clearSession()
+                                                            nav('/kirish?reason=password-changed', { replace: true })
                                                         } catch (e: any) { setChangePwErr(e.message || 'Xatolik yuz berdi') }
                                                         setChangePwLoading(false)
                                                     }}
-                                                    className="btn btn-outline h-9 text-sm px-5 disabled:opacity-40">{changePwLoading ? 'Saqlanmoqda...' : 'Parolni yangilash'}</button>
+                                                    className="btn btn-outline h-9 text-sm px-5 disabled:opacity-40">{changePwLoading ? 'Saqlanmoqda...' : user?.passwordConfigured === false ? 'Parol yaratish' : 'Parolni yangilash'}</button>
                                             </div>
                                             <div className="rounded-xl p-4 space-y-2" style={{ border: '1px solid var(--danger-light)' }}>
                                                 <p className="text-sm font-semibold" style={{ color: 'var(--danger)' }}>Xavfli zona</p>
                                                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Akkauntni o'chirsangiz barcha ma'lumotlar butunlay yo'qoladi.</p>
                                                 <button onClick={() => { setShowDeleteModal(true); setDeleteErr(''); setDeletePassword('') }}
+                                                    disabled={user?.passwordConfigured === false}
                                                     className="h-9 flex items-center gap-2 text-sm font-medium rounded-lg px-4 transition"
-                                                    style={{ color: 'var(--danger)', border: '1px solid var(--danger)', background: 'transparent' }}
+                                                    style={{ color: 'var(--danger)', border: '1px solid var(--danger)', background: 'transparent', opacity: user?.passwordConfigured === false ? 0.5 : 1 }}
                                                     onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-light)'}
                                                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                                    Akkauntni o'chirish
+                                                    {user?.passwordConfigured === false ? 'Avval parol yarating' : 'Akkauntni o\'chirish'}
                                                 </button>
                                             </div>
                                         </div>

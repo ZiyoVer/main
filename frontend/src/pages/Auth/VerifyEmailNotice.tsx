@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BrainCircuit, Mail, CheckCircle } from 'lucide-react'
+import { Mail, CheckCircle } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 
@@ -110,13 +110,13 @@ export default function VerifyEmailNotice() {
         return false
     }, [handleVerified])
 
-    // Polling: /auth/me ni har 5s tekshiramiz. document.hidden guard YO'Q — backgrounded
-    // mobil tab ham o'zini tozalaydi (/auth/me arzon). Fokus/visibility'ga ham bog'lanamiz.
+    // Polling: faqat tab ko'rinib turganda tekshiramiz; background tab API'ni bekorga urmaydi.
+    // Fokus/visibility qaytganda darhol bir marta tekshiriladi.
     useEffect(() => {
         if (verified) return
         let active = true
 
-        const tick = () => { if (active) void checkVerifiedOnce() }
+        const tick = () => { if (active && !document.hidden) void checkVerifiedOnce() }
 
         // Mount'da darhol bir marta — yangidan yuklangan tab stale localStorage'ga ishonmasin
         tick()
@@ -321,6 +321,15 @@ export default function VerifyEmailNotice() {
                             <p className="text-sm mt-3" style={{ color: 'var(--text-secondary)' }}>
                                 Xat kelmadimi? Spam papkasini ham tekshiring.
                             </p>
+
+                            <button
+                                type="button"
+                                onClick={() => nav('/bugun', { replace: true })}
+                                className="btn btn-ghost mt-2"
+                                style={{ width: '100%' }}
+                            >
+                                Hozircha platformaga o‘tish
+                            </button>
 
                             {/* Poll indikatori — fonда avtomatik ham tekshirib turamiz */}
                             <div className="flex items-center justify-center gap-2 mt-5 pt-4" style={{ borderTop: '1px solid var(--border)' }} role="status" aria-live="polite">
