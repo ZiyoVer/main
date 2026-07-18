@@ -36,7 +36,7 @@ function PageLoader() {
         return () => clearTimeout(t)
     }, [])
     return (
-        <div className="h-screen w-full flex items-center justify-center" style={{ background: 'var(--bg-main)' }}>
+        <div className="h-screen w-full flex items-center justify-center" style={{ background: 'var(--bg-page)' }}>
             {show && (
                 <>
                     <div style={{

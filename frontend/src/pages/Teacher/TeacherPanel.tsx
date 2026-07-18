@@ -1,13 +1,16 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Copy, Check, Globe, Lock, ClipboardList, Upload, Sparkles, FileText, Image, BarChart2, X, Users, Bell, AlertTriangle, MoreHorizontal } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Copy, Check, Globe, Lock, ClipboardList, Upload, Sparkles, FileText, Image, BarChart2, X, Users, Bell, AlertTriangle, MoreHorizontal, LayoutDashboard, FolderOpen } from 'lucide-react'
 import { fetchApi, uploadFile } from '@/lib/api'
 import { saveScopedItem } from '@/lib/storagePrune'
 import { renderMathHtml } from '@/lib/mathRender'
 import { useAuthStore } from '@/store/authStore'
 import { SUBJECTS } from '../../constants'
 import 'katex/dist/katex.min.css'
+import '../../styles/operations-workspace.css'
+
+type TeacherWorkspaceSection = 'overview' | 'students' | 'create' | 'materials' | 'analytics'
 
 function MathPreview({ text, inline }: { text: string; inline?: boolean }) {
     const html = renderMathHtml(text || '', inline ? 'inline' : 'display')
@@ -64,7 +67,7 @@ function formatAcceptedAnswerHint(text: string) {
         .join(' / ')
 }
 
-// 's3key:' ko'rinishidagi xom ref brauzerda ochilmaydi — <img> uchun signed/lokal
+// 's3key:' ko'rinishidagi xom ref brauzerda ochilmaydi — rasm elementi uchun signed/lokal
 // preview'ni afzal ko'ramiz, xom ref bo'lsa null qaytaramiz (singan rasm chiqmasin)
 function displayableImageSrc(previewUrl?: string | null, rawUrl?: string | null): string | null {
     if (previewUrl) return previewUrl
@@ -336,6 +339,7 @@ export default function TeacherPanel() {
     const nav = useNavigate()
     const { logout, user } = useAuthStore()
     const [tab, setTab] = useState<'create' | 'list'>('list')
+    const [workspaceSection, setWorkspaceSection] = useState<TeacherWorkspaceSection>('overview')
     const [builderStep, setBuilderStep] = useState(1)
     const [tests, setTests] = useState<TeacherTestListItem[]>([])
 
@@ -379,6 +383,7 @@ export default function TeacherPanel() {
     const [aiError, setAiError] = useState('')
     const [aiDone, setAiDone] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const pendingImportScrollRef = useRef(false)
     const dtmControlStats = useMemo(() => getDtmControlStats(questions), [questions])
 
     // DTM blok-bo'limli forma: yopiq bo'limlar + har blokka alohida AI import
@@ -503,6 +508,7 @@ export default function TeacherPanel() {
                 ? draft.questions.map(q => ({ ...q, uid: q.uid || nextQuestionUid() }))
                 : [createEmptyQuestion()])
             setBuilderStep(1)
+            setWorkspaceSection('create')
             setTab('create')
             setMsg('')
             setDraftMeta(null)
@@ -524,6 +530,36 @@ export default function TeacherPanel() {
         setEditingSourceTitle('')
         setCloneMode(false)
     }
+
+    function selectWorkspaceSection(nextSection: TeacherWorkspaceSection) {
+        setWorkspaceSection(nextSection)
+        setTab(nextSection === 'create' ? 'create' : 'list')
+        setMsg('')
+    }
+
+    function beginNewTest(startAtImport = false) {
+        pendingImportScrollRef.current = startAtImport
+        resetEditorState()
+        setTitle('')
+        setSubject('Matematika')
+        setSubject2('')
+        setIsPublic(false)
+        setTestType('REGULAR')
+        setTimeLimit(0)
+        setTimeLimitTouched(false)
+        setQuestions([createEmptyQuestion()])
+        setBuilderStep(startAtImport ? 3 : 1)
+        setWorkspaceSection('create')
+        setTab('create')
+        setMsg('')
+
+    }
+
+    useEffect(() => {
+        if (!pendingImportScrollRef.current || workspaceSection !== 'create' || tab !== 'create') return
+        pendingImportScrollRef.current = false
+        document.getElementById('teacher-ai-import')?.scrollIntoView({ block: 'start' })
+    }, [builderStep, workspaceSection, tab])
 
     function selectTestType(nextType: TestTypeValue) {
         setTestType(nextType)
@@ -766,6 +802,7 @@ export default function TeacherPanel() {
                 }))
                 : [createEmptyQuestion()])
             setBuilderStep(1)
+            setWorkspaceSection('create')
             setTab('create')
             setMsg('')
             setAiFile(null)
@@ -1272,7 +1309,7 @@ export default function TeacherPanel() {
             setAiFile(null); setAiDone(false)
             // fileInput ni tozalash — bir xil faylni qayta yuklash mumkin bo'lsin
             if (fileInputRef.current) fileInputRef.current.value = ''
-            setTab('list'); loadTests()
+            setWorkspaceSection('overview'); setTab('list'); loadTests()
         } catch (e: any) { setMsg(e.message) }
         finally { setLoading(false) }
     }
@@ -1503,53 +1540,94 @@ export default function TeacherPanel() {
         )
     }
 
+    const teacherSections = [
+        { key: 'overview' as const, label: 'Umumiy', icon: LayoutDashboard },
+        { key: 'students' as const, label: "O'quvchilar", icon: Users },
+        { key: 'create' as const, label: 'Test yaratish', icon: Plus },
+        { key: 'materials' as const, label: 'Materiallar', icon: FolderOpen },
+        { key: 'analytics' as const, label: 'Analitika', icon: BarChart2 },
+    ]
+    const teacherSectionMeta: Record<TeacherWorkspaceSection, { title: string; description: string }> = {
+        overview: {
+            title: 'O‘qituvchi ish maydoni',
+            description: 'Testlar, ulashish holati va o‘quvchi urinishlarini bir joydan boshqaring.',
+        },
+        students: {
+            title: "O‘quvchilar",
+            description: 'O‘quvchi qatnashuvi va natijalarini test kesimida kuzating.',
+        },
+        create: {
+            title: editingTestId ? 'Testni tahrirlash' : cloneMode ? 'Test nusxasini yaratish' : 'Yangi test yaratish',
+            description: 'Formatni tanlang, savollarni kiriting yoki materialdan import qiling va tekshirib saqlang.',
+        },
+        materials: {
+            title: 'Materiallar',
+            description: 'PDF, Word yoki rasmdagi savollarni test loyihasiga xavfsiz import qiling.',
+        },
+        analytics: {
+            title: 'Analitika',
+            description: 'Natijalar, o‘rtacha ball va savollar bo‘yicha xatolarni tahlil qiling.',
+        },
+    }
+    const totalAttempts = tests.reduce((sum, test) => sum + (test._count?.attempts || 0), 0)
+    const testsWithAttempts = tests.filter(test => (test._count?.attempts || 0) > 0)
+    const averageScore = testsWithAttempts.length
+        ? Math.round(testsWithAttempts.reduce((sum, test) => sum + (test.avgScore || 0), 0) / testsWithAttempts.length)
+        : 0
+    const activeTeacherMeta = teacherSectionMeta[workspaceSection]
+
     return (
-        <div className="kelviq">
-            <div className="h-screen overflow-y-auto w-full" style={{ background: 'var(--bg-page)' }}>
-                {/* Header */}
-                <header className="sticky top-0 z-40" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', backdropFilter: 'blur(12px)' }}>
-                    <div className="max-w-5xl mx-auto flex items-center justify-between py-2.5 px-5">
-                        <div className="flex items-center gap-2">
-                            <img src="/dtmmax-logo.png" alt="DtmMax" className="h-8 w-8 rounded-md flex items-center justify-center" style={{ objectFit: 'contain' }} />
-                            <span className="text-sm font-bold">DTMMax</span>
-                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ color: 'var(--text-muted)', background: 'var(--bg-surface)' }}>O'qituvchi</span>
+        <div className="kelviq operations-workspace operations-workspace--teacher">
+            <div className="operations-scroll h-screen overflow-y-auto w-full">
+                <header className="operations-topbar">
+                    <div className="operations-topbar__inner">
+                        <div className="operations-brand">
+                            <img src="/dtmmax-logo.png" alt="DTMMax" className="operations-brand__logo" />
+                            <div className="operations-brand__copy">
+                                <span className="operations-brand__name">DTMMax</span>
+                                <span className="operations-role">O'qituvchi</span>
+                            </div>
                         </div>
-                        <button onClick={() => { logout(); nav('/') }} className="h-7 w-7 flex items-center justify-center rounded-lg transition"
-                            style={{ color: 'var(--text-muted)' }}
-                            onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.background = 'var(--danger-light)' }}
-                            onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' }}>
-                            <LogOut className="h-3.5 w-3.5" />
-                        </button>
+                        <div className="operations-topbar__account">
+                            {user?.name && <span className="operations-account-name">{user.name}</span>}
+                            <button onClick={() => { logout(); nav('/') }} className="operations-topbar__action" aria-label="Tizimdan chiqish" title="Tizimdan chiqish">
+                                <LogOut className="h-4 w-4" />
+                            </button>
+                        </div>
                     </div>
                 </header>
 
-                <div className="max-w-5xl mx-auto px-5 py-5">
-                    {/* Tabs */}
-                    <div className="flex gap-0.5 mb-5 p-0.5 rounded-lg w-fit" style={{ background: 'var(--bg-surface)' }}>
-                        <button onClick={() => { setTab('list'); setMsg('') }}
-                            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-[13px] font-medium transition"
-                            style={tab === 'list' ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { color: 'var(--text-secondary)' }}>
-                            <ClipboardList className="h-3.5 w-3.5" /> Testlarim
-                        </button>
-                        <button onClick={() => {
-                            resetEditorState()
-                            setTitle('')
-                            setSubject('Matematika')
-                            setSubject2('')
-                            setIsPublic(false)
-                            setTestType('REGULAR')
-                            setTimeLimit(0)
-                            setTimeLimitTouched(false)
-                            setQuestions([createEmptyQuestion()])
-                            setBuilderStep(1)
-                            setTab('create')
-                            setMsg('')
-                        }}
-                            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-[13px] font-medium transition"
-                            style={tab === 'create' ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { color: 'var(--text-secondary)' }}>
-                            <Plus className="h-3.5 w-3.5" /> Yangi Test
-                        </button>
-                    </div>
+                <div className="operations-shell">
+                    <div className="operations-grid">
+                        <aside className="operations-sidebar" aria-label="O‘qituvchi paneli bo‘limlari">
+                            <p className="operations-sidebar__title">Ish maydoni</p>
+                            <nav className="operations-nav">
+                                {teacherSections.map(item => {
+                                    const selected = workspaceSection === item.key
+                                    return (
+                                        <button key={item.key} type="button" onClick={() => selectWorkspaceSection(item.key)}
+                                            className={`operations-nav__item ${selected ? 'is-active' : ''}`}
+                                            aria-current={selected ? 'page' : undefined}>
+                                            <item.icon className="h-4 w-4" />
+                                            <span>{item.label}</span>
+                                        </button>
+                                    )
+                                })}
+                            </nav>
+                        </aside>
+
+                        <main className="operations-main">
+                            <div className="operations-page-heading">
+                                <div>
+                                    <h1>{activeTeacherMeta.title}</h1>
+                                    <p>{activeTeacherMeta.description}</p>
+                                </div>
+                                {workspaceSection !== 'create' && (
+                                    <button type="button" className="btn btn-primary operations-heading-action" onClick={() => beginNewTest()}>
+                                        <Plus className="h-4 w-4" /> Yangi test
+                                    </button>
+                                )}
+                            </div>
 
                     {/* Saqlanmagan qoralama banneri — brauzer yopilib qolgan bo'lsa mehnat tiklanadi */}
                     {draftMeta && !editingTestId && !cloneMode && (
@@ -1568,11 +1646,27 @@ export default function TeacherPanel() {
                     )}
 
                     {/* Test List */}
-                    {tab === 'list' && (
+                    {tab === 'list' && workspaceSection === 'overview' && (
                         <div className="space-y-1.5 anim-up">
-                            <div className="flex items-center justify-between mb-1.5">
-                                {tests.length > 0 && <p className="text-[11px]" style={mutedText}>{tests.length} ta test</p>}
-                                {tests.length === 0 && <span />}
+                            <div className="operations-summary" aria-label="O‘qituvchi paneli qisqa statistikasi">
+                                <div className="operations-summary__item">
+                                    <span>Testlar</span>
+                                    <strong>{tests.length}</strong>
+                                </div>
+                                <div className="operations-summary__item">
+                                    <span>Jami urinish</span>
+                                    <strong>{totalAttempts}</strong>
+                                </div>
+                                <div className="operations-summary__item">
+                                    <span>O‘rtacha natija</span>
+                                    <strong>{averageScore}%</strong>
+                                </div>
+                            </div>
+                            <div className="operations-section-heading">
+                                <div>
+                                    <h2>Testlarim</h2>
+                                    <p>{tests.length > 0 ? `${tests.length} ta test` : 'Yaratilgan testlar shu yerda ko‘rinadi'}</p>
+                                </div>
                                 <button className="btn btn-outline btn-sm flex items-center gap-1.5"
                                     onClick={() => setShowNotifModal(true)}>
                                     <Bell className="h-4 w-4" />
@@ -1590,7 +1684,7 @@ export default function TeacherPanel() {
                                 <div className="card rounded-xl p-12 text-center">
                                     <ClipboardList className="h-8 w-8 mx-auto mb-2" style={{ color: 'var(--border-strong)' }} />
                                     <p className="text-sm mb-2" style={mutedText}>Hozircha testlar yo'q</p>
-                                    <button onClick={() => setTab('create')} className="text-[13px] font-medium px-3 py-1.5 rounded-lg transition"
+                                    <button onClick={() => beginNewTest()} className="text-[13px] font-medium px-3 py-1.5 rounded-lg transition"
                                         style={{ background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
                                         onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
                                         onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-surface)'}>
@@ -1656,8 +1750,97 @@ export default function TeacherPanel() {
                         </div>
                     )}
 
+                    {tab === 'list' && workspaceSection === 'students' && (
+                        <section className="operations-section anim-up">
+                            <div className="operations-section-heading">
+                                <div>
+                                    <h2>Natija kelgan testlar</h2>
+                                    <p>O‘quvchilar ro‘yxati va har bir urinish tafsiloti test analitikasi ichida ochiladi.</p>
+                                </div>
+                                <span className="operations-count">{totalAttempts} urinish</span>
+                            </div>
+                            {testsLoadError && tests.length === 0 ? (
+                                <div className="operations-empty-state">
+                                    <AlertTriangle className="h-5 w-5" />
+                                    <p>Ma’lumot yuklanmadi.</p>
+                                    <button type="button" className="btn btn-outline" onClick={loadTests}>Qayta urinish</button>
+                                </div>
+                            ) : testsWithAttempts.length === 0 ? (
+                                <div className="operations-empty-state">
+                                    <Users className="h-5 w-5" />
+                                    <p>Hozircha o‘quvchi urinishlari yo‘q. Test havolasini ulashing yoki uni public qiling.</p>
+                                    <button type="button" className="btn btn-outline" onClick={() => selectWorkspaceSection('overview')}>Testlarni ko‘rish</button>
+                                </div>
+                            ) : (
+                                <div className="operations-data-list">
+                                    {testsWithAttempts.map(test => (
+                                        <div key={test.id} className="operations-data-row">
+                                            <div className="operations-data-row__main">
+                                                <strong>{test.title}</strong>
+                                                <span>{test.subject}{test.subject2 ? ` + ${test.subject2}` : ''} · {getTestTypeLabel(test.testType)}</span>
+                                            </div>
+                                            <div className="operations-data-row__stat"><strong>{test._count?.attempts || 0}</strong><span>urinish</span></div>
+                                            <div className="operations-data-row__stat"><strong>{test.avgScore || 0}%</strong><span>o‘rtacha</span></div>
+                                            <button type="button" className="btn btn-outline btn-sm" onClick={() => openAnalytics(test.id)}>O‘quvchilarni ochish</button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </section>
+                    )}
+
+                    {tab === 'list' && workspaceSection === 'materials' && (
+                        <section className="operations-section anim-up">
+                            <div className="operations-material-intro">
+                                <div className="operations-material-intro__icon"><FolderOpen className="h-5 w-5" /></div>
+                                <div className="operations-material-intro__copy">
+                                    <h2>Materialdan test loyihasi yarating</h2>
+                                    <p>PDF, DOCX, PNG yoki JPG faylini yuklang. AI savollarni ajratadi, siz javoblar va formatni tekshirib keyin saqlaysiz.</p>
+                                    <ul>
+                                        <li>Fayl hajmi: 20 MB gacha</li>
+                                        <li>Oddiy, DTM blok va Milliy Sertifikat formatlari</li>
+                                        <li>Importdan keyin savollar qo‘lda tekshiriladi</li>
+                                    </ul>
+                                </div>
+                                <button type="button" className="btn btn-primary" onClick={() => beginNewTest(true)}>
+                                    <Upload className="h-4 w-4" /> Material yuklash
+                                </button>
+                            </div>
+                        </section>
+                    )}
+
+                    {tab === 'list' && workspaceSection === 'analytics' && (
+                        <section className="operations-section anim-up">
+                            <div className="operations-summary" aria-label="Analitika qisqa statistikasi">
+                                <div className="operations-summary__item"><span>Natijali testlar</span><strong>{testsWithAttempts.length}</strong></div>
+                                <div className="operations-summary__item"><span>Jami urinish</span><strong>{totalAttempts}</strong></div>
+                                <div className="operations-summary__item"><span>Umumiy o‘rtacha</span><strong>{averageScore}%</strong></div>
+                            </div>
+                            <div className="operations-section-heading">
+                                <div>
+                                    <h2>Test analitikasi</h2>
+                                    <p>O‘quvchilar reytingi, javoblar va savol kesimidagi xatolarni oching.</p>
+                                </div>
+                            </div>
+                            {testsWithAttempts.length === 0 ? (
+                                <div className="operations-empty-state"><BarChart2 className="h-5 w-5" /><p>Tahlil qilish uchun hali urinishlar yo‘q.</p></div>
+                            ) : (
+                                <div className="operations-data-list">
+                                    {[...testsWithAttempts].sort((a, b) => (b._count?.attempts || 0) - (a._count?.attempts || 0)).map(test => (
+                                        <div key={test.id} className="operations-data-row">
+                                            <div className="operations-data-row__main"><strong>{test.title}</strong><span>{test.subject} · {new Date(test.createdAt).toLocaleDateString('uz-UZ')}</span></div>
+                                            <div className="operations-data-row__stat"><strong>{test._count?.attempts || 0}</strong><span>urinish</span></div>
+                                            <div className="operations-data-row__stat"><strong>{test.avgScore || 0}%</strong><span>o‘rtacha</span></div>
+                                            <button type="button" className="btn btn-primary btn-sm" onClick={() => openAnalytics(test.id)}>Tahlilni ochish</button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </section>
+                    )}
+
                     {/* Create Test */}
-                    {tab === 'create' && (
+                    {tab === 'create' && workspaceSection === 'create' && (
                         <form onSubmit={submit} className="space-y-4 anim-up max-w-3xl">
                             {msg === 'success' && (
                                 <div className="text-[13px] px-3 py-2 rounded-lg" style={{ background: 'var(--success-light)', color: 'var(--success)' }}>
@@ -1795,19 +1978,28 @@ export default function TeacherPanel() {
                             {/* Umumiy ma'lumot */}
                             <div id="teacher-step-details" className="rounded-xl p-5 space-y-3" style={{ ...cardStyle, scrollMarginTop: 118 }}>
                                 <h3 className="text-[13px] font-semibold" style={secondaryText}>Umumiy ma'lumot</h3>
-                                <input placeholder="Test nomi" required value={title} onChange={e => setTitle(e.target.value)}
-                                    className="input" />
-                                <div className="flex flex-wrap gap-2">
-                                    <select value={subject} onChange={e => setSubject(e.target.value)}
-                                        className="input" style={{ flex: 1, cursor: 'pointer' }}>
-                                        {SUBJECTS.map(f => <option key={f} value={f}>{f}</option>)}
-                                    </select>
-                                    {testType === 'DTM_BLOCK' && (
-                                        <select value={subject2} onChange={e => setSubject2(e.target.value)}
-                                            className="input" style={{ flex: 1, cursor: 'pointer' }}>
-                                            <option value="">2-ixtisoslik</option>
-                                            {SUBJECTS.filter(f => f !== subject).map(f => <option key={f} value={f}>{f}</option>)}
+                                <label htmlFor="teacher-test-title" className="block space-y-1.5">
+                                    <span className="text-[12px] font-semibold" style={secondaryText}>Test nomi</span>
+                                    <input id="teacher-test-title" name="testTitle" autoComplete="off" placeholder="Masalan, Matematika — 1-variant" required value={title} onChange={e => setTitle(e.target.value)}
+                                        className="input" />
+                                </label>
+                                <div className="flex flex-wrap items-end gap-2">
+                                    <label htmlFor="teacher-test-subject" className="flex-1 min-w-[180px] space-y-1.5">
+                                        <span className="block text-[12px] font-semibold" style={secondaryText}>Asosiy fan</span>
+                                        <select id="teacher-test-subject" name="testSubject" value={subject} onChange={e => setSubject(e.target.value)}
+                                            className="input" style={{ cursor: 'pointer' }}>
+                                            {SUBJECTS.map(f => <option key={f} value={f}>{f}</option>)}
                                         </select>
+                                    </label>
+                                    {testType === 'DTM_BLOCK' && (
+                                        <label htmlFor="teacher-test-subject-secondary" className="flex-1 min-w-[180px] space-y-1.5">
+                                            <span className="block text-[12px] font-semibold" style={secondaryText}>2-ixtisoslik fani</span>
+                                            <select id="teacher-test-subject-secondary" name="testSecondarySubject" value={subject2} onChange={e => setSubject2(e.target.value)}
+                                                className="input" style={{ cursor: 'pointer' }}>
+                                                <option value="">Fanni tanlang</option>
+                                                {SUBJECTS.filter(f => f !== subject).map(f => <option key={f} value={f}>{f}</option>)}
+                                            </select>
+                                        </label>
                                     )}
                                     <label className="flex items-center gap-2 text-[13px] cursor-pointer select-none h-9 px-3 rounded-lg transition"
                                         style={{ border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)' }}>
@@ -1815,7 +2007,7 @@ export default function TeacherPanel() {
                                         <span>Public</span>
                                     </label>
                                     {user?.role === 'ADMIN' && (
-                                        <select value={source} onChange={e => setSource(e.target.value as 'OFFICIAL' | 'UNOFFICIAL' | 'AI_PREDICTION')}
+                                        <select name="testSource" aria-label="Test manbasi" value={source} onChange={e => setSource(e.target.value as 'OFFICIAL' | 'UNOFFICIAL' | 'AI_PREDICTION')}
                                             className="h-9 px-3 rounded-lg text-[13px] outline-none"
                                             style={{ border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)' }}
                                             title="Test manbasi (badge)">
@@ -1895,10 +2087,10 @@ export default function TeacherPanel() {
                             {/* AI bilan yaratish — DTM'da yashirin: u yerda har blokning o'z AI importi bor
                                 (global import hamma savolni bitta blokka tiqib, saqlashni buzardi) */}
                             {testType !== 'DTM_BLOCK' && (
-                            <div className="rounded-xl p-4 space-y-2.5" style={{ ...cardStyle, borderColor: aiDone ? 'color-mix(in srgb, var(--info) 30%, transparent)' : 'var(--border)' }}>
+                            <div id="teacher-ai-import" className="rounded-xl p-4 space-y-2.5" style={{ ...cardStyle, borderColor: aiDone ? 'color-mix(in srgb, var(--info) 30%, transparent)' : 'var(--border)', scrollMarginTop: 118 }}>
                                 <div className="flex items-center gap-2 mb-1">
-                                    <div className="h-6 w-6 rounded-md flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, var(--info), var(--brand))' }}>
-                                        <Sparkles className="h-3 w-3 text-white" />
+                                    <div className="h-6 w-6 rounded-md flex items-center justify-center flex-shrink-0" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
+                                        <Sparkles className="h-3 w-3" />
                                     </div>
                                     <div>
                                         <p className="text-[13px] font-semibold">AI bilan yaratish</p>
@@ -1909,8 +2101,9 @@ export default function TeacherPanel() {
                                 </div>
                                 <input ref={fileInputRef} type="file" accept=".pdf,.docx,image/*" className="hidden"
                                     onChange={e => { setAiFile(e.target.files?.[0] || null); setAiError(''); setAiDone(false) }} />
-                                <div onClick={() => fileInputRef.current?.click()}
-                                    className="border-2 border-dashed rounded-lg p-3.5 text-center cursor-pointer transition-colors"
+                                <button type="button" onClick={() => fileInputRef.current?.click()}
+                                    className="w-full border-2 border-dashed rounded-lg p-3.5 text-center cursor-pointer transition-colors"
+                                    aria-label={aiFile ? `${aiFile.name} faylini almashtirish` : 'PDF, DOCX yoki rasm faylini tanlash'}
                                     style={aiFile
                                         ? { borderColor: 'color-mix(in srgb, var(--brand) 40%, transparent)', background: 'color-mix(in srgb, var(--brand) 5%, transparent)' }
                                         : { borderColor: 'var(--border)', background: 'transparent' }}>
@@ -1931,11 +2124,10 @@ export default function TeacherPanel() {
                                             </div>
                                         </div>
                                     )}
-                                </div>
+                                </button>
                                 {aiError && <div className="text-[13px] px-3 py-2 rounded-lg" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>{aiError}</div>}
                                 <button type="button" onClick={generateFromFile} disabled={!aiFile || aiGenerating}
-                                    style={{ background: 'linear-gradient(90deg, var(--info), var(--brand))' }}
-                                    className="w-full h-9 rounded-lg text-[13px] font-semibold flex items-center justify-center gap-2 transition text-white hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed">
+                                    className="btn btn-primary w-full text-[13px] font-semibold flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
                                     {aiGenerating
                                         ? <><div className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> AI tayyorlamoqda...</>
                                         : <><Sparkles className="h-3.5 w-3.5" /> AI bilan savollar yaratish</>}
@@ -2405,6 +2597,8 @@ export default function TeacherPanel() {
                             </div>
                         </form>
                     )}
+                        </main>
+                    </div>
                 </div>
             </div>
 
@@ -2448,7 +2642,7 @@ export default function TeacherPanel() {
                         <div className="flex items-center justify-between px-5 py-3.5 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                             <div className="flex items-center gap-2.5">
                                 <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--brand)' }}>
-                                    <BarChart2 className="h-4 w-4 text-white" />
+                                    <BarChart2 className="h-4 w-4 text-[#171717]" />
                                 </div>
                                 <div>
                                     <h2 className="text-[13px] font-semibold">{analytics?.test?.title || 'Yuklanmoqda...'}</h2>

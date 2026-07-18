@@ -72,13 +72,13 @@ export default function Login() {
                 {/* Logo */}
                 <div className="flex items-center gap-2 justify-center mb-8">
                     <img src="/dtmmax-logo.png" alt="DtmMax" className="h-11 w-11 rounded-xl flex items-center justify-center" style={{ objectFit: 'contain' }} />
-                    <span className="font-bold text-xl tracking-tight">DTM<span className="k-italic">Max</span></span>
+                    <span className="font-bold text-xl tracking-tight">DTMMax</span>
                 </div>
 
                 {/* Card */}
                 <div className="card" style={{ padding: '2rem' }}>
-                    <span className="k-eyebrow">KIRISH</span>
-                    <h1 className="text-xl font-bold mb-1 mt-2">Xush <span className="k-italic">kelibsiz</span>!</h1>
+                    <span className="k-eyebrow">Kirish</span>
+                    <h1 className="text-xl font-bold mb-1 mt-2">Xush kelibsiz!</h1>
                     <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
                         Platformaga kirish
                     </p>

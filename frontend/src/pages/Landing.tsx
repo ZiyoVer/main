@@ -1,1265 +1,649 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import {
+  ArrowRight,
+  BarChart3,
+  BrainCircuit,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  ClipboardCheck,
+  FileText,
+  GraduationCap,
+  LineChart,
+  LockKeyhole,
+  MessageSquareText,
+  Sparkles,
+  Target,
+  Upload,
+  Users,
+  Zap,
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import './landing.css'
 
-/* =========================================================================
-   DtmMax — Editorial / academic-paper landing (Kelviq brand, merged).
-   Warm PAPER off-white ground + Fraunces serif headlines (hero + all section
-   headings) with ONE italic accent word + restrained ORANGE accent used as
-   editorial rules / one CTA + pixel-art icons + the signature pixel TARGET +
-   45° arrow animation in the hero math-zone. Body stays Hanken Grotesk for
-   readability. Hairline rules read as paper rules; generous editorial rhythm.
-   Tokens + landing fonts are scoped under `.lp-root` (see landing.css) so they
-   never leak into the Amber app shell. Inline style objects mirror the --lp-*
-   tokens exactly. All copy: Uzbek (Latin). TypeScript strict — no `any`.
-   ========================================================================= */
-
-const C = {
-  bg: '#FAF8F3',      /* warm paper ground */
-  bg2: '#F3EEE4',     /* slightly deeper paper — wells / disabled chips */
-  soft: '#F6E7DC',    /* warm peach wash — rare accent fill (stat avatars, badge) */
-  ink: '#211C16',     /* warm near-black — headlines & primary text on paper */
-  gray: '#5C544A',    /* warm body gray */
-  gray2: '#8C8478',   /* warm captions / footer secondary */
-  line: '#E4DDD0',    /* warm hairline — card borders, paper rules */
-  line2: '#D6CDBC',   /* warm hover border */
-  tex: '#DAD2C4',     /* TEXTURE color — dots & plus marks (warm, faint) */
-  accent: '#F15A24',  /* spec brend rang — kelviq/landing.css bilan bir xil */
-  accentStrong: '#C0410F', /* CTA active, focus ring */
-  accent2: '#F5894E', /* gradient stop 2 / bevel highlight */
-  accentGrad: 'linear-gradient(135deg, #F15A24 0%, #F5894E 100%)',
-  /* pixel-target 3D shading: extruded side-shadow + top-left highlight (warm) */
-  targetShade: '#C3BAA9',  /* warm darker ring-shadow for the extruded depth layer */
-  targetHi: '#FCFAF5',     /* warm near-white highlight edge on the top-left rings */
-} as const
-
-const SHADOW = {
-  /* warm, faint paper-shadows — restrained editorial depth */
-  card: '0 1px 2px rgba(33,28,22,.04), 0 1px 1px rgba(33,28,22,.03)',
-  cta: '0 6px 18px rgba(224,83,31,.22)',
-} as const
-
-const SANS = "'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif"
-const SERIF = "'Fraunces', Georgia, 'Times New Roman', serif"
-
-/* Shared 1240px container (Kelviq generous gutters) */
-const container: CSSProperties = { maxWidth: 1240, margin: '0 auto', padding: '0 56px' }
-
-/* Where the CTAs lead in the real app */
 const ROUTE_REGISTER = '/royxat'
 const ROUTE_LOGIN = '/kirish'
 
-/* ===================================================================== */
-/* Atoms                                                                  */
-/* ===================================================================== */
+type ButtonVariant = 'dark' | 'light' | 'outline'
 
-/* The signature accent: the whole headline is now Fraunces serif, so the ONE
-   accent word is distinguished by italic + the restrained editorial orange — a
-   single warm accent per headline, paper-press style. */
-function Em({ children }: { children: ReactNode }) {
-  return (
-    <i style={{ fontFamily: SERIF, fontStyle: 'italic', fontWeight: 400, color: C.accent }}>{children}</i>
-  )
-}
-
-type EyebrowAlign = 'left' | 'center'
-function Eyebrow({ children, align = 'left' }: { children: ReactNode; align?: EyebrowAlign }) {
-  return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 11,
-        justifyContent: align === 'center' ? 'center' : 'flex-start',
-        fontFamily: SANS,
-        fontSize: 12.5,
-        fontWeight: 600,
-        letterSpacing: '0.18em',
-        textTransform: 'uppercase',
-        color: C.accent,
-        lineHeight: 1,
-      }}
-    >
-      <span aria-hidden="true" style={{ width: 18, height: 1, background: C.accent, flexShrink: 0 }} />
-      {children}
-    </span>
-  )
-}
-
-type BtnVariant = 'primary' | 'outline' | 'ghost'
-type BtnSize = 'sm' | 'md' | 'lg'
-
-const PAD: Record<BtnSize, string> = { sm: '9px 16px', md: '11px 20px', lg: '15px 28px' }
-const FSZ: Record<BtnSize, number> = { sm: 14, md: 15, lg: 17 }
-
-/* Button is rendered as a react-router <Link> so every CTA navigates. */
 function Button({
   children,
   to,
-  variant = 'primary',
-  size = 'md',
+  variant = 'dark',
   arrow = false,
 }: {
   children: ReactNode
   to: string
-  variant?: BtnVariant
-  size?: BtnSize
+  variant?: ButtonVariant
   arrow?: boolean
 }) {
-  const base: CSSProperties = {
-    fontFamily: SANS,
-    fontWeight: 600,
-    fontSize: FSZ[size],
-    lineHeight: 1,
-    padding: PAD[size],
-    borderRadius: 11,
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 8,
-    border: '1px solid transparent',
-    textDecoration: 'none',
-  }
-  const variants: Record<BtnVariant, CSSProperties> = {
-    primary: { background: C.accentGrad, color: '#FFFDF9', boxShadow: SHADOW.cta },
-    outline: { background: '#FFFFFF', color: C.ink, border: `1px solid ${C.line2}` },
-    ghost: { background: 'transparent', color: C.ink, padding: '11px 8px' },
-  }
   return (
-    <Link
-      to={to}
-      className="lp-btn"
-      style={{ ...base, ...variants[variant] }}
-      onMouseEnter={(e) => {
-        if (variant === 'primary') {
-          e.currentTarget.style.transform = 'translateY(-1px)'
-          e.currentTarget.style.boxShadow = '0 10px 26px rgba(224,83,31,.30)'
-        } else if (variant === 'outline') {
-          e.currentTarget.style.transform = 'translateY(-1px)'
-          e.currentTarget.style.borderColor = C.ink
-        }
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'translateY(0)'
-        if (variant === 'primary') e.currentTarget.style.boxShadow = SHADOW.cta
-        else if (variant === 'outline') e.currentTarget.style.borderColor = C.line2
-      }}
-    >
-      {children}
-      {arrow && (
-        <span className="lp-arrow" aria-hidden="true" style={{ fontSize: '1.05em', lineHeight: 1 }}>
-          →
-        </span>
-      )}
+    <Link className={`lp-button lp-button--${variant}`} to={to}>
+      <span>{children}</span>
+      {arrow && <ArrowRight aria-hidden="true" size={18} strokeWidth={2.4} />}
     </Link>
   )
 }
 
-/* Brand logo mark — DtmMax kitob + o'sish strelkasi (rasmiy logo) */
-function LogoMark({ size = 52, radius = 13 }: { size?: number; radius?: number; glyph?: number }) {
+function Brand() {
   return (
-    <img
-      src="/dtmmax-logo.png"
-      alt="DTMMax"
-      width={size}
-      height={size}
-      style={{ width: size, height: size, borderRadius: radius, objectFit: 'contain', display: 'block', flexShrink: 0 }}
-    />
+    <span className="lp-brand">
+      <img src="/dtmmax-logo.png" alt="" width={42} height={42} />
+      <strong>DTMMax</strong>
+    </span>
   )
 }
 
-function Wordmark({ size = 19 }: { size?: number }) {
-  return <span style={{ fontSize: size, fontWeight: 700, letterSpacing: '-0.02em', color: C.ink }}>DTMMax</span>
-}
-
-/* ===================================================================== */
-/* Pixel-art icons — 16×16 grid of <rect>s, rendered at 40px, crispEdges  */
-/* Monochrome ink with a small orange accent cluster (Kelviq look).        */
-/* ===================================================================== */
-
-type PixIconName = 'brain' | 'target' | 'chart' | 'cards'
-
-function PixelIcon({ name, size = 40 }: { name: PixIconName; size?: number }) {
-  const common = {
-    width: size,
-    height: size,
-    viewBox: '0 0 16 16',
-    shapeRendering: 'crispEdges' as const,
-  }
-  if (name === 'brain') {
-    return (
-      <svg {...common} fill={C.accent} aria-hidden="true" className="lp-pixicon">
-        <rect x="4" y="2" width="2" height="2" /><rect x="6" y="2" width="2" height="2" /><rect x="8" y="2" width="2" height="2" />
-        <rect x="2" y="4" width="2" height="2" /><rect x="10" y="4" width="2" height="2" />
-        <rect x="2" y="6" width="2" height="2" /><rect x="6" y="6" width="2" height="2" /><rect x="10" y="6" width="2" height="2" />
-        <rect x="2" y="8" width="2" height="2" /><rect x="10" y="8" width="2" height="2" />
-        <rect x="4" y="10" width="2" height="2" /><rect x="6" y="10" width="2" height="2" /><rect x="8" y="10" width="2" height="2" />
-        <rect x="6" y="12" width="2" height="2" />
-      </svg>
-    )
-  }
-  if (name === 'target') {
-    return (
-      <svg {...common} fill={C.ink} aria-hidden="true" className="lp-pixicon">
-        <rect x="6" y="2" width="4" height="2" /><rect x="4" y="4" width="2" height="2" /><rect x="10" y="4" width="2" height="2" />
-        <rect x="2" y="6" width="2" height="2" /><rect x="12" y="6" width="2" height="2" />
-        <rect x="6" y="6" width="4" height="4" fill={C.accent} />
-        <rect x="2" y="8" width="2" height="2" /><rect x="12" y="8" width="2" height="2" />
-        <rect x="4" y="10" width="2" height="2" /><rect x="10" y="10" width="2" height="2" /><rect x="6" y="12" width="4" height="2" />
-      </svg>
-    )
-  }
-  if (name === 'chart') {
-    return (
-      <svg {...common} fill={C.ink} aria-hidden="true" className="lp-pixicon">
-        <rect x="2" y="2" width="2" height="12" /><rect x="2" y="12" width="12" height="2" />
-        <rect x="5" y="9" width="2" height="3" fill={C.accent} /><rect x="8" y="6" width="2" height="6" fill={C.accent} /><rect x="11" y="3" width="2" height="9" fill={C.accent} />
-      </svg>
-    )
-  }
-  /* cards / flashcards */
-  return (
-    <svg {...common} fill={C.ink} aria-hidden="true" className="lp-pixicon">
-      <rect x="4" y="2" width="9" height="2" /><rect x="4" y="2" width="2" height="9" /><rect x="11" y="2" width="2" height="9" /><rect x="4" y="9" width="9" height="2" />
-      <rect x="2" y="5" width="2" height="9" fill={C.accent} /><rect x="2" y="12" width="9" height="2" fill={C.accent} /><rect x="9" y="5" width="2" height="9" fill={C.accent} />
-    </svg>
-  )
-}
-
-/* ===================================================================== */
-/* Scroll-in reveal                                                        */
-/* ===================================================================== */
-
-function Reveal({ children, delay = 0, style }: { children: ReactNode; delay?: number; style?: CSSProperties }) {
-  const ref = useRef<HTMLDivElement | null>(null)
-  const [seen, setSeen] = useState(false)
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const io = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setSeen(true)
-            io.disconnect()
-          }
-        })
-      },
-      { threshold: 0.12, rootMargin: '0px 0px -8% 0px' },
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [])
-  return (
-    <div ref={ref} className={seen ? 'lp-reveal is-in' : 'lp-reveal'} style={{ transitionDelay: `${delay}ms`, ...style }}>
-      {children}
-    </div>
-  )
-}
-
-/* ===================================================================== */
-/* NAV                                                                     */
-/* ===================================================================== */
+const NAV_ITEMS = [
+  ['Abituriyent uchun', '#imkoniyatlar'],
+  ['AI oqimi', '#ai-oqim'],
+  ['O‘qituvchi', '#oqituvchi'],
+  ['Narxlar', '#narxlar'],
+] as const
 
 function Nav() {
-  const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8)
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileOpen(false)
+    }
+    const closeAtDesktop = () => {
+      if (window.innerWidth > 860) setMobileOpen(false)
+    }
+    if (!mobileOpen) return
+    window.addEventListener('keydown', closeOnEscape)
+    window.addEventListener('resize', closeAtDesktop)
+    return () => {
+      window.removeEventListener('keydown', closeOnEscape)
+      window.removeEventListener('resize', closeAtDesktop)
+    }
+  }, [mobileOpen])
 
   return (
-    <nav
-      aria-label="Asosiy navigatsiya"
-      style={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 50,
-        background: 'rgba(250,248,243,.82)',
-        backdropFilter: 'blur(10px)',
-        WebkitBackdropFilter: 'blur(10px)',
-        borderBottom: `1px solid ${scrolled ? C.line : 'transparent'}`,
-        transition: 'border-color 240ms ease',
-      }}
-    >
-      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '16px clamp(16px, 5vw, 56px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        {/* Left — brand */}
-        <a href="#main" className="lp-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 11, textDecoration: 'none' }}>
-          <LogoMark />
-          <Wordmark />
+    <nav className="lp-nav" aria-label="Asosiy navigatsiya">
+      <div className="lp-shell lp-nav__inner">
+        <a className="lp-nav__brand" href="#main" aria-label="DTMMax bosh sahifasi">
+          <Brand />
         </a>
 
-        {/* Center — links */}
-        <div className="lp-nav-links" style={{ display: 'flex', alignItems: 'center', gap: 32, fontSize: 15, fontWeight: 500 }}>
-          <a href="#imkoniyatlar" className="lp-link" style={{ color: C.gray, textDecoration: 'none' }}>Imkoniyatlar</a>
-
-          <a href="#natijalar" className="lp-link" style={{ color: C.gray, textDecoration: 'none' }}>Natijalar</a>
-          <a href="#narxlar" className="lp-link" style={{ color: C.gray, textDecoration: 'none' }}>Narxlar</a>
-          <a href="#faq" className="lp-link" style={{ color: C.gray, textDecoration: 'none' }}>FAQ</a>
+        <div className="lp-nav__links">
+          {NAV_ITEMS.map(([label, href]) => (
+            <a href={href} key={href}>{label}</a>
+          ))}
         </div>
 
-        {/* Right — actions */}
-        <div className="lp-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-          <Link to={ROUTE_LOGIN} className="lp-link" style={{ color: C.ink, fontSize: 15, fontWeight: 500, textDecoration: 'none' }}>Kirish</Link>
-          <span className="lp-nav-cta"><Button to={ROUTE_REGISTER} variant="primary" size="sm">Boshlash</Button></span>
-          <button type="button" className="lp-mobile-menu-button" aria-label={mobileOpen ? 'Menyuni yopish' : 'Menyuni ochish'} aria-expanded={mobileOpen}
-            onClick={() => setMobileOpen(open => !open)}>
-            <span /><span /><span />
+        <div className="lp-nav__actions">
+          <Link className="lp-login-link" to={ROUTE_LOGIN}>Kirish</Link>
+          <Button to={ROUTE_REGISTER}>Bepul boshlash</Button>
+          <button
+            className="lp-menu-button"
+            type="button"
+            aria-expanded={mobileOpen}
+            aria-controls="lp-mobile-menu"
+            aria-label={mobileOpen ? 'Menyuni yopish' : 'Menyuni ochish'}
+            onClick={() => setMobileOpen((open) => !open)}
+          >
+            <span />
+            <span />
           </button>
         </div>
       </div>
+
       {mobileOpen && (
-        <div className="lp-mobile-menu">
-          {[
-            ['Imkoniyatlar', '#imkoniyatlar'],
-            ['Natijalar', '#natijalar'],
-            ['Narxlar', '#narxlar'],
-            ['FAQ', '#faq'],
-          ].map(([label, href]) => (
-            <a key={href} href={href} onClick={() => setMobileOpen(false)}>{label}</a>
-          ))}
-          <Button to={ROUTE_REGISTER} variant="primary" size="md">Bepul boshlash</Button>
+        <div className="lp-mobile-menu" id="lp-mobile-menu">
+          <div className="lp-shell">
+            {NAV_ITEMS.map(([label, href]) => (
+              <a href={href} key={href} onClick={() => setMobileOpen(false)}>{label}</a>
+            ))}
+            <Link to={ROUTE_LOGIN} onClick={() => setMobileOpen(false)}>Kirish</Link>
+          </div>
         </div>
       )}
     </nav>
   )
 }
 
-/* ===================================================================== */
-/* HERO                                                                    */
-/* ===================================================================== */
-
-/* Suzuvchi matematik belgilar (Σ √ ∫ x² …) va pixel-uchqunlar OLIB TASHLANDI
-   (egasi so'rovi) — hero'da faqat "Cho'qqi sari yo'l" grafigi qoladi. */
-
-/* Pixel-art TARGET + an orange pixel ARROW that flies in from the left and
-   hits the bullseye on a 4s loop (impact flash / ripple synced in landing.css).
-   Concentric crispEdges rings: outer faint gray (--lp-tex / --lp-line via the
-   spec hexes), inner bullseye orange. Sits in a free spot in the math-zone with
-   horizontal room to its LEFT for the arrow's flight. Decorative only. */
-function PixelTarget() {
+function AnswerRailPreview() {
   return (
-    <div className="lp-target-wrap" aria-hidden="true">
-      {/* soft cast shadow beneath — sells the lift off the page */}
-      <span className="lp-target-shadow" />
-
-      {/* 16×16 grid rendered at 120px — pseudo-3D concentric pixel rings.
-          240/16 = 15px per cell; the lit bullseye core (cells 6–10) is centred
-          on cell (8,8) → 120px from the wrap's top-left = the impact point.
-          Three stacked passes give genuine thickness:
-            1) EXTRUSION: a darker copy of every ring offset +1/+1 (down-right)
-               so the disc reads like it has an extruded side wall.
-            2) RINGS: the real faint→gray concentric rings.
-            3) HIGHLIGHT: a near-white edge on the top-left cells (lit from
-               the upper-left) so the top of the disc catches the light. */}
-      <svg className="lp-target" width={240} height={240} viewBox="0 0 16 16" shapeRendering="crispEdges">
-        {/* 1 — EXTRUDED SIDE (dark, offset down-right by 1 cell) */}
-        <g transform="translate(1 1)" fill={C.targetShade}>
-          <rect x="6" y="0" width="4" height="2" />
-          <rect x="0" y="6" width="2" height="4" />
-          <rect x="14" y="6" width="2" height="4" />
-          <rect x="6" y="14" width="4" height="2" />
-          <rect x="4" y="2" width="8" height="2" />
-          <rect x="2" y="4" width="2" height="8" />
-          <rect x="12" y="4" width="2" height="8" />
-          <rect x="4" y="12" width="8" height="2" />
-          <rect x="4" y="4" width="8" height="8" />
-        </g>
-
-        {/* 2 — RINGS (the lit top face) */}
-        {/* outer ring tips (faint) */}
-        <rect x="6" y="0" width="4" height="2" fill={C.tex} />
-        <rect x="0" y="6" width="2" height="4" fill={C.tex} />
-        <rect x="14" y="6" width="2" height="4" fill={C.tex} />
-        <rect x="6" y="14" width="4" height="2" fill={C.tex} />
-        {/* mid ring (slightly stronger gray) */}
-        <rect x="4" y="2" width="8" height="2" fill={C.line2} />
-        <rect x="2" y="4" width="2" height="8" fill={C.line2} />
-        <rect x="12" y="4" width="2" height="8" fill={C.line2} />
-        <rect x="4" y="12" width="8" height="2" fill={C.line2} />
-        {/* inner soft wash around the bullseye */}
-        <rect x="4" y="4" width="8" height="8" fill={C.soft} />
-
-        {/* 3 — TOP-LEFT HIGHLIGHT EDGE (near-white, catches the light) */}
-        <g fill={C.targetHi}>
-          <rect x="6" y="0" width="4" height="1" />
-          <rect x="4" y="2" width="6" height="1" />
-          <rect x="0" y="6" width="1" height="4" />
-          <rect x="2" y="4" width="1" height="6" />
-        </g>
-
-        {/* BULLSEYE — beveled orange: hi top-left, dark bottom-right, accent core */}
-        <g className="lp-bull">
-          <rect className="lp-bull-core" x="6" y="6" width="4" height="4" fill={C.accent} />
-          <rect className="lp-bull-hi" x="6" y="6" width="3" height="1" fill={C.accent2} />
-          <rect className="lp-bull-hi" x="6" y="6" width="1" height="3" fill={C.accent2} />
-          <rect className="lp-bull-lo" x="7" y="9" width="3" height="1" fill={C.accentStrong} />
-          <rect className="lp-bull-lo" x="9" y="7" width="1" height="3" fill={C.accentStrong} />
-        </g>
-      </svg>
-
-      {/* impact ripple rings — two offset rings for a richer shockwave */}
-      <span className="lp-arrow-ripple" />
-      <span className="lp-arrow-ripple lp-arrow-ripple-2" />
-
-      {/* the flying pixel arrow — a slender spear (nayza): a long orange shaft,
-          short swept-back accentStrong barbs, and a long acute body that
-          converges into a needle POINT, accent2 bevel catching the light + a
-          accent2 fletching at the tail, plus a pixel under-shadow so it reads
-          as 3D in flight.
-          viewBox 26×10 rendered at 208×80 ⇒ 8px/cell. Centre band straddles y=5
-          (shaft = y4..y6). The needle's rightmost drawn cells (x=23..25) put the
-          visible POINT TIP at viewBox x=25 → 25·8 = 200px, centre y=5 → 40px.
-          The arrow is rotated 45° (origin pinned on the tip) so it plants
-          diagonally with the tip on the bullseye centre (120,120). */}
-      <svg className="lp-arrow-fly" width={208} height={80} viewBox="0 0 26 10" shapeRendering="crispEdges">
-        {/* drop shadow — a soft copy of the whole spear, offset +1 down */}
-        <g transform="translate(0 1)" fill={C.targetShade} opacity="0.5">
-          <rect x="2" y="4" width="13" height="2" />
-          <rect x="14" y="2" width="3" height="1" />
-          <rect x="14" y="3" width="5" height="1" />
-          <rect x="14" y="4" width="9" height="2" />
-          <rect x="14" y="6" width="5" height="1" />
-          <rect x="14" y="7" width="3" height="1" />
-          <rect x="23" y="4" width="2" height="2" />
-        </g>
-
-        {/* SHAFT (orange) — long + slender, y4..y6 */}
-        <rect x="2" y="4" width="13" height="2" fill={C.accent} />
-
-        {/* HEAD (accentStrong) — short swept-back barbs (y2/y3 + y6/y7) that end
-            early, and a long acute centre body (y4/y5) that runs out to a 2px
-            needle tip (x=23..25). The point juts well past the barbs ⇒ sharp. */}
-        <g fill={C.accentStrong}>
-          {/* upper swept barb */}
-          <rect x="14" y="2" width="3" height="1" />
-          <rect x="14" y="3" width="5" height="1" />
-          {/* long acute centre body */}
-          <rect x="14" y="4" width="9" height="1" />
-          <rect x="14" y="5" width="9" height="1" />
-          {/* lower swept barb */}
-          <rect x="14" y="6" width="5" height="1" />
-          <rect x="14" y="7" width="3" height="1" />
-          {/* converging 2px needle → POINT TIP, right edge viewBox x=25 */}
-          <rect x="23" y="4" width="2" height="2" />
-        </g>
-        {/* a brighter top-left bevel on the head so the point catches light */}
-        <g fill={C.accent2}>
-          <rect x="14" y="2" width="3" height="1" />
-          <rect x="14" y="4" width="6" height="1" />
-        </g>
-
-        {/* FLETCHING (accent2) at the tail */}
-        <rect x="0" y="2" width="2" height="2" fill={C.accent2} />
-        <rect x="0" y="6" width="2" height="2" fill={C.accent2} />
-        <rect x="2" y="3" width="2" height="1" fill={C.accent2} />
-        <rect x="2" y="6" width="2" height="1" fill={C.accent2} />
-      </svg>
-    </div>
-  )
-}
-
-/* OriginKit Text Morph yondashuviga mos o'quvchi transformatsiyasi.
-   Abstrakt ball cho'qqisi o'rniga mahsulotning foydasi uch qisqa holatda ko'rinadi. */
-const LEARNING_STATES = [
-  { word: 'Savol bor', step: 'Savol' },
-  { word: 'Tushundim', step: 'Izoh' },
-  { word: 'Yechdim', step: 'Mashq' },
-] as const
-
-function HeroLearningMorph() {
-  const [activeIndex, setActiveIndex] = useState(0)
-  const shouldReduceMotion = useReducedMotion()
-
-  useEffect(() => {
-    if (shouldReduceMotion) return
-    const timer = window.setInterval(() => {
-      setActiveIndex((current) => (current + 1) % LEARNING_STATES.length)
-    }, 2200)
-    return () => window.clearInterval(timer)
-  }, [shouldReduceMotion])
-
-  const visibleIndex = shouldReduceMotion ? 1 : activeIndex
-  const activeState = LEARNING_STATES[visibleIndex]
-
-  return (
-    <div className="lp-learning-scene" aria-hidden="true">
-      <div className="lp-learning-kicker">
-        <span />
-        DTMMax AI bilan
+    <figure className="lp-answer-preview" aria-labelledby="answer-preview-title">
+      <div className="lp-answer-preview__topline">
+        <span>Diagnostika</span>
+        <strong>Matematika · 12/30</strong>
       </div>
+      <div className="lp-answer-preview__body">
+        <ol className="lp-answer-rail" aria-label="Savollar holati">
+          {['09', '10', '11', '12', '13', '14'].map((number) => (
+            <li
+              className={number === '12' ? 'is-current' : number < '12' ? 'is-done' : ''}
+              key={number}
+              aria-current={number === '12' ? 'step' : undefined}
+              aria-label={`${number}-savol${number === '12' ? ', hozirgi savol' : number < '12' ? ', bajarildi' : ', bajarilmagan'}`}
+            >
+              {number}
+            </li>
+          ))}
+        </ol>
 
-      <div className="lp-morph-stage">
-        <AnimatePresence initial={false}>
-          <motion.span
-            key={activeState.word}
-            className="lp-morph-word"
-            initial={{ opacity: 0, filter: 'blur(14px)', scale: 0.88, y: 12 }}
-            animate={{ opacity: 1, filter: 'blur(0px)', scale: 1, y: 0 }}
-            exit={{ opacity: 0, filter: 'blur(14px)', scale: 1.08, y: -10 }}
-            transition={{ duration: 0.58, ease: [0.22, 1, 0.36, 1] }}
-          >
-            {activeState.word}<i>.</i>
-          </motion.span>
-        </AnimatePresence>
-      </div>
-
-      <p className="lp-learning-caption">Savoldan tushunishga. Tushunishdan yechimga.</p>
-
-      <div className="lp-learning-steps">
-        {LEARNING_STATES.map((state, index) => (
-          <span
-            className={index === visibleIndex ? 'is-current' : index < visibleIndex ? 'is-complete' : ''}
-            key={state.step}
-          >
-            {state.step}
-          </span>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function MathZone() {
-  // Hero'da fokus bitta g'oyada: savol → tushunish → yechim.
-  return (
-    <div
-      aria-hidden="true"
-      className="lp-math-zone"
-      style={{ position: 'absolute', top: 92, right: 36, width: 512, height: 360, zIndex: 3 }}
-    >
-      <HeroLearningMorph />
-    </div>
-  )
-}
-
-/* Mahsulotning haqiqiy oqimiga yaqin, statik product proof. */
-function ScreenshotWell() {
-  return (
-    <div className="lp-product-proof" aria-label="DTMMax ichidagi Bugun va AI chat ekranining namunasi">
-      <div className="lp-proof-topbar">
-        <div className="lp-proof-brand"><LogoMark size={30} radius={8} /><strong>DTMMax</strong></div>
-        <span>Mahsulot ko‘rinishi</span>
-      </div>
-      <div className="lp-proof-layout">
-        <aside className="lp-proof-sidebar" aria-hidden="true">
-          <span className="is-active">Bugun</span>
-          <span>Yangi suhbat</span>
-          <span>Testlar</span>
-          <span>Natijalar</span>
-        </aside>
-        <div className="lp-proof-main">
-          <p className="lp-proof-date">Bugungi o‘qish</p>
-          <h3>Xayrli tong, Shahzoda.</h3>
-          <p className="lp-proof-lede">Eng foydali bitta qadamni tugatamiz.</p>
-          <div className="lp-proof-focus">
-            <div>
-              <span>Bugungi fokus</span>
-              <strong>Kvadrat tenglama bo‘yicha 10 ta mashq</strong>
-              <p>Oxirgi natijangizga mos qisqa mashg‘ulot</p>
-            </div>
-            <b>Boshlash →</b>
+        <div className="lp-answer-question">
+          <div className="lp-answer-question__meta">
+            <span>Algebra</span>
+            <span>01:42</span>
           </div>
-          <div className="lp-proof-chat">
-            <span className="lp-proof-avatar">AI</span>
-            <p>Avval bitta sodda misol: <strong>x² − 5x + 6 = 0</strong>. Uni ikki ko‘paytuvchiga ajratib ko‘ramiz.</p>
+          <h2 id="answer-preview-title">x² − 5x + 6 = 0 tenglamaning ildizlarini toping.</h2>
+          <div className="lp-answer-options" aria-label="Javob variantlari">
+            <span><b>A</b> 1 va 6</span>
+            <span className="is-selected" aria-label="B varianti tanlangan: 2 va 3"><b>B</b> 2 va 3</span>
+            <span><b>C</b> −2 va −3</span>
+            <span><b>D</b> 0 va 5</span>
+          </div>
+          <div className="lp-answer-status">
+            <span><CheckCircle2 aria-hidden="true" size={17} /> Javob saqlandi</span>
+            <strong>Keyingi savol <ArrowRight aria-hidden="true" size={17} /></strong>
           </div>
         </div>
       </div>
-    </div>
+      <figcaption>Bu bezak emas — DTMMax diagnostika oqimining soddalashtirilgan mahsulot ko‘rinishi.</figcaption>
+    </figure>
   )
 }
 
 function Hero() {
   return (
-    <header style={{ ...container, padding: '64px 56px 0', position: 'relative', overflow: 'hidden' }} className="lp-container">
-      {/* dotted grid, top-right */}
-      <div
-        aria-hidden="true"
-        className="lp-tex-dots"
-        style={{ position: 'absolute', top: 0, right: 0, width: 520, height: 300, zIndex: 0, pointerEvents: 'none' }}
-      />
-      {/* math glyph zone */}
-      <MathZone />
-
-      {/* content with left ruled margin */}
-      <div className="lp-hero-content" style={{ position: 'relative', zIndex: 2, paddingLeft: 32, maxWidth: 760 }}>
-        <div aria-hidden="true" className="lp-hero-rule" />
-
-        <Reveal>
-          <div style={{ marginBottom: 20 }}>
-            <Eyebrow>AI REPETITOR</Eyebrow>
-          </div>
-
-          <h1
-            className="lp-h1"
-            style={{ fontFamily: SERIF, fontSize: 76, fontWeight: 500, letterSpacing: '-0.018em', lineHeight: 1.05, margin: 0, color: C.ink, maxWidth: '15ch' }}
-          >
-            DTMga shaxsiy <Em>AI ustoz</Em> bilan tayyorlan
-          </h1>
-
-          <p style={{ fontSize: 20, fontWeight: 400, lineHeight: 1.65, color: C.gray, maxWidth: '46ch', margin: '28px 0 0' }}>
-            Bepul boshlaysan: AI darajangni test bilan aniqlaydi, zaif mavzularingni topadi va har kuni shaxsiy reja bilan boshqarib boradi — maksimal ball sari.
+    <header className="lp-hero">
+      <div className="lp-shell lp-hero__grid">
+        <div className="lp-hero__copy">
+          <p className="lp-hero__signal"><Zap aria-hidden="true" size={18} fill="currentColor" /> O‘zbek abituriyenti uchun AI tayyorgarlik tizimi</p>
+          <h1>DTMni taxmin bilan emas, <span>tizim bilan</span> yeng.</h1>
+          <p className="lp-hero__lede">
+            DTMMax bilim darajangni aniqlaydi, zaif mavzuni topadi va har kuni darsdan testgacha bo‘lgan aniq yo‘lni beradi.
           </p>
-
-          <div style={{ display: 'flex', gap: 14, marginTop: 34, flexWrap: 'wrap' }} className="lp-cta-actions">
-            <Button to={ROUTE_REGISTER} variant="primary" size="lg" arrow>Bepul boshlash</Button>
+          <div className="lp-hero__actions">
+            <Button to={ROUTE_REGISTER} variant="dark" arrow>Bepul diagnostikani boshlash</Button>
+            <a className="lp-text-link" href="#ai-oqim">Qanday ishlaydi <ArrowRight aria-hidden="true" size={17} /></a>
           </div>
-          <p style={{ fontSize: 13, fontWeight: 500, color: C.gray, margin: '14px 0 0' }}>
-            Karta shart emas · 1 daqiqada boshlanadi · DTM va Milliy Sertifikat
-          </p>
-        </Reveal>
+          <p className="lp-hero__truth"><LockKeyhole aria-hidden="true" size={16} /> Bepul rejada karta kerak emas. Pro — ixtiyoriy.</p>
+        </div>
+        <AnswerRailPreview />
       </div>
-
-      {/* product screenshot peek */}
-      <Reveal delay={120}>
-        <ScreenshotWell />
-      </Reveal>
     </header>
   )
 }
 
-/* ===================================================================== */
-/* FEATURES — "Bitta platforma"                                            */
-/* ===================================================================== */
-
-type Feature = { icon: PixIconName; title: string; body: string }
-const FEATURES: Feature[] = [
-  { icon: 'brain', title: 'Tushunib ol', body: 'Har bir mavzuni AI soddadan murakkabga, tushunarli qilib ochib beradi.' },
-  { icon: 'target', title: 'Mashq qil', body: "Cheksiz DTM uslubidagi testlar — darhol javob, darhol o'sish." },
-  { icon: 'chart', title: "O'sishingni ko'r", body: "Qaysi mavzu kuchli, qaysi biri zaif — grafiklarda aniq ko'rinadi." },
-  { icon: 'cards', title: 'Mustahkamla', body: 'Flashcardlar bilan formula va qoidalarni uzoq xotirada saqla.' },
-]
-
-function Features() {
+function ProofStrip() {
   return (
-    <section id="imkoniyatlar" style={{ ...container, padding: '96px 56px', position: 'relative' }} className="lp-container">
-      {/* plus-grid texture */}
-      <div
-        aria-hidden="true"
-        className="lp-tex-plus"
-        style={{ position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none' }}
-      />
-      <div style={{ position: 'relative', zIndex: 1 }}>
-        <Reveal>
-          <div style={{ maxWidth: 680, margin: '0 auto 56px', textAlign: 'center' }}>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
-              <Eyebrow align="center">ORZU SARI YO'L</Eyebrow>
-            </div>
-            <h2 className="lp-h2" style={{ fontFamily: SERIF, fontSize: 50, fontWeight: 500, letterSpacing: '-0.015em', lineHeight: 1.12, margin: 0, color: C.ink }}>
-              Maqsadingga eltadigan <Em>hammasi</Em> shu yerda
-            </h2>
-            <p style={{ fontSize: 20, lineHeight: 1.6, color: C.gray, maxWidth: '42ch', margin: '20px auto 0' }}>
-              Tushuntirish, mashq, tahlil va eslab qolish — har bir qadaming bitta joyda, chalkashliksiz.
-            </p>
-          </div>
-        </Reveal>
-
-        <div className="lp-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 20 }}>
-          {FEATURES.map((f, i) => (
-            <Reveal key={f.title} delay={i * 60}>
-              <div
-                className="lp-card"
-                style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 18, padding: 28, boxShadow: SHADOW.card, height: '100%' }}
-              >
-                <div style={{ marginBottom: 18 }}>
-                  <PixelIcon name={f.icon} />
-                </div>
-                <h3 style={{ fontFamily: SERIF, fontSize: 21, fontWeight: 500, letterSpacing: '-0.005em', lineHeight: 1.25, margin: 0, color: C.ink }}>{f.title}</h3>
-                <p style={{ fontSize: 14.5, lineHeight: 1.6, color: C.gray, margin: '12px 0 0' }}>{f.body}</p>
-              </div>
-            </Reveal>
-          ))}
-        </div>
+    <section className="lp-proof-strip" aria-label="Platforma qisqacha">
+      <div className="lp-shell lp-proof-strip__inner">
+        <div><strong>DTM + MS</strong><span>ikkala imtihon formati</span></div>
+        <div><strong>8+ fan</strong><span>bitta o‘quv muhiti</span></div>
+        <div><strong>AI ustoz</strong><span>savoldan mashqqacha</span></div>
+        <div><strong>30 AI so‘rov</strong><span>bepul rejada har kuni</span></div>
       </div>
     </section>
   )
 }
 
-/* ===================================================================== */
-/* STATS                                                                   */
-/* ===================================================================== */
+type ValueItem = {
+  icon: LucideIcon
+  title: string
+  body: string
+  detail: string
+}
 
-type Stat = { value: number; suffix: string; label: string; literal?: string }
-const STATS: Stat[] = [
-  { value: 0, suffix: '', label: 'imtihon formati', literal: 'DTM + MS' },
-  { value: 8, suffix: '+', label: 'asosiy fan' },
-  { value: 3, suffix: '', label: 'o‘rganish usuli' },
-  { value: 0, suffix: '', label: 'AI yordamchi', literal: '24/7' },
+const STUDENT_VALUES: ValueItem[] = [
+  {
+    icon: BrainCircuit,
+    title: 'Savolga javob emas, tushunishga yo‘l',
+    body: 'AI ustoz mavzuni darajangga mos tushuntiradi, misol ko‘rsatadi va darhol o‘zlashtirganingni tekshiradi.',
+    detail: 'Dars → misol → mustahkamlash',
+  },
+  {
+    icon: Target,
+    title: 'Har mashq zaif joyingga tegadi',
+    body: 'Tasodifiy test o‘rniga xatolaring va maqsad balling asosida keyingi eng foydali vazifa tanlanadi.',
+    detail: 'Xato → izoh → qayta mashq',
+  },
+  {
+    icon: LineChart,
+    title: 'Progress shunchaki foiz emas',
+    body: 'Fan, mavzu va vaqt bo‘yicha o‘sishni ko‘rasan. Qaysi joy ballni ushlab turgani ochiq ko‘rinadi.',
+    detail: 'Mavzu kesimi → ball prognozi',
+  },
 ]
 
-function StatNumber({ stat }: { stat: Stat }) {
-  const ref = useRef<HTMLDivElement | null>(null)
-  const [display, setDisplay] = useState<string>(stat.literal ?? '0')
-
-  useEffect(() => {
-    if (stat.literal) return
-    const el = ref.current
-    if (!el) return
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const finalText = stat.value.toLocaleString('ru-RU').replace(/,/g, ' ') + stat.suffix
-    if (reduce) {
-      setDisplay(finalText)
-      return
-    }
-    const io = new IntersectionObserver((entries, obs) => {
-      entries.forEach((entry) => {
-        if (!entry.isIntersecting) return
-        obs.disconnect()
-        const duration = 900
-        const start = performance.now()
-        const tick = (now: number) => {
-          const p = Math.min((now - start) / duration, 1)
-          const eased = 1 - Math.pow(1 - p, 3)
-          const current = Math.round(stat.value * eased)
-          setDisplay(current.toLocaleString('ru-RU').replace(/,/g, ' ') + stat.suffix)
-          if (p < 1) requestAnimationFrame(tick)
-        }
-        requestAnimationFrame(tick)
-      })
-    }, { threshold: 0.4 })
-    io.observe(el)
-    return () => io.disconnect()
-  }, [stat])
+function ProgressPanel() {
+  const progress = [
+    ['Algebra', 78, '+12%'],
+    ['Geometriya', 61, '+8%'],
+    ['Trigonometriya', 43, 'Fokus'],
+  ] as const
 
   return (
-    <div ref={ref} style={{ fontFamily: SERIF, fontSize: 'clamp(38px, 11vw, 60px)', fontWeight: 500, letterSpacing: '-0.01em', lineHeight: 1, color: C.ink }}>
-      {display}
+    <div className="lp-progress-panel" aria-label="O‘quvchi progressi namunasi">
+      <div className="lp-progress-panel__heading">
+        <div>
+          <span>Haftalik progress</span>
+          <strong>+18 ball</strong>
+        </div>
+        <BarChart3 aria-hidden="true" size={28} />
+      </div>
+      <div className="lp-progress-panel__score">
+        <strong>142.6</strong>
+        <span>maqsad: 170 ball</span>
+      </div>
+      <div className="lp-progress-list">
+        {progress.map(([label, value, change]) => (
+          <div key={label}>
+            <span>{label}</span>
+            <div className="lp-progress-track" role="progressbar" aria-label={`${label} progressi`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={value}>
+              <i style={{ '--lp-progress': `${value}%` } as CSSProperties} />
+            </div>
+            <b>{change}</b>
+          </div>
+        ))}
+      </div>
+      <p><Sparkles aria-hidden="true" size={16} /> Bugungi fokus: trigonometriyadan 10 ta maqsadli savol.</p>
     </div>
   )
 }
 
-function Stats() {
+function StudentValue() {
   return (
-    <>
-      <hr className="lp-divider" />
-      <section style={{ ...container, padding: '64px 56px' }} className="lp-container">
-        <div className="lp-stats lp-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 32, textAlign: 'center' }}>
-          {STATS.map((s, i) => (
-            <div
-              key={s.label}
-              className="lp-stat-col"
-              style={{ borderLeft: i === 0 ? 'none' : `1px solid ${C.line}` }}
-            >
-              <StatNumber stat={s} />
-              <div style={{ fontSize: 15, fontWeight: 500, color: C.gray, marginTop: 8 }}>{s.label}</div>
-            </div>
+    <section className="lp-section lp-student" id="imkoniyatlar">
+      <div className="lp-shell">
+        <div className="lp-section-heading lp-section-heading--split">
+          <div>
+            <p className="lp-section-label">Abituriyent uchun</p>
+            <h2>Bugun nima qilishni o‘ylama. <span>DTMMax aytadi.</span></h2>
+          </div>
+          <p>Bir nechta ilova, tarqoq PDF va taxminiy reja o‘rniga bitta yakuniy maqsadga ulangan o‘quv oqimi.</p>
+        </div>
+
+        <div className="lp-student__layout">
+          <div className="lp-value-list">
+            {STUDENT_VALUES.map((item) => {
+              const Icon = item.icon
+              return (
+                <article className="lp-value-row" key={item.title}>
+                  <Icon aria-hidden="true" size={25} strokeWidth={2.2} />
+                  <div>
+                    <h3>{item.title}</h3>
+                    <p>{item.body}</p>
+                    <span>{item.detail}</span>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+          <ProgressPanel />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+const AI_STEPS = [
+  ['01', 'Diagnostika', 'Boshlang‘ich daraja va mavzu bo‘shliqlari aniqlanadi.'],
+  ['02', 'Shaxsiy reja', 'Maqsad ball va qolgan vaqtga mos kunlik yo‘l tuziladi.'],
+  ['03', 'Qisqa dars', 'AI mavzuni soddalashtirib, kerakli misol bilan ochadi.'],
+  ['04', 'Maqsadli mashq', 'Aynan xato qilgan nuqtang bo‘yicha savollar beriladi.'],
+  ['05', 'Nazorat testi', 'Natija qayta o‘lchanadi va reja avtomatik yangilanadi.'],
+] as const
+
+function AiWorkflow() {
+  return (
+    <section className="lp-section lp-ai-flow" id="ai-oqim">
+      <div className="lp-shell">
+        <div className="lp-section-heading lp-section-heading--on-dark">
+          <p className="lp-section-label">DTMMax AI oqimi</p>
+          <h2>Bitta savoldan <span>yopiq o‘quv sikligacha.</span></h2>
+          <p>AI suhbat bilan tugamaydi. Har bir javob keyingi o‘quv qarorini yaxshilaydi.</p>
+        </div>
+
+        <ol className="lp-ai-steps">
+          {AI_STEPS.map(([number, title, body], index) => (
+            <li key={title}>
+              <div className="lp-ai-step__head">
+                <span>{number}</span>
+                {index < AI_STEPS.length - 1 && <ArrowRight aria-hidden="true" size={19} />}
+              </div>
+              <h3>{title}</h3>
+              <p>{body}</p>
+            </li>
           ))}
+        </ol>
+
+        <div className="lp-ai-callout">
+          <MessageSquareText aria-hidden="true" size={22} />
+          <p><strong>“Nega B javob to‘g‘ri?”</strong> — AI yechimni bosqichma-bosqich ko‘rsatadi, keyin shu xatoga o‘xshash yangi mashq beradi.</p>
+          <span>Izoh → mustahkamlash</span>
         </div>
-      </section>
-      <hr className="lp-divider" />
-    </>
-  )
-}
-
-/* ===================================================================== */
-/* STUDY FLOW                                                              */
-/* ===================================================================== */
-
-type StudyStep = { number: string; title: string; body: string; result: string }
-const STUDY_FLOW: StudyStep[] = [
-  { number: '1', title: 'Darajangni aniqlaydi', body: 'Qisqa diagnostika qaysi mavzu kuchli, qaysi biri ustida ishlash kerakligini ko‘rsatadi.', result: 'Aniq boshlanish nuqtasi' },
-  { number: '2', title: 'Bugungi fokusni beradi', body: 'Uzun reja o‘rniga natijangga mos bitta test, mavzu yoki takrorlash vazifasi chiqadi.', result: 'Har kuni bitta tugallangan qadam' },
-  { number: '3', title: 'Xatoni mashqqa aylantiradi', body: 'AI noto‘g‘ri javobni tushuntiradi va shu mavzudan keyingi mashqni tayyorlaydi.', result: 'Xato qayta takrorlanmaydi' },
-]
-
-function StudyFlow() {
-  return (
-    <section id="natijalar" style={{ ...container, padding: '96px 56px' }} className="lp-container">
-      <Reveal>
-        <div style={{ maxWidth: 720, margin: '0 0 56px' }}>
-          <div style={{ marginBottom: 18 }}>
-            <Eyebrow>NATIJAGA OLIB BORADIGAN OQIM</Eyebrow>
-          </div>
-          <h2 className="lp-h2" style={{ fontFamily: SERIF, fontSize: 50, fontWeight: 500, letterSpacing: '-0.015em', lineHeight: 1.12, margin: 0, color: C.ink }}>
-            Har safar <Em>nimadan boshlashni</Em> bilasan
-          </h2>
-          <p style={{ fontSize: 20, lineHeight: 1.6, color: C.gray, maxWidth: '46ch', margin: '20px 0 0' }}>
-            Platforma shunchaki javob bermaydi — bugungi vazifani tanlaydi, xatoni tushuntiradi va keyingi qadamga olib o‘tadi.
-          </p>
-        </div>
-      </Reveal>
-
-      <div className="lp-study-flow">
-        {STUDY_FLOW.map((step, i) => (
-          <Reveal key={step.number} delay={i * 60}>
-            <div className="lp-study-row">
-              <span className="lp-study-number">{step.number}</span>
-              <div>
-                <h3>{step.title}</h3>
-                <p>{step.body}</p>
-              </div>
-              <strong>{step.result}</strong>
-            </div>
-          </Reveal>
-        ))}
       </div>
     </section>
   )
 }
 
-/* ===================================================================== */
-/* FAQ — "Ko'p beriladigan savollar"                                       */
-/* ===================================================================== */
-
-type Faq = { q: string; a: string }
-const FAQS: Faq[] = [
-  {
-    q: 'DTMMax nima?',
-    a: "DTMMax — DTM va Milliy Sertifikat imtihonlariga tayyorlanish uchun sun'iy intellektli o'quv platformasi. U sizga mavzularni tushuntiradi, test tuzadi va natijangizni kuzatib boradi — xuddi shaxsiy repetitordek.",
-  },
-  {
-    q: 'Platforma bepulmi?',
-    a: "Ro'yxatdan o'tish va asosiy imkoniyatlardan foydalanish bepul, karta ma'lumotlari kerak emas. Qo'shimcha imkoniyatlar uchun ixtiyoriy Pro obuna mavjud.",
-  },
-  {
-    q: "Qaysi fanlarni o'rganish mumkin?",
-    a: "Hozir Matematika, Fizika, Kimyo, Biologiya, Ona tili, Ingliz tili, Tarix va Geografiya mavjud. Fanlar ro'yxati doimiy kengayib boradi.",
-  },
-  {
-    q: 'AI repetitor qanday ishlaydi?',
-    a: "Siz savol berasiz yoki mavzu tanlaysiz — AI uni soddadan murakkabga tushuntiradi, misollar ko'rsatadi, so'ng o'zlashtirganingizni tekshirish uchun test beradi va xatolaringizni izohlaydi. Hammasi 24/7 ishlaydi.",
-  },
-  {
-    q: "DTM va Milliy Sertifikat o'rtasida farq bormi?",
-    a: "Ha. DTM — oliygohga kirish imtihoni, Milliy Sertifikat esa alohida fan bo'yicha bilim darajangizni tasdiqlaydi. DTMMax ikkalasiga ham alohida tayyorlaydi va har biriga mos test uslubini qo'llaydi.",
-  },
-  {
-    q: 'Platforma imtihon savollarini bashorat qiladimi?',
-    a: "DTMMax kafolatlangan savollarni bermaydi. Lekin oldingi yillardagi imtihon tahlili asosida eng ko'p uchraydigan mavzular va savol turlariga urg'u berib, sizni aniq yo'nalishda tayyorlaydi.",
-  },
-  {
-    q: 'Testlar va tahlil qanday tuzilgan?',
-    a: "Har bir test DTM uslubida bo'lib, darhol baholanadi. Tizim qaysi mavzularda xato qilayotganingizni grafiklar bilan ko'rsatadi, shunda kuchni zaif joylarga qarata olasiz.",
-  },
-  {
-    q: 'Qanday boshlayman?',
-    a: "\"Bepul boshlash\" tugmasini bosib ro'yxatdan o'ting, fan va maqsadingizni tanlang — AI repetitor darhol birinchi darsni boshlaydi. Bir necha daqiqada o'qishga kirishasiz.",
-  },
-]
-
-function FaqSection() {
+function PdfToTest() {
   return (
-    <section id="faq" style={{ ...container, padding: '96px 56px', position: 'relative' }} className="lp-container">
-      <Reveal>
-        <div style={{ maxWidth: 680, margin: '0 auto 56px', textAlign: 'center' }}>
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
-            <Eyebrow align="center">KO'P BERILADIGAN SAVOLLAR</Eyebrow>
-          </div>
-          <h2 className="lp-h2" style={{ fontFamily: SERIF, fontSize: 50, fontWeight: 500, letterSpacing: '-0.015em', lineHeight: 1.12, margin: 0, color: C.ink }}>
-            Tez-tez so'raladigan <Em>savollar</Em>
-          </h2>
-          <p style={{ fontSize: 20, lineHeight: 1.6, color: C.gray, maxWidth: '42ch', margin: '20px auto 0' }}>
-            DTMMax haqida eng ko'p so'raladigan savollarga javoblar.
-          </p>
+    <section className="lp-section lp-pdf">
+      <div className="lp-shell lp-pdf__layout">
+        <div className="lp-pdf__copy">
+          <p className="lp-section-label">PDF → test loyihasi</p>
+          <h2>Materialni yukla. <span>Savollar loyihasini ol.</span></h2>
+          <p>Konspekt yoki o‘qituvchi materiali asosida savollar loyihasi yaratiladi. O‘qituvchi uni tekshiradi, tahrirlaydi va shundan keyin nashr qiladi.</p>
+          <ul>
+            <li><Check aria-hidden="true" size={18} /> Savol soni va qiyinlikni tanlash</li>
+            <li><Check aria-hidden="true" size={18} /> Savol va javoblarni tekshirib tahrirlash</li>
+            <li><Check aria-hidden="true" size={18} /> Tasdiqlangandan keyin o‘quvchiga ulashish</li>
+          </ul>
         </div>
-      </Reveal>
 
-      <div style={{ maxWidth: 820, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {FAQS.map((f, i) => (
-          <Reveal key={f.q} delay={i * 60}>
-            <details className="lp-faq-item">
-              <summary
-                className="lp-faq-q"
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, fontFamily: SANS, fontSize: 17.5, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.3, color: C.ink }}
-              >
-                {f.q}
-                <svg
-                  className="lp-faq-mark"
-                  aria-hidden="true"
-                  width={18}
-                  height={18}
-                  viewBox="0 0 16 16"
-                  shapeRendering="crispEdges"
-                  fill={C.accent}
-                  style={{ flexShrink: 0 }}
-                >
-                  <rect x="6" y="2" width="4" height="12" />
-                  <rect x="2" y="6" width="12" height="4" />
-                </svg>
-              </summary>
-              <div className="lp-faq-a" style={{ fontFamily: SANS, fontSize: 15, lineHeight: 1.6, color: C.gray, margin: '14px 0 0' }}>
-                {f.a}
-              </div>
-            </details>
-          </Reveal>
-        ))}
+        <div className="lp-pdf-flow" aria-label="PDFdan test yaratish oqimi">
+          <div className="lp-pdf-file">
+            <span><FileText aria-hidden="true" size={27} /></span>
+            <div><strong>Algebra_10-sinf.pdf</strong><small>24 sahifa · yuklandi</small></div>
+            <CheckCircle2 aria-hidden="true" size={20} />
+          </div>
+          <div className="lp-pdf-connector"><span /><b>Savollar loyihasi yaratildi</b><span /></div>
+          <div className="lp-pdf-result">
+            <div><ClipboardCheck aria-hidden="true" size={26} /><span>Yangi test</span></div>
+            <strong>Kvadrat tenglamalar</strong>
+            <p>20 savol · aralash qiyinlik · tekshirishga tayyor</p>
+            <span className="lp-pdf-result__status">Ko‘rib chiqish <ArrowRight aria-hidden="true" size={16} /></span>
+          </div>
+        </div>
       </div>
     </section>
   )
 }
 
-/* ===================================================================== */
-/* PRICING — "Narxlar" (visible, NOT enforced — hammasi hozir bepul)       */
-/* ===================================================================== */
-
-/* Small orange pixel-check used inside the Pro feature list. Reuses the
-   pixel-art language (16×16 crispEdges) of PixelIcon. */
-function PixelCheck({ color = C.accent }: { color?: string }) {
+function TeacherSection() {
   return (
-    <svg
-      aria-hidden="true"
-      width={16}
-      height={16}
-      viewBox="0 0 16 16"
-      shapeRendering="crispEdges"
-      fill={color}
-      style={{ flexShrink: 0, marginTop: 3 }}
-    >
-      <rect x="12" y="3" width="2" height="2" />
-      <rect x="10" y="5" width="2" height="2" />
-      <rect x="8" y="7" width="2" height="2" />
-      <rect x="6" y="9" width="2" height="2" />
-      <rect x="4" y="11" width="2" height="2" />
-      <rect x="2" y="9" width="2" height="2" />
-    </svg>
+    <section className="lp-section lp-teacher" id="oqituvchi">
+      <div className="lp-shell lp-teacher__layout">
+        <div className="lp-teacher__copy">
+          <p className="lp-section-label">O‘qituvchi uchun</p>
+          <h2>Test tuzishga emas, <span>o‘quvchiga vaqt ajrating.</span></h2>
+          <p>Materialni yuklang, testni tayyorlang va guruh natijasini mavzular kesimida kuzating. O‘quvchi qayerda to‘xtaganini bitta ekranda ko‘ring.</p>
+          <div className="lp-teacher__points">
+            <span><Upload aria-hidden="true" size={19} /> PDF va mavzudan test</span>
+            <span><Users aria-hidden="true" size={19} /> Guruhga ulashish</span>
+            <span><BarChart3 aria-hidden="true" size={19} /> Natija tahlili</span>
+          </div>
+          <Button to={ROUTE_REGISTER} variant="light" arrow>O‘qituvchi sifatida boshlash</Button>
+        </div>
+
+        <div className="lp-teacher-board" aria-label="O‘qituvchi guruhi tahlili namunasi">
+          <div className="lp-teacher-board__top">
+            <div><span>11-A guruh</span><strong>Haftalik nazorat</strong></div>
+            <span>24 o‘quvchi</span>
+          </div>
+          <div className="lp-teacher-board__summary">
+            <div><span>O‘rtacha natija</span><strong>72%</strong></div>
+            <div><span>Topshirganlar</span><strong>21/24</strong></div>
+          </div>
+          <div className="lp-teacher-board__topics">
+            <p><span>Kvadrat tenglama</span><b className="is-good">84%</b></p>
+            <p><span>Viyet teoremasi</span><b>67%</b></p>
+            <p><span>Diskriminant</span><b className="is-focus">48%</b></p>
+          </div>
+          <p className="lp-teacher-board__note"><BrainCircuit aria-hidden="true" size={17} /> AI tavsiya: diskriminant bo‘yicha qayta mashq bering.</p>
+        </div>
+      </div>
+    </section>
   )
 }
 
 type Plan = {
   name: string
   price: string
-  period?: string
-  tagline: string
+  period: string
+  description: string
   features: string[]
-  cta: string
-  to?: string
-  ctaDisabled?: boolean
-  highlight?: boolean
-  badge?: string
+  pro?: boolean
 }
 
 const PLANS: Plan[] = [
   {
     name: 'Bepul',
     price: '0',
-    period: "so'm",
-    tagline: "Hammaga ochiq — bugun va doimo.",
+    period: 'so‘m',
+    description: 'Tizimli tayyorgarlikni boshlash uchun asosiy imkoniyatlar.',
     features: [
-      "AI repetitor — kuniga 30 ta so'rov",
-      'Tayyor DTM testlarini yechish — cheksiz',
-      'Natija tahlili va progress kuzatuvi',
-      'Flashcardlar bilan eslab qolish',
+      'AI ustoz — kuniga 30 ta so‘rov',
+      'Tayyor DTM testlari — cheksiz',
+      'Natija va progress kuzatuvi',
+      'Flashcardlar bilan mustahkamlash',
     ],
-    cta: 'Bepul boshlash',
-    to: ROUTE_REGISTER,
   },
   {
     name: 'Pro',
     price: '35 000',
-    period: "so'm / oy",
-    tagline: 'Orzuingga tezroq yetmoqchilar uchun qo\'shimcha kuch.',
+    period: 'so‘m / oy',
+    description: 'Ko‘proq AI yordami va chuqurroq tahlil kerak bo‘lganlar uchun.',
     features: [
-      'Cheksiz AI so\'rovlari — kunlik limitsiz',
-      'Thinking rejim — murakkab masalalarda AI chuqurroq fikrlaydi',
-      'DTM savol-bashorati — 5 yillik tahlilga asoslangan eng ehtimoliy mavzu va savol turlari',
-      'Chuqur analitika — kengaytirilgan zaiflik va progress tahlili',
+      'Cheksiz AI so‘rovlari',
+      'Murakkab masalalar uchun Thinking rejimi',
+      'Ehtimoliy mavzular tahlili',
+      'Kengaytirilgan zaiflik va progress tahlili',
     ],
-    cta: "Boshlash — beta'da bepul",
-    to: ROUTE_REGISTER,
-    highlight: true,
-    badge: "Beta'da bepul ochiq",
+    pro: true,
   },
 ]
 
-function PlanCard({ plan }: { plan: Plan }) {
-  const card: CSSProperties = {
-    position: 'relative',
-    background: '#fff',
-    border: plan.highlight ? `1.5px solid ${C.accent}` : `1px solid ${C.line}`,
-    borderRadius: 18,
-    padding: 32,
-    boxShadow: plan.highlight ? '0 18px 40px -16px rgba(241,90,36,.24)' : SHADOW.card,
-    height: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-  }
-  return (
-    <div className="lp-card" style={card}>
-      {plan.badge && (
-        <span
-          style={{
-            position: 'absolute',
-            top: 20,
-            right: 20,
-            background: C.soft,
-            color: C.accentStrong,
-            fontSize: 12,
-            fontWeight: 700,
-            letterSpacing: '0.02em',
-            padding: '5px 11px',
-            borderRadius: 999,
-          }}
-        >
-          {plan.badge}
-        </span>
-      )}
-
-      <div style={{ fontSize: 12.5, fontWeight: 600, letterSpacing: '0.16em', textTransform: 'uppercase', color: plan.highlight ? C.accent : C.gray2 }}>
-        {plan.name}
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: '14px 0 0' }}>
-        <span style={{ fontFamily: SERIF, fontSize: 48, fontWeight: 500, letterSpacing: '-0.01em', lineHeight: 1, color: C.ink }}>
-          {plan.price}
-        </span>
-        {plan.period && <span style={{ fontSize: 15, fontWeight: 500, color: C.gray }}>{plan.period}</span>}
-      </div>
-
-      <p style={{ fontSize: 15, lineHeight: 1.55, color: C.gray, margin: '12px 0 0' }}>{plan.tagline}</p>
-
-      <ul style={{ listStyle: 'none', padding: 0, margin: '24px 0 0', display: 'flex', flexDirection: 'column', gap: 14, flexGrow: 1 }}>
-        {plan.features.map((f) => (
-          <li key={f} style={{ display: 'flex', gap: 11, fontSize: 15, lineHeight: 1.5, color: C.ink }}>
-            <PixelCheck color={plan.highlight ? C.accent : C.gray2} />
-            <span>{f}</span>
-          </li>
-        ))}
-      </ul>
-
-      <div style={{ marginTop: 28 }}>
-        {plan.ctaDisabled ? (
-          <span
-            aria-disabled="true"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '100%',
-              fontFamily: SANS,
-              fontWeight: 600,
-              fontSize: 15,
-              lineHeight: 1,
-              padding: '13px 20px',
-              borderRadius: 11,
-              border: `1px solid ${C.line}`,
-              background: C.bg2,
-              color: C.gray2,
-              cursor: 'not-allowed',
-            }}
-          >
-            {plan.cta}
-          </span>
-        ) : (
-          <div style={{ display: 'flex' }}>
-            <Button to={plan.to ?? ROUTE_REGISTER} variant={plan.highlight ? 'primary' : 'outline'} size="md" arrow>
-              {plan.cta}
-            </Button>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
+type BillingMode = 'loading' | 'enforced' | 'beta' | 'unavailable'
 
 function Pricing() {
-  const [billingEnforced, setBillingEnforced] = useState(false)
+  const [billingMode, setBillingMode] = useState<BillingMode>('loading')
 
   useEffect(() => {
     const controller = new AbortController()
     void fetch('/api/billing/config', { signal: controller.signal })
-      .then(response => response.ok ? response.json() as Promise<unknown> : Promise.reject(new Error('billing_config_failed')))
-      .then(data => {
+      .then((response) => response.ok ? response.json() as Promise<unknown> : Promise.reject(new Error('billing_config_failed')))
+      .then((data) => {
         if (data && typeof data === 'object') {
-          setBillingEnforced((data as Record<string, unknown>).enforced === true)
+          const enforced = (data as Record<string, unknown>).enforced
+          setBillingMode(enforced === true ? 'enforced' : enforced === false ? 'beta' : 'unavailable')
+        } else {
+          setBillingMode('unavailable')
         }
       })
-      .catch(error => {
-        if (!(error instanceof DOMException && error.name === 'AbortError')) setBillingEnforced(false)
+      .catch((error) => {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) setBillingMode('unavailable')
       })
     return () => controller.abort()
   }, [])
 
-  const plans = PLANS.map(plan => plan.name !== 'Pro' || !billingEnforced ? plan : {
-    ...plan,
-    cta: "Pro'ga o'tish",
-    badge: 'Paylov orqali',
-  })
-
   return (
-    <section id="narxlar" style={{ ...container, padding: '96px 56px', position: 'relative' }} className="lp-container">
-      <Reveal>
-        <div style={{ maxWidth: 680, margin: '0 auto 56px', textAlign: 'center' }}>
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
-            <Eyebrow align="center">NARXLAR</Eyebrow>
+    <section className="lp-section lp-pricing" id="narxlar">
+      <div className="lp-shell">
+        <div className="lp-section-heading lp-section-heading--split">
+          <div>
+            <p className="lp-section-label">Ochiq narxlar</p>
+            <h2>Bepuldan boshlang. <span>Kerak bo‘lsa Proga o‘ting.</span></h2>
           </div>
-          <h2 className="lp-h2" style={{ fontFamily: SERIF, fontSize: 50, fontWeight: 500, letterSpacing: '-0.015em', lineHeight: 1.12, margin: 0, color: C.ink }}>
-            {billingEnforced ? <>Bepul boshlang, <Em>Pro</Em> bilan kuchaytiring</> : <>Hozir <Em>hammasi</Em> bepul</>}
-          </h2>
-          <p style={{ fontSize: 20, lineHeight: 1.6, color: C.gray, maxWidth: '44ch', margin: '20px auto 0' }}>
-            {billingEnforced
-              ? "Asosiy tayyorgarlik imkoniyatlari bepul. Pro reja cheksiz AI yordami va qo'shimcha imkoniyatlarni ochadi."
-              : "Barcha asosiy imkoniyatlar hammaga ochiq. Pro reja — orzuingga tezroq yetmoqchilar uchun qo'shimcha kuch."}
+          <p>Ro‘yxatdan o‘tish va asosiy tayyorgarlik bepul. Pro narxi yashirilmaydi: oyiga 35 000 so‘m.</p>
+        </div>
+
+        <div className="lp-price-table" aria-live="polite">
+          {PLANS.map((plan) => (
+            <article className={plan.pro ? 'lp-plan lp-plan--pro' : 'lp-plan'} key={plan.name}>
+              <div className="lp-plan__top">
+                <span>{plan.name}</span>
+                {plan.pro && (
+                  <b>{billingMode === 'enforced' ? 'Paylov orqali' : billingMode === 'beta' ? 'Beta davrida ochiq' : '35 000 so‘m / oy'}</b>
+                )}
+              </div>
+              <div className="lp-plan__price"><strong>{plan.price}</strong><span>{plan.period}</span></div>
+              <p>{plan.description}</p>
+              <ul>
+                {plan.features.map((feature) => (
+                  <li key={feature}><Check aria-hidden="true" size={18} /> {feature}</li>
+                ))}
+              </ul>
+              <Button to={ROUTE_REGISTER} variant={plan.pro ? 'dark' : 'outline'} arrow>
+                {plan.pro && billingMode === 'beta' ? 'Beta davomida Prodan foydalanish' : plan.pro ? 'Pro bilan boshlash' : 'Bepul boshlash'}
+              </Button>
+            </article>
+          ))}
+        </div>
+
+        <div className="lp-pricing-note">
+          <LockKeyhole aria-hidden="true" size={18} />
+          <p>
+            {billingMode === 'enforced'
+              ? 'Bepul reja doim mavjud. Pro obunasi ixtiyoriy va Paylov orqali oyiga 35 000 so‘m.'
+              : billingMode === 'beta'
+                ? 'Beta davrida Pro imkoniyatlari vaqtincha bepul ochiq. E’lon qilingan odatiy narx — oyiga 35 000 so‘m.'
+                : 'Bepul reja doim mavjud. Pro rejaning e’lon qilingan narxi oyiga 35 000 so‘m; joriy to‘lov holati akkaunt ichida ko‘rsatiladi.'}
+            {' '}Ehtimoliy mavzular tahlili kafolatlangan imtihon savollari degani emas.
           </p>
         </div>
-      </Reveal>
-
-      <div className="lp-grid-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20, maxWidth: 880, margin: '0 auto' }}>
-        {plans.map((p, i) => (
-          <Reveal key={p.name} delay={i * 80}>
-            <PlanCard plan={p} />
-          </Reveal>
-        ))}
       </div>
-
-      <p style={{ fontSize: 13.5, lineHeight: 1.6, color: C.gray2, textAlign: 'center', maxWidth: '60ch', margin: '28px auto 0' }}>
-        DTM savol-bashorati — kafolat emas: 5 yillik DTM tahlillarimizga ko'ra eng ehtimoliy mavzu va savol turlari.
-        {!billingEnforced && " Beta davrida barcha imkoniyatlardan bepul foydalaning."}
-      </p>
     </section>
   )
 }
 
-/* ===================================================================== */
-/* BIG CTA                                                                 */
-/* ===================================================================== */
+const FAQS = [
+  ['DTMMax nima?', 'DTMMax — DTM va Milliy Sertifikat imtihonlariga tayyorlanish uchun AI o‘quv platformasi. U mavzuni tushuntiradi, test beradi va natijani keyingi reja bilan bog‘laydi.'],
+  ['Platforma bepulmi?', 'Ha, ro‘yxatdan o‘tish va asosiy imkoniyatlar bepul, karta kerak emas. Qo‘shimcha imkoniyatlar uchun ixtiyoriy Pro reja bor; uning odatiy narxi oyiga 35 000 so‘m.'],
+  ['Qaysi fanlar bor?', 'Matematika, Fizika, Kimyo, Biologiya, Ona tili, Ingliz tili, Tarix va Geografiya mavjud. Fanlar ro‘yxati kengayib boradi.'],
+  ['AI ustoz qanday ishlaydi?', 'Avval darajangiz aniqlanadi. Keyin AI mavzuni tushuntiradi, misol ko‘rsatadi, mashq beradi va xatoni keyingi rejaga qo‘shadi.'],
+  ['PDFdan testni kim yaratishi mumkin?', 'Material asosida test loyihasi o‘qituvchi oqimida yaratiladi. O‘qituvchi savol va javoblarni tekshirib, tahrirlab tasdiqlagandan keyin uni o‘quvchilarga ulashishi mumkin.'],
+  ['DTMMax imtihon savollarini bashorat qiladimi?', 'DTMMax kafolatlangan savollarni bermaydi. Oldingi tahlillar asosida ko‘p uchraydigan mavzu va savol turlarini ajratib, tayyorgarlik fokusini yaxshilaydi.'],
+] as const
 
-function CtaSection() {
+function Faq() {
   return (
-    <>
-      <hr className="lp-divider" />
-      <section style={{ ...container, padding: '120px 56px', position: 'relative', textAlign: 'center' }} className="lp-container">
-        <div aria-hidden="true" className="lp-tex-plus" style={{ position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none' }} />
-        <div style={{ position: 'relative', zIndex: 1 }}>
-          <Reveal>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
-              <Eyebrow align="center">ORZUNG SHU YERDAN BOSHLANADI</Eyebrow>
-            </div>
-            <h2 className="lp-h2" style={{ fontFamily: SERIF, fontSize: 50, fontWeight: 500, letterSpacing: '-0.015em', lineHeight: 1.12, margin: 0, color: C.ink }}>
-              Birinchi qadamni <Em>bugun</Em> tashla
-            </h2>
-            <p style={{ fontSize: 20, lineHeight: 1.6, color: C.gray, maxWidth: '42ch', margin: '20px auto 0' }}>
-              Orzuga eltadigan yo'l bitta qadamdan boshlanadi. Ro'yxatdan o'tish bepul, karta kerak emas.
-            </p>
-            <div style={{ marginTop: 34, display: 'flex', justifyContent: 'center' }} className="lp-cta-actions">
-              <Button to={ROUTE_REGISTER} variant="primary" size="lg" arrow>Bepul boshlash</Button>
-            </div>
-          </Reveal>
+    <section className="lp-section lp-faq" id="faq">
+      <div className="lp-shell lp-faq__layout">
+        <div className="lp-faq__intro">
+          <p className="lp-section-label">Aniq javoblar</p>
+          <h2>Savol qolmasin.</h2>
+          <p>Platforma, fanlar va to‘lov haqida eng ko‘p so‘raladigan savollar.</p>
         </div>
-      </section>
-      <hr className="lp-divider" />
-    </>
+        <div className="lp-faq__list">
+          {FAQS.map(([question, answer]) => (
+            <details key={question}>
+              <summary>{question}<ChevronDown aria-hidden="true" size={20} /></summary>
+              <p>{answer}</p>
+            </details>
+          ))}
+        </div>
+      </div>
+    </section>
   )
 }
 
-/* ===================================================================== */
-/* FOOTER                                                                  */
-/* ===================================================================== */
-
-type FooterCol = { head: string; label: string; items: string[] }
-const FOOTER_COLS: FooterCol[] = [
-  { head: 'Mahsulot', label: 'Mahsulot havolalari', items: ['Imkoniyatlar', 'Fanlar', 'Narxlar'] },
-  // O'lik ('#') havolalar ishonchni yemiradi — real sahifasi borlargina qoladi
-  { head: 'Kompaniya', label: 'Kompaniya havolalari', items: ['FAQ'] },
-  { head: 'Huquqiy', label: 'Huquqiy havolalar', items: ['Maxfiylik', 'Shartlar', 'Oferta'] },
-]
-
-/* Footer yorliqlari → haqiqiy manzillar (anchor yoki sahifa) */
-const FOOTER_HREF: Record<string, string> = {
-  'Imkoniyatlar': '#imkoniyatlar', 'Fanlar': '#imkoniyatlar', 'Narxlar': '#narxlar', 'FAQ': '#faq',
-  'Maxfiylik': '/maxfiylik', 'Shartlar': '/shartlar', 'Oferta': '/oferta',
-}
-const footerHref = (label: string): string => FOOTER_HREF[label] || '#'
-
-function SocialDot({ initial }: { initial: string }) {
+function FinalCta() {
   return (
-    <a
-      href="#"
-      className="lp-link"
-      aria-label={initial}
-      style={{ width: 20, height: 20, display: 'grid', placeItems: 'center', color: C.gray2, fontSize: 12, fontWeight: 700, textDecoration: 'none' }}
-    >
-      {initial}
-    </a>
+    <section className="lp-final-cta">
+      <div className="lp-shell lp-final-cta__inner">
+        <div>
+          <GraduationCap aria-hidden="true" size={33} />
+          <h2>Keyingi ball bugungi to‘g‘ri qadamdan boshlanadi.</h2>
+          <p>Diagnostikani yeching. DTMMax sizga nimadan boshlashni ko‘rsatadi.</p>
+        </div>
+        <Button to={ROUTE_REGISTER} variant="light" arrow>Bepul boshlash</Button>
+      </div>
+    </section>
   )
 }
 
 function Footer() {
   return (
-    <footer>
-      <hr className="lp-divider" />
-      <div style={{ ...container, padding: '64px 56px 40px' }} className="lp-container">
-        <div className="lp-footer-cols" style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 1fr 1fr', gap: 32 }}>
-          <div style={{ maxWidth: 280 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-              <LogoMark />
-              <Wordmark />
-            </div>
-            <p style={{ fontSize: 14, lineHeight: 1.6, color: C.gray, margin: '16px 0 0' }}>
-              O'zbek abituriyentlari uchun AI repetitor.
-            </p>
+    <footer className="lp-footer">
+      <div className="lp-shell">
+        <div className="lp-footer__top">
+          <div>
+            <Brand />
+            <p>O‘zbekiston abituriyentlari va o‘qituvchilari uchun AI tayyorgarlik tizimi.</p>
           </div>
-          {FOOTER_COLS.map((col) => (
-            <nav key={col.head} aria-label={col.label}>
-              <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gray2, marginBottom: 16 }}>{col.head}</div>
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {col.items.map((it) => (
-                  <li key={it}>
-                    <a href={footerHref(it)} className="lp-link" style={{ fontSize: 14, fontWeight: 500, color: C.gray, textDecoration: 'none' }}>{it}</a>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-          ))}
+          <nav aria-label="Mahsulot havolalari">
+            <strong>Mahsulot</strong>
+            <a href="#imkoniyatlar">Abituriyent uchun</a>
+            <a href="#ai-oqim">AI oqimi</a>
+            <a href="#oqituvchi">O‘qituvchi</a>
+            <a href="#narxlar">Narxlar</a>
+          </nav>
+          <nav aria-label="Yordam havolalari">
+            <strong>Yordam</strong>
+            <a href="#faq">FAQ</a>
+            <Link to={ROUTE_LOGIN}>Kirish</Link>
+            <Link to={ROUTE_REGISTER}>Ro‘yxatdan o‘tish</Link>
+          </nav>
+          <nav aria-label="Huquqiy havolalar">
+            <strong>Huquqiy</strong>
+            <Link to="/maxfiylik">Maxfiylik</Link>
+            <Link to="/shartlar">Shartlar</Link>
+            <Link to="/oferta">Oferta</Link>
+          </nav>
         </div>
-        <div style={{ borderTop: `1px solid ${C.line}`, marginTop: 48, paddingTop: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
-          <span style={{ fontSize: 13, fontWeight: 500, color: C.gray2 }}>© 2026 DTMMax</span>
-          {/* Ijtimoiy tarmoq ikonkalari real havolalar tayyor bo'lganda qaytariladi (o'lik '#' ishonchni yemiradi) */}
+        <div className="lp-footer__bottom">
+          <span>© 2026 DTMMax</span>
+          <span>DTM va Milliy Sertifikatga ongli tayyorgarlik.</span>
         </div>
       </div>
     </footer>
   )
 }
 
-/* ===================================================================== */
-/* PAGE                                                                    */
-/* ===================================================================== */
-
 export default function Landing() {
-  const nav = useNavigate()
+  const navigate = useNavigate()
   const { token, user } = useAuthStore()
 
-  /* Logged-in users skip the marketing page and land in their app shell
-     (preserves the prior Landing behaviour so the Amber flow isn't broken). */
   useEffect(() => {
-    if (token && user) {
-      try {
-        if (sessionStorage.getItem('dtmmax_skip_autoredirect') === '1') {
-          sessionStorage.removeItem('dtmmax_skip_autoredirect')
-          return
-        }
-      } catch { /* ignore */ }
-      if (user.role === 'ADMIN') nav('/boshqaruv', { replace: true })
-      else if (user.role === 'TEACHER') nav('/oqituvchi', { replace: true })
-      else nav('/bugun', { replace: true })
+    if (!token || !user) return
+    try {
+      if (sessionStorage.getItem('dtmmax_skip_autoredirect') === '1') {
+        sessionStorage.removeItem('dtmmax_skip_autoredirect')
+        return
+      }
+    } catch {
+      // sessionStorage mavjud bo‘lmasa oddiy role redirect davom etadi.
     }
-  }, [nav, token, user])
+    if (user.role === 'ADMIN') navigate('/boshqaruv', { replace: true })
+    else if (user.role === 'TEACHER') navigate('/oqituvchi', { replace: true })
+    else navigate('/bugun', { replace: true })
+  }, [navigate, token, user])
 
   return (
-    <div className="lp-root" style={{ fontFamily: SANS, color: C.ink, background: C.bg, minHeight: '100dvh' }}>
-      <a
-        href="#main"
-        className="lp-btn"
-        style={{ position: 'absolute', left: -9999, top: 0, background: C.ink, color: '#fff', padding: '10px 18px', borderRadius: 8, zIndex: 100, textDecoration: 'none', fontSize: 14, fontWeight: 600 }}
-        onFocus={(e) => { e.currentTarget.style.left = '16px'; e.currentTarget.style.top = '16px' }}
-        onBlur={(e) => { e.currentTarget.style.left = '-9999px' }}
-      >
-        Asosiy kontentga o'tish
-      </a>
+    <div className="lp-root">
+      <a className="lp-skip-link" href="#main">Asosiy kontentga o‘tish</a>
       <Nav />
       <main id="main">
         <Hero />
-        <Features />
-        <Stats />
-        <StudyFlow />
+        <ProofStrip />
+        <StudentValue />
+        <AiWorkflow />
+        <PdfToTest />
+        <TeacherSection />
         <Pricing />
-        <FaqSection />
-        <CtaSection />
+        <Faq />
+        <FinalCta />
       </main>
       <Footer />
     </div>

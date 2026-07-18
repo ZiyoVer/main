@@ -7,6 +7,7 @@ import { SUBJECTS } from '@/constants'
 import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
 import PaylovSandboxPanel from './PaylovSandboxPanel'
+import '../../styles/operations-workspace.css'
 
 interface TimeSpentUser {
     id: string
@@ -1211,25 +1212,42 @@ export default function AdminPanel() {
         { k: 'stats' as const, l: 'Statistika', icon: BarChart3 },
         { k: 'presence' as const, l: 'Online vaqt', icon: Clock3 },
         { k: 'activity' as const, l: 'Faollik', icon: Activity },
-        { k: 'audit' as const, l: 'Audit', icon: ScrollText },
-        { k: 'moderation' as const, l: 'Moderatsiya', icon: ShieldCheck },
         { k: 'users' as const, l: 'Foydalanuvchilar', icon: Users },
-        { k: 'teachers' as const, l: 'O\'qituvchi', icon: UserCheck },
+        { k: 'teachers' as const, l: 'O‘qituvchilar', icon: UserCheck },
+        { k: 'broadcast' as const, l: 'Xabarnoma', icon: Bell },
         { k: 'tests' as const, l: 'Testlar', icon: Layers },
         { k: 'docs' as const, l: 'Materiallar', icon: FileText },
+        { k: 'moderation' as const, l: 'Moderatsiya', icon: ShieldCheck },
         { k: 'billing' as const, l: 'To‘lov', icon: CreditCard },
-        { k: 'broadcast' as const, l: 'Xabarnoma', icon: Bell },
-        { k: 'ai' as const, l: 'AI Sozlamalar', icon: Bot },
-        { k: 'knowledge' as const, l: 'Bilim Bazasi', icon: BookOpen },
+        { k: 'ai' as const, l: 'AI sozlamalari', icon: Bot },
+        { k: 'knowledge' as const, l: 'Bilim bazasi', icon: BookOpen },
+        { k: 'audit' as const, l: 'Audit', icon: ScrollText },
     ]
     type TabKey = (typeof tabs)[number]['k']
     const tabGroups: Array<{ label: string; keys: TabKey[] }> = [
-        { label: 'Umumiy', keys: ['stats', 'presence', 'activity'] },
-        { label: 'Odamlar', keys: ['users', 'teachers'] },
+        { label: 'Statistika', keys: ['stats', 'presence', 'activity'] },
+        { label: 'Foydalanuvchilar', keys: ['users', 'teachers', 'broadcast'] },
         { label: 'Kontent', keys: ['tests', 'docs', 'moderation'] },
-        { label: 'AI va bilim', keys: ['ai', 'knowledge'] },
-        { label: 'Operatsiyalar', keys: ['billing', 'broadcast', 'audit'] },
+        { label: 'To‘lovlar', keys: ['billing'] },
+        { label: 'AI boshqaruvi', keys: ['ai', 'knowledge'] },
+        { label: 'Audit', keys: ['audit'] },
     ]
+    const tabDescriptions: Record<TabKey, string> = {
+        stats: 'Platformaning asosiy ko‘rsatkichlari, AI sarfi va foydalanish dinamikasi.',
+        presence: 'Foydalanuvchilarning platformada o‘tkazgan vaqti va hozirgi holati.',
+        activity: 'Kirishlar, xabarlar va foydalanuvchi faolligi bo‘yicha voqealar.',
+        users: 'Hisoblar, rollar, holatlar va foydalanuvchi tafsilotlarini boshqaring.',
+        teachers: 'O‘qituvchi hisoblarini yarating va ularning ruxsatlarini kuzating.',
+        tests: 'Platformadagi testlarni qidiring, tartiblang va boshqaring.',
+        docs: 'O‘quv materiallari va yuklangan hujjatlarni boshqaring.',
+        moderation: 'Ommaviy testlarni tekshiring va nashrga tasdiqlang.',
+        billing: 'Paylov sandbox oqimi va billing konfiguratsiyasi holatini tekshiring.',
+        broadcast: 'Barcha yoki tanlangan foydalanuvchilarga xabarnoma yuboring.',
+        ai: 'AI ustoz xulqi, prompt bo‘limlari va javob parametrlarini sozlang.',
+        knowledge: 'AI foydalanadigan fan materiallari va bilim bazasini boshqaring.',
+        audit: 'Muhim administrator amallari va xavfsizlik tarixini ko‘ring.',
+    }
+    const activeAdminTab = tabs.find(item => item.k === tab) || tabs[0]
 
     // Tablist klaviatura navigatsiyasi: ←/→ qo'shni tab, Home/End — chekka tablar.
     // Fokus ko'chgan tabni darhol faollashtiramiz (roving tabindex naqshi).
@@ -1296,33 +1314,34 @@ export default function AdminPanel() {
         })
 
     return (
-        <div ref={pageRef} className="kelviq h-screen overflow-y-auto w-full" style={{ background: 'var(--bg-page)' }}>
-            {/* Header */}
-            <header className="sticky top-0 z-40" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', backdropFilter: 'blur(12px)' }}>
-                <div className="max-w-6xl mx-auto flex items-center justify-between py-3 px-5">
-                    <div className="flex items-center gap-2">
-                        <img src="/dtmmax-logo.png" alt="DtmMax" className="h-9 w-9 rounded-lg flex items-center justify-center" style={{ objectFit: 'contain' }} />
-                        <span className="text-sm font-bold">DTMMax</span>
-                        <span className="text-[11px] font-medium px-2 py-0.5 rounded-md" style={{ color: 'var(--text-muted)', background: 'var(--bg-surface)' }}>Admin</span>
+        <div ref={pageRef} className="kelviq operations-workspace operations-workspace--admin h-screen overflow-y-auto w-full">
+            <header className="operations-topbar">
+                <div className="operations-topbar__inner">
+                    <div className="operations-brand">
+                        <img src="/dtmmax-logo.png" alt="DTMMax" className="operations-brand__logo" />
+                        <div className="operations-brand__copy">
+                            <span className="operations-brand__name">DTMMax</span>
+                            <span className="operations-role">Admin</span>
+                        </div>
                     </div>
-                    <button onClick={() => { logout(); nav('/') }} className="h-8 w-8 flex items-center justify-center rounded-lg transition"
-                        style={{ color: 'var(--text-muted)' }}
-                        onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.background = 'var(--danger-light)' }}
-                        onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' }}>
-                        <LogOut className="h-4 w-4" />
-                    </button>
+                    <div className="operations-topbar__account">
+                        {currentUser?.name && <span className="operations-account-name">{currentUser.name}</span>}
+                        <button onClick={() => { logout(); nav('/') }} className="operations-topbar__action" aria-label="Tizimdan chiqish" title="Tizimdan chiqish">
+                            <LogOut className="h-4 w-4" />
+                        </button>
+                    </div>
                 </div>
             </header>
 
-            <div className="max-w-7xl mx-auto px-5 py-6">
-                <div className="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] gap-5 lg:gap-8">
+            <div className="operations-shell">
+                <div className="operations-grid">
                     <aside role="tablist" aria-label="Admin paneli bo'limlari"
-                        className="flex lg:block gap-2 overflow-x-auto lg:overflow-visible lg:sticky lg:top-20 lg:self-start"
+                        className="operations-sidebar"
                         onKeyDown={onTabKeyDown}>
                         {tabGroups.map(group => (
-                            <div key={group.label} className="min-w-fit lg:min-w-0 lg:mb-5">
-                                <p className="hidden lg:block px-3 mb-1.5 text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>{group.label}</p>
-                                <div className="flex lg:flex-col gap-1">
+                            <div key={group.label} className="operations-nav-group">
+                                <p className="operations-nav-group__label">{group.label}</p>
+                                <div className="operations-nav">
                                     {group.keys.map(key => tabs.find(item => item.k === key)).filter((item): item is (typeof tabs)[number] => Boolean(item)).map(t => {
                                         const selected = tab === t.k
                                         return (
@@ -1333,13 +1352,10 @@ export default function AdminPanel() {
                                                 aria-controls={`admin-tabpanel-${t.k}`}
                                                 tabIndex={selected ? 0 : -1}
                                                 ref={el => { tabRefs.current[t.k] = el }}
-                                                className="w-auto lg:w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-[13px] font-medium transition whitespace-nowrap text-left"
-                                                style={selected
-                                                    ? { background: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border)' }
-                                                    : { color: 'var(--text-secondary)', border: '1px solid transparent' }}>
+                                                className={`operations-nav__item ${selected ? 'is-active' : ''}`}>
                                                 <t.icon className="h-4 w-4" /> {t.l}
                                                 {t.k === 'moderation' && pendingCount > 0 && (
-                                                    <span className="ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold leading-none text-white"
+                                                    <span className="ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold leading-none text-[#171717]"
                                                         style={{ background: 'var(--brand)' }}>
                                                         {pendingCount > 99 ? '99+' : pendingCount}
                                                     </span>
@@ -1352,9 +1368,15 @@ export default function AdminPanel() {
                         ))}
                     </aside>
 
-                    <main className="min-w-0">
+                    <main className="operations-main">
+                        <div className="operations-page-heading">
+                            <div>
+                                <h1>{activeAdminTab.l}</h1>
+                                <p>{tabDescriptions[tab]}</p>
+                            </div>
+                        </div>
                         {/* Tab paneli — faqat faol bo'lim render qilinadi, ARIA bilan bog'langan */}
-                        <div role="tabpanel" id={`admin-tabpanel-${tab}`} aria-labelledby={`admin-tab-${tab}`} tabIndex={0} className="focus:outline-none">
+                        <div role="tabpanel" id={`admin-tabpanel-${tab}`} aria-labelledby={`admin-tab-${tab}`} tabIndex={0} className="operations-tabpanel focus:outline-none">
 
                 {/* === STATS === */}
                 {tab === 'stats' && loading && (
@@ -1858,16 +1880,22 @@ export default function AdminPanel() {
 
                                 <form onSubmit={createTeacher} className="space-y-2.5">
                                     <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px]" style={{ color: 'var(--text-muted)' }}>👤</span>
-                                        <input placeholder="To'liq ism" required value={tf.name} onChange={e => setTf({ ...tf, name: e.target.value })} className="input pl-8" />
+                                        <label htmlFor="admin-teacher-name" className="sr-only">O‘qituvchining to‘liq ismi</label>
+                                        <span aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px]" style={{ color: 'var(--text-muted)' }}>👤</span>
+                                        <input id="admin-teacher-name" name="teacherName" autoComplete="name" placeholder="To'liq ism" required value={tf.name} onChange={e => setTf({ ...tf, name: e.target.value })} className="input pl-8" />
                                     </div>
                                     <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px]" style={{ color: 'var(--text-muted)' }}>✉</span>
-                                        <input type="email" placeholder="Email manzil" required value={tf.email} onChange={e => setTf({ ...tf, email: e.target.value })} className="input pl-8" />
+                                        <label htmlFor="admin-teacher-email" className="sr-only">O‘qituvchining email manzili</label>
+                                        <span aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px]" style={{ color: 'var(--text-muted)' }}>✉</span>
+                                        <input id="admin-teacher-email" name="teacherEmail" autoComplete="email" type="email" placeholder="Email manzil" required value={tf.email} onChange={e => setTf({ ...tf, email: e.target.value })} className="input pl-8" />
                                     </div>
                                     <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px]" style={{ color: 'var(--text-muted)' }}>🔑</span>
+                                        <label htmlFor="admin-teacher-password" className="sr-only">O‘qituvchi uchun vaqtinchalik parol</label>
+                                        <span aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px]" style={{ color: 'var(--text-muted)' }}>🔑</span>
                                         <input
+                                            id="admin-teacher-password"
+                                            name="teacherPassword"
+                                            autoComplete="new-password"
                                             type="password"
                                             placeholder="Parol (kamida 8 ta, harf va raqam)"
                                             required
@@ -1880,10 +1908,10 @@ export default function AdminPanel() {
                                         />
                                     </div>
                                     <button type="submit" disabled={creating}
-                                        className="w-full h-10 rounded-xl text-sm font-semibold text-white transition disabled:opacity-50 flex items-center justify-center gap-2"
-                                        style={{ background: 'var(--k-accent-grad, var(--brand))' }}>
+                                        className="w-full h-11 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                                        style={{ background: 'var(--brand)', color: '#171717' }}>
                                         {creating
-                                            ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Yaratilmoqda...</>
+                                            ? <><div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Yaratilmoqda...</>
                                             : <><UserPlus className="h-4 w-4" /> O'qituvchi yaratish</>}
                                     </button>
                                 </form>

@@ -65,7 +65,7 @@ export default function ProResult() {
             <div className="w-full max-w-sm anim-up">
                 <div className="flex items-center gap-2 justify-center mb-8">
                     <img src="/dtmmax-logo.png" alt="DtmMax" className="h-11 w-11 rounded-xl" style={{ objectFit: 'contain' }} />
-                    <span className="font-bold text-xl tracking-tight">DTM<span className="k-italic">Max</span></span>
+                    <span className="font-bold text-xl tracking-tight">DTMMax</span>
                 </div>
                 <div className="card text-center" style={{ padding: '2.5rem 2rem' }}>
                     {view.icon}

@@ -9,6 +9,7 @@ import 'katex/dist/katex.min.css'
 import DOMPurify from 'dompurify'
 import { normalizeMathText } from '@/lib/mathRender' // 2.4: yagona manba — lokal nusxa olib tashlandi
 import { saveScopedItem, pruneDtmmaxStorage } from '@/lib/storagePrune'
+import '@/styles/test-workspace.css'
 
 function MathPreview({ text, inline }: { text: string; inline?: boolean }) {
     const normalized = normalizeMathText(text || '')
@@ -68,10 +69,11 @@ function StudentQuestionImage({ src, compact = false, priority = false }: { src:
             </div>
         )
     }
-    return <img src={src} alt="Savol" onError={() => setFailed(true)}
+    return <img src={src} alt="Savol rasmi" onError={() => setFailed(true)}
+        width={compact ? 960 : 1200} height={compact ? 540 : 675}
         loading={priority ? 'eager' : 'lazy'} decoding="async" fetchPriority={priority ? 'high' : 'low'}
         className={`${compact ? 'mt-3' : 'max-w-full rounded-lg border mb-3'}`}
-        style={{ borderColor: 'var(--border)', maxHeight: compact ? 240 : undefined, maxWidth: '100%', objectFit: 'contain' }} />
+        style={{ borderColor: 'var(--border)', maxHeight: compact ? 240 : undefined, maxWidth: '100%', height: 'auto', objectFit: 'contain' }} />
 }
 
 function formatAcceptedAnswerText(text: string | null | undefined) {
@@ -215,8 +217,8 @@ function NextStepCard({ recommendation, nav, compact }: { recommendation: TestRe
     const { focusTopic, nextTest } = recommendation
     if (!focusTopic && !nextTest) return null
     return (
-        <div className={`rounded-xl ${compact ? 'p-3' : 'p-4'} text-left`} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderLeft: '3px solid var(--brand)' }}>
-            <p className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--brand)' }}>Keyingi qadam</p>
+        <div className={`test-workspace__next-step rounded-xl ${compact ? 'p-3' : 'p-4'} text-left`} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            <p className="text-[13px] font-bold mb-2" style={{ color: 'var(--text-primary)' }}>Keyingi qadam</p>
             {focusTopic && (
                 <div className={nextTest ? 'mb-2' : ''}>
                     <p className="text-[13px] mb-2" style={{ color: 'var(--text-primary)' }}>
@@ -224,8 +226,8 @@ function NextStepCard({ recommendation, nav, compact }: { recommendation: TestRe
                     </p>
                     <button
                         onClick={() => { const id = localStorage.getItem('dtmmax_analysis_chat_id'); nav(id ? `/suhbat/${id}` : '/suhbat?analyzeTest=true') }}
-                        className={`w-full ${compact ? 'h-9 text-[12px]' : 'h-10 text-[13px]'} rounded-xl font-semibold text-white flex items-center justify-center gap-1.5`}
-                        style={{ background: 'var(--brand)' }}>
+                        className={`w-full ${compact ? 'h-9 text-[12px]' : 'h-10 text-[13px]'} rounded-xl font-semibold flex items-center justify-center gap-1.5`}
+                        style={{ background: 'var(--brand)', color: '#171717' }}>
                         <Sparkles className="h-3.5 w-3.5" /> AI bilan mashq qilish
                     </button>
                 </div>
@@ -496,14 +498,14 @@ export default function TestPage() {
 
     // ─────────────────── STANDARD MODE ───────────────────
     return (
-        <div className="kelviq overflow-y-auto w-full overscroll-contain" style={{ background: 'var(--bg-page)', height: '100dvh' }}>
-            <header className="sticky top-0 z-40" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', backdropFilter: 'blur(12px)' }}>
+        <div className="kelviq test-workspace test-workspace--standard overflow-y-auto w-full overscroll-contain" style={{ background: 'var(--bg-page)', height: '100dvh' }}>
+            <header className="test-workspace__header sticky top-0 z-40" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
                 <div className="max-w-2xl mx-auto flex items-center justify-between py-3 px-5">
                     <div className="flex items-center gap-2">
-                        <button onClick={() => nav(token ? '/suhbat' : '/')} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        <button type="button" aria-label="Testdan chiqish" onClick={() => nav(token ? '/suhbat' : '/')} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                             <ArrowLeft className="h-4 w-4" />
                         </button>
-                        <img src="/dtmmax-logo.png" alt="DtmMax" className="h-8 w-8 rounded-md flex items-center justify-center" style={{ objectFit: 'contain' }} />
+                        <img src="/dtmmax-logo.png" alt="DtmMax" width={32} height={32} className="h-8 w-8 rounded-md flex items-center justify-center" style={{ objectFit: 'contain' }} />
                         <span className="text-sm font-bold truncate max-w-[200px]">{test?.title}</span>
                     </div>
                     <div className="flex items-center gap-3">
@@ -512,7 +514,7 @@ export default function TestPage() {
                                 <Clock className="h-3.5 w-3.5" /> {formatTimer(timeLeft)}
                             </span>
                         )}
-                        {isGuest && <button onClick={() => nav('/kirish', { state: { from: `/test/${shareLink}` } })} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-white" style={{ background: 'var(--brand)' }}><LogIn className="h-3.5 w-3.5" /> Kirish</button>}
+                        {isGuest && <button onClick={() => nav('/kirish', { state: { from: `/test/${shareLink}` } })} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold" style={{ background: 'var(--brand)', color: '#171717' }}><LogIn className="h-3.5 w-3.5" /> Kirish</button>}
                     </div>
                 </div>
                 {/* 4.5: yopishqoq progress — savollar ustida doim ko'rinib turadi */}
@@ -520,15 +522,23 @@ export default function TestPage() {
                     <div className="px-5 pb-1.5">
                         <div className="max-w-2xl mx-auto">
                             <p className="text-[10px] font-medium tabular-nums mb-1 text-right" style={{ color: 'var(--text-muted)' }}>{answeredCount}/{total} javob berildi</p>
-                            <div className="h-[3px] w-full rounded-full overflow-hidden" style={{ background: 'var(--bg-muted)' }}>
-                                <div className="h-full rounded-full transition-all duration-300" style={{ width: `${(answeredCount / total) * 100}%`, background: 'var(--brand)' }} />
+                            <div
+                                className="h-[3px] w-full rounded-full overflow-hidden"
+                                role="progressbar"
+                                aria-label="Testdagi javoblar jarayoni"
+                                aria-valuemin={0}
+                                aria-valuemax={total}
+                                aria-valuenow={answeredCount}
+                                aria-valuetext={`${answeredCount} ta savolga javob berildi, jami ${total} ta`}
+                                style={{ background: 'var(--bg-muted)' }}>
+                                <div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${(answeredCount / total) * 100}%`, background: 'var(--brand)' }} />
                             </div>
                         </div>
                     </div>
                 )}
             </header>
 
-            <div className="max-w-2xl mx-auto px-4 py-5 space-y-4">
+            <main className="test-workspace__content max-w-2xl mx-auto px-4 py-5 space-y-4">
                 {/* Test info */}
                 <div className="rounded-xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
                     <p className="text-sm font-semibold">{test?.title}</p>
@@ -540,11 +550,11 @@ export default function TestPage() {
                 {isGuest && !submitted && (
                     <div className="rounded-xl p-5" style={{ border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', background: 'var(--bg-card)' }}>
                         <div className="flex items-center gap-2 mb-3">
-                            <div className="h-6 w-6 rounded-md flex items-center justify-center" style={{ background: 'var(--brand)' }}><Lock className="h-3.5 w-3.5 text-white" /></div>
+                            <div className="h-6 w-6 rounded-md flex items-center justify-center" style={{ background: 'var(--brand)', color: '#171717' }}><Lock className="h-3.5 w-3.5" /></div>
                             <span className="text-[13px] font-semibold">Testni yechish uchun kiring</span>
                         </div>
                         <p className="text-[13px] mb-4" style={{ color: 'var(--text-secondary)' }}>Yechish va AI tahlil olish uchun akkauntga kirish kerak.</p>
-                        <button onClick={() => nav('/kirish', { state: { from: `/test/${shareLink}` } })} className="w-full h-11 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2" style={{ background: 'var(--brand)' }}><LogIn className="h-4 w-4" /> Yechishni boshlash uchun kiring</button>
+                        <button onClick={() => nav('/kirish', { state: { from: `/test/${shareLink}` } })} className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--brand)', color: '#171717' }}><LogIn className="h-4 w-4" /> Yechishni boshlash uchun kiring</button>
                     </div>
                 )}
 
@@ -578,7 +588,7 @@ export default function TestPage() {
                             <Sparkles className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--brand)' }} />
                             <p className="text-[13px] font-semibold">AI tahlil tayyor. Xohlasangiz chatda davom eting.</p>
                         </div>
-                        <button onClick={() => { const id = localStorage.getItem('dtmmax_analysis_chat_id'); nav(id ? `/suhbat/${id}` : '/suhbat?analyzeTest=true') }} className="w-full h-10 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2" style={{ background: 'var(--brand)' }}><MessageSquare className="h-4 w-4" /> Hozir o'tish</button>
+                        <button onClick={() => { const id = localStorage.getItem('dtmmax_analysis_chat_id'); nav(id ? `/suhbat/${id}` : '/suhbat?analyzeTest=true') }} className="w-full h-10 rounded-xl text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--brand)', color: '#171717' }}><MessageSquare className="h-4 w-4" /> Hozir o'tish</button>
                     </div>
                 )}
 
@@ -601,11 +611,11 @@ export default function TestPage() {
                     const serverResult = result?.results?.find((r: any) => r.questionId === q.id)
                     const isCorrectOpen = submitted && correct?.type === 'open' ? (serverResult ? serverResult.isCorrect : textAnswer.trim().toLowerCase() === (correct.text || '').trim().toLowerCase()) : false
                     return (
-                        <div key={q.id} className="rounded-xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', contentVisibility: 'auto', containIntrinsicSize: 'auto 420px' }}>
+                        <div key={q.id} className="test-workspace__question rounded-xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', contentVisibility: 'auto', containIntrinsicSize: 'auto 420px' }}>
                             <div className="flex items-start gap-2 mb-3">
                                 <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold mt-0.5" style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}>{qi + 1}</span>
                                 {questionText ? (
-                                    <p className="text-[13px] font-medium leading-relaxed flex-1" style={{ color: 'var(--text-primary)', opacity: 1 }}><TextWithMath text={questionText} /></p>
+                                    <p className="test-workspace__question-text flex-1 font-medium" style={{ color: 'var(--text-primary)', opacity: 1 }}><TextWithMath text={questionText} /></p>
                                 ) : !q.imageUrl ? (
                                     <p className="text-[12px] font-medium leading-relaxed flex-1" style={{ color: 'var(--danger)' }}>Savol matni saqlanmagan.</p>
                                 ) : null}
@@ -644,6 +654,9 @@ export default function TestPage() {
                                                             else if (!submitted && isSel) sty = { background: 'var(--brand-light)', border: '1px solid var(--brand)', color: 'var(--brand-hover)', fontWeight: 700 }
                                                             return (
                                                                 <button key={ai} disabled={submitted || isGuest}
+                                                                    type="button"
+                                                                    aria-label={`${qi + 1}-savolning ${si + 1}-bandi, ${String.fromCharCode(65 + ai)} varianti`}
+                                                                    aria-pressed={isSel}
                                                                     onClick={() => !isGuest && setAnswers((a: any) => ({ ...a, [q.id]: { ...(a[q.id] || {}), [si]: ai } }))}
                                                                     className="w-8 h-8 rounded-lg text-[12px] font-bold transition flex items-center justify-center"
                                                                     style={{ ...sty, cursor: submitted || isGuest ? 'default' : 'pointer' }}>
@@ -672,6 +685,9 @@ export default function TestPage() {
                                             <div key={subIndex} className="p-3 rounded-lg" style={{ border: `1px solid ${submitted ? (isSubCorrect ? 'var(--success)' : 'var(--danger)') : 'var(--border)'}`, background: 'var(--bg-surface)' }}>
                                                 <p className="text-[12px] mb-2 font-medium"><span style={{ color: 'var(--brand)' }}>{label})</span> <TextWithMath text={subQuestion.text} /></p>
                                                 <textarea
+                                                    aria-label={`${qi + 1}-savolning ${label} bandi uchun javob`}
+                                                    name={`question-${q.id}-${subIndex}-answer`}
+                                                    autoComplete="off"
                                                     disabled={submitted || isGuest}
                                                     value={multipartAnswers[subIndex] || ''}
                                                     onChange={event => !isGuest && setAnswers(currentAnswers => {
@@ -679,9 +695,9 @@ export default function TestPage() {
                                                         nextAnswers[subIndex] = event.target.value
                                                         return { ...currentAnswers, [q.id]: nextAnswers }
                                                     })}
-                                                    placeholder={isGuest ? "Yechish uchun kiring..." : `${label}) javobingizni yozing...`}
+                                                    placeholder={isGuest ? "Yechish uchun kiring…" : `${label}) javobingizni yozing…`}
                                                     rows={2}
-                                                    className="w-full rounded-lg border px-3 py-2 text-[13px] resize-none outline-none"
+                                                    className="w-full rounded-lg border px-3 py-2 text-base sm:text-[13px] resize-none"
                                                     style={{ background: 'var(--bg-card)', borderColor: submitted ? (isSubCorrect ? 'var(--success)' : 'var(--danger)') : (multipartAnswers[subIndex] || '').trim() ? 'var(--brand)' : 'var(--border)', color: 'var(--text-primary)' }}
                                                 />
                                                 {submitted && (
@@ -699,7 +715,17 @@ export default function TestPage() {
                                 </div>
                             ) : isOpen ? (
                                 <div className="space-y-2">
-                                    <textarea disabled={submitted || isGuest} value={textAnswer} onChange={e => setAnswers(a => ({ ...a, [q.id]: e.target.value }))} placeholder={isGuest ? "Yechish uchun kiring..." : "Javobingizni yozing..."} rows={3} className="w-full rounded-lg border px-3 py-2 text-[13px] resize-none outline-none" style={{ background: 'var(--bg-surface)', borderColor: submitted ? (isCorrectOpen ? 'var(--success)' : 'var(--danger)') : textAnswer.trim() ? 'var(--brand)' : 'var(--border)', color: 'var(--text-primary)' }} />
+                                    <textarea
+                                        aria-label={`${qi + 1}-savol uchun yozma javob`}
+                                        name={`question-${q.id}-answer`}
+                                        autoComplete="off"
+                                        disabled={submitted || isGuest}
+                                        value={textAnswer}
+                                        onChange={e => setAnswers(a => ({ ...a, [q.id]: e.target.value }))}
+                                        placeholder={isGuest ? "Yechish uchun kiring…" : "Javobingizni yozing…"}
+                                        rows={3}
+                                        className="w-full rounded-lg border px-3 py-2 text-base sm:text-[13px] resize-none"
+                                        style={{ background: 'var(--bg-surface)', borderColor: submitted ? (isCorrectOpen ? 'var(--success)' : 'var(--danger)') : textAnswer.trim() ? 'var(--brand)' : 'var(--border)', color: 'var(--text-primary)' }} />
                                     {submitted && <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: isCorrectOpen ? 'var(--success-light)' : 'var(--danger-light)', color: isCorrectOpen ? 'var(--success)' : 'var(--danger)' }}>{isCorrectOpen ? <><CheckCircle className="h-3.5 w-3.5 flex-shrink-0" /> To'g'ri!</> : <><XCircle className="h-3.5 w-3.5 flex-shrink-0" /> To'g'ri: <span className="font-semibold">{formatAcceptedAnswerText(correct?.text)}</span></>}</div>}
                                 </div>
                             ) : (
@@ -714,7 +740,12 @@ export default function TestPage() {
                                             else { bg = 'var(--bg-surface)'; border = 'var(--border)'; color = 'var(--text-muted)' }
                                         }
                                         return (
-                                            <button key={oi} type="button" disabled={submitted || isGuest} onClick={() => !isGuest && setAnswers(a => ({ ...a, [q.id]: oi }))} className="w-full flex items-start gap-2.5 px-3.5 py-2.5 rounded-lg border text-left text-[13px] transition" style={{ background: bg, borderColor: border, color, cursor: isGuest ? 'not-allowed' : 'pointer', opacity: isGuest ? 0.7 : 1 }}>
+                                            <button key={oi} type="button" disabled={submitted || isGuest}
+                                                aria-label={`${qi + 1}-savol, ${OPTS[oi]} varianti`}
+                                                aria-pressed={sel === oi}
+                                                onClick={() => !isGuest && setAnswers(a => ({ ...a, [q.id]: oi }))}
+                                                className="w-full flex items-start gap-2.5 px-3.5 py-2.5 rounded-lg border text-left text-[13px] transition"
+                                                style={{ background: bg, borderColor: border, color, cursor: isGuest ? 'not-allowed' : 'pointer', opacity: isGuest ? 0.7 : 1 }}>
                                                 <span className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 text-[10px] font-bold border-current mt-0.5">{OPTS[oi]}</span>
                                                 <span className="flex-1 pointer-events-none">
                                                     <TextWithMath text={opt} />
@@ -746,11 +777,11 @@ export default function TestPage() {
 
                 {!submitted && (
                     isGuest
-                        ? <button onClick={() => nav('/kirish', { state: { from: `/test/${shareLink}` } })} className="w-full h-11 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2" style={{ background: 'var(--brand)' }}><LogIn className="h-4 w-4" /> Yechishni boshlash uchun kiring</button>
-                        : <button onClick={() => submit()} disabled={submitting || answeredCount === 0} className="w-full h-11 rounded-xl text-sm font-semibold text-white transition disabled:opacity-40" style={{ background: 'var(--k-accent-grad)', boxShadow: 'var(--k-shadow-cta)' }}>{submitting ? 'Tekshirilmoqda...' : answeredCount < total ? `Testni yuborish (${total - answeredCount} ta javobsiz)` : `Testni yuborish (${answeredCount}/${total})`}</button>
+                        ? <button onClick={() => nav('/kirish', { state: { from: `/test/${shareLink}` } })} className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--brand)', color: '#171717' }}><LogIn className="h-4 w-4" /> Yechishni boshlash uchun kiring</button>
+                        : <button onClick={() => submit()} disabled={submitting || answeredCount === 0} className="w-full h-11 rounded-xl text-sm font-semibold transition disabled:opacity-40" style={{ background: 'var(--brand)', color: '#171717' }}>{submitting ? 'Tekshirilmoqda...' : answeredCount < total ? `Testni yuborish (${total - answeredCount} ta javobsiz)` : `Testni yuborish (${answeredCount}/${total})`}</button>
                 )}
                 {submitted && <button onClick={() => nav('/suhbat')} className="w-full h-11 rounded-xl text-sm font-semibold transition" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>Chatga qaytish</button>}
-            </div>
+            </main>
         </div>
     )
 }
@@ -763,6 +794,9 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
     const questions: any[] = test?.questions || []
     const [isCompactLayout, setIsCompactLayout] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 1024 : false)
     const [isAnswerSheetOpen, setIsAnswerSheetOpen] = useState(false)
+    const answerSheetTriggerRef = useRef<HTMLButtonElement>(null)
+    const answerSheetCloseRef = useRef<HTMLButtonElement>(null)
+    const answerSheetDialogRef = useRef<HTMLDivElement>(null)
 
     function markAnswer(qId: string, oi: number, qi: number) {
         if (submitted || isGuest) return
@@ -794,6 +828,44 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
             setIsAnswerSheetOpen(false)
         }
     }, [isCompactLayout])
+
+    useEffect(() => {
+        if (!isAnswerSheetOpen || typeof document === 'undefined') return
+
+        const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
+        const focusTimer = window.requestAnimationFrame(() => answerSheetCloseRef.current?.focus())
+
+        const handleDialogKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                event.preventDefault()
+                setIsAnswerSheetOpen(false)
+                return
+            }
+            if (event.key !== 'Tab') return
+
+            const focusable = Array.from(answerSheetDialogRef.current?.querySelectorAll<HTMLElement>(
+                'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+            ) || []).filter(element => element.getAttribute('aria-hidden') !== 'true')
+            if (focusable.length === 0) return
+
+            const first = focusable[0]
+            const last = focusable[focusable.length - 1]
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault()
+                last.focus()
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault()
+                first.focus()
+            }
+        }
+
+        document.addEventListener('keydown', handleDialogKeyDown)
+        return () => {
+            window.cancelAnimationFrame(focusTimer)
+            document.removeEventListener('keydown', handleDialogKeyDown)
+            if (previouslyFocused?.isConnected) previouslyFocused.focus()
+        }
+    }, [isAnswerSheetOpen])
 
     function renderSheetRows() {
         return questions.map((q: any, qi: number) => {
@@ -828,24 +900,21 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
 
                             return (
                                 <div key={subIndex}
-                                    role="button"
-                                    tabIndex={0}
-                                    onClick={() => scrollToQuestion(qi)}
-                                    onKeyDown={event => {
-                                        if (event.key === 'Enter' || event.key === ' ') {
-                                            event.preventDefault()
-                                            scrollToQuestion(qi)
-                                        }
-                                    }}
-                                    className="w-full flex items-center px-4 transition"
+                                    className="test-workspace__sheet-row w-full flex items-center px-4 transition"
                                     style={{
                                         height: 32,
                                         background: isFocused ? 'color-mix(in srgb, var(--brand) 6%, transparent)' : 'transparent',
                                         borderLeft: isFocused ? '3px solid var(--brand)' : '3px solid transparent'
                                     }}>
-                                    <span className="w-12 flex-shrink-0 text-[11px] font-semibold text-left" style={{ color: isFocused ? 'var(--brand)' : 'var(--text-muted)' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => scrollToQuestion(qi)}
+                                        aria-label={`${qi + 1}-savolning ${subIndex + 1}-bandiga o'tish`}
+                                        aria-current={isFocused ? 'true' : undefined}
+                                        className="test-workspace__question-jump w-12 flex-shrink-0 text-[11px] font-semibold text-left"
+                                        style={{ color: isFocused ? 'var(--brand)' : 'var(--text-muted)' }}>
                                         {qi + 1}.{subIndex + 1}
-                                    </span>
+                                    </button>
                                     {Array.from({ length: answerCount }, (_, answerIndex) => {
                                         const isSelected = selectedSubAnswer === answerIndex
                                         const isCorrect = submitted && answerIndex === correctSubIdx
@@ -853,6 +922,9 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
 
                                         return (
                                             <button key={answerIndex}
+                                                type="button"
+                                                aria-label={`${qi + 1}-savolning ${subIndex + 1}-bandi, ${alphabet[answerIndex]} varianti`}
+                                                aria-pressed={isSelected}
                                                 onClick={event => {
                                                     event.stopPropagation()
                                                     if (submitted || isGuest) return
@@ -861,19 +933,19 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                                     scrollToQuestion(qi)
                                                 }}
                                                 disabled={submitted || isGuest}
-                                                className="flex-1 flex items-center justify-center"
+                                                className="test-workspace__answer-target flex-1 flex items-center justify-center"
                                                 style={{ cursor: submitted || isGuest ? 'default' : 'pointer' }}>
                                                 {isSelected || isCorrect ? (
-                                                    <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-all"
+                                                    <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-[background-color,color,transform]"
                                                         style={{
                                                             background: isWrong ? 'var(--danger)' : isCorrect ? 'var(--success)' : 'var(--brand)',
-                                                            color: 'white',
+                                                            color: isWrong || isCorrect ? 'white' : '#171717',
                                                             transform: isSelected && !submitted ? 'scale(1.1)' : 'scale(1)'
                                                         }}>
                                                         {alphabet[answerIndex]}
                                                     </span>
                                                 ) : (
-                                                    <span className="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all"
+                                                    <span className="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-[border-color,opacity]"
                                                         style={{ borderColor: 'var(--border-strong)', opacity: submitted ? 0.2 : 1 }} />
                                                 )}
                                             </button>
@@ -888,24 +960,21 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
 
             return (
                 <div key={q.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => scrollToQuestion(qi)}
-                    onKeyDown={event => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault()
-                            scrollToQuestion(qi)
-                        }
-                    }}
-                    className="w-full flex items-center px-4 transition"
+                    className="test-workspace__sheet-row w-full flex items-center px-4 transition"
                     style={{
                         height: 36,
                         background: isFocused ? 'color-mix(in srgb, var(--brand) 8%, transparent)' : 'transparent',
                         borderLeft: isFocused ? '3px solid var(--brand)' : '3px solid transparent'
                     }}>
-                    <span className="w-9 flex-shrink-0 text-[12px] font-semibold text-left" style={{ color: isFocused ? 'var(--brand)' : 'var(--text-muted)' }}>
+                    <button
+                        type="button"
+                        onClick={() => scrollToQuestion(qi)}
+                        aria-label={`${qi + 1}-savolga o'tish`}
+                        aria-current={isFocused ? 'true' : undefined}
+                        className="test-workspace__question-jump w-9 flex-shrink-0 text-[12px] font-semibold text-left"
+                        style={{ color: isFocused ? 'var(--brand)' : 'var(--text-muted)' }}>
                         {qi + 1}
-                    </span>
+                    </button>
                     {[0, 1, 2, 3].map(answerIndex => {
                         const isSelected = selectedAnswer === answerIndex
                         const isCorrect = submitted && answerIndex === correctIdx
@@ -913,15 +982,18 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
 
                         return (
                             <button key={answerIndex}
+                                type="button"
+                                aria-label={`${qi + 1}-savol, ${OPTS[answerIndex]} varianti`}
+                                aria-pressed={isSelected}
                                 onClick={event => {
                                     event.stopPropagation()
                                     markAnswer(q.id, answerIndex, qi)
                                 }}
                                 disabled={submitted || isGuest}
-                                className="flex-1 flex items-center justify-center"
+                                className="test-workspace__answer-target flex-1 flex items-center justify-center"
                                 style={{ cursor: submitted || isGuest ? 'default' : 'pointer' }}>
                                 {isSelected || isCorrect ? (
-                                    <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all"
+                                    <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-[background-color,color,transform]"
                                         style={{
                                             background: isWrong ? 'var(--danger)' : isCorrect ? 'var(--success)' : 'var(--text-primary)',
                                             color: 'white',
@@ -930,7 +1002,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                         {OPTS[answerIndex]}
                                     </span>
                                 ) : (
-                                    <span className="w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all hover:border-current"
+                                    <span className="w-6 h-6 rounded-full border-2 flex items-center justify-center transition-[border-color,opacity] hover:border-current"
                                         style={{ borderColor: 'var(--border-strong)', opacity: submitted ? 0.25 : 1 }} />
                                 )}
                             </button>
@@ -948,7 +1020,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
         if (isGuest) {
             return (
                 <div className={footerPadding} style={{ borderTop: '1px solid var(--border)' }}>
-                    <button onClick={() => nav('/kirish', { state: { from: `/test/${shareLink}` } })} className={`w-full ${buttonHeight} rounded-xl text-[12px] font-semibold text-white flex items-center justify-center gap-1.5`} style={{ background: 'var(--brand)' }}>
+                    <button onClick={() => nav('/kirish', { state: { from: `/test/${shareLink}` } })} className={`w-full ${buttonHeight} rounded-xl text-[12px] font-semibold flex items-center justify-center gap-1.5`} style={{ background: 'var(--brand)', color: '#171717' }}>
                         <LogIn className="h-3.5 w-3.5" /> Kiring
                     </button>
                 </div>
@@ -967,7 +1039,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                             <p className="text-[10px] mt-1 font-medium" style={{ color: 'var(--warning)' }}>Zaif mavzularing aniqlandi — birga mustahkamlaymiz 💪</p>
                         )}
                         {analysisReady && (
-                            <button onClick={() => { const id = localStorage.getItem('dtmmax_analysis_chat_id'); nav(id ? `/suhbat/${id}` : '/suhbat?analyzeTest=true') }} className={`mt-2 w-full ${buttonHeight} rounded-lg text-[12px] font-semibold text-white flex items-center justify-center gap-1.5`} style={{ background: 'var(--brand)' }}>
+                            <button onClick={() => { const id = localStorage.getItem('dtmmax_analysis_chat_id'); nav(id ? `/suhbat/${id}` : '/suhbat?analyzeTest=true') }} className={`mt-2 w-full ${buttonHeight} rounded-lg text-[12px] font-semibold flex items-center justify-center gap-1.5`} style={{ background: 'var(--brand)', color: '#171717' }}>
                                 <Sparkles className="h-3 w-3" /> AI tahlil
                             </button>
                         )}
@@ -979,8 +1051,8 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
         return (
             <div className={footerPadding} style={{ borderTop: '1px solid var(--border)' }}>
                 <button onClick={() => submit()} disabled={submitting || answeredCount === 0}
-                    className={`w-full ${buttonHeight} rounded-xl text-[12px] font-semibold text-white transition disabled:opacity-40`}
-                    style={{ background: answeredCount === total ? 'var(--success)' : 'var(--k-accent-grad)' }}>
+                    className={`w-full ${buttonHeight} rounded-xl text-[12px] font-semibold transition disabled:opacity-40`}
+                    style={{ background: answeredCount === total ? 'var(--success)' : 'var(--brand)', color: answeredCount === total ? 'white' : '#171717' }}>
                     {submitting ? '...' : answeredCount === total ? 'Topshirish ✓' : `Topshirish (${answeredCount}/${total})`}
                 </button>
             </div>
@@ -988,12 +1060,12 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
     }
 
     return (
-        <div className="kelviq flex flex-col overflow-hidden w-full" style={{ background: 'var(--bg-page)', height: '100dvh', overscrollBehaviorY: 'none' }}>
+        <div className="kelviq test-workspace test-workspace--dtm flex flex-col overflow-hidden w-full" style={{ background: 'var(--bg-page)', height: '100dvh', overscrollBehaviorY: 'none' }}>
             {/* ── Header ── */}
-            <header className="h-12 flex-shrink-0 flex items-center justify-between px-4" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
+            <header className="test-workspace__header h-12 flex-shrink-0 flex items-center justify-between px-4" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
                 <div className="flex items-center gap-2">
-                    <button onClick={() => nav(token ? '/suhbat' : '/')} className="h-7 w-7 flex items-center justify-center rounded-lg" style={{ color: 'var(--text-muted)' }}><ArrowLeft className="h-4 w-4" /></button>
-                    <img src="/dtmmax-logo.png" alt="DtmMax" className="h-7 w-7 rounded-md flex items-center justify-center" style={{ objectFit: 'contain' }} />
+                    <button type="button" aria-label="Testdan chiqish" onClick={() => nav(token ? '/suhbat' : '/')} className="h-7 w-7 flex items-center justify-center rounded-lg" style={{ color: 'var(--text-muted)' }}><ArrowLeft className="h-4 w-4" /></button>
+                    <img src="/dtmmax-logo.png" alt="DtmMax" width={28} height={28} className="h-7 w-7 rounded-md flex items-center justify-center" style={{ objectFit: 'contain' }} />
                     <span className="text-sm font-bold truncate max-w-[180px] sm:max-w-xs">{test?.title}</span>
                     <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold hidden sm:inline-flex" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>DTM</span>
                 </div>
@@ -1009,12 +1081,12 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                         </span>
                     )}
                     {isGuest && !isCompactLayout && (
-                        <button onClick={() => nav('/kirish', { state: { from: `/test/${shareLink}` } })} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                        <button onClick={() => nav('/kirish', { state: { from: `/test/${shareLink}` } })} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold" style={{ background: 'var(--brand)', color: '#171717' }}>
                             <LogIn className="h-3.5 w-3.5" /> Kirish
                         </button>
                     )}
                     {!submitted && !isGuest && !isCompactLayout && (
-                        <button onClick={() => submit()} disabled={submitting || answeredCount === 0} className="px-4 h-8 rounded-lg text-[13px] font-semibold text-white transition disabled:opacity-40" style={{ background: answeredCount === total ? 'var(--success)' : 'var(--k-accent-grad)' }}>
+                        <button onClick={() => submit()} disabled={submitting || answeredCount === 0} className="px-4 h-8 rounded-lg text-[13px] font-semibold transition disabled:opacity-40" style={{ background: answeredCount === total ? 'var(--success)' : 'var(--brand)', color: answeredCount === total ? 'white' : '#171717' }}>
                             {submitting ? 'Tekshirilmoqda...' : 'Topshirish'}
                         </button>
                     )}
@@ -1023,8 +1095,16 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
 
             {/* ── Thin progress bar ── */}
             {!submitted && !isGuest && (
-                <div className="h-0.5 flex-shrink-0" style={{ background: 'var(--bg-muted)' }}>
-                    <div className="h-full transition-all duration-300" style={{ width: `${total ? (answeredCount / total) * 100 : 0}%`, background: 'var(--brand)' }} />
+                <div
+                    className="h-0.5 flex-shrink-0"
+                    role="progressbar"
+                    aria-label="DTM testidagi javoblar jarayoni"
+                    aria-valuemin={0}
+                    aria-valuemax={total}
+                    aria-valuenow={answeredCount}
+                    aria-valuetext={`${answeredCount} ta savolga javob berildi, jami ${total} ta`}
+                    style={{ background: 'var(--bg-muted)' }}>
+                    <div className="h-full transition-[width] duration-300" style={{ width: `${total ? (answeredCount / total) * 100 : 0}%`, background: 'var(--brand)' }} />
                 </div>
             )}
 
@@ -1055,9 +1135,11 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                         }
 
                         return (
-                            <div key={q.id} data-qi={qi}
-                                onClick={() => setFocusedQ(qi)}
-                                className="rounded-xl p-4 cursor-pointer transition-all"
+                            <article key={q.id} data-qi={qi}
+                                role="group"
+                                aria-label={`${qi + 1}-savol`}
+                                onFocusCapture={() => setFocusedQ(qi)}
+                                className="test-workspace__question rounded-xl p-4 transition-[border-color,box-shadow,background-color]"
                                 style={{
                                     background: 'var(--bg-card)',
                                     border: `1.5px solid ${borderCol}`,
@@ -1067,12 +1149,19 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                 }}>
                                 {/* Question number + text */}
                                 <div className="flex items-start gap-2.5">
-                                    <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold mt-0.5"
-                                        style={{ background: answered ? 'var(--brand)' : 'var(--bg-surface)', color: answered ? 'white' : 'var(--text-muted)' }}>
-                                        {qi + 1}
-                                    </span>
+                                    <button
+                                        type="button"
+                                        aria-label={`${qi + 1}-savolni faol qilish`}
+                                        aria-pressed={isFocused}
+                                        onClick={() => setFocusedQ(qi)}
+                                        className="test-workspace__question-focus flex-shrink-0 w-6 h-6 flex items-center justify-center mt-0.5">
+                                        <span className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold"
+                                            style={{ background: answered ? 'var(--brand)' : 'var(--bg-surface)', color: answered ? '#171717' : 'var(--text-muted)' }}>
+                                            {qi + 1}
+                                        </span>
+                                    </button>
                                     {questionText ? (
-                                        <p className="text-[13px] leading-relaxed flex-1 font-medium" style={{ color: 'var(--text-primary)', opacity: 1 }}><TextWithMath text={questionText} /></p>
+                                        <p className="test-workspace__question-text flex-1 font-medium" style={{ color: 'var(--text-primary)', opacity: 1 }}><TextWithMath text={questionText} /></p>
                                     ) : !q.imageUrl ? (
                                         <p className="text-[12px] leading-relaxed flex-1 font-medium" style={{ color: 'var(--danger)' }}>Savol matni saqlanmagan.</p>
                                     ) : null}
@@ -1108,9 +1197,12 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                                                 let sty: any = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)' }
                                                                 if (isCorr) sty = { background: 'var(--success)', color: 'white', border: 'none' }
                                                                 else if (isWrong) sty = { background: 'var(--danger)', color: 'white', border: 'none' }
-                                                                else if (!submitted && isSel) sty = { background: 'var(--brand)', color: 'white', border: 'none' }
+                                                                else if (!submitted && isSel) sty = { background: 'var(--brand)', color: '#171717', border: 'none' }
                                                                 return (
                                                                     <button key={ai}
+                                                                        type="button"
+                                                                        aria-label={`${qi + 1}-savolning ${si + 1}-bandi, ${String.fromCharCode(65 + ai)} varianti`}
+                                                                        aria-pressed={isSel}
                                                                         onClick={e => { e.stopPropagation(); if (!submitted && !isGuest) setAnswers((a: any) => ({ ...a, [q.id]: { ...(a[q.id] || {}), [si]: ai } })) }}
                                                                         disabled={submitted || isGuest}
                                                                         className="w-5 h-5 rounded text-[9px] font-bold flex items-center justify-center transition"
@@ -1165,7 +1257,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                             className="max-w-full rounded-lg" style={{ maxHeight: 240, objectFit: 'contain' }} />
                                     </div>
                                 )}
-                            </div>
+                            </article>
                         )
                     })}
 
@@ -1187,13 +1279,13 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                     style={{ background: 'var(--bg-card)', borderLeft: '1px solid var(--border)' }}>
                     {/* Blanka header */}
                     <div className="flex-shrink-0 px-4 py-3 text-center" style={{ borderBottom: '1px solid var(--border)' }}>
-                        <p className="text-[11px] font-bold tracking-widest uppercase" style={{ color: 'var(--text-muted)' }}>Javoblar Varaqasi</p>
+                        <p className="text-[13px] font-bold" style={{ color: 'var(--text-primary)' }}>Javoblar varaqasi</p>
                         <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{test?.subject} · {total} savol</p>
                     </div>
 
                     {/* Blanka option labels */}
                     <div className="flex-shrink-0 flex items-center px-4 py-1.5" style={{ borderBottom: '1px solid var(--border)' }}>
-                        <span className="w-9 flex-shrink-0" />
+                        <span className="test-workspace__question-jump-spacer w-9 flex-shrink-0" />
                         {OPTS.map(l => (
                             <span key={l} className="flex-1 text-center text-[11px] font-bold" style={{ color: 'var(--text-muted)' }}>{l}</span>
                         ))}
@@ -1214,21 +1306,21 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                 <>
                     <div className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] lg:hidden pointer-events-none">
                         <div className="mx-auto max-w-xl rounded-2xl p-2 shadow-lg pointer-events-auto flex items-center gap-2" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: '0 12px 32px color-mix(in srgb, var(--text-primary) 8%, transparent)' }}>
-                            <button onClick={() => setIsAnswerSheetOpen(true)} className="flex-1 h-11 rounded-xl text-[13px] font-semibold transition" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
+                            <button ref={answerSheetTriggerRef} onClick={() => setIsAnswerSheetOpen(true)} className="flex-1 h-11 rounded-xl text-[13px] font-semibold transition" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
                                 Javoblar · {answeredCount}/{total}
                             </button>
                             {isGuest ? (
-                                <button onClick={() => nav('/kirish', { state: { from: `/test/${shareLink}` } })} className="h-11 px-4 rounded-xl text-[13px] font-semibold text-white flex items-center justify-center gap-1.5" style={{ background: 'var(--brand)' }}>
+                                <button onClick={() => nav('/kirish', { state: { from: `/test/${shareLink}` } })} className="h-11 px-4 rounded-xl text-[13px] font-semibold flex items-center justify-center gap-1.5" style={{ background: 'var(--brand)', color: '#171717' }}>
                                     <LogIn className="h-3.5 w-3.5" /> Kirish
                                 </button>
                             ) : submitted ? (
-                                <button onClick={() => { const id = localStorage.getItem('dtmmax_analysis_chat_id'); nav(analysisReady && id ? `/suhbat/${id}` : analysisReady ? '/suhbat?analyzeTest=true' : '/suhbat') }} className="h-11 px-4 rounded-xl text-[13px] font-semibold text-white flex items-center justify-center gap-1.5" style={{ background: 'var(--brand)' }}>
+                                <button onClick={() => { const id = localStorage.getItem('dtmmax_analysis_chat_id'); nav(analysisReady && id ? `/suhbat/${id}` : analysisReady ? '/suhbat?analyzeTest=true' : '/suhbat') }} className="h-11 px-4 rounded-xl text-[13px] font-semibold flex items-center justify-center gap-1.5" style={{ background: 'var(--brand)', color: '#171717' }}>
                                     {analysisReady ? <Sparkles className="h-3.5 w-3.5" /> : <MessageSquare className="h-3.5 w-3.5" />}
                                     {analysisReady ? 'AI tahlil' : 'Chatga qaytish'}
                                 </button>
                             ) : (
-                                <button onClick={() => submit()} disabled={submitting || answeredCount === 0} className="h-11 px-4 rounded-xl text-[13px] font-semibold text-white transition disabled:opacity-40" style={{ background: answeredCount === total ? 'var(--success)' : 'var(--k-accent-grad)' }}>
-                                    {submitting ? '...' : 'Topshirish'}
+                                <button onClick={() => submit()} disabled={submitting || answeredCount === 0} className="h-11 px-4 rounded-xl text-[13px] font-semibold transition disabled:opacity-40" style={{ background: answeredCount === total ? 'var(--success)' : 'var(--brand)', color: answeredCount === total ? 'white' : '#171717' }}>
+                                    {submitting ? 'Yuborilmoqda…' : 'Topshirish'}
                                 </button>
                             )}
                         </div>
@@ -1236,23 +1328,29 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
 
                     {isAnswerSheetOpen && (
                         <div className="fixed inset-0 z-50 lg:hidden">
-                            <button aria-label="Javoblar varaqasini yopish" onClick={() => setIsAnswerSheetOpen(false)} className="absolute inset-0" style={{ background: 'rgba(15, 23, 42, 0.38)' }} />
-                            <div className="absolute inset-x-0 bottom-0 flex max-h-[78dvh] flex-col overflow-hidden rounded-t-3xl" style={{ background: 'var(--bg-card)', borderTop: '1px solid var(--border)', boxShadow: '0 -18px 50px rgba(15, 23, 42, 0.2)' }}>
+                            <button tabIndex={-1} aria-label="Javoblar varaqasini yopish" onClick={() => setIsAnswerSheetOpen(false)} className="absolute inset-0" style={{ background: 'rgba(15, 23, 42, 0.38)' }} />
+                            <div
+                                ref={answerSheetDialogRef}
+                                role="dialog"
+                                aria-modal="true"
+                                aria-labelledby="dtm-answer-sheet-title"
+                                className="test-workspace__answer-sheet absolute inset-x-0 bottom-0 flex max-h-[78dvh] flex-col overflow-hidden rounded-t-xl"
+                                style={{ background: 'var(--bg-card)', borderTop: '1px solid var(--border)' }}>
                                 <div className="flex-shrink-0 px-4 pt-2 pb-3" style={{ borderBottom: '1px solid var(--border)' }}>
                                     <div className="mx-auto h-1.5 w-12 rounded-full" style={{ background: 'var(--border-strong)' }} />
                                     <div className="mt-3 flex items-center justify-between gap-3">
                                         <div>
-                                            <p className="text-[11px] font-bold tracking-widest uppercase" style={{ color: 'var(--text-muted)' }}>Javoblar Varaqasi</p>
+                                            <p id="dtm-answer-sheet-title" className="text-[13px] font-bold" style={{ color: 'var(--text-primary)' }}>Javoblar varaqasi</p>
                                             <p className="text-[11px] mt-1" style={{ color: 'var(--text-secondary)' }}>{test?.subject} · {answeredCount}/{total}</p>
                                         </div>
-                                        <button onClick={() => setIsAnswerSheetOpen(false)} className="h-8 px-3 rounded-lg text-[12px] font-semibold transition" style={{ background: 'var(--bg-surface)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
+                                        <button ref={answerSheetCloseRef} onClick={() => setIsAnswerSheetOpen(false)} className="h-8 px-3 rounded-lg text-[12px] font-semibold transition" style={{ background: 'var(--bg-surface)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
                                             Yopish
                                         </button>
                                     </div>
                                 </div>
 
                                 <div className="flex-shrink-0 flex items-center px-4 py-1.5" style={{ borderBottom: '1px solid var(--border)' }}>
-                                    <span className="w-9 flex-shrink-0" />
+                                    <span className="test-workspace__question-jump-spacer w-9 flex-shrink-0" />
                                     {OPTS.map(label => (
                                         <span key={label} className="flex-1 text-center text-[11px] font-bold" style={{ color: 'var(--text-muted)' }}>{label}</span>
                                     ))}

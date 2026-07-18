@@ -1,5 +1,5 @@
 /* ---- Google Fonts (must come first) ---- */
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400..800&display=swap');
 
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -7,8 +7,8 @@
 /* ============================================================
    DTMMax Design System — BAZA tokenlar (kelviq.css .kelviq ostida override qiladi)
    Light mode default. Dark mode activated via .dark class on <html>.
-   Accent: brend orange #F15A24. Palette: Stone (warm gray).
-   Font: Plus Jakarta Sans (baza); .kelviq subtree'da Hanken Grotesk
+   Accent: brend orange #F15A24. Palette: Focus Rail neutral.
+   Font: Hanken Grotesk — marketing va product bo‘ylab bitta tipografik ovoz
    ============================================================ */
 
 @custom-variant dark (&:is(.dark *));
@@ -16,37 +16,37 @@
 /* ---- CSS Custom Properties ---- */
 :root {
     /* Backgrounds */
-    --bg-page: #F7F5F2;
-    --bg-card: #FEFDFB;
-    --bg-surface: #F2EFEB;
-    --bg-muted: #ECE6DF;
+    --bg-page: #F7F7F7;
+    --bg-card: #FFFFFF;
+    --bg-surface: #F0F0F0;
+    --bg-muted: #E9E9E9;
 
     /* Text */
-    --text-primary: #1C1917;
-    --text-secondary: #78716C;
-    --text-muted: #8A8580;
-    --text-inverse: #FAFAF9;
+    --text-primary: #171717;
+    --text-secondary: #4F4F4F;
+    --text-muted: #626262;
+    --text-inverse: #FFFFFF;
 
     /* Border */
-    --border: #DDD8D0;
-    --border-strong: #CFC6BC;
+    --border: #DEDEDE;
+    --border-strong: #C7C7C7;
 
     /* Brand — spec orange (avval Amber #D97706; kelviq'siz surface'lar — ErrorBoundary,
        banner va h.k. — brenddan boshqa rangda chiqardi) */
     --brand: #F15A24;
-    --brand-light: #F6E7DC;
-    --brand-hover: #C0410F;
-    --brand-muted: #EFC9B2;
+    --brand-light: #FFF1EB;
+    --brand-hover: #C94718;
+    --brand-muted: #FFD6C5;
 
     /* Status */
-    --success: #16A34A;
-    --success-light: #DCFCE7;
-    --danger: #DC2626;
-    --danger-light: #FEE2E2;
-    --warning: #D97706;
-    --warning-light: #FEF3C7;
-    --info: #2563EB;
-    --info-light: #DBEAFE;
+    --success: #18864B;
+    --success-light: #E8F6EE;
+    --danger: #C9362B;
+    --danger-light: #FCEDEB;
+    --warning: #A85B00;
+    --warning-light: #FFF3DF;
+    --info: #2F63D8;
+    --info-light: #EDF2FF;
 
     /* Spacing */
     --radius: 0.625rem;
@@ -54,28 +54,28 @@
     --radius-md: 0.5rem;
     --radius-lg: 0.75rem;
     --radius-xl: 1rem;
-    --radius-2xl: 1.5rem;
+    --radius-2xl: 1rem;
 
     /* Sidebar */
-    --sidebar-width: 280px;
+    --sidebar-width: 248px;
 }
 
 /* ---- Dark Mode Override ---- */
 html.dark {
-    --bg-page: #111110;
-    --bg-card: #1A1918;
-    --bg-surface: #292524;
-    --bg-muted: #3C3936;
+    --bg-page: #111111;
+    --bg-card: #191919;
+    --bg-surface: #222222;
+    --bg-muted: #2A2A2A;
 
-    --text-primary: #FAFAF9;
-    --text-secondary: #A8A29E;
-    --text-muted: #78716C;
-    --text-inverse: #1C1917;
+    --text-primary: #F5F5F5;
+    --text-secondary: #B8B8B8;
+    --text-muted: #A0A0A0;
+    --text-inverse: #171717;
 
-    --border: #3C3936;
-    --border-strong: #57534E;
+    --border: #343434;
+    --border-strong: #4A4A4A;
 
-    --brand: #F15A24;
+    --brand: #FF7442;
     --brand-light: #2A1A12;
     --brand-hover: #FF8A4C;
     --brand-muted: #5A2E1C;
@@ -110,7 +110,7 @@ html.dark {
     body {
         height: 100%;
         /* overflow intentionally NOT hidden globally — each page controls its own scroll */
-        font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+        font-family: 'Hanken Grotesk', system-ui, -apple-system, sans-serif;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
         background-color: var(--bg-page);

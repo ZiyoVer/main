@@ -1,11 +1,10 @@
 /* =========================================================================
    DtmMax — Kelviq SHARED scoped theme
    ---------------------------------------------------------------------------
-   Matches the locked landing aesthetic (.lp-* in landing.css):
-   white surfaces, faint technical textures, bold Hanken Grotesk with ONE word
-   in italic Fraunces serif, orange #F15A24 accent used SPARINGLY, clean rounded
-   white cards, soft shadows. Green (#16A34A) success / red (#DC2626) error are
-   PRESERVED — never orange-ified.
+   Focus Rail product theme: neutral working surfaces, Hanken Grotesk,
+   restrained orange #F15A24, semantic status colors and real exam-progress
+   motifs. Marketing art direction lives in landing.css; product surfaces stay
+   calm, familiar and task-first.
 
    STRATEGY — fully scoped under `.kelviq`:
    This file ONLY redefines the EXISTING global token names (--brand, --bg-page,
@@ -20,53 +19,46 @@
    per-file CSS import is needed (this file is imported once in main.tsx).
    ========================================================================= */
 
-/* ---- Google Fonts (index.html does NOT load these) — must come first ---- */
-@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Fraunces:ital,opsz,wght@0,9..144,500;1,9..144,400;1,9..144,500&display=swap');
-
 /* =========================================================================
    1. LIGHT — token remap (redefines the SAME names the app + atoms read)
    ========================================================================= */
 .kelviq {
   /* Brand — spec rang #F15A24 (avval #E0531F: light mode'da spec brend hech qayerda render bo'lmasdi) */
   --brand:        #F15A24;
-  --brand-hover:  #C0410F;
-  --brand-light:  #F6E7DC;
-  --brand-muted:  #EFC9B2;
+  --brand-hover:  #C94718;
+  --brand-light:  #FFF1EB;
+  --brand-muted:  #FFD6C5;
 
-  /* Backgrounds — warm PAPER surfaces (editorial) */
-  --bg-page:      #FAF8F3;   /* warm paper ground */
-  --bg-card:      #FFFFFF;   /* crisp white card lifts off the paper */
-  --bg-surface:   #F3EEE4;   /* deeper paper — sunken wells */
-  --bg-muted:     #EFE9DD;   /* warm muted chips */
+  /* Backgrounds — neutral working surfaces */
+  --bg-page:      #F7F7F7;
+  --bg-card:      #FFFFFF;
+  --bg-surface:   #F0F0F0;
+  --bg-muted:     #E9E9E9;
 
-  /* Text — warm near-black ink + warm grays */
-  --text-primary:   #211C16;
-  --text-secondary: #5C544A;
-  --text-muted:     #8C8478;
-  --text-inverse:   #FFFDF9;
+  --text-primary:   #171717;
+  --text-secondary: #4F4F4F;
+  --text-muted:     #626262;
+  --text-inverse:   #FFFFFF;
 
-  /* Border — warm hairlines / paper rules */
-  --border:         #E4DDD0;
-  --border-strong:  #D6CDBC;
+  --border:         #DEDEDE;
+  --border-strong:  #C7C7C7;
 
   /* Status — KEEP green success / red danger. warning → editorial orange. */
-  --success:        #16A34A;
-  --success-light:  #DCFCE7;
-  --danger:         #DC2626;
-  --danger-light:   #FEE2E2;
-  --warning:        #F15A24;
-  --warning-light:  #F6E7DC;
-  --info:           #2563EB;
-  --info-light:     #DBEAFE;
+  --success:        #18864B;
+  --success-light:  #E8F6EE;
+  --danger:         #C9362B;
+  --danger-light:   #FCEDEB;
+  --warning:        #A85B00;
+  --warning-light:  #FFF3DF;
+  --info:           #2F63D8;
+  --info-light:     #EDF2FF;
 
   /* ---- Kelviq helper vars (k- prefix; do not collide with app tokens) ---- */
-  --k-accent-grad:      linear-gradient(135deg, #F15A24 0%, #F5894E 100%);
-  --k-shadow-card:      0 1px 2px rgba(33,28,22,.04), 0 1px 1px rgba(33,28,22,.03);
-  --k-shadow-cta:       0 6px 18px rgba(224,83,31,.22);
-  --k-shadow-cta-hover: 0 10px 26px rgba(224,83,31,.30);
-  --k-soft:             #F6E7DC;
-  --k-serif:            'Fraunces', Georgia, 'Times New Roman', serif;
-  --k-tex:              #DAD2C4;   /* texture color — warm dots & plus marks (faint) */
+  --k-shadow-card:      0 1px 2px rgba(23,23,23,.04);
+  --k-accent-grad:      var(--brand);
+  --k-shadow-cta:       none;
+  --k-shadow-cta-hover: none;
+  --k-soft:             #FFF1EB;
 
   /* Font — Hanken Grotesk across the whole Kelviq subtree */
   font-family: 'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -77,42 +69,43 @@
    ========================================================================= */
 .dark .kelviq {
   /* Brand stays orange in dark */
-  --brand:        #F15A24;
+  --brand:        #FF7442;
   --brand-hover:  #FF8A4C;
   --brand-light:  #2A1A12;
   --brand-muted:  #5A2E1C;
 
   /* Backgrounds — dark neutrals */
-  --bg-page:      #0B0B0E;
-  --bg-card:      #16161C;
-  --bg-surface:   #121217;
-  --bg-muted:     #1E1E25;
+  --bg-page:      #111111;
+  --bg-card:      #191919;
+  --bg-surface:   #222222;
+  --bg-muted:     #2A2A2A;
 
   /* Text */
-  --text-primary:   #F4F4F6;
-  --text-secondary: #B5B5BE;
-  --text-muted:     #8A8A95;
-  --text-inverse:   #0A0A0A;
+  --text-primary:   #F5F5F5;
+  --text-secondary: #B8B8B8;
+  --text-muted:     #A0A0A0;
+  --text-inverse:   #171717;
 
   /* Border */
-  --border:         #2A2A33;
-  --border-strong:  #3A3A45;
+  --border:         #343434;
+  --border-strong:  #4A4A4A;
 
   /* Status — keep success / danger; dark-tuned soft fills */
-  --success:        #16A34A;
+  --success:        #35A96B;
   --success-light:  #052e16;
-  --danger:         #DC2626;
+  --danger:         #E26158;
   --danger-light:   #450a0a;
   --warning:        #F15A24;
   --warning-light:  #2A1A12;
-  --info:           #2563EB;
+  --info:           #6F93EA;
   --info-light:     #172554;
 
   /* Helper vars (dark soft bubble fill) */
-  --k-soft:             #1E1E25;
-  --k-shadow-card:      0 1px 2px rgba(0,0,0,.30), 0 1px 1px rgba(0,0,0,.24);
-  --k-shadow-cta:       0 6px 20px rgba(241,90,36,.34);
-  --k-shadow-cta-hover: 0 10px 28px rgba(241,90,36,.46);
+  --k-soft:             #2A211E;
+  --k-accent-grad:      var(--brand);
+  --k-shadow-card:      none;
+  --k-shadow-cta:       none;
+  --k-shadow-cta-hover: none;
 
   font-family: 'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
@@ -122,18 +115,19 @@
       Each rule is scoped under `.kelviq` so it touches Kelviq subtrees ONLY.
    ========================================================================= */
 
-/* Primary CTA → orange gradient (base .btn-primary is dark ink). */
+/* Primary CTA → solid brand orange. */
 .kelviq .btn-primary {
-  background: var(--k-accent-grad);
-  background-color: transparent; /* override token bg-color from base rule */
-  color: #FFFFFF;
+  background: var(--brand);
+  background-color: var(--brand);
+  color: #171717;
   border: none;
-  box-shadow: var(--k-shadow-cta);
+  box-shadow: none;
 }
 .kelviq .btn-primary:hover:not(:disabled) {
   opacity: 1;                       /* base sets .85 — keep CTA fully saturated */
-  transform: translateY(-1px);
-  box-shadow: var(--k-shadow-cta-hover);
+  background: color-mix(in srgb, var(--brand) 82%, white);
+  transform: none;
+  box-shadow: none;
 }
 /* Orange fill needs a dark focus ring to stay visible (a11y). */
 .kelviq .btn-primary:focus-visible {
@@ -178,40 +172,34 @@
       All scoped under `.kelviq`.
    ========================================================================= */
 
-/* Eyebrow / section label — uppercase orange micro-label. */
+/* Legacy helpers now resolve to ordinary product labels. */
 .kelviq .k-eyebrow {
   font-family: 'Hanken Grotesk', system-ui, -apple-system, sans-serif;
   font-weight: 700;
-  font-size: 12px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--brand);
+  font-size: 0.875rem;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--text-secondary);
 }
 
-/* The ONE italic word in a Hanken headline (Fraunces serif). */
 .kelviq .k-italic {
-  font-family: var(--k-serif);
-  font-style: italic;
-  font-weight: 400;
+  font-family: inherit;
+  font-style: normal;
+  font-weight: 700;
 }
 
-/* Faint dotted-grid texture (copy of landing .lp-tex-dots). pointer-events:none
-   so it never intercepts clicks behind content. */
+/* Decorative texture helpers are intentionally inert in Focus Rail. */
 .kelviq .k-tex-dots {
   pointer-events: none;
-  background-image: radial-gradient(var(--k-tex) 1.1px, transparent 1.1px);
-  background-size: 22px 22px;
-  background-position: -11px -11px;            /* centres dots in cells */
-  -webkit-mask-image: linear-gradient(to bottom left, #000, transparent 75%);
-          mask-image: linear-gradient(to bottom left, #000, transparent 75%);
+  background: none;
+  display: none;
 }
 
 /* Faint plus-sign grid (copy of landing .lp-tex-plus — SVG data URI). */
 .kelviq .k-tex-plus {
   pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Cg fill='none' stroke='%23DAD2C4' stroke-width='1.2'%3E%3Cpath d='M14 9.5v9 M9.5 14h9'/%3E%3C/g%3E%3C/svg%3E");
-  background-repeat: repeat;
-  opacity: .55;
+  background: none;
+  display: none;
 }
 
 /* =========================================================================
@@ -228,7 +216,7 @@
 }
 .kelviq .k-slide-in-right {
   /* yumshoq, premium drawer kirishi — ease-out, fade-pop kam */
-  animation: k-slide-in-right 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: k-slide-in-right 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
   will-change: transform, opacity;
 }
 
@@ -238,7 +226,7 @@
   to   { opacity: 1; }
 }
 .kelviq .k-fade-in {
-  animation: k-fade-in 260ms ease-out both;
+  animation: k-fade-in 180ms ease-out both;
 }
 
 /* Reduced motion: no transform / opacity entrance — appear immediately. */
