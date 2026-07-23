@@ -13,6 +13,7 @@ import { getSubjectVariants, normalizeSubject } from '../utils/subjects'
 import { uploadToS3, getSignedS3Url } from '../utils/s3'
 import { AI_MODELS, deepseekThinking } from '../utils/aiModels'
 import { extractTrustedAiTestQuestions, learningPurposeForStage } from '../utils/aiTestSession'
+import { detectBroadLearningTopic } from '../utils/learningIntent'
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -114,19 +115,6 @@ async function createTrustedAiTestSession(input: {
         }
         throw error
     }
-}
-
-function detectBroadLearningTopic(content: string): string | null {
-    const cleaned = content.trim().replace(/[.!?]+$/g, '')
-    const match = cleaned.match(/^(.{2,100}?)\s+(?:haqida\s+)?(?:tushuntir(?:ib ber)?|o['‘’`]?rgat(?:ib ber)?|o['‘’`]?rganmoqchiman)$/i)
-    if (!match?.[1]) return null
-    const topic = match[1]
-        .replace(/\s+mavzusini$/i, '')
-        .replace(/ni$/i, '')
-        .replace(/integeral/gi, 'integral')
-        .trim()
-    if (!topic || /^(bu|shu|uni)$/i.test(topic)) return null
-    return topic.charAt(0).toUpperCase() + topic.slice(1)
 }
 
 function getLearningPlan(topic: string): { plan: string[]; prerequisites: string[] } {
