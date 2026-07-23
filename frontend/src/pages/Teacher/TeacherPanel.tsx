@@ -2223,7 +2223,7 @@ export default function TeacherPanel() {
                                             ) : q.answerSource ? (
                                                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-md"
                                                     style={{ color: 'var(--success)', background: 'color-mix(in srgb, var(--success) 9%, transparent)', border: '1px solid color-mix(in srgb, var(--success) 22%, transparent)' }}>
-                                                    <Check className="h-3 w-3" /> {q.answerSource === 'PDF_KEY' ? 'PDF kaliti tasdiqlagan' : 'Javob tasdiqlandi'}
+                                                    <Check className="h-3 w-3" /> {q.answerSource === 'PDF_KEY' ? 'PDF kalitidan olindi' : 'Javob tasdiqlandi'}
                                                 </span>
                                             ) : null}
                                         </div>

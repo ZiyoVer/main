@@ -4,7 +4,7 @@
     "main": "dist/app.js",
     "scripts": {
         "build": "npx prisma generate && npx tsc",
-        "test": "npm run build && node --test dist/utils/authToken.test.js",
+        "test": "npm run build && node --test dist/utils/*.test.js",
         "migrate": "npx prisma migrate deploy",
         "start": "sh start.sh",
         "dev": "nodemon --exec ts-node src/app.ts"

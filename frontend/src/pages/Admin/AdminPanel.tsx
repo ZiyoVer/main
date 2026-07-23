@@ -174,21 +174,20 @@ interface UserDetailUser {
 
 // ── Audit log (admin amallari tarixi) tiplari ──────────────────────────
 interface AuditActor {
-    id?: string
+    id: string
     name?: string | null
     email?: string | null
     role?: ConfirmRole
+    exists?: boolean
 }
 interface AuditLogRow {
     id: string
-    actorId: string
-    actorEmail?: string | null
     action: string
     targetType: string
     targetId?: string | null
     meta?: string | null
     createdAt: string
-    actor?: AuditActor | null
+    actor: AuditActor
 }
 interface UserDetailProfile {
     examType?: 'DTM' | 'MS' | null
@@ -770,7 +769,7 @@ export default function AdminPanel() {
         try {
             const params = new URLSearchParams({ page: String(auditPage) })
             const data = await fetchApi(`/admin/audit?${params}`, { silent: true })
-            setAuditLogs(Array.isArray(data.logs) ? data.logs : [])
+            setAuditLogs(Array.isArray(data.items) ? data.items : [])
             setAuditTotal(data.total || 0)
             setAuditPages(data.pages || 1)
             setAuditError('')
@@ -1102,10 +1101,12 @@ export default function AdminPanel() {
 
         setSavingUser(true)
         try {
-            const updated: UserDetailUser = await fetchApi(`/auth/users/${target.id}`, {
+            const response: { user?: UserDetailUser } = await fetchApi(`/auth/users/${target.id}`, {
                 method: 'PATCH',
                 body: JSON.stringify(body),
             })
+            const updated = response.user
+            if (!updated?.id) throw new Error('Server foydalanuvchi maʼlumotini qaytarmadi')
             toast.success('Foydalanuvchi yangilandi')
             // Drawer va ro'yxatlarni yangilaymiz
             setDetail(prev => prev ? { ...prev, user: { ...prev.user, ...updated } } : prev)
@@ -2523,8 +2524,8 @@ export default function AdminPanel() {
                                             </tr>
                                         ) : auditLogs.map(log => {
                                             const info = auditActionInfo(log.action)
-                                            const actorName = log.actor?.name || log.actorEmail || '—'
-                                            const actorEmail = log.actor?.email || log.actorEmail || ''
+                                            const actorName = log.actor?.name || log.actor?.email || '—'
+                                            const actorEmail = log.actor?.email || ''
                                             const targetLabel = AUDIT_TARGET_LABELS[log.targetType] || log.targetType
                                             return (
                                                 <tr key={log.id} style={{ borderBottom: '1px solid var(--border)' }} className="hover:bg-[var(--bg-surface)] transition-colors">

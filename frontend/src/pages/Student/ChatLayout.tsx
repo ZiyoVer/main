@@ -13,14 +13,14 @@ import { renderMathHtml, normalizeMathText } from '@/lib/mathRender'
 import toast from 'react-hot-toast'
 import { fetchApi } from '@/lib/api'
 import { parseStructuredJson, extractStructuredPayload } from '@/lib/structuredJson'
-import { stableHash, legacyTestKey } from '@/lib/stableHash'
+import { stableHash } from '@/lib/stableHash'
 import { saveScopedItem, pruneDtmmaxStorage } from '@/lib/storagePrune'
 import GeometryFigure from '@/components/GeometryFigure'
 import { SUBJECTS, normalizeSubjectValue } from '@/constants'
 import { DTM_DIRECTIONS, SCORE_BOUNDS, dtmDirectionByCode, dtmDirectionBySubjects } from '@/constants/dtmDirections'
 import { useAuthStore } from '@/store/authStore'
 import ChatContext, { useChatContext, EssayPanel, TodoItem } from '../../contexts/ChatContext'
-import { useTestPanel } from '../../hooks/useTestPanel'
+import { getAiTestAnswersStorageKey, getAiTestCompletionKey, useTestPanel } from '../../hooks/useTestPanel'
 import { useFlashPanel } from '../../hooks/useFlashPanel'
 import { useIsPro, PRO_PRICE, PRO_PRICE_PERIOD, PRO_FEATURES, FREE_FEATURES, PRO_DISCLAIMER } from '@/lib/pro'
 import { AiQuotaRail } from './chat/AiQuotaRail'
@@ -256,9 +256,10 @@ function TodoDoneMount({ taskName, onMarkDone }: { taskName: string; onMarkDone:
 
 // MdMessage komponentni tashqarida va memo bilan ta'riflaymiz —
 // shunda har keystrokeda re-render bo'lmaydi (ReactMarkdown+KaTeX qimmat!)
-const MdMessage = memo(({ content, isStreaming }: {
+const MdMessage = memo(({ content, isStreaming, messageId }: {
     content: string
     isStreaming?: boolean
+    messageId?: string
 }) => {
     const { onOpenTest, onProfileUpdate, onOpenFlash, onOpenEssay, onSetTodo, onMarkTodoDoneByTask, isAiTestDone } = useChatContext()
     const processedContent = normalizeMathText(content) // 2.4: yagona manba — mathRender
@@ -288,7 +289,8 @@ const MdMessage = memo(({ content, isStreaming }: {
                     // 0 savol bo'lsa ko'rsatmaymiz — hali to'liq yuklanmagan
                     if (qCount === 0) return null
                     // Yechilgan test — karta "Natijani ko'rish" bo'ladi (o'quvchi testni qayta topa oladi)
-                    const done = !isStreaming && isAiTestDone(jsonStr)
+                    const trustedMessageReady = !isStreaming && Boolean(messageId)
+                    const done = trustedMessageReady && isAiTestDone(jsonStr, messageId)
                     return (
                         <div className="my-3 rounded-2xl overflow-hidden" style={done ? {
                             background: 'var(--success-light)',
@@ -311,11 +313,12 @@ const MdMessage = memo(({ content, isStreaming }: {
                                                 </span>
                                             </div>
                                             {done && <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Javoblaringiz va izohlar saqlangan</p>}
+                                            {!trustedMessageReady && <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Test serverda xavfsiz saqlanmoqda…</p>}
                                         </div>
                                     </div>
-                                    {!isStreaming && (
+                                    {trustedMessageReady ? (
                                         <button
-                                            onClick={() => onOpenTest(jsonStr)}
+                                            onClick={() => onOpenTest(jsonStr, messageId!)}
                                             className="flex-shrink-0 h-9 px-4 rounded-xl text-[13px] font-bold text-white flex items-center gap-2 transition-all"
                                             style={{ background: done ? 'var(--success)' : 'var(--k-accent-grad)' }}
                                             onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
@@ -323,6 +326,12 @@ const MdMessage = memo(({ content, isStreaming }: {
                                         >
                                             {done ? <><CheckCircle className="h-4 w-4" /> Natijani ko'rish</> : <><BookOpen className="h-4 w-4" /> Boshlash</>}
                                         </button>
+                                    ) : (
+                                        <span className="flex-shrink-0 h-9 px-3 rounded-xl text-[12px] font-semibold inline-flex items-center gap-2"
+                                            role="status" aria-live="polite"
+                                            style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+                                            <Clock className="h-3.5 w-3.5" /> Saqlanmoqda
+                                        </span>
                                     )}
                                 </div>
                             </div>
@@ -556,6 +565,15 @@ const MdMessage = memo(({ content, isStreaming }: {
 type AttachedFile = { id: string; name: string; text: string; type: string; previewUrl?: string; url?: string | null; uploading?: boolean }
 
 const TODO_STORAGE_PREFIX = 'dtmmax_todo_items_v1'
+
+function loadStringSet(storageKey: string): Set<string> {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(storageKey) || '[]')
+        return new Set(Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === 'string') : [])
+    } catch {
+        return new Set()
+    }
+}
 
 function normalizeTodoSignaturePart(value: unknown): string {
     return String(value ?? '').toLowerCase().trim().replace(/\s+/g, ' ')
@@ -990,11 +1008,18 @@ export default function ChatLayout() {
     const location = useLocation()
     const { user, logout, token, clearSession } = useAuthStore()
     const isTodayView = !chatId
+    const storageUserId = user?.id || 'guest'
+    const completedTestsStorageKey = `dtmmax_done_tests_${storageUserId}`
+    const completedAiTestsStorageKey = `dtmmax_done_ai_tests_${storageUserId}`
+    const seenTestsStorageKey = `dtmmax_seen_tests_${storageUserId}`
+    const testResultStorageKey = `dtmmax_test_result_${storageUserId}`
+    const analysisChatStorageKey = `dtmmax_analysis_chat_id_${storageUserId}`
+    const publicAnswersStorageKey = useCallback((testId: string) => `dtmmax_pub_ans_${storageUserId}_${testId}`, [storageUserId])
     // Reja (todo) CHATGA bog'lab saqlanadi — yangi chatda eski chat rejasi ko'rinmasin.
     // 'new' — hali chat tanlanmagan (/suhbat) holat uchun vaqtinchalik bo'lim.
-    const todoStorageKey = `${TODO_STORAGE_PREFIX}_${user?.id || 'guest'}_${chatId || 'new'}`
+    const todoStorageKey = `${TODO_STORAGE_PREFIX}_${storageUserId}_${chatId || 'new'}`
     // Essay draft kaliti foydalanuvchi bo'yicha scoped — umumiy qurilmada boshqa userga sizib o'tmasin
-    const essayDraftKey = `dtmmax_essay_draft_${user?.id || 'guest'}`
+    const essayDraftKey = `dtmmax_essay_draft_${storageUserId}`
     const [chats, setChats] = useState<Chat[]>([])
     const [chatsLoaded, setChatsLoaded] = useState(false)
     const [messages, setMessages] = useState<Msg[]>([])
@@ -1129,19 +1154,41 @@ export default function ChatLayout() {
     const streamChatIdRef = useRef<string | null>(null)
     const learningSessionIdRef = useRef<string | null>(null)
     const aiSessionPromiseRef = useRef<Promise<string | null> | null>(null)
+    const aiSessionByMessageRef = useRef<Map<string, string>>(new Map())
+    const aiSessionResolveSeqRef = useRef(0)
+    const publicTestReviewRef = useRef<Map<string, { questions: any[]; answers: Record<number, string> }>>(new Map())
+    const persistedAssistantMessageIdsRef = useRef<Set<string>>(new Set())
+    const testTimerDeadlineRef = useRef<number | null>(null)
     const chatIdRef = useRef<string | undefined>(chatId)
     const profileRef = useRef<Profile | null>(null)
     const [testsLoading, setTestsLoading] = useState(false)
     // Ko'rilgan test IDlari (localStorage) — yangi testlarni aniqlash uchun
     const [newTestIds, setNewTestIds] = useState<Set<string>>(new Set())
     // Yechilgan testlar IDlarini localStorage da saqlaymiz
-    const completedTestIdsRef = useRef<Set<string>>((() => {
-        try { return new Set(JSON.parse(localStorage.getItem('dtmmax_done_tests') || '[]')) } catch { return new Set() }
-    })())
+    const completedTestIdsRef = useRef<Set<string>>(loadStringSet(completedTestsStorageKey))
     // AI tomonidan yaratilgan yechilgan testlarni saqlash (JSON kaliti bo'yicha)
-    const completedAiTestsRef = useRef<Set<string>>((() => {
-        try { return new Set(JSON.parse(localStorage.getItem('dtmmax_done_ai_tests') || '[]')) } catch { return new Set() }
-    })())
+    const completedAiTestsRef = useRef<Set<string>>(loadStringSet(completedAiTestsStorageKey))
+
+    useEffect(() => {
+        completedTestIdsRef.current = loadStringSet(completedTestsStorageKey)
+        completedAiTestsRef.current = loadStringSet(completedAiTestsStorageKey)
+        publicTestReviewRef.current.clear()
+        aiSessionByMessageRef.current.clear()
+        aiSessionResolveSeqRef.current += 1
+    }, [completedTestsStorageKey, completedAiTestsStorageKey])
+
+    // Eski versiya public test answer-keylarini global localStorage'da saqlagan.
+    // Ular bir qurilmada boshqa akkauntga sizmasligi va brauzerda qolmasligi uchun o'chiriladi.
+    useEffect(() => {
+        try {
+            const leakedCorrectKeys: string[] = []
+            for (let index = 0; index < localStorage.length; index++) {
+                const key = localStorage.key(index)
+                if (key?.startsWith('dtmmax_correct_')) leakedCorrectKeys.push(key)
+            }
+            leakedCorrectKeys.forEach(key => localStorage.removeItem(key))
+        } catch { /* storage mavjud bo'lmasa UI ishlashda davom etadi */ }
+    }, [])
 
     useEffect(() => {
         thinkingModeRef.current = thinkingMode
@@ -1202,8 +1249,10 @@ export default function ChatLayout() {
         testWidth, setTestWidth, testDragRef, testTimeLeft, setTestTimeLeft,
         raschFeedback, setRaschFeedback, loadingPublicTest, setLoadingPublicTest,
         aiSessionId, setAiSessionId,
+        aiSessionStatus, setAiSessionStatus, aiSessionError, setAiSessionError,
+        activeAiMessageId,
         openTestPanel,
-    } = useTestPanel(completedTestIdsRef, completedAiTestsRef)
+    } = useTestPanel(completedTestIdsRef, completedAiTestsRef, storageUserId)
 
     const {
         flashPanel, setFlashPanel, flashIdx, setFlashIdx, flashFlipped, setFlashFlipped,
@@ -1330,12 +1379,22 @@ export default function ChatLayout() {
         if (!params.get('analyzeTest')) return
         // URL dan flag ni darrov olib tashlaymiz (qayta ishlamasligi uchun)
         window.history.replaceState({}, '', location.pathname)
-        const raw = localStorage.getItem('dtmmax_guest_test_result')
+        let raw = localStorage.getItem(testResultStorageKey)
+        // Eski global kalit faqat guest testdan login/ro'yxatdan o'tishga o'tish ko'prigi sifatida
+        // bir marta qabul qilinadi. Darhol joriy user scope'iga ko'chirib, global nusxa o'chiriladi.
+        if (!raw) {
+            const guestHandoff = localStorage.getItem('dtmmax_guest_test_result')
+            if (guestHandoff) {
+                raw = guestHandoff
+                try { localStorage.setItem(testResultStorageKey, guestHandoff) } catch { }
+                localStorage.removeItem('dtmmax_guest_test_result')
+            }
+        }
         // analyzeTest=1 bor, lekin natija yo'q/buzilgan — jim qolmasdan xabar beramiz
         if (!raw) { toast('Test natijangiz topilmadi — testni qayta yeching yoki yangi suhbat boshlang.'); return }
         let guestData: any
         try { guestData = JSON.parse(raw) } catch { toast('Test natijasini o\'qib bo\'lmadi — qayta yeching.'); return }
-        localStorage.removeItem('dtmmax_guest_test_result')
+        localStorage.removeItem(testResultStorageKey)
 
         const triggerAnalysis = async () => {
             try {
@@ -1351,7 +1410,7 @@ export default function ChatLayout() {
                 await loadChats()
 
                 // Chatni localStorage ga saqlaymiz — "AI tahlil" tugmasi qayta bosganda shu chatga qaytadi
-                localStorage.setItem('dtmmax_analysis_chat_id', chatData.id)
+                localStorage.setItem(analysisChatStorageKey, chatData.id)
 
                 const displayText = `📊 "${guestData.title}" testi tahlili (${guestData.score}/${guestData.total} to'g'ri)`
                 // Test YO'QOLMASIN: tahlil bilan birga yechilgan testning sharhini ham ko'rsatamiz
@@ -1512,7 +1571,11 @@ Iltimos, har bir savolni tahlil qilib ber:
 
     // Test panel yopilganda timerni tozalash
     useEffect(() => {
-        if (!testPanel) { setTestTimeLeft(null); setRaschFeedback(null) }
+        if (!testPanel) {
+            testTimerDeadlineRef.current = null
+            setTestTimeLeft(null)
+            setRaschFeedback(null)
+        }
     }, [testPanel])
 
     // Notification count — har daqiqa yangilanadi (faqat settings yopiq bo'lganda)
@@ -1530,14 +1593,25 @@ Iltimos, har bir savolni tahlil qilib ber:
         return () => clearInterval(interval)
     }, [token, showSettings])
 
-    // Timer countdown (setInterval — har sekund 1 ta kamayadi)
+    // Timer server qaytargan qolgan vaqt asosidagi mutlaq deadline'ga tayanadi.
+    // Tab fon rejimida throttling bo'lsa ham vaqt sun'iy ravishda cho'zilmaydi.
     useEffect(() => {
-        if (testTimeLeft === null || testTimeLeft <= 0) return
-        const id = setInterval(() => {
-            setTestTimeLeft(t => (t !== null && t > 0) ? t - 1 : null)
-        }, 1000)
-        return () => clearInterval(id)
-    }, [testTimeLeft])
+        if (testTimeLeft === null || testSubmitted || testReadOnly) return
+        const syncRemaining = () => {
+            const deadline = testTimerDeadlineRef.current
+            if (deadline === null) return
+            setTestTimeLeft(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)))
+        }
+        syncRemaining()
+        const id = window.setInterval(syncRemaining, 1000)
+        document.addEventListener('visibilitychange', syncRemaining)
+        window.addEventListener('focus', syncRemaining)
+        return () => {
+            window.clearInterval(id)
+            document.removeEventListener('visibilitychange', syncRemaining)
+            window.removeEventListener('focus', syncRemaining)
+        }
+    }, [testTimeLeft !== null, testSubmitted, testReadOnly])
 
     // Vaqt tugaganda avtomatik topshirish — ref orqali stale closure oldini olamiz
     useEffect(() => {
@@ -1661,7 +1735,7 @@ Iltimos, har bir savolni tahlil qilib ber:
             setPublicTests(tests)
             // Ko'rilgan test IDlarini localStorage dan olish
             let seenIds: string[] = []
-            try { seenIds = JSON.parse(localStorage.getItem('dtmmax_seen_tests') || '[]') } catch { }
+            try { seenIds = JSON.parse(localStorage.getItem(seenTestsStorageKey) || '[]') } catch { }
             const seenSet = new Set(seenIds)
             // Yangi testlar = ko'rilmaganlar
             const newIds = new Set<string>(tests.filter((t: any) => !seenSet.has(t.id)).map((t: any) => t.id))
@@ -1672,16 +1746,16 @@ Iltimos, har bir savolni tahlil qilib ber:
     function markTestsSeen() {
         try {
             const allIds = publicTests.map((t: any) => t.id)
-            localStorage.setItem('dtmmax_seen_tests', JSON.stringify(allIds))
+            localStorage.setItem(seenTestsStorageKey, JSON.stringify(allIds))
         } catch { }
         setNewTestIds(new Set())
     }
 
     function markSingleTestSeen(testId: string) {
         try {
-            const seenIds: string[] = JSON.parse(localStorage.getItem('dtmmax_seen_tests') || '[]')
+            const seenIds: string[] = JSON.parse(localStorage.getItem(seenTestsStorageKey) || '[]')
             const nextSeenIds = Array.from(new Set([...seenIds, testId]))
-            localStorage.setItem('dtmmax_seen_tests', JSON.stringify(nextSeenIds))
+            localStorage.setItem(seenTestsStorageKey, JSON.stringify(nextSeenIds))
         } catch { }
         setNewTestIds(prev => {
             if (!prev.has(testId)) return prev
@@ -1711,7 +1785,11 @@ Iltimos, har bir savolni tahlil qilib ber:
     async function loadMyResults() {
         try {
             const data = await fetchApi('/tests/my-results')
-            setMyResults(ensureArray<MyResult>(data))
+            const results = ensureArray<MyResult>(data)
+            setMyResults(results)
+            const serverCompletedIds = new Set(results.map(result => result.testId).filter(Boolean))
+            completedTestIdsRef.current = serverCompletedIds
+            try { localStorage.setItem(completedTestsStorageKey, JSON.stringify([...serverCompletedIds])) } catch { }
         } catch (err) { console.error('loadMyResults:', err) }
     }
 
@@ -1862,6 +1940,9 @@ Iltimos, har bir savolni tahlil qilib ber:
             const data = await fetchApi(`/chat/${id}/messages`, { signal: controller.signal })
             if (controller.signal.aborted) return
             const nextMessages = ensureArray<Msg>(data?.messages)
+            persistedAssistantMessageIdsRef.current = new Set(nextMessages
+                .filter(message => message.role === 'assistant' && typeof message.id === 'string' && message.id)
+                .map(message => message.id))
             const nextChat = data?.chat && typeof data.chat === 'object' && !Array.isArray(data.chat) ? data.chat as Chat : null
             // Auto-greet O'CHIRILDI — bo'sh chatда AI salomi yozmaydi, o'rniga welcome
             // kartalari (Darajamni aniqlash, Mavzu tushuntirish ...) ko'rinadi va turadi.
@@ -2002,12 +2083,18 @@ Iltimos, har bir savolni tahlil qilib ber:
                     }
                     if (d.done) {
                         completed = true
+                        const persistedMessageId = typeof d.id === 'string' && d.id.trim() ? d.id : null
+                        const streamedAiSessionId = typeof d.aiSessionId === 'string' && d.aiSessionId.trim() ? d.aiSessionId : null
+                        if (persistedMessageId) persistedAssistantMessageIdsRef.current.add(persistedMessageId)
+                        if (persistedMessageId && streamedAiSessionId) {
+                            aiSessionByMessageRef.current.set(persistedMessageId, streamedAiSessionId)
+                        }
                         if (isCurrentChat()) {
                             setMessages(prev => {
                                 const filtered = prev.filter(m => m.id !== 'temp-u')
                                 return [...filtered,
                                 { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() },
-                                { id: d.id || 'a-' + Date.now(), role: 'assistant', content: fullText, createdAt: new Date().toISOString() }
+                                { id: persistedMessageId || 'a-' + Date.now(), role: 'assistant', content: fullText, createdAt: new Date().toISOString() }
                                 ]
                             })
                             setStreaming(''); setThinkingText(''); loadChats()
@@ -2015,8 +2102,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                             const testMatch = fullText.match(/```test\s*([\s\S]*?)```/)
                             if (testMatch) {
                                 const parsedTest = parseStructuredJson<unknown[]>(testMatch[1].trim())
-                                if (Array.isArray(parsedTest) && parsedTest.length > 0) {
-                                    setTimeout(() => { handleOpenTest(testMatch[1].trim()) }, 400)
+                                if (Array.isArray(parsedTest) && parsedTest.length > 0 && persistedMessageId) {
+                                    setTimeout(() => { handleOpenTest(testMatch[1].trim(), persistedMessageId) }, 400)
                                 }
                             }
                         }
@@ -2217,12 +2304,12 @@ Iltimos, har bir savolni tahlil qilib ber:
     function markTestCompleted(testId: string) {
         completedTestIdsRef.current.add(testId)
         markSingleTestSeen(testId)
-        try { localStorage.setItem('dtmmax_done_tests', JSON.stringify([...completedTestIdsRef.current])) } catch (err) { console.warn('localStorage limit to\'lgan:', err); toast.error("Xotira to'lgan, eski ma'lumotlar o'chirilishi mumkin") }
+        try { localStorage.setItem(completedTestsStorageKey, JSON.stringify([...completedTestIdsRef.current])) } catch (err) { console.warn('localStorage limit to\'lgan:', err); toast.error("Xotira to'lgan, eski ma'lumotlar o'chirilishi mumkin") }
     }
 
     function markAiTestCompleted(key: string) {
         completedAiTestsRef.current.add(key)
-        try { localStorage.setItem('dtmmax_done_ai_tests', JSON.stringify([...completedAiTestsRef.current])) } catch (err) { console.warn('localStorage limit to\'lgan:', err); toast.error("Xotira to'lgan, eski ma'lumotlar o'chirilishi mumkin") }
+        try { localStorage.setItem(completedAiTestsStorageKey, JSON.stringify([...completedAiTestsRef.current])) } catch (err) { console.warn('localStorage limit to\'lgan:', err); toast.error("Xotira to'lgan, eski ma'lumotlar o'chirilishi mumkin") }
     }
 
     // AI taklif qilgan profil yangilashni tasdiqlash
@@ -2241,7 +2328,13 @@ Iltimos, har bir savolni tahlil qilib ber:
 
 
     // Test panel ochish (todo ni yopadi)
-    const handleOpenTest = useCallback((jsonStr: string) => {
+    const handleOpenTest = useCallback((jsonStr: string, messageId: string) => {
+        if (!messageId?.trim()) {
+            toast.error('Test hali serverda saqlanmadi. Javob tugashini kutib, qayta urinib ko‘ring.')
+            return
+        }
+        const trustedMessageId = messageId.trim()
+        const resolveSeq = ++aiSessionResolveSeqRef.current
         aiSessionPromiseRef.current = null
         setTodoOpen(false)
         // AI chat testi efemer (DB da yo'q). Eski public test id'sini tozalamasak,
@@ -2250,32 +2343,45 @@ Iltimos, har bir savolni tahlil qilib ber:
         setActiveTestId(null)
         setActiveTestQuestions([])
         setActiveTestSource(null) // AI chat testi — manba badge'i yo'q
-        openTestPanel(jsonStr)
-        // 1.1: efemer AI testni SERVERда ro'yxatga olamiz — submit server-grade bo'lsin (klient
-        // ballni soxtalashtira olmaydi). Xato bo'lsa jim o'tamiz: submitTestPanel eski /submit-ai'ga
-        // fallback qiladi (uzilish yo'q).
-        try {
-            const parsedForSession = parseStructuredJson<unknown[]>(extractStructuredPayload(jsonStr))
-            if (Array.isArray(parsedForSession) && parsedForSession.length > 0) {
-                const subjectHint = profileRef.current?.subject || undefined
-                aiSessionPromiseRef.current = fetchApi('/tests/ai-session', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        questions: parsedForSession,
-                        subject: subjectHint,
-                        chatId: chatIdRef.current,
-                        learningSessionId: learningSessionIdRef.current || undefined,
-                    }),
-                    silent: true,
-                }).then((r: { sessionId?: string; learningSessionId?: string | null }) => {
-                    const sessionId = r?.sessionId || null
-                    if (sessionId) setAiSessionId(sessionId)
-                    if (typeof r?.learningSessionId === 'string') learningSessionIdRef.current = r.learningSessionId
-                    return sessionId
-                }).catch(() => null)
+        openTestPanel(jsonStr, trustedMessageId)
+
+        const streamedSessionId = aiSessionByMessageRef.current.get(trustedMessageId)
+        if (streamedSessionId) {
+            setAiSessionId(streamedSessionId)
+            setAiSessionStatus('ready')
+            setAiSessionError(null)
+            aiSessionPromiseRef.current = Promise.resolve(streamedSessionId)
+            return
+        }
+
+        setAiSessionStatus('resolving')
+        setAiSessionError(null)
+        aiSessionPromiseRef.current = fetchApi('/tests/ai-session', {
+            method: 'POST',
+            body: JSON.stringify({ messageId: trustedMessageId }),
+            silent: true,
+        }).then((response: { sessionId?: string }) => {
+            const sessionId = typeof response?.sessionId === 'string' && response.sessionId.trim()
+                ? response.sessionId
+                : null
+            if (!sessionId) throw new Error('Server tasdiqlagan test sessiyasi topilmadi')
+            aiSessionByMessageRef.current.set(trustedMessageId, sessionId)
+            if (aiSessionResolveSeqRef.current === resolveSeq) {
+                setAiSessionId(sessionId)
+                setAiSessionStatus('ready')
+                setAiSessionError(null)
             }
-        } catch { /* parse xato — fallback */ }
-    }, [openTestPanel, setActiveTestId, setActiveTestQuestions, setAiSessionId])
+            return sessionId
+        }).catch((error: any) => {
+            const message = error?.message || 'Test sessiyasini serverda tasdiqlab bo‘lmadi'
+            if (aiSessionResolveSeqRef.current === resolveSeq) {
+                setAiSessionId(null)
+                setAiSessionStatus('error')
+                setAiSessionError(message)
+            }
+            return null
+        })
+    }, [openTestPanel, setActiveTestId, setActiveTestQuestions, setAiSessionId, setAiSessionStatus, setAiSessionError])
 
     // Flashcard panelni ochish
     const handleOpenFlash = useCallback((jsonStr: string) => {
@@ -2463,26 +2569,58 @@ Iltimos, har bir savolni tahlil qilib ber:
             setActiveTestId(t.id)
             setActiveTestQuestions(rawQuestions)
             setActiveTestSource((data.source as string | undefined) ?? t.source ?? 'UNOFFICIAL')
-            if (completedTestIdsRef.current.has(t.id)) {
-                // Avval yechilgan — to'g'ri javoblarni localStorage dan olish
-                try {
-                    const savedCorrect = localStorage.getItem('dtmmax_correct_' + t.id)
-                    if (savedCorrect) {
-                        const correctMap: Record<string, number> = JSON.parse(savedCorrect)
-                        const withCorrect = converted.map((q: any) => {
-                            const ci = correctMap[q.id]
-                            return ci !== undefined ? { ...q, correct: (['a', 'b', 'c', 'd'] as const)[ci] ?? '' } : q
+            if (data.alreadySubmitted || completedTestIdsRef.current.has(t.id)) {
+                markTestCompleted(t.id)
+                testTimerDeadlineRef.current = null
+                const inMemoryReview = publicTestReviewRef.current.get(t.id)
+                if (inMemoryReview) {
+                    setTestPanel(JSON.stringify(inMemoryReview.questions))
+                    setTestAnswers(inMemoryReview.answers)
+                } else {
+                    try {
+                        const review = await fetchApi(`/tests/${t.id}/my-latest-review`, { silent: true })
+                        const correctAnswers = ensureArray<any>(review?.correctAnswers)
+                        let attemptResults: any[] = []
+                        const rawAttemptAnswers = review?.attempt?.answers ?? review?.results ?? review?.answers
+                        if (Array.isArray(rawAttemptAnswers)) attemptResults = rawAttemptAnswers
+                        else if (typeof rawAttemptAnswers === 'string') {
+                            try {
+                                const parsedAttemptAnswers = JSON.parse(rawAttemptAnswers)
+                                if (Array.isArray(parsedAttemptAnswers)) attemptResults = parsedAttemptAnswers
+                            } catch { /* buzilgan attempt javoblari — pastdagi aniq fallback */ }
+                        }
+                        if (correctAnswers.length === 0 || attemptResults.length === 0) {
+                            throw new Error('Avvalgi urinish tafsilotlari topilmadi')
+                        }
+                        const correctByQuestion = new Map(correctAnswers.map(answer => [String(answer.id || answer.questionId || ''), answer]))
+                        const attemptByQuestion = new Map(attemptResults.map(answer => [String(answer.questionId || ''), answer]))
+                        const answerLetters = ['a', 'b', 'c', 'd'] as const
+                        const reviewAnswers: Record<number, string> = {}
+                        const reviewedQuestions = converted.map((question: any, index: number) => {
+                            const correctAnswer = correctByQuestion.get(String(question.id))
+                            const attemptAnswer = attemptByQuestion.get(String(question.id)) || attemptResults[index]
+                            const selectedIdx = typeof attemptAnswer?.selectedIdx === 'number' ? attemptAnswer.selectedIdx : -1
+                            if (selectedIdx >= 0 && answerLetters[selectedIdx]) reviewAnswers[index] = answerLetters[selectedIdx]
+                            const correctIdx = typeof correctAnswer?.correctIdx === 'number' ? correctAnswer.correctIdx : -1
+                            return {
+                                ...question,
+                                correct: correctIdx >= 0 ? answerLetters[correctIdx] || '' : '',
+                                ...(typeof correctAnswer?.solutionImageUrl === 'string' && correctAnswer.solutionImageUrl
+                                    ? { solutionImage: correctAnswer.solutionImageUrl }
+                                    : {}),
+                            }
                         })
-                        setTestPanel(JSON.stringify(withCorrect))
-                    } else {
+                        publicTestReviewRef.current.set(t.id, { questions: reviewedQuestions, answers: reviewAnswers })
+                        setTestPanel(JSON.stringify(reviewedQuestions))
+                        setTestAnswers(reviewAnswers)
+                    } catch (error: any) {
+                        let scopedAnswers: Record<number, string> = {}
+                        try { scopedAnswers = JSON.parse(localStorage.getItem(publicAnswersStorageKey(t.id)) || '{}') } catch { }
                         setTestPanel(JSON.stringify(converted))
+                        setTestAnswers(scopedAnswers)
+                        toast.error(error?.message || 'Avvalgi natija tafsilotlarini yuklab bo‘lmadi. Javob kaliti taxmin qilinmadi.')
                     }
-                } catch { setTestPanel(JSON.stringify(converted)) }
-                // Avvalgi javoblarni ham ko'rsatish
-                try {
-                    const savedAnswers = localStorage.getItem('dtmmax_pub_ans_' + t.id)
-                    setTestAnswers(savedAnswers ? JSON.parse(savedAnswers) : {})
-                } catch { setTestAnswers({}) }
+                }
                 setTestSubmitted(true)
                 setTestReadOnly(true)
                 setTestPanelMaximized(false)
@@ -2495,7 +2633,11 @@ Iltimos, har bir savolni tahlil qilib ber:
                     const remainingSeconds = typeof data.timeRemainingSeconds === 'number'
                         ? data.timeRemainingSeconds
                         : data.timeLimit * 60
-                    setTestTimeLeft(Math.max(0, remainingSeconds))
+                    const safeRemainingSeconds = Math.max(0, remainingSeconds)
+                    testTimerDeadlineRef.current = Date.now() + safeRemainingSeconds * 1000
+                    setTestTimeLeft(safeRemainingSeconds)
+                } else {
+                    testTimerDeadlineRef.current = null
                 }
             }
         } catch (err) { console.error('openPublicTest:', err) }
@@ -2573,13 +2715,15 @@ Iltimos, har bir savolni tahlil qilib ber:
                         correctMap[c.id] = c.correctIdx
                         if (typeof c.solutionImageUrl === 'string' && c.solutionImageUrl) solutionImages[c.id] = c.solutionImageUrl
                     })
-                    saveScopedItem('dtmmax_correct_' + activeTestId, JSON.stringify(correctMap))
-                    saveScopedItem('dtmmax_pub_ans_' + activeTestId, JSON.stringify(testAnswers))
+                    // Answer-key faqat joriy React sessiyasida qoladi; localStorage'ga yozilmaydi.
+                    // O'quvchining o'z javoblari user-scoped kalitda saqlanishi mumkin.
+                    saveScopedItem(publicAnswersStorageKey(activeTestId), JSON.stringify(testAnswers))
                     questions = questions.map((q: any) => {
                         const ci = correctMap[q.id]
                         const withSolution = solutionImages[q.id] ? { solutionImage: solutionImages[q.id] } : {}
                         return ci !== undefined ? { ...q, ...withSolution, correct: (['a', 'b', 'c', 'd'] as const)[ci] ?? '' } : { ...q, ...withSolution }
                     })
+                    publicTestReviewRef.current.set(activeTestId, { questions, answers: { ...testAnswers } })
                     setTestPanel(JSON.stringify(questions))
                 }
                 markTestCompleted(activeTestId)
@@ -2595,8 +2739,11 @@ Iltimos, har bir savolni tahlil qilib ber:
         if (!activeTestId && !resolvedAiSessionId && aiSessionPromiseRef.current) {
             resolvedAiSessionId = await aiSessionPromiseRef.current
         }
-        if (!activeTestId && learningSessionIdRef.current && !resolvedAiSessionId) {
-            toast.error('Checkpoint sessiyasi tayyor bo‘lmadi. Testni yopib, qayta oching.')
+        if (!activeTestId && !resolvedAiSessionId) {
+            const trustError = aiSessionError || (aiSessionStatus === 'resolving'
+                ? 'Test hali serverda tasdiqlanmoqda. Bir ozdan so‘ng qayta urinib ko‘ring.'
+                : 'Server tasdiqlagan test sessiyasi topilmadi. Testni chatdagi saqlangan xabardan qayta oching.')
+            toast.error(trustError)
             isSubmittingRef.current = false
             return
         }
@@ -2611,13 +2758,34 @@ Iltimos, har bir savolni tahlil qilib ber:
                     body: JSON.stringify({ answers: answerLetters }),
                 })
                 backendSubmitHandled = true
-            } catch (err: any) {
-                if (learningSessionIdRef.current) {
-                    toast.error(err?.message || 'Checkpoint natijasini saqlab bo‘lmadi. Qayta urinib ko‘ring.')
-                    isSubmittingRef.current = false
-                    return
+                if (Array.isArray(backendSubmitResult?.perQuestion)) {
+                    const serverAnswers = new Map<number, string>()
+                    backendSubmitResult.perQuestion.forEach((result: any) => {
+                        if (typeof result?.index === 'number' && typeof result?.correct === 'string') {
+                            serverAnswers.set(result.index, result.correct.trim().toLowerCase())
+                        }
+                    })
+                    questions = questions.map((question: any, index: number) => ({
+                        ...question,
+                        correct: serverAnswers.get(index) || '',
+                    }))
+                    setTestPanel(JSON.stringify(questions))
                 }
+            } catch (err: any) {
+                toast.error(err?.message || 'Test natijasini serverda tasdiqlab bo‘lmadi. Qayta urinib ko‘ring.')
+                isSubmittingRef.current = false
+                return
             }
+        }
+        if (!backendSubmitHandled) {
+            toast.error('Test natijasi serverda tasdiqlanmadi. Ball hisoblanmadi.')
+            isSubmittingRef.current = false
+            return
+        }
+        if (typeof backendSubmitResult?.correct !== 'number' || typeof backendSubmitResult?.total !== 'number') {
+            toast.error('Server to‘liq natija qaytarmadi. Ball brauzerda taxmin qilinmadi.')
+            isSubmittingRef.current = false
+            return
         }
         setTestSubmitted(true)
         setTestTimeLeft(null)
@@ -2626,18 +2794,12 @@ Iltimos, har bir savolni tahlil qilib ber:
             const correctLetter = typeof q.correct === 'string' && q.correct ? q.correct : '?'
             return `${i + 1}. ${q.q} — Javob: ${(testAnswers[i] || '?').toUpperCase()}) ${correct ? '✅ to\'g\'ri' : '❌ xato (to\'g\'ri: ' + correctLetter.toUpperCase() + ')'}`
         }).join('\n')
-        const score = typeof backendSubmitResult?.correct === 'number'
-            ? backendSubmitResult.correct
-            : questions.filter((q: any, i: number) => testAnswers[i] === q.correct).length
-        const totalQuestionsForScore = typeof backendSubmitResult?.total === 'number'
-            ? backendSubmitResult.total
-            : questions.length
+        const score = backendSubmitResult.correct
+        const totalQuestionsForScore = backendSubmitResult.total
         // Mukofot lahzasi — natija qanchalik yaxshi bo'lsa, bayram shunchalik katta
         celebrate(totalQuestionsForScore > 0 ? score / totalQuestionsForScore : 0)
 
-        // Mavzu statistikasini yangilash + XP. TopicStat endi per-MAVZU yoziladi:
-        // saqlangan test → backend /submit; efemer AI test → /submit-ai (pastda, q.topic bilan).
-        // Eski "chat sarlavha bucket" olib tashlandi (ma'nosiz + ikki marta sanardi).
+        // Mavzu statistikasini yangilash + XP server tasdiqlagan submit natijasidan keladi.
         loadProgress()
         logActivity(20) // Test uchun +20 XP
         const hasImages = questions.some((q: any) => q.imageUrl)
@@ -2785,32 +2947,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                     throw new Error('Public test natijasi backendda tasdiqlanmadi')
                 }
             } else if (testPanel) {
-                const aiKey = stableHash(testPanel) // 2.1: butun JSON ustidan barqaror hash-kalit
-                saveScopedItem('dtmmax_ans_' + aiKey, JSON.stringify(testAnswers))
-                // 1.1: SERVER-GRADE. Sessiya ro'yxatga olingan bo'lsa (aiSessionId), FAQAT javob
-                // harflarini yuboramiz — server o'zi baholaydi (klient ballni soxtalashtira olmaydi).
-                // Ro'yxatga olinmagan/xato bo'lsa eski /submit-ai'ga fallback (statistika yoziladi).
-                const serverGraded = backendSubmitHandled
-                if (!serverGraded) {
-                    const scorePercent = (score / questions.length) * 100
-                    const raschResults = questions.map((q: any, i: number) => {
-                        const fallbackDifficulty = questions.length > 1
-                            ? -2 + (i / (questions.length - 1)) * 4
-                            : 0
-                        return {
-                            difficulty: typeof q.difficulty === 'number' && Number.isFinite(q.difficulty)
-                                ? q.difficulty
-                                : Math.round(fallbackDifficulty * 100) / 100,
-                            isCorrect: testAnswers[i] === q.correct,
-                            topic: typeof q.topic === 'string' ? q.topic : '' // yopiq halqa: per-mavzu TopicStat
-                        }
-                    })
-                    await fetchApi('/tests/submit-ai', {
-                        method: 'POST',
-                        body: JSON.stringify({ score: scorePercent, totalQuestions: questions.length, results: raschResults, subject: currentChat?.subject || currentChat?.subject2 || profile?.subject || 'Umumiy' })
-                    })
-                }
-                markAiTestCompleted(aiKey)
+                if (!backendSubmitHandled) throw new Error('AI test natijasi backendda tasdiqlanmadi')
+                const completionKey = getAiTestCompletionKey(testPanel, activeAiMessageId)
+                saveScopedItem(getAiTestAnswersStorageKey(storageUserId, completionKey), JSON.stringify(testAnswers))
+                markAiTestCompleted(completionKey)
                 loadProfile()
                 loadMyResults()
             }
@@ -2825,15 +2965,9 @@ Iltimos, har bir savolni tahlil qilib ber:
     // Bu MdMessage/TodoBlockMount ni keraksiz qayta mount qilishdan saqlab, X tugmasini tuzatadi
     // va streaming vaqtida sayt qotishini ham hal qiladi.
     // Chat kartasi tugallangan AI testni bilishi uchun — useTestPanel bilan BIR XIL kalit mantiq
-    const isAiTestDone = useCallback((jsonStr: string) => {
+    const isAiTestDone = useCallback((jsonStr: string, messageId?: string) => {
         try {
-            const normalized = extractStructuredPayload(jsonStr)
-            const parsed = parseStructuredJson<unknown[]>(normalized)
-            if (!Array.isArray(parsed) || parsed.length === 0) return false
-            const stableJson = JSON.stringify(parsed)
-            // 2.1: yangi hash-kalit + eski 500-belgili kalit (tarix saqlansin)
-            return completedAiTestsRef.current.has(stableHash(stableJson))
-                || completedAiTestsRef.current.has(legacyTestKey(stableJson))
+            return completedAiTestsRef.current.has(getAiTestCompletionKey(jsonStr, messageId))
         } catch { return false }
     }, [])
 
@@ -3854,7 +3988,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             <div className="ai-msg-row msg-group">
                                                 <img src="/dtmmax-logo.png" alt="" aria-hidden="true" className="ai-avatar" />
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="bubble-ai"><MdMessage content={m.content} /></div>
+                                                    <div className="bubble-ai"><MdMessage content={m.content} messageId={persistedAssistantMessageIdsRef.current.has(m.id) ? m.id : undefined} /></div>
                                                     <div className="flex items-center gap-1 mt-1">
                                                         {messageTime && <span className="text-[10px] px-1" style={{ color: 'var(--text-muted)' }}>{messageTime}</span>}
                                                         <button type="button" className="msg-copy-btn"
@@ -4283,25 +4417,59 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         {testReadOnly ? (
                                             <div className="text-center space-y-2">
                                                 <div className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-full text-[12px] font-semibold mb-1" style={{ background: 'var(--success-light)', color: 'var(--success)' }}><CheckCircle className="h-3.5 w-3.5" /> Bu test avval yechilgan</div>
-                                                <p className="text-[12px]" style={{ color: 'var(--text-muted)' }}>To'g'ri javoblar yashil bilan ko'rsatilmoqda</p>
+                                                <p className="text-[12px]" style={{ color: 'var(--text-muted)' }}>
+                                                    {questions.some((question: any) => Boolean(question.correct))
+                                                        ? "To'g'ri javoblar yashil bilan ko'rsatilmoqda"
+                                                        : 'Natija saqlangan, lekin javob tafsilotlari hozir yuklanmadi'}
+                                                </p>
                                                 <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setTestReadOnly(false); setActiveTestId(null); setActiveTestQuestions([]); setTestTimeLeft(null); setRaschFeedback(null) }} className="text-sm font-medium transition" style={{ color: 'var(--brand)' }}>Panelni yopish</button>
                                             </div>
                                         ) : !testSubmitted ? (
-                                            <button onClick={() => {
-                                                if (answered === questions.length) {
-                                                    void submitTestPanel()
-                                                } else if (nextUnansweredIndex >= 0) {
-                                                    setTestQuestionIndex(nextUnansweredIndex)
-                                                }
-                                            }} disabled={!currentHasAnswer && answered < questions.length}
-                                                className="btn btn-primary w-full h-12 flex items-center justify-center gap-2"
-                                                style={{ opacity: !currentHasAnswer && answered < questions.length ? 0.5 : 1 }}>
-                                                <Target className="h-4 w-4" /> {answered === questions.length
-                                                    ? 'Natijangni ko‘rish'
-                                                    : !currentHasAnswer
-                                                        ? 'Javobni belgilang'
-                                                        : `Keyingi javobsiz savol · ${questions.length - answered} qoldi`}
-                                            </button>
+                                            <div className="space-y-2.5">
+                                                {!activeTestId && aiSessionStatus === 'resolving' && (
+                                                    <div role="status" aria-live="polite" className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-[12px] font-medium"
+                                                        style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>
+                                                        <Clock className="h-4 w-4 flex-shrink-0" /> Test sessiyasi serverda tasdiqlanmoqda…
+                                                    </div>
+                                                )}
+                                                {!activeTestId && aiSessionStatus === 'error' && (
+                                                    <div role="alert" className="rounded-xl px-3 py-2.5 text-[12px]"
+                                                        style={{ background: 'var(--danger-light)', color: 'var(--danger)', border: '1px solid color-mix(in srgb, var(--danger) 25%, transparent)' }}>
+                                                        <div className="flex items-start gap-2">
+                                                            <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                                                            <div className="min-w-0 flex-1">
+                                                                <p className="font-semibold">Bu test uchun ishonchli server sessiyasi topilmadi</p>
+                                                                <p className="mt-0.5 leading-relaxed">{aiSessionError || 'Ball hisoblash to‘xtatildi. Testni chatdagi saqlangan xabardan qayta oching.'}</p>
+                                                            </div>
+                                                        </div>
+                                                        {activeAiMessageId && (
+                                                            <button type="button" onClick={() => handleOpenTest(testPanel, activeAiMessageId)}
+                                                                className="mt-2 font-semibold underline underline-offset-2">
+                                                                Qayta tekshirish
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                <button onClick={() => {
+                                                    if (answered === questions.length) {
+                                                        void submitTestPanel()
+                                                    } else if (nextUnansweredIndex >= 0) {
+                                                        setTestQuestionIndex(nextUnansweredIndex)
+                                                    }
+                                                }} disabled={(!currentHasAnswer && answered < questions.length) || (!activeTestId && aiSessionStatus !== 'ready')}
+                                                    className="btn btn-primary w-full h-12 flex items-center justify-center gap-2"
+                                                    style={{ opacity: ((!currentHasAnswer && answered < questions.length) || (!activeTestId && aiSessionStatus !== 'ready')) ? 0.5 : 1 }}>
+                                                    <Target className="h-4 w-4" /> {!activeTestId && aiSessionStatus === 'resolving'
+                                                        ? 'Server tasdiqlamoqda…'
+                                                        : !activeTestId && aiSessionStatus === 'error'
+                                                            ? 'Server sessiyasi kerak'
+                                                            : answered === questions.length
+                                                                ? 'Natijangni ko‘rish'
+                                                                : !currentHasAnswer
+                                                                    ? 'Javobni belgilang'
+                                                                    : `Keyingi javobsiz savol · ${questions.length - answered} qoldi`}
+                                                </button>
+                                            </div>
                                         ) : (
                                             <div className="rounded-2xl p-4 text-center space-y-2" style={{ background: resultTone.background, border: `1px solid color-mix(in srgb, ${resultTone.color} 24%, transparent)` }}>
                                                 <p className="text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: resultTone.color }}>Natijang tayyor</p>

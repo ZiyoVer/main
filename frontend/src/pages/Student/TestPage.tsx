@@ -137,6 +137,147 @@ type TestRecommendation = {
 type CorrectAnswerMap = Record<string, { idx: number; text?: string; type: string; matchingCorrect?: number[]; multipartCorrectText?: Array<{ label: string; text: string; correctText: string }>; solutionImage?: string | null }>
 type TestTypeValue = 'REGULAR' | 'DTM_BLOCK' | 'MILLIY_SERTIFIKAT'
 
+type StoredAttemptResult = {
+    questionId?: unknown
+    selectedIdx?: unknown
+    textAnswer?: unknown
+    textAnswers?: unknown
+    matchingAnswers?: unknown
+    isCorrect?: unknown
+    correctSubCount?: unknown
+    totalSubs?: unknown
+    subResults?: unknown
+}
+
+type StoredCorrectAnswer = {
+    id?: unknown
+    questionId?: unknown
+    correctIdx?: unknown
+    correctText?: unknown
+    questionType?: unknown
+    matchingCorrect?: unknown
+    multipartCorrectText?: unknown
+    solutionImageUrl?: unknown
+}
+
+type ReviewableQuestion = {
+    id: string
+    questionType?: string
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function parseStoredAttemptResults(raw: unknown): StoredAttemptResult[] {
+    if (Array.isArray(raw)) return raw.filter(isRecord)
+    if (typeof raw !== 'string') return []
+    try {
+        const parsed = JSON.parse(raw)
+        return Array.isArray(parsed) ? parsed.filter(isRecord) : []
+    } catch {
+        return []
+    }
+}
+
+function restoreCompletedTestReview(
+    test: { questions?: ReviewableQuestion[]; testType?: string | null },
+    review: unknown,
+) {
+    const reviewRecord = isRecord(review) ? review : {}
+    const attempt = isRecord(reviewRecord.attempt) ? reviewRecord.attempt : {}
+    const attemptResults = parseStoredAttemptResults(attempt.answers)
+    const correctAnswers: StoredCorrectAnswer[] = Array.isArray(reviewRecord.correctAnswers)
+        ? reviewRecord.correctAnswers.filter(isRecord)
+        : []
+    if (attemptResults.length === 0 || correctAnswers.length === 0) {
+        throw new Error('Avvalgi urinish tafsilotlari topilmadi')
+    }
+
+    const resultByQuestion = new Map<string, StoredAttemptResult>(
+        attemptResults.map((item) => [String(item.questionId || ''), item])
+    )
+    const answerByQuestion = new Map<string, StoredCorrectAnswer>(
+        correctAnswers.map((item) => [String(item.id || item.questionId || ''), item])
+    )
+    const restoredAnswers: Record<string, AnswerValue> = {}
+    const restoredCorrectMap: CorrectAnswerMap = {}
+    let correct = 0
+    let total = 0
+
+    for (const question of test.questions || []) {
+        const questionId = String(question.id)
+        const savedResult = resultByQuestion.get(questionId)
+        const savedCorrect = answerByQuestion.get(questionId)
+        if (!savedResult || !savedCorrect) {
+            throw new Error('Avvalgi urinish savollari joriy test bilan mos kelmadi')
+        }
+
+        if (question.questionType === 'open') {
+            restoredAnswers[questionId] = typeof savedResult.textAnswer === 'string' ? savedResult.textAnswer : ''
+        } else if (question.questionType === 'multipart_open') {
+            restoredAnswers[questionId] = Array.isArray(savedResult.textAnswers)
+                ? savedResult.textAnswers.map((value: unknown) => String(value || ''))
+                : Array.isArray(savedResult.subResults)
+                    ? savedResult.subResults.map((item: unknown) => String(isRecord(item) ? item.studentAnswer || '' : ''))
+                    : []
+        } else if (question.questionType === 'matching') {
+            const selections: Record<number, number> = {}
+            if (Array.isArray(savedResult.matchingAnswers)) {
+                savedResult.matchingAnswers.forEach((value: unknown, index: number) => {
+                    if (typeof value === 'number' && value >= 0) selections[index] = value
+                })
+            }
+            restoredAnswers[questionId] = selections
+        } else if (typeof savedResult.selectedIdx === 'number' && savedResult.selectedIdx >= 0) {
+            restoredAnswers[questionId] = savedResult.selectedIdx
+        }
+
+        const isExpandedQuestion = question.questionType === 'matching' || question.questionType === 'multipart_open'
+        if (isExpandedQuestion) {
+            const subTotal = typeof savedResult.totalSubs === 'number' && savedResult.totalSubs > 0
+                ? savedResult.totalSubs
+                : 1
+            total += subTotal
+            correct += typeof savedResult.correctSubCount === 'number'
+                ? Math.max(0, Math.min(subTotal, savedResult.correctSubCount))
+                : 0
+        } else {
+            total += 1
+            if (savedResult.isCorrect === true) correct += 1
+        }
+
+        restoredCorrectMap[questionId] = {
+            idx: typeof savedCorrect.correctIdx === 'number' ? savedCorrect.correctIdx : -1,
+            text: typeof savedCorrect.correctText === 'string' ? savedCorrect.correctText : undefined,
+            type: typeof savedCorrect.questionType === 'string' ? savedCorrect.questionType : (question.questionType || 'mcq'),
+            matchingCorrect: Array.isArray(savedCorrect.matchingCorrect) ? savedCorrect.matchingCorrect : undefined,
+            multipartCorrectText: Array.isArray(savedCorrect.multipartCorrectText) ? savedCorrect.multipartCorrectText : undefined,
+            solutionImage: typeof savedCorrect.solutionImageUrl === 'string' ? savedCorrect.solutionImageUrl : null,
+        }
+    }
+
+    const normalizedType = normalizeTestType(test.testType)
+    const restoredResult = {
+        attempt,
+        score: typeof attempt.score === 'number' ? attempt.score : (total > 0 ? Math.round((correct / total) * 100) : 0),
+        rawScore: typeof attempt.rawScore === 'number' ? attempt.rawScore : correct,
+        scoreMax: typeof attempt.scoreMax === 'number' ? attempt.scoreMax : total,
+        grade: typeof attempt.grade === 'string' ? attempt.grade : null,
+        correct,
+        total,
+        testType: normalizedType,
+        dtmBall: normalizedType === 'DTM_BLOCK' ? attempt.rawScore : undefined,
+        dtmMax: normalizedType === 'DTM_BLOCK' ? attempt.scoreMax : undefined,
+        msBall: normalizedType === 'MILLIY_SERTIFIKAT' ? attempt.rawScore : undefined,
+        msMax: normalizedType === 'MILLIY_SERTIFIKAT' ? attempt.scoreMax : undefined,
+        results: attemptResults,
+        correctAnswers,
+    }
+
+    return { restoredAnswers, restoredCorrectMap, restoredResult }
+}
+
 function normalizeTestType(value: string | null | undefined): TestTypeValue {
     if (value === 'DTM_BLOCK' || value === 'dtm') return 'DTM_BLOCK'
     if (value === 'MILLIY_SERTIFIKAT' || value === 'milliy_sertifikat') return 'MILLIY_SERTIFIKAT'
@@ -213,7 +354,7 @@ function ScoreCountUp({ score }: { score: number }) {
 }
 
 // 5.3: "Keyingi qadam" kartasi — zaif mavzu bo'yicha AI mashq va/yoki keyingi test
-function NextStepCard({ recommendation, nav, compact }: { recommendation: TestRecommendation; nav: NavigateFunction; compact?: boolean }) {
+function NextStepCard({ recommendation, nav, analysisChatStorageKey, compact }: { recommendation: TestRecommendation; nav: NavigateFunction; analysisChatStorageKey: string; compact?: boolean }) {
     const { focusTopic, nextTest } = recommendation
     if (!focusTopic && !nextTest) return null
     return (
@@ -225,7 +366,7 @@ function NextStepCard({ recommendation, nav, compact }: { recommendation: TestRe
                         Zaif mavzu: <span className="font-semibold">{focusTopic.topic}</span> ({focusTopic.pct}% to'g'ri)
                     </p>
                     <button
-                        onClick={() => { const id = localStorage.getItem('dtmmax_analysis_chat_id'); nav(id ? `/suhbat/${id}` : '/suhbat?analyzeTest=true') }}
+                        onClick={() => { const id = localStorage.getItem(analysisChatStorageKey); nav(id ? `/suhbat/${id}` : '/suhbat?analyzeTest=true') }}
                         className={`w-full ${compact ? 'h-9 text-[12px]' : 'h-10 text-[13px]'} rounded-xl font-semibold flex items-center justify-center gap-1.5`}
                         style={{ background: 'var(--brand)', color: '#171717' }}>
                         <Sparkles className="h-3.5 w-3.5" /> AI bilan mashq qilish
@@ -265,13 +406,21 @@ export default function TestPage() {
     const questionsRef = useRef<HTMLDivElement>(null)
     const submitRef = useRef<(skipConfirm?: boolean) => void>(() => { })
     const autoSubmitRef = useRef(false)
+    const timerDeadlineRef = useRef<number | null>(null)
     const isGuest = !token || !user
+    const storageUserId = user?.id || 'guest'
+    const draftStorageKey = (testId: string) => `dtmmax_tp_ans_${storageUserId}_${testId}`
+    const analysisResultStorageKey = isGuest ? 'dtmmax_guest_test_result' : `dtmmax_test_result_${storageUserId}`
+    const analysisChatStorageKey = isGuest ? 'dtmmax_analysis_chat_id' : `dtmmax_analysis_chat_id_${storageUserId}`
     const timerActive = !submitted && !isGuest && timeLeft !== null
 
     useEffect(() => {
         if (!shareLink) return
         setLoading(true)
         setErr('')
+        setTest(null)
+        setTimeLeft(null)
+        timerDeadlineRef.current = null
         // 5.3: shareLink o'zgarganda (masalan, "Keyingi test" tugmasi) eski testning
         // javoblari/natijasi yangi testga o'tib qolmasin — hammasi tozalanadi
         setAnswers({})
@@ -282,23 +431,43 @@ export default function TestPage() {
         setRecommendation(null)
         pruneDtmmaxStorage() // 2.3: per-test kalitlar cheksiz o'smasin
         fetchApi(`/tests/by-link/${shareLink}`)
-            .then(t => {
+            .then(async t => {
                 setTest(t)
                 setFocusedQ(0)
                 autoSubmitRef.current = false
+                if (t.alreadySubmitted) {
+                    const review = await fetchApi(`/tests/${t.id}/my-latest-review`, { silent: true })
+                    const restored = restoreCompletedTestReview(t, review)
+                    setAnswers(restored.restoredAnswers)
+                    setCorrectMap(restored.restoredCorrectMap)
+                    setResult(restored.restoredResult)
+                    setSubmitted(true)
+                    timerDeadlineRef.current = null
+                    setTimeLeft(null)
+                    try { localStorage.removeItem(draftStorageKey(t.id)) } catch { }
+                    return
+                }
                 // 2.6: reload'da javoblar yo'qolmasin — saqlangan qoralama tiklanadi
                 try {
-                    const saved = JSON.parse(localStorage.getItem('dtmmax_tp_ans_' + t.id) || 'null')
+                    const saved = JSON.parse(localStorage.getItem(draftStorageKey(t.id)) || 'null')
                     if (saved && typeof saved === 'object' && !Array.isArray(saved)) setAnswers(saved)
                 } catch { /* buzilgan qoralama — bo'sh boshlaymiz */ }
                 const remainingSeconds = typeof t.timeRemainingSeconds === 'number'
                     ? t.timeRemainingSeconds
                     : (typeof t.timeLimit === 'number' && t.timeLimit > 0 ? t.timeLimit * 60 : null)
-                setTimeLeft(remainingSeconds === null ? null : Math.max(0, remainingSeconds))
+                const safeRemaining = remainingSeconds === null ? null : Math.max(0, remainingSeconds)
+                timerDeadlineRef.current = safeRemaining === null ? null : Date.now() + safeRemaining * 1000
+                setTimeLeft(safeRemaining)
             })
             .catch(e => setErr(e.message || 'Test topilmadi'))
             .finally(() => setLoading(false))
-    }, [shareLink, token])
+    }, [shareLink, token, storageUserId])
+
+    // Eski global qoralama boshqa akkaunt javoblarini ko'rsatmasin.
+    useEffect(() => {
+        if (!test?.id) return
+        try { localStorage.removeItem('dtmmax_tp_ans_' + test.id) } catch { }
+    }, [test?.id])
 
     useEffect(() => {
         if (isGuest) return
@@ -313,15 +482,25 @@ export default function TestPage() {
     useEffect(() => {
         if (!test || submitted) return
         if (Object.keys(answers).length === 0) return
-        saveScopedItem('dtmmax_tp_ans_' + test.id, JSON.stringify(answers))
-    }, [answers, test, submitted])
+        saveScopedItem(draftStorageKey(test.id), JSON.stringify(answers))
+    }, [answers, test, submitted, storageUserId])
 
     useEffect(() => {
         if (!timerActive) return
-        const timer = window.setInterval(() => {
-            setTimeLeft(prev => prev === null ? null : Math.max(0, prev - 1))
-        }, 1000)
-        return () => window.clearInterval(timer)
+        const syncRemaining = () => {
+            const deadline = timerDeadlineRef.current
+            if (deadline === null) return
+            setTimeLeft(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)))
+        }
+        syncRemaining()
+        const timer = window.setInterval(syncRemaining, 1000)
+        document.addEventListener('visibilitychange', syncRemaining)
+        window.addEventListener('focus', syncRemaining)
+        return () => {
+            window.clearInterval(timer)
+            document.removeEventListener('visibilitychange', syncRemaining)
+            window.removeEventListener('focus', syncRemaining)
+        }
     }, [timerActive])
 
     useEffect(() => {
@@ -383,7 +562,8 @@ export default function TestPage() {
             setCorrectMap(map)
             setSubmitted(true)
             // 2.6: topshirilgandan keyin qoralama kerak emas
-            try { localStorage.removeItem('dtmmax_tp_ans_' + test.id) } catch { }
+            timerDeadlineRef.current = null
+            try { localStorage.removeItem(draftStorageKey(test.id)) } catch { }
             const optLabels = ['a', 'b', 'c', 'd']
             const questionsForAnalysis = test.questions.map((q: any, i: number) => {
                 const opts = parseChoiceOptions(q.options)
@@ -414,8 +594,8 @@ export default function TestPage() {
                 return { text: q.text, imageUrl: q.imageUrl || null, questionType: q.questionType || 'mcq', studentAnswer: studentIdx >= 0 ? optLabels[studentIdx] : (payload[i]?.textAnswer || null), correctAnswer: ca ? (ca.correctIdx >= 0 ? optLabels[ca.correctIdx] : ca.correctText) : null, a: opts[0], b: opts[1], c: opts[2], d: opts[3] }
             })
             // Clear old analysis chat so "AI tahlil" button opens the new one
-            localStorage.removeItem('dtmmax_analysis_chat_id')
-            localStorage.setItem('dtmmax_guest_test_result', JSON.stringify({ title: test.title, subject: test.subject, score: res.correct, total: res.total, questions: questionsForAnalysis }))
+            localStorage.removeItem(analysisChatStorageKey)
+            localStorage.setItem(analysisResultStorageKey, JSON.stringify({ title: test.title, subject: test.subject, score: res.correct, total: res.total, questions: questionsForAnalysis }))
             setAnalysisReady(true)
         } catch (e: any) {
             if (String(e.message || '').includes('vaqti')) setTimeLeft(0)
@@ -493,7 +673,7 @@ export default function TestPage() {
         recommendation={recommendation}
         focusedQ={focusedQ} setFocusedQ={setFocusedQ}
         questionsRef={questionsRef} scrollToQuestion={scrollToQuestion}
-        nav={nav} token={token} timeLeft={timeLeft}
+        nav={nav} token={token} timeLeft={timeLeft} analysisChatStorageKey={analysisChatStorageKey}
     />
 
     // ─────────────────── STANDARD MODE ───────────────────
@@ -588,12 +768,12 @@ export default function TestPage() {
                             <Sparkles className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--brand)' }} />
                             <p className="text-[13px] font-semibold">AI tahlil tayyor. Xohlasangiz chatda davom eting.</p>
                         </div>
-                        <button onClick={() => { const id = localStorage.getItem('dtmmax_analysis_chat_id'); nav(id ? `/suhbat/${id}` : '/suhbat?analyzeTest=true') }} className="w-full h-10 rounded-xl text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--brand)', color: '#171717' }}><MessageSquare className="h-4 w-4" /> Hozir o'tish</button>
+                        <button onClick={() => { const id = localStorage.getItem(analysisChatStorageKey); nav(id ? `/suhbat/${id}` : '/suhbat?analyzeTest=true') }} className="w-full h-10 rounded-xl text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--brand)', color: '#171717' }}><MessageSquare className="h-4 w-4" /> Hozir o'tish</button>
                     </div>
                 )}
 
                 {/* 5.3: Keyingi qadam — zaif mavzu mashqi / keyingi test */}
-                {submitted && recommendation && <NextStepCard recommendation={recommendation} nav={nav} />}
+                {submitted && recommendation && <NextStepCard recommendation={recommendation} nav={nav} analysisChatStorageKey={analysisChatStorageKey} />}
 
                 {/* Questions */}
                 {test?.questions?.map((q: any, qi: number) => {
@@ -789,7 +969,7 @@ export default function TestPage() {
 // ─────────────────────────────────────────────────────────────
 // DTM TEST VIEW — split screen: questions left, blanka right
 // ─────────────────────────────────────────────────────────────
-function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap, submitting, submit, answeredCount, total, isGuest, analysisReady, recommendation, focusedQ, setFocusedQ, questionsRef, scrollToQuestion, nav, token, timeLeft }: any) {
+function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap, submitting, submit, answeredCount, total, isGuest, analysisReady, recommendation, focusedQ, setFocusedQ, questionsRef, scrollToQuestion, nav, token, timeLeft, analysisChatStorageKey }: any) {
     const shareLink = test?.shareLink
     const questions: any[] = test?.questions || []
     const [isCompactLayout, setIsCompactLayout] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 1024 : false)
@@ -1039,7 +1219,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                             <p className="text-[10px] mt-1 font-medium" style={{ color: 'var(--warning)' }}>Zaif mavzularing aniqlandi — birga mustahkamlaymiz 💪</p>
                         )}
                         {analysisReady && (
-                            <button onClick={() => { const id = localStorage.getItem('dtmmax_analysis_chat_id'); nav(id ? `/suhbat/${id}` : '/suhbat?analyzeTest=true') }} className={`mt-2 w-full ${buttonHeight} rounded-lg text-[12px] font-semibold flex items-center justify-center gap-1.5`} style={{ background: 'var(--brand)', color: '#171717' }}>
+                            <button onClick={() => { const id = localStorage.getItem(analysisChatStorageKey); nav(id ? `/suhbat/${id}` : '/suhbat?analyzeTest=true') }} className={`mt-2 w-full ${buttonHeight} rounded-lg text-[12px] font-semibold flex items-center justify-center gap-1.5`} style={{ background: 'var(--brand)', color: '#171717' }}>
                                 <Sparkles className="h-3 w-3" /> AI tahlil
                             </button>
                         )}
@@ -1265,7 +1445,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                     {submitted && (
                         <div className="pb-6 space-y-3">
                             {/* 5.3: Keyingi qadam — DTM ko'rinishida ham */}
-                            {recommendation && <NextStepCard recommendation={recommendation} nav={nav} compact />}
+                            {recommendation && <NextStepCard recommendation={recommendation} nav={nav} analysisChatStorageKey={analysisChatStorageKey} compact />}
                             <button onClick={() => nav('/suhbat')} className="w-full h-11 rounded-xl text-sm font-semibold transition" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
                                 Chatga qaytish
                             </button>
@@ -1314,7 +1494,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                     <LogIn className="h-3.5 w-3.5" /> Kirish
                                 </button>
                             ) : submitted ? (
-                                <button onClick={() => { const id = localStorage.getItem('dtmmax_analysis_chat_id'); nav(analysisReady && id ? `/suhbat/${id}` : analysisReady ? '/suhbat?analyzeTest=true' : '/suhbat') }} className="h-11 px-4 rounded-xl text-[13px] font-semibold flex items-center justify-center gap-1.5" style={{ background: 'var(--brand)', color: '#171717' }}>
+                                <button onClick={() => { const id = localStorage.getItem(analysisChatStorageKey); nav(analysisReady && id ? `/suhbat/${id}` : analysisReady ? '/suhbat?analyzeTest=true' : '/suhbat') }} className="h-11 px-4 rounded-xl text-[13px] font-semibold flex items-center justify-center gap-1.5" style={{ background: 'var(--brand)', color: '#171717' }}>
                                     {analysisReady ? <Sparkles className="h-3.5 w-3.5" /> : <MessageSquare className="h-3.5 w-3.5" />}
                                     {analysisReady ? 'AI tahlil' : 'Chatga qaytish'}
                                 </button>

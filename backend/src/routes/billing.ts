@@ -395,6 +395,14 @@ type PaylovActivationOutcome =
     | 'transaction_mismatch'
     | 'busy'
 
+type OctoActivationOutcome =
+    | 'activated'
+    | 'paid'
+    | 'not_found'
+    | 'refunded'
+    | 'uuid_mismatch'
+    | 'busy'
+
 async function activatePaylovPayment(
     paymentId: string,
     paylovTransactionId: string,
@@ -486,6 +494,99 @@ async function activatePaylovPayment(
     })
 }
 
+function safeBillingLogId(value: string): string {
+    return value.replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 96)
+}
+
+function buildSafeOctoNotifyMeta(
+    status: string,
+    shopTxnId: string,
+    notifiedSum: number,
+    receivedAt: Date,
+): Record<string, unknown> {
+    return {
+        status: status.slice(0, 32),
+        shopTransactionId: shopTxnId.slice(0, 160),
+        ...(Number.isFinite(notifiedSum) ? { totalSum: notifiedSum } : {}),
+        receivedAt: receivedAt.toISOString(),
+    }
+}
+
+/**
+ * Octo succeeded callback'ini bir marta claim qiladi va obunani shu payment
+ * bilan bitta transaction ichida uzaytiradi. Payment claim bir xil callback
+ * replay/parallel kelganda double-creditni, user advisory lock esa ikki haqiqiy
+ * checkout parallel to'langanda bir oy yo'qolishini oldini oladi.
+ */
+async function activateOctoPayment(
+    paymentId: string,
+    octoUuid: string,
+    notifyMeta: Record<string, unknown>,
+): Promise<OctoActivationOutcome> {
+    return prisma.$transaction(async tx => {
+        const current = await tx.payment.findUnique({ where: { id: paymentId } })
+        if (!current || current.provider !== 'octo') return 'not_found' as const
+        if (current.status === 'PAID') return 'paid' as const
+        if (current.status === 'REFUNDED') return 'refunded' as const
+
+        const currentMeta = parsePaymentMeta(current.meta)
+        const storedUuid = typeof currentMeta.octo_payment_UUID === 'string'
+            ? currentMeta.octo_payment_UUID
+            : ''
+        if (!storedUuid || storedUuid !== octoUuid) return 'uuid_mismatch' as const
+
+        const claimed = await tx.payment.updateMany({
+            where: { id: current.id, status: { in: ['CREATED', 'FAILED'] } },
+            data: { status: 'PROCESSING' },
+        })
+        if (claimed.count !== 1) {
+            const refreshed = await tx.payment.findUnique({ where: { id: current.id }, select: { status: true } })
+            return refreshed?.status === 'PAID' ? 'paid' as const : 'busy' as const
+        }
+
+        // Paylov activation ham aynan shu user lockini ishlatadi. Turli provider
+        // paymentlari parallel kelsa ham har bir to'langan oy ketma-ket qo'shiladi.
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${current.userId}))`
+
+        const now = new Date()
+        const active = await tx.subscription.findFirst({
+            where: { userId: current.userId, status: 'ACTIVE', expiresAt: { gt: now } },
+            orderBy: { expiresAt: 'desc' },
+        })
+        const base = active?.expiresAt && active.expiresAt > now ? active.expiresAt : now
+        const expiresAt = new Date(base.getTime() + MONTH_MS)
+        const subscription = active
+            ? await tx.subscription.update({
+                where: { id: active.id },
+                data: { expiresAt, provider: 'octo', status: 'ACTIVE' },
+            })
+            : await tx.subscription.create({
+                data: {
+                    userId: current.userId,
+                    plan: 'PRO',
+                    status: 'ACTIVE',
+                    startedAt: now,
+                    expiresAt,
+                    provider: 'octo',
+                },
+            })
+
+        await tx.payment.update({
+            where: { id: current.id },
+            data: {
+                status: 'PAID',
+                subscriptionId: subscription.id,
+                meta: JSON.stringify({
+                    ...currentMeta,
+                    octo_payment_UUID: storedUuid,
+                    notify: notifyMeta,
+                }),
+            },
+        })
+        return 'activated' as const
+    })
+}
+
 export interface Entitlement {
     isPro: boolean
     enforced: boolean
@@ -524,22 +625,6 @@ export async function requirePro(req: AuthRequest, res: import('express').Respon
     } catch {
         res.status(500).json({ error: 'Server xatoligi' })
     }
-}
-
-/** Obunani 30 kunga ochish yoki uzaytirish (provider-agnostik). */
-async function extendProSubscription(userId: string, provider: string) {
-    const now = new Date()
-    const active = await prisma.subscription.findFirst({
-        where: { userId, status: 'ACTIVE', expiresAt: { gt: now } },
-        orderBy: { expiresAt: 'desc' },
-    })
-    const base = active?.expiresAt && active.expiresAt > now ? active.expiresAt : now
-    const expiresAt = new Date(base.getTime() + MONTH_MS)
-    return active
-        ? prisma.subscription.update({ where: { id: active.id }, data: { expiresAt, provider, status: 'ACTIVE' } })
-        : prisma.subscription.create({
-            data: { userId, plan: 'PRO', status: 'ACTIVE', startedAt: now, expiresAt, provider },
-        })
 }
 
 /** Frontend uchun maxfiy bo'lmagan billing konfiguratsiyasi. */
@@ -994,7 +1079,8 @@ router.post('/paylov/callback', async (req, res) => {
         if (outcome === 'busy') return res.json(paylovRpcResult(id, '+1', 'transaction_processing'))
         return res.json(paylovRpcResult(id, '0', 'OK'))
     } catch (error) {
-        console.error('paylov callback xato:', error)
+        // Callback body/auth header va payment meta logga tushmaydi.
+        console.error('paylov callback xato:', error instanceof Error ? error.name : 'unknown')
         return res.status(500).json({ error: 'server_error' })
     }
 })
@@ -1020,13 +1106,14 @@ router.post('/octo/notify', async (req, res) => {
         // prod'da imzo har doim majburiy (tasodifan o'chirib qo'yish pul teshigi edi).
         const expected = crypto.createHash('sha1').update(`${notifySecret}${uuid}${status}`).digest('hex')
         const verifyOn = process.env.NODE_ENV === 'production' || process.env.OCTO_VERIFY_SIGNATURE !== 'false'
-        if (verifyOn && signature !== expected) {
-            console.warn('octo notify imzo mos emas — kutilgan:', expected, '| kelgan:', signature)
+        if (verifyOn && !secureEqual(signature, expected)) {
+            // Kutilgan/kelgan signature'ni loglash replay uchun maxfiy materialni oshkor qiladi.
+            console.warn('octo notify imzo mos emas', { shopTxnId: safeBillingLogId(shopTxnId) })
             return res.status(401).json({ error: 'bad_signature' })
         }
 
         const payment = await prisma.payment.findUnique({ where: { providerTxnId: shopTxnId } })
-        if (!payment) return res.status(404).json({ error: 'payment_not_found' })
+        if (!payment || payment.provider !== 'octo') return res.status(404).json({ error: 'payment_not_found' })
         if (payment.status === 'PAID') return res.json({ ok: true, idempotent: true })
 
         // REPLAY HIMOYASI: Octo imzosi faqat (uuid+status)ga bog'liq — shop_transaction_id
@@ -1036,77 +1123,61 @@ router.post('/octo/notify', async (req, res) => {
         let storedUuid = ''
         try { storedUuid = String((JSON.parse(payment.meta || '{}') as { octo_payment_UUID?: string })?.octo_payment_UUID || '') } catch { /* meta buzuq — quyida rad etiladi */ }
         if (!storedUuid || storedUuid !== uuid) {
-            console.warn('octo notify: uuid to\'lovga mos emas', { shopTxnId, uuid, storedUuid })
+            console.warn('octo notify: uuid to\'lovga mos emas', { shopTxnId: safeBillingLogId(shopTxnId) })
             return res.status(400).json({ error: 'uuid_mismatch' })
         }
 
         // Summa tekshiruvi (notify'da kelsa) — qisman to'lov to'liq obuna ochmasin
         const notifiedSum = Number((body as { total_sum?: unknown }).total_sum ?? NaN)
         if (Number.isFinite(notifiedSum) && Math.round(notifiedSum) < payment.amount) {
-            console.warn('octo notify: summa yetarli emas', { shopTxnId, notifiedSum, expected: payment.amount })
+            console.warn('octo notify: summa yetarli emas', {
+                shopTxnId: safeBillingLogId(shopTxnId),
+                notifiedSum,
+                expected: payment.amount,
+            })
             return res.status(400).json({ error: 'amount_mismatch' })
         }
 
+        const receivedAt = new Date()
+        const safeNotifyMeta = buildSafeOctoNotifyMeta(status, shopTxnId, notifiedSum, receivedAt)
         const paid = status === 'succeeded'
         if (!paid) {
-            // uuid meta'da SAQLAB QOLINADI — keyingi notify'lar ham tekshirila olishi uchun
-            await prisma.payment.update({
-                where: { providerTxnId: shopTxnId },
-                data: { status: 'FAILED', meta: JSON.stringify({ octo_payment_UUID: storedUuid, notify: body }) },
+            // PAID/PROCESSING holatini kech kelgan failed callback qayta yozmasin.
+            // Raw callback (signature va noma'lum PII) DB meta'ga ham saqlanmaydi.
+            await prisma.payment.updateMany({
+                where: { id: payment.id, status: { in: ['CREATED', 'FAILED'] } },
+                data: {
+                    status: 'FAILED',
+                    meta: JSON.stringify({
+                        ...parsePaymentMeta(payment.meta),
+                        octo_payment_UUID: storedUuid,
+                        notify: safeNotifyMeta,
+                    }),
+                },
             })
             return res.json({ ok: true })
         }
 
-        const sub = await extendProSubscription(payment.userId, 'octo')
-        await prisma.payment.update({
-            where: { providerTxnId: shopTxnId },
-            data: { status: 'PAID', subscriptionId: sub.id, meta: JSON.stringify({ octo_payment_UUID: storedUuid, notify: body }) },
-        })
-        res.json({ ok: true })
+        const outcome = await activateOctoPayment(payment.id, uuid, safeNotifyMeta)
+        if (outcome === 'not_found') return res.status(404).json({ error: 'payment_not_found' })
+        if (outcome === 'uuid_mismatch') return res.status(400).json({ error: 'uuid_mismatch' })
+        if (outcome === 'refunded') return res.status(409).json({ error: 'payment_refunded' })
+        if (outcome === 'busy') return res.status(409).json({ error: 'payment_processing' })
+        return res.json({ ok: true, idempotent: outcome === 'paid' })
     } catch (e) {
-        console.error('octo notify xato:', e)
+        // Callback body, signature va provider identifikatorlari logga tushmaydi.
+        console.error('octo notify xato:', e instanceof Error ? e.name : 'unknown')
         res.status(500).json({ error: 'server_error' })
     }
 })
 
 /**
- * Umumiy provider webhook (eski skelet — boshqa agregator uchun zaxira).
- * BILLING_WEBHOOK_SECRET sozlanmagan bo'lsa INERT.
+ * Eski generic webhook o'chirilgan. Dedicated `/paylov/callback` va
+ * `/octo/notify` provider-specific tekshiruvlardan o'tadi; generic body'dagi
+ * userId/amount/provider asosida entitlement berish xavfsiz emas.
  */
-router.post('/webhook', async (req, res) => {
-    const secret = process.env.BILLING_WEBHOOK_SECRET
-    if (!secret) return res.status(503).json({ error: 'billing_not_configured' })
-    try {
-        if (req.header('x-webhook-secret') !== secret) {
-            return res.status(401).json({ error: 'unauthorized' })
-        }
-        const body = (req.body || {}) as Record<string, unknown>
-        const providerTxnId = String(body.transactionId || body.id || '')
-        const userId = String(body.userId || '')
-        const amount = Number(body.amount || PRO_PRICE_UZS)
-        const provider = String(body.provider || 'octo')
-        const paid = body.status === 'paid' || body.status === 'success'
-        if (!providerTxnId || !userId) return res.status(400).json({ error: 'invalid_payload' })
-
-        const existing = await prisma.payment.findUnique({ where: { providerTxnId } })
-        if (existing) return res.json({ ok: true, idempotent: true })
-
-        if (!paid) {
-            await prisma.payment.create({
-                data: { userId, amount, provider, providerTxnId, status: 'FAILED', meta: JSON.stringify(body) },
-            })
-            return res.json({ ok: true })
-        }
-
-        const sub = await extendProSubscription(userId, provider)
-        await prisma.payment.create({
-            data: { userId, subscriptionId: sub.id, amount, provider, providerTxnId, status: 'PAID', meta: JSON.stringify(body) },
-        })
-        res.json({ ok: true })
-    } catch (e) {
-        console.error('billing webhook:', e)
-        res.status(500).json({ error: 'server_error' })
-    }
+router.post('/webhook', (_req, res) => {
+    res.status(410).json({ error: 'billing_webhook_retired' })
 })
 
 export default router

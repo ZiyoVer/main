@@ -12,6 +12,7 @@ import { cosineSimilarity, createEmbedding, createEmbeddings, parseEmbedding, se
 import { getSubjectVariants, normalizeSubject } from '../utils/subjects'
 import { uploadToS3, getSignedS3Url } from '../utils/s3'
 import { AI_MODELS, deepseekThinking } from '../utils/aiModels'
+import { extractTrustedAiTestQuestions, learningPurposeForStage } from '../utils/aiTestSession'
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -75,6 +76,44 @@ interface LearningSessionContext {
     prerequisites: string | null
     prerequisiteState: string | null
     lastCheckpoint: string | null
+}
+
+async function createTrustedAiTestSession(input: {
+    userId: string
+    sourceMessageId: string
+    messageContent: string
+    subject?: string | null
+    learningSession?: Pick<LearningSessionContext, 'id' | 'stage' | 'lastCheckpoint'> | null
+}): Promise<string | null> {
+    const questions = extractTrustedAiTestQuestions(input.messageContent)
+    if (!questions) return null
+
+    try {
+        const session = await prisma.aiTestSession.create({
+            data: {
+                userId: input.userId,
+                subject: normalizeSubject(input.subject),
+                learningSessionId: input.learningSession?.id ?? null,
+                purpose: input.learningSession
+                    ? learningPurposeForStage(input.learningSession.stage, input.learningSession.lastCheckpoint)
+                    : null,
+                questions: JSON.stringify(questions),
+                sourceMessageId: input.sourceMessageId,
+            },
+        })
+        return session.id
+    } catch (error) {
+        // Stream reconnect yoki takroriy server ishida bir xabarga ikki answer-key
+        // sessiyasi yaratilmaydi. Unique sourceMessageId mavjud sessiyani qaytaradi.
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+            const existing = await prisma.aiTestSession.findUnique({
+                where: { sourceMessageId: input.sourceMessageId },
+                select: { id: true, userId: true },
+            })
+            return existing?.userId === input.userId ? existing.id : null
+        }
+        throw error
+    }
 }
 
 function detectBroadLearningTopic(content: string): string | null {
@@ -157,16 +196,20 @@ async function prepareLearningSession(
         })
     }
 
+    if (requestedSessionId) {
+        const requested = await prisma.learningSession.findFirst({
+            where: { id: requestedSessionId, userId, chatId, status: 'ACTIVE' },
+        })
+        // Tabiiy follow-up'lar ("yana bir misol", "nega +C?") ham shu dars
+        // kontekstida qoladi. Faqat aniq to'xtatish buyrug'i sessionni uzadi.
+        if (requested && !/^(darsni|mavzuni)\s+(tugat|to['‘’`]?xtat)|^sessiyani\s+(tugat|to['‘’`]?xtat)/i.test(content.trim())) {
+            return requested
+        }
+    }
+
     const continuesLesson = /^\s*---\s*YANGI TEST NATIJASI/im.test(content)
         || /^(davom et|davom ettir|keyingi dars|keyingi bosqich)[.!?]*$/i.test(content.trim())
     if (!continuesLesson) return null
-
-    if (requestedSessionId) {
-        const requested = await prisma.learningSession.findFirst({
-            where: { id: requestedSessionId, userId, chatId },
-        })
-        if (requested) return requested
-    }
 
     return prisma.learningSession.findFirst({
         where: { userId, chatId, status: 'ACTIVE' },
@@ -2083,6 +2126,7 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
     // reload'da yolg'iz user xabari qolishining oldini olamiz. Catch'da ko'rinishi uchun
     // try'dan TASHQARIDA e'lon qilinadi.
     let userMessageSaved = false
+    let assistantMessageSaved = false
     try {
         const { content, thinking, displayText, todoContext, learningSessionId } = req.body
         if (!content?.trim()) return res.status(400).json({ error: 'Xabar bo\'sh' })
@@ -2338,6 +2382,10 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
             }
         } catch (streamErr) {
             console.error('Stream error:', streamErr)
+            // Partial output is not a successful lesson/test. Propagate the failure so
+            // the client receives an explicit SSE error and no incomplete structured
+            // block is persisted as a valid assistant response.
+            if (!aborted) throw streamErr
         }
 
         if (aborted) {
@@ -2375,13 +2423,29 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
             saved = await prisma.message.create({
                 data: { chatId: chat.id, role: 'assistant', content: fullReply }
             })
+            assistantMessageSaved = true
         } catch (dbErr) {
             console.error('Message save failed:', dbErr)
             res.write(`data: ${JSON.stringify({ done: true })}\n\n`)
             return res.end()
         }
 
-        res.write(`data: ${JSON.stringify({ done: true, id: saved.id })}\n\n`)
+        // Trust boundary: interactive test key is registered from the server-persisted
+        // assistant message. The browser never supplies `correct` to this record.
+        let aiSessionId: string | null = null
+        try {
+            aiSessionId = await createTrustedAiTestSession({
+                userId: req.user.id,
+                sourceMessageId: saved.id,
+                messageContent: fullReply,
+                subject: chat.subject || profile?.subject,
+                learningSession,
+            })
+        } catch (sessionError) {
+            console.error('Trusted AI test sessiyasini saqlashda xato:', sessionError)
+        }
+
+        res.write(`data: ${JSON.stringify({ done: true, id: saved.id, aiSessionId })}\n\n`)
         console.info('AI_CHAT', {
             model: activeModel,
             thinking: effectiveThinking,
@@ -2407,19 +2471,19 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
             : isAuth
                 ? 'AI kaliti noto\'g\'ri. Admin bilan bog\'laning.'
                 : `AI javob bera olmadi (${status || 'network'}). Qayta urinib ko\'ring.`
-        if (!res.headersSent) {
-            // Yetim xabar oldini olamiz: user xabari saqlangan bo'lsa-yu provayder umuman
-            // javob bermay bu yerga tushsak, juft assistant yozuvi bo'lmaydi. Qisqa xatolik
-            // xabarini saqlaymiz — reload'da yolg'iz user xabari ko'rinmaydi (abort yo'li kabi).
-            if (userMessageSaved) {
-                try {
-                    await prisma.message.create({
-                        data: { chatId: req.params.chatId as string, role: 'assistant', content: `*${userMsg}*` }
-                    })
-                } catch (orphanErr) {
-                    console.error('Yetim xabar saqlashda xato:', orphanErr)
-                }
+        // Yetim xabar oldini olamiz: SSE boshlanganidan keyingi upstream xato ham
+        // reload'da yolg'iz user xabarini qoldirmasin.
+        if (userMessageSaved && !assistantMessageSaved) {
+            try {
+                await prisma.message.create({
+                    data: { chatId: req.params.chatId as string, role: 'assistant', content: `*${userMsg}*` }
+                })
+                assistantMessageSaved = true
+            } catch (orphanErr) {
+                console.error('Yetim xabar saqlashda xato:', orphanErr)
             }
+        }
+        if (!res.headersSent) {
             res.status(500).json({ error: userMsg })
         } else {
             res.write(`data: ${JSON.stringify({ error: userMsg })}\n\n`)
@@ -2491,6 +2555,17 @@ router.post('/:chatId/send', authenticate, requireVerified, async (req: AuthRequ
         const saved = await prisma.message.create({
             data: { chatId: chat.id, role: 'assistant', content: reply }
         })
+        let aiSessionId: string | null = null
+        try {
+            aiSessionId = await createTrustedAiTestSession({
+                userId: req.user.id,
+                sourceMessageId: saved.id,
+                messageContent: reply,
+                subject: chat.subject || profile?.subject,
+            })
+        } catch (sessionError) {
+            console.error('Trusted AI test sessiyasini saqlashda xato:', sessionError)
+        }
 
         // history allaqachon yangi user xabarni o'z ichiga oladi
         if (history.length === 1) {
@@ -2498,7 +2573,7 @@ router.post('/:chatId/send', authenticate, requireVerified, async (req: AuthRequ
             await prisma.chat.update({ where: { id: chat.id }, data: { title: shortTitle } })
         }
 
-        res.json(saved)
+        res.json({ ...saved, aiSessionId })
     } catch (e: any) {
         console.error('AI error:', e.message)
         res.status(500).json({ error: 'AI javob bera olmadi' })

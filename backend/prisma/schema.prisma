@@ -135,6 +135,7 @@ model Message {
   fileUrl   String?  // Agar fayl yuklangan bo'lsa
   fileType  String?  // "image", "pdf", "word"
   createdAt DateTime @default(now())
+  aiTestSession AiTestSession?
 
   @@index([chatId])
   @@index([chatId, createdAt])
@@ -469,6 +470,10 @@ model AiTestSession {
   learningSession LearningSession? @relation(fields: [learningSessionId], references: [id], onDelete: SetNull)
   purpose     String?   // PREREQUISITE | CHECKPOINT | REMEDIATION
   questions   String    // JSON: [{q,a,b,c,d,correct,topic,difficulty}] — to'g'ri javoblar bilan (server-only)
+  // Faqat server saqlagan assistant xabaridan yaratilgan sessiya trusted hisoblanadi.
+  // Legacy/client answer-key sessiyalarida null qoladi va ular progressga ta'sir qilmaydi.
+  sourceMessageId String? @unique
+  sourceMessage Message? @relation(fields: [sourceMessageId], references: [id], onDelete: SetNull)
   submittedAt DateTime?
   createdAt   DateTime  @default(now())
 
