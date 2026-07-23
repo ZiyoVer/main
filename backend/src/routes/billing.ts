@@ -4,6 +4,12 @@ import https from 'node:https'
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest } from '../middleware/auth'
+import {
+    PaylovOAuthTokenError,
+    PaylovOAuthTokenManager,
+    PaylovTokenGrant,
+    PaylovTokenResponse,
+} from '../utils/paylovOAuth'
 
 /* =========================================================================
    DtmMax — To'lov / obuna (Paylov OAuth2, hosted legacy, Octo zaxira)
@@ -19,9 +25,10 @@ import { authenticate, AuthRequest } from '../middleware/auth'
    Paylov hostlariga qat'iy bog'langan — tunnel yoki ixtiyoriy URL qabul qilinmaydi.
    Kalit yo'q bo'lsa endpointlar INERT (503) — xavfsiz.
 
-   Kerakli Paylov env:
-     merchant_id (yoki PAYLOV_MERCHANT_ID), Token (yoki PAYLOV_TOKEN),
-     PAYLOV_CALLBACK_LOGIN, PAYLOV_CALLBACK_PASSWORD, PRO_PRICE_UZS, FRONTEND_URL.
+   Kerakli Paylov OAuth2 env:
+     merchant_id (yoki PAYLOV_MERCHANT_ID), PAYLOV_CONSUMER_KEY,
+     PAYLOV_CONSUMER_SECRET, PAYLOV_USERNAME, PAYLOV_PASSWORD.
+   Emaildagi Token — faqat bir martalik onboarding uchun; Bearer sifatida ishlatilmaydi.
 
    GATING: PRO_ENFORCED !== 'true' bo'lsa hamma uchun Pro ochiq (beta). To'lovni
    yoqish = Paylov callback sozlamalari + PRO_ENFORCED=true. Frontend useIsPro()
@@ -50,10 +57,15 @@ function envAny(...names: string[]): string {
     return ''
 }
 
-// Paylov emailida aynan `merchant_id` va `Token` nomlari berilgan. Railway'dagi
-// mavjud nomlarni buzmaymiz, lekin standart uppercase aliaslarni ham qo'llaymiz.
+// Paylov emailida aynan `merchant_id` va `Token` nomlari berilgan. `Token`
+// onboarding token: undan bir marta consumer credential olinadi, to'lov API'siga
+// Bearer sifatida yuborilmaydi.
 const PAYLOV_MERCHANT_ID = envAny('PAYLOV_MERCHANT_ID', 'merchant_id')
-const PAYLOV_TOKEN = envAny('PAYLOV_TOKEN', 'Token')
+const PAYLOV_ONBOARDING_TOKEN = envAny('PAYLOV_ONBOARDING_TOKEN', 'Token', 'PAYLOV_TOKEN')
+const PAYLOV_CONSUMER_KEY = envAny('PAYLOV_CONSUMER_KEY')
+const PAYLOV_CONSUMER_SECRET = envAny('PAYLOV_CONSUMER_SECRET')
+const PAYLOV_USERNAME = envAny('PAYLOV_USERNAME')
+const PAYLOV_PASSWORD = envAny('PAYLOV_PASSWORD')
 const PAYLOV_CALLBACK_LOGIN = envAny('PAYLOV_CALLBACK_LOGIN', 'PAYLOV_CALLBACK_USERNAME')
 const PAYLOV_CALLBACK_PASSWORD = envAny('PAYLOV_CALLBACK_PASSWORD')
 const configuredPaylovFlow = envAny('PAYLOV_FLOW').toLowerCase()
@@ -64,9 +76,15 @@ const PAYLOV_API_BASE = PAYLOV_ENVIRONMENT === 'production'
     ? PAYLOV_PRODUCTION_API_BASE
     : PAYLOV_SANDBOX_API_BASE
 const configuredProvider = envAny('BILLING_PROVIDER').toLowerCase()
+const PAYLOV_OAUTH_CONFIGURED = Boolean(
+    PAYLOV_CONSUMER_KEY
+    && PAYLOV_CONSUMER_SECRET
+    && PAYLOV_USERNAME
+    && PAYLOV_PASSWORD,
+)
 const BILLING_PROVIDER = configuredProvider === 'octo' || configuredProvider === 'paylov'
     ? configuredProvider
-    : (PAYLOV_MERCHANT_ID && PAYLOV_TOKEN ? 'paylov' : 'octo')
+    : (PAYLOV_MERCHANT_ID && (PAYLOV_OAUTH_CONFIGURED || PAYLOV_ONBOARDING_TOKEN) ? 'paylov' : 'octo')
 
 const paylovOAuthLimiter = rateLimit({
     windowMs: 10 * 60 * 1000,
@@ -179,13 +197,6 @@ function sanitizedProviderCode(error: unknown): string | undefined {
     return safe || undefined
 }
 
-function paylovTokenFormatError(token: string): string | null {
-    if (/^(?:Bearer\s+|Token\s*:)/i.test(token)) return 'paylov_token_prefix_invalid'
-    if (/["']/.test(token)) return 'paylov_token_quotes_invalid'
-    if (!token || /\s|[\u0000-\u001f\u007f]/.test(token)) return 'paylov_token_format_invalid'
-    return null
-}
-
 function safeNetworkCode(error: unknown): string | undefined {
     if (!error || typeof error !== 'object') return undefined
     const code = (error as NodeJS.ErrnoException).code
@@ -219,14 +230,14 @@ function mapPaylovTransportError(error: unknown): PaylovGatewayError {
 }
 
 /**
- * Rasmiy Paylov hostiga bitta HTTP so'rov yuboradi. IPv4 majburiy — Railway
- * egress/DNS yo'lida dual-stack ulanish qotib qolmasin. Avtomatik retry YO'Q:
- * payment yaratish so'rovini takrorlash providerda duplicate tranzaksiya ochishi mumkin.
+ * Rasmiy Paylov hostiga bitta cheklangan HTTP so'rov yuboradi. IPv4 majburiy —
+ * Railway egress/DNS yo'lida dual-stack ulanish qotib qolmasin.
  */
-function postPaylov(endpoint: 'paymentWithoutRegistration/' | 'confirmPayment/', payload: Record<string, unknown>): Promise<PaylovHttpResponse> {
-    const target = new URL(`${PAYLOV_API_BASE}/${endpoint}`)
-    const requestBody = Buffer.from(JSON.stringify(payload), 'utf8')
-
+function postPaylovHttp(
+    target: URL,
+    requestBody: Buffer,
+    headers: Record<string, string>,
+): Promise<PaylovHttpResponse> {
     return new Promise((resolve, reject) => {
         let responseStream: import('node:http').IncomingMessage | null = null
         let overallTimeout: NodeJS.Timeout
@@ -238,11 +249,10 @@ function postPaylov(endpoint: 'paymentWithoutRegistration/' | 'confirmPayment/',
             method: 'POST',
             family: 4,
             headers: {
-                Authorization: `Bearer ${PAYLOV_TOKEN}`,
-                'Content-Type': 'application/json',
                 Accept: 'application/json',
                 'Content-Length': requestBody.length,
                 'User-Agent': 'DTMMax/2.0',
+                ...headers,
             },
         }, response => {
             responseStream = response
@@ -290,12 +300,106 @@ function postPaylov(endpoint: 'paymentWithoutRegistration/' | 'confirmPayment/',
     })
 }
 
-async function requestPaylov<T>(endpoint: 'paymentWithoutRegistration/' | 'confirmPayment/', payload: Record<string, unknown>): Promise<T> {
-    const tokenError = paylovTokenFormatError(PAYLOV_TOKEN)
-    if (tokenError) throw new PaylovGatewayError(tokenError, 503)
+function postPaylovTokenGrant(grant: PaylovTokenGrant): Promise<PaylovHttpResponse> {
+    const target = new URL(`${PAYLOV_API_BASE}/oauth2/token/`)
+    const body = new URLSearchParams({ grant_type: grant.grantType })
+    if (grant.grantType === 'password') {
+        body.set('username', grant.username)
+        body.set('password', grant.password)
+    } else {
+        body.set('refresh_token', grant.refreshToken)
+    }
+    const requestBody = Buffer.from(body.toString(), 'utf8')
+    const basicAuth = Buffer.from(`${PAYLOV_CONSUMER_KEY}:${PAYLOV_CONSUMER_SECRET}`, 'utf8').toString('base64')
+    return postPaylovHttp(target, requestBody, {
+        Authorization: `Basic ${basicAuth}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+    })
+}
 
+async function requestPaylovToken(grant: PaylovTokenGrant): Promise<PaylovTokenResponse> {
     try {
-        const response = await postPaylov(endpoint, payload)
+        const response = await postPaylovTokenGrant(grant)
+        let payload: (PaylovTokenResponse & { error?: unknown }) | null = null
+        try {
+            payload = response.body
+                ? JSON.parse(response.body) as PaylovTokenResponse & { error?: unknown }
+                : null
+        } catch {
+            throw new PaylovGatewayError('paylov_oauth_invalid_response', 502)
+        }
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+            const rejected = [400, 401, 403].includes(response.statusCode)
+            throw new PaylovGatewayError(
+                rejected ? 'paylov_oauth_credentials_rejected' : 'paylov_oauth_unavailable',
+                rejected ? 503 : 502,
+                sanitizedProviderCode(payload?.error),
+            )
+        }
+        if (!payload) throw new PaylovGatewayError('paylov_oauth_invalid_response', 502)
+        return payload
+    } catch (error) {
+        if (error instanceof PaylovGatewayError) throw error
+        const mapped = mapPaylovTransportError(error)
+        console.warn('paylov oauth transport xato:', {
+            environment: PAYLOV_ENVIRONMENT,
+            error: mapped.code,
+            networkCode: mapped.networkCode || 'unknown',
+        })
+        throw mapped
+    }
+}
+
+const paylovTokenManager = new PaylovOAuthTokenManager({
+    credentials: {
+        consumerKey: PAYLOV_CONSUMER_KEY,
+        consumerSecret: PAYLOV_CONSUMER_SECRET,
+        username: PAYLOV_USERNAME,
+        password: PAYLOV_PASSWORD,
+    },
+    requestToken: requestPaylovToken,
+    shouldFallbackFromRefresh: error =>
+        error instanceof PaylovGatewayError && error.code === 'paylov_oauth_credentials_rejected',
+})
+
+async function getPaylovAccessToken(): Promise<string> {
+    try {
+        return await paylovTokenManager.getAccessToken()
+    } catch (error) {
+        if (error instanceof PaylovOAuthTokenError) {
+            throw new PaylovGatewayError(error.code, 503)
+        }
+        throw error
+    }
+}
+
+/**
+ * Payment yaratish/confirm so'rovi avtomatik umumiy retry qilinmaydi: providerda
+ * duplicate tranzaksiya ochilishi mumkin. Faqat aniq 401 javobida access token
+ * bir marta yangilanadi — autentifikatsiyadan o'tmagan so'rov pul yaratmagan bo'ladi.
+ */
+function postPaylov(
+    endpoint: 'paymentWithoutRegistration/' | 'confirmPayment/',
+    payload: Record<string, unknown>,
+    accessToken: string,
+): Promise<PaylovHttpResponse> {
+    const target = new URL(`${PAYLOV_API_BASE}/${endpoint}`)
+    const requestBody = Buffer.from(JSON.stringify(payload), 'utf8')
+    return postPaylovHttp(target, requestBody, {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+    })
+}
+
+async function requestPaylov<T>(endpoint: 'paymentWithoutRegistration/' | 'confirmPayment/', payload: Record<string, unknown>): Promise<T> {
+    try {
+        let accessToken = await getPaylovAccessToken()
+        let response = await postPaylov(endpoint, payload, accessToken)
+        if (response.statusCode === 401) {
+            paylovTokenManager.clearAccessToken()
+            accessToken = await getPaylovAccessToken()
+            response = await postPaylov(endpoint, payload, accessToken)
+        }
         let envelope: PaylovEnvelope<T> | null = null
         try {
             envelope = response.body ? JSON.parse(response.body) as PaylovEnvelope<T> : null
@@ -343,9 +447,8 @@ function paylovGatewayErrorResponse(error: unknown): { status: number; body: { e
 function paylovOAuthAccessError(user: AuthRequest['user']): { status: number; error: string } | null {
     if (BILLING_PROVIDER !== 'paylov') return { status: 503, error: 'paylov_not_active_provider' }
     if (PAYLOV_FLOW !== 'oauth2') return { status: 409, error: 'paylov_oauth2_not_enabled' }
-    if (!TRANSACTION_UUID.test(PAYLOV_MERCHANT_ID) || !PAYLOV_TOKEN) {
-        return { status: 503, error: 'billing_not_configured' }
-    }
+    if (!TRANSACTION_UUID.test(PAYLOV_MERCHANT_ID)) return { status: 503, error: 'billing_not_configured' }
+    if (!PAYLOV_OAUTH_CONFIGURED) return { status: 503, error: 'paylov_oauth_credentials_missing' }
     if (!Number.isSafeInteger(PRO_PRICE_UZS) || PRO_PRICE_UZS <= 0) {
         return { status: 503, error: 'billing_price_invalid' }
     }
@@ -629,12 +732,20 @@ export async function requirePro(req: AuthRequest, res: import('express').Respon
 
 /** Frontend uchun maxfiy bo'lmagan billing konfiguratsiyasi. */
 router.get('/config', (_req, res) => {
-    const paylovOAuthConfigured = Boolean(TRANSACTION_UUID.test(PAYLOV_MERCHANT_ID) && PAYLOV_TOKEN)
+    const paylovOAuthConfigured = Boolean(
+        TRANSACTION_UUID.test(PAYLOV_MERCHANT_ID)
+        && PAYLOV_OAUTH_CONFIGURED,
+    )
+    const paylovOnboardingRequired = Boolean(
+        TRANSACTION_UUID.test(PAYLOV_MERCHANT_ID)
+        && PAYLOV_ONBOARDING_TOKEN
+        && !PAYLOV_OAUTH_CONFIGURED,
+    )
     const callbackConfigured = Boolean(PAYLOV_CALLBACK_LOGIN && PAYLOV_CALLBACK_PASSWORD)
     const checkoutConfigured = BILLING_PROVIDER === 'paylov'
         ? (PAYLOV_FLOW === 'oauth2'
             ? paylovOAuthConfigured
-            : Boolean(paylovOAuthConfigured && callbackConfigured))
+            : Boolean(TRANSACTION_UUID.test(PAYLOV_MERCHANT_ID) && callbackConfigured))
         : Boolean(process.env.OCTO_SHOP_ID && process.env.OCTO_SECRET)
     res.setHeader('Cache-Control', 'no-store')
     res.json({
@@ -645,6 +756,8 @@ router.get('/config', (_req, res) => {
         sandboxTestMode: BILLING_SANDBOX_TEST,
         paylovFlow: BILLING_PROVIDER === 'paylov' ? PAYLOV_FLOW : null,
         paylovEnvironment: BILLING_PROVIDER === 'paylov' ? PAYLOV_ENVIRONMENT : null,
+        paylovOAuthConfigured: BILLING_PROVIDER === 'paylov' ? paylovOAuthConfigured : false,
+        paylovOnboardingRequired: BILLING_PROVIDER === 'paylov' ? paylovOnboardingRequired : false,
         callbackConfigured: BILLING_PROVIDER === 'paylov' ? callbackConfigured : false,
         officialGateway: BILLING_PROVIDER === 'paylov',
     })
@@ -692,7 +805,7 @@ router.post('/checkout', authenticate, async (req: AuthRequest, res) => {
             if (PAYLOV_ENVIRONMENT !== 'production') {
                 return res.status(503).json({ error: 'paylov_hosted_production_only' })
             }
-            if (!TRANSACTION_UUID.test(PAYLOV_MERCHANT_ID) || !PAYLOV_TOKEN
+            if (!TRANSACTION_UUID.test(PAYLOV_MERCHANT_ID)
                 || !PAYLOV_CALLBACK_LOGIN || !PAYLOV_CALLBACK_PASSWORD) {
                 return res.status(503).json({ error: 'billing_not_configured' })
             }
