@@ -205,4 +205,9 @@ Test data faqat previewda yaratiladi va tekshiruvdan keyin tozalanadi.
 | 2026-07-24 | `reysh` rollback nuqtasi saqlanadi | Yangi yo‘nalish ma’qul bo‘lmasa tez qaytish |
 | 2026-07-24 | AI dizayn ijodkorligi natija chegaralari ichida erkin | Templated AI ko‘rinishidan chiqish, lekin product maqsadini saqlash |
 | 2026-07-24 | Paylov flow support javobigacha muzlatiladi | Taxmin bilan billing contractini buzmaslik |
+| 2026-07-24 | Bugun ekranida bitta dominant CTA: “Testlar” tugmasi `btn-primary`dan `btn-outline`ga tushirildi | Bir ekranda bitta asosiy harakat — “Bugungi fokus” CTA bilan raqobat yo‘qoladi |
+| 2026-07-24 | “Yangi test” soni badge’i `danger`dan `brand`ga o‘tkazildi (sidebar `is-alert` bilan bir xil) | `danger` faqat xato/noto‘g‘ri holat uchun; yangi kontent xato emas |
+| 2026-07-24 | `brand-light` ustidagi matn/ikon `brand`dan `brand-hover`ga o‘tkazildi (Bugun, test paneli, flashcard, Pro, badge’lar) | DESIGN.md’ning “pale tint ustida orange-600” qoidasi; #F15A24→#FFF1EB kontrasti ~2.7:1 AA talabidan past edi |
+| 2026-07-24 | Orange to‘ldirilgan control matni oqdan `#171717`ga (test navigatori, A/B/C/D doirasi) | DESIGN.md: kichik oq matn `orange-500` ustida qo‘llanmaydi |
+| 2026-07-24 | `alt="DtmMax"` → `alt="DTMMax"` (3 joy) | 09-landing auditidagi nom izchilligi qoidasi |
 

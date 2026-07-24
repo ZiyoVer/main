@@ -419,6 +419,7 @@ model AiDailyUsage {
   day         String
   chatCount   Int    @default(0) // AI so'rovlari (chat, test/essay/flashcard yaratish, tushuntirish)
   visionCount Int    @default(0) // rasm/OCR tahlili (eng qimmat yo'l)
+  ttsCount    Int    @default(0) // Charon ovozida matnni audio qilish
 
   @@unique([userId, day])
   @@index([day])

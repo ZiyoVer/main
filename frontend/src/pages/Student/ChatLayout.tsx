@@ -49,7 +49,7 @@ function testTypeLabel(testType?: string | null): string | null {
 /* Test manbasi badge'i — ishonch uchun (Rasmiy / Norasmiy / AI-bashorat). */
 function sourceBadge(source?: string | null): { label: string; bg: string; color: string } | null {
     if (source === 'OFFICIAL') return { label: 'Rasmiy', bg: 'var(--success-light)', color: 'var(--success)' }
-    if (source === 'AI_PREDICTION') return { label: 'AI bashorat', bg: 'var(--brand-light)', color: 'var(--brand)' }
+    if (source === 'AI_PREDICTION') return { label: 'AI bashorat', bg: 'var(--brand-light)', color: 'var(--brand-hover)' }
     if (source === 'UNOFFICIAL') return { label: 'Norasmiy', bg: 'var(--bg-muted)', color: 'var(--text-muted)' }
     return null
 }
@@ -3074,7 +3074,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                 <div className="w-full max-w-md">
                     {/* Suhbat: avatar + savol pufakchasi */}
                     <div className="flex items-start gap-3 mb-6">
-                        <img src="/dtmmax-logo.png" alt="DtmMax" className="h-12 w-12 rounded-2xl flex-shrink-0" style={{ objectFit: 'contain', background: 'var(--bg-card)', boxShadow: 'var(--k-shadow-card)' }} />
+                        <img src="/dtmmax-logo.png" alt="DTMMax" className="h-12 w-12 rounded-2xl flex-shrink-0" style={{ objectFit: 'contain', background: 'var(--bg-card)', boxShadow: 'var(--k-shadow-card)' }} />
                         <div key={`q-${obStep}`} className="anim-up card" style={{ padding: '15px 19px', borderRadius: '12px' }}>
                             <p style={{ fontSize: '21px', fontWeight: 600, lineHeight: 1.28, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>{obQuestion}</p>
                             {obHint && <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>{obHint}</p>}
@@ -3212,7 +3212,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                 >
                     <div className="student-focus-rail__brand p-3 flex items-center justify-between h-14 flex-shrink-0">
                         <div className="flex items-center gap-2">
-                            <img src="/dtmmax-logo.png" alt="DtmMax" className="h-11 w-11 rounded-lg flex items-center justify-center" style={{ objectFit: 'contain' }} />
+                            <img src="/dtmmax-logo.png" alt="DTMMax" className="h-11 w-11 rounded-lg flex items-center justify-center" style={{ objectFit: 'contain' }} />
                             <span className="text-sm font-bold whitespace-nowrap">DTMMax</span>
                         </div>
                         <button type="button" onClick={() => setSideOpen(false)} className="student-icon-button h-8 w-8 flex items-center justify-center" aria-label="Yon panelni yopish"><X className="h-4 w-4" /></button>
@@ -3708,7 +3708,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                         {isMobile && (
                             <button type="button" onClick={createChat} disabled={creating} title="Yangi suhbat" aria-label="Yangi suhbat"
                                 className="h-8 w-8 flex items-center justify-center rounded-lg transition flex-shrink-0 disabled:opacity-50"
-                                style={{ color: 'var(--brand)', background: 'var(--brand-light)' }}>
+                                style={{ color: 'var(--brand-hover)', background: 'var(--brand-light)' }}>
                                 <Plus className="h-4 w-4" />
                             </button>
                         )}
@@ -3725,7 +3725,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                             <div className="student-today-view min-h-full flex flex-col items-center relative px-4 py-8 sm:px-8 sm:py-12">
                                 {(loading || streaming) ? (
                                     <div className="text-center px-4 anim-up relative" style={{ zIndex: 1 }}>
-                                        <img src="/dtmmax-logo.png" alt="DtmMax" className="h-14 w-14 rounded-xl mx-auto mb-3" style={{ objectFit: 'contain' }} />
+                                        <img src="/dtmmax-logo.png" alt="DTMMax" className="h-14 w-14 rounded-xl mx-auto mb-3" style={{ objectFit: 'contain' }} />
                                         <p className="text-base font-bold tracking-tight">AI <span className="k-italic">tayyorlayapti</span>...</p>
                                     </div>
                                 ) : (
@@ -3738,7 +3738,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             <div className="flex items-center gap-2 mt-5 flex-wrap">
                                                 <button type="button" onClick={() => setOverlayPanel('progress')}
                                                     className="flex items-center gap-1.5 h-8 px-3 rounded-full text-[12px] font-semibold transition"
-                                                    style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
+                                                    style={{ background: 'var(--brand-light)', color: 'var(--brand-hover)' }}>
                                                     <Flame className={`h-3 w-3 ${(progressData?.currentStreak ?? 0) > 0 ? 'k-flame-live' : ''}`} />
                                                     {(progressData?.currentStreak ?? 0) > 0 ? `${progressData?.currentStreak} kun ketma-ket` : 'Bugun 1-kunni boshla'}
                                                 </button>
@@ -3918,10 +3918,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                         <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Davom etsak — natija o'sadi</p>
                                                     </div>
                                                 </div>
-                                                <button type="button" className="btn btn-primary btn-sm flex-shrink-0 relative"
+                                                <button type="button" className="btn btn-outline btn-sm flex-shrink-0 relative"
                                                     onClick={() => { setOverlayPanel('tests'); markTestsSeen(); void loadPublicTests(); void loadMyResults() }}>
                                                     Testlar
-                                                    {newTestIds.size > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full text-white text-[9px] flex items-center justify-center font-bold" style={{ background: 'var(--danger)' }}>{newTestIds.size > 9 ? '9+' : newTestIds.size}</span>}
+                                                    {newTestIds.size > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full text-[9px] flex items-center justify-center font-bold" style={{ background: 'var(--brand)', color: '#171717' }}>{newTestIds.size > 9 ? '9+' : newTestIds.size}</span>}
                                                 </button>
                                             </section>
                                         )}
@@ -4214,7 +4214,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                         const resultTone = scorePercent >= 80
                             ? { color: 'var(--success)', background: 'var(--success-light)', title: 'Ajoyib natija!', message: 'Mavzuni yaxshi ushlabsiz. Shu ritmni saqlang.' }
                             : scorePercent >= 60
-                                ? { color: 'var(--brand)', background: 'var(--brand-light)', title: 'Yaxshi harakat!', message: 'Xatolardagi izohlarni ko‘rib, keyingi testda natijani oshiramiz.' }
+                                ? { color: 'var(--brand-hover)', background: 'var(--brand-light)', title: 'Yaxshi harakat!', message: 'Xatolardagi izohlarni ko‘rib, keyingi testda natijani oshiramiz.' }
                                 : { color: 'var(--warning)', background: 'color-mix(in srgb, var(--warning) 12%, transparent)', title: 'Boshlanish yaxshi!', message: 'Natija zaif joylarni ko‘rsatdi — endi aynan ulardan kuch olamiz.' }
                         const currentIndex = Math.min(testQuestionIndex, Math.max(0, questions.length - 1))
                         const currentQuestion = questions[currentIndex]
@@ -4279,13 +4279,13 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     onClick={() => setTestQuestionIndex(index)}
                                                     className="h-7 min-w-7 px-1.5 rounded-lg text-[10px] font-bold transition flex-shrink-0"
                                                     style={selected
-                                                        ? { background: 'var(--brand)', color: 'white' }
+                                                        ? { background: 'var(--brand)', color: '#171717' }
                                                         : correct
                                                             ? { background: 'var(--success-light)', color: 'var(--success)' }
                                                             : wrong
                                                                 ? { background: 'var(--danger-light)', color: 'var(--danger)' }
                                                                 : hasAnswer
-                                                                    ? { background: 'var(--brand-light)', color: 'var(--brand)' }
+                                                                    ? { background: 'var(--brand-light)', color: 'var(--brand-hover)' }
                                                                     : { background: 'var(--bg-surface)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
                                                     {index + 1}
                                                 </button>
@@ -4305,7 +4305,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             <>
                                             <div className="card p-5" style={{ borderColor: testAnswers[i] ? 'color-mix(in srgb, var(--brand) 28%, var(--border))' : undefined }}>
                                                 <div className="flex items-center justify-between gap-3 mb-2.5">
-                                                    <span className="text-[10px] uppercase tracking-[0.12em] font-bold px-2 py-1 rounded-lg" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>Savol {i + 1}</span>
+                                                    <span className="text-[10px] uppercase tracking-[0.12em] font-bold px-2 py-1 rounded-lg" style={{ background: 'var(--brand-light)', color: 'var(--brand-hover)' }}>Savol {i + 1}</span>
                                                     {testAnswers[i] && !testSubmitted && <span className="text-[10px] font-semibold" style={{ color: 'var(--success)' }}>Javob belgilandi ✓</span>}
                                                 </div>
                                                 {questionText ? (
@@ -4351,7 +4351,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                                 else sty = { borderColor: 'var(--border)', background: 'var(--bg-surface)', opacity: 0.6 }
                                                             } else {
                                                                 sty = isSelected
-                                                                    ? { borderColor: 'var(--brand)', background: 'var(--brand-light)', color: 'var(--brand)', fontWeight: 600 }
+                                                                    ? { borderColor: 'var(--brand)', background: 'var(--brand-light)', color: 'var(--brand-hover)', fontWeight: 600 }
                                                                     : { borderColor: 'var(--border)', background: 'var(--bg-card)' }
                                                             }
                                                             return (
@@ -4368,7 +4368,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                                         : testSubmitted && isSelected && !isCorrect
                                                                             ? { background: 'var(--danger)', color: 'white' }
                                                                             : isSelected
-                                                                                ? { background: 'var(--brand)', color: 'white' }
+                                                                                ? { background: 'var(--brand)', color: '#171717' }
                                                                                 : { background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>{opt.toUpperCase()}</span>
                                                                     <span className="pointer-events-none pt-0.5">
                                                                         <MathText text={q[opt]} />
@@ -4396,13 +4396,13 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     <div className="mt-3">
                                                         {explanations[i] ? (
                                                             <div className="text-[12.5px] leading-relaxed px-3.5 py-2.5 rounded-xl" style={{ background: 'var(--brand-light)', color: 'var(--text-secondary)' }}>
-                                                                <span className="font-semibold inline-flex items-center gap-1 mr-1" style={{ color: 'var(--brand)' }}><Lightbulb className="h-3.5 w-3.5" /> Izoh:</span>
+                                                                <span className="font-semibold inline-flex items-center gap-1 mr-1" style={{ color: 'var(--brand-hover)' }}><Lightbulb className="h-3.5 w-3.5" /> Izoh:</span>
                                                                 <MathText text={explanations[i]} />
                                                             </div>
                                                         ) : (
                                                             <button type="button" onClick={() => explainQuestion(i, q)} disabled={explLoading !== null}
                                                                 className="text-[12px] font-semibold inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition disabled:opacity-50"
-                                                                style={{ color: 'var(--brand)', background: 'var(--brand-light)' }}>
+                                                                style={{ color: 'var(--brand-hover)', background: 'var(--brand-light)' }}>
                                                                 <Lightbulb className="h-3.5 w-3.5" /> {explLoading === i ? 'Tushuntirilmoqda...' : 'Nega xato? AI tushuntirsin'}
                                                             </button>
                                                         )}
@@ -4942,7 +4942,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     <p className="text-sm font-semibold">Kartochkalar progressi</p>
                                                     <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{reviewedFlashcards}/{totalFlashcards || 0} o'rganildi</p>
                                                 </div>
-                                                <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
+                                                <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: 'var(--brand-light)', color: 'var(--brand-hover)' }}>
                                                     {totalFlashcards > 0 ? Math.round((reviewedFlashcards / totalFlashcards) * 100) : 0}%
                                                 </span>
                                             </div>
@@ -5080,7 +5080,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                             void handleAction('Zaif mavzular rejasi', `Mening zaif mavzularim: ${weakTopicSummary}. Shu mavzularni bugun o'rganish uchun qisqa reja tuzing va asosiy tushunchalarni tushuntiring.`)
                                                         }}
                                                         className="mt-3 w-full flex items-center gap-2.5 text-left text-[13px] font-semibold px-3.5 py-2.5 rounded-xl transition"
-                                                        style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}
+                                                        style={{ background: 'var(--brand-light)', color: 'var(--brand-hover)' }}
                                                     >
                                                         <AlertTriangle className="h-4 w-4 flex-shrink-0" />
                                                         Zaif mavzularni o'rganish: {weakTopicSummary}
@@ -5147,7 +5147,7 @@ Iltimos, har bir savolni tahlil qilib ber:
 
                                         {/* Pro tier card */}
                                         <div className="rounded-2xl p-4 relative" style={{ background: 'var(--bg-card)', border: '1.5px solid var(--brand)', boxShadow: '0 8px 28px -16px color-mix(in srgb, var(--brand) 60%, transparent)' }}>
-                                            <span className="absolute top-3 right-3 text-[10px] font-bold px-2 py-1 rounded-full" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
+                                            <span className="absolute top-3 right-3 text-[10px] font-bold px-2 py-1 rounded-full" style={{ background: 'var(--brand-light)', color: 'var(--brand-hover)' }}>
                                                 {pro.statusLabel}
                                             </span>
                                             <div className="flex items-baseline gap-2">

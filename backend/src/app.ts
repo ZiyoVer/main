@@ -128,6 +128,7 @@ import notificationsRoutes from './routes/notifications'
 import knowledgeRoutes from './routes/knowledge'
 import adminRoutes from './routes/admin'
 import billingRoutes from './routes/billing'
+import speechRoutes from './routes/speech'
 
 app.get('/api/health', async (_req, res) => {
     try {
@@ -140,6 +141,7 @@ app.get('/api/health', async (_req, res) => {
 
 app.use('/api/auth', apiLimiter, authRoutes)
 app.use('/api/chat', apiLimiter, chatRoutes)
+app.use('/api/chat', apiLimiter, speechRoutes)
 app.use('/api/tests', apiLimiter, testRoutes)
 app.use('/api/documents', apiLimiter, docRoutes)
 app.use('/api/analytics', apiLimiter, analyticsRoutes)

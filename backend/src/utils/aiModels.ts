@@ -4,6 +4,7 @@ export const AI_MODELS = {
     geminiFlash: 'gemini-3.5-flash',
     geminiFlashLite: 'gemini-3.5-flash-lite',
     geminiLegacyFlashLite: 'gemini-3.1-flash-lite',
+    geminiTts: 'gemini-3.1-flash-tts-preview',
 } as const
 
 export interface DeepSeekThinkingOptions {
