@@ -1,6 +1,5 @@
 import { Router } from 'express'
 import multer from 'multer'
-import pdfParse from 'pdf-parse'
 import mammoth from 'mammoth'
 import OpenAI from 'openai'
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
@@ -32,6 +31,7 @@ import {
     parseStrictTextOptions,
     stripPreSubmitAnswerFields,
 } from '../utils/testTrust'
+import { extractPdfText } from '../utils/pdfText'
 
 const TEST_SUBMIT_GRACE_MS = 5000
 
@@ -1468,8 +1468,9 @@ router.post('/generate-from-file', authenticate, requireRole('TEACHER', 'ADMIN')
         let rawQuestions: any[] = []
 
         if (mimetype === 'application/pdf') {
-            const data = await pdfParse(buffer)
-            const fullText = data.text.trim()
+            const extractedPdf = await extractPdfText(buffer)
+            const fullText = extractedPdf.text.trim()
+            truncated = extractedPdf.truncated
             const needsVisionPdf = !fullText || fullText.length < 50
 
             if (needsVisionPdf) {
@@ -1480,7 +1481,7 @@ router.post('/generate-from-file', authenticate, requireRole('TEACHER', 'ADMIN')
                 try {
                     const scannedResult = await generateQuestionsFromScannedPdf(buffer, subjectNote, jsonFormat)
                     rawQuestions = scannedResult.questions
-                    truncated = scannedResult.truncated
+                    truncated = truncated || scannedResult.truncated
                 } catch (err) {
                     console.error('PDF render failed:', err)
                 }
@@ -1490,7 +1491,7 @@ router.post('/generate-from-file', authenticate, requireRole('TEACHER', 'ADMIN')
                 }
 
                 const textChunks = chunkTextForQuestionGeneration(fullText)
-                truncated = textChunks.truncated
+                truncated = truncated || textChunks.truncated
 
                 for (const [chunkIndex, textChunk] of textChunks.chunks.entries()) {
                     const remainingSlots = QUESTION_GENERATION_MAX_TOTAL - rawQuestions.length
@@ -1572,7 +1573,7 @@ ${jsonFormat}`
                 ]
             }]
         } else {
-            return res.status(400).json({ error: 'Faqat PDF va rasm fayllari qo\'llab-quvvatlanadi' })
+            return res.status(400).json({ error: 'Faqat PDF, Word (.docx) yoki rasm fayllari qo\'llab-quvvatlanadi' })
         }
 
         // Rasm tahlili: DeepSeek vision qabul qilmaydi, Gemini kerak
