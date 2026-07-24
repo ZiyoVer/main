@@ -7,6 +7,7 @@ import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
 import { uploadToS3, deleteFromS3, getSignedS3Url } from '../utils/s3'
 import { createEmbeddings, hasEmbeddingClient, serializeEmbedding } from '../utils/embeddings'
 import { normalizeSubject } from '../utils/subjects'
+import { extractPdfText } from '../utils/pdfText'
 
 const uploadLimiter = rateLimit({
     windowMs: 60 * 1000,
@@ -47,9 +48,8 @@ router.post('/upload', authenticate, requireRole('ADMIN'), uploadLimiter, upload
 
         // PDF parse
         if (ext === '.pdf') {
-            const pdfParse = require('pdf-parse')
-            const data = await pdfParse(buffer)
-            text = data.text
+            const extracted = await extractPdfText(buffer)
+            text = extracted.text
         }
         // Word parse
         else if (ext === '.docx' || ext === '.doc') {

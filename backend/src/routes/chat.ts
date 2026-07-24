@@ -1,6 +1,5 @@
 import { Router } from 'express'
 import multer from 'multer'
-import pdfParse from 'pdf-parse'
 import mammoth from 'mammoth'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireVerified } from '../middleware/auth'
@@ -14,6 +13,7 @@ import { uploadToS3, getSignedS3Url } from '../utils/s3'
 import { AI_MODELS, deepseekThinking } from '../utils/aiModels'
 import { extractTrustedAiTestQuestions, learningPurposeForStage } from '../utils/aiTestSession'
 import { detectBroadLearningTopic } from '../utils/learningIntent'
+import { extractPdfText } from '../utils/pdfText'
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -2013,8 +2013,8 @@ router.post('/:chatId/upload-file', authenticate, requireVerified, uploadSingle,
 
         if (mimetype === 'application/pdf') {
             fileType = 'pdf'
-            const data = await pdfParse(buffer)
-            extractedText = data.text.trim()
+            const extracted = await extractPdfText(buffer)
+            extractedText = extracted.text.trim()
         } else if (mimetype.includes('word') || originalname.endsWith('.docx') || originalname.endsWith('.doc')) {
             fileType = 'word'
             const result = await mammoth.extractRawText({ buffer })

@@ -32,6 +32,7 @@ import {
     stripPreSubmitAnswerFields,
 } from '../utils/testTrust'
 import { extractPdfText } from '../utils/pdfText'
+import { prepareQuestionImage, QuestionImageValidationError } from '../utils/questionImage'
 
 const TEST_SUBMIT_GRACE_MS = 5000
 
@@ -2130,9 +2131,6 @@ router.patch('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), testMuta
 router.post('/upload-image', authenticate, requireRole('TEACHER', 'ADMIN'), upload.single('image'), async (req: AuthRequest, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'Rasm yuklanmadi' })
-        if (!req.file.mimetype.startsWith('image/')) {
-            return res.status(400).json({ error: 'Faqat rasm fayllari yuklanadi' })
-        }
         // Storage (Railway Bucket / S3) sozlanmagan bo'lsa — aniq xabar (umumiy 500 chalg'itadi).
         if (!isStorageConfigured) {
             console.error('upload-image: storage kalitlari sozlanmagan (Bucket ulanmagan)')
@@ -2140,18 +2138,36 @@ router.post('/upload-image', authenticate, requireRole('TEACHER', 'ADMIN'), uplo
         }
 
         // s3 ga yuklash
-        const fileName = `${Date.now()}-${req.file.originalname.replace(/\s+/g, '-')}`
-        const fileBuffer = req.file.buffer
-        const mimetype = req.file.mimetype
+        const prepared = await prepareQuestionImage(
+            req.file.buffer,
+            req.file.originalname,
+            req.file.mimetype,
+        )
+        const fileName = `${Date.now()}-${prepared.fileName.replace(/\s+/g, '-')}`
 
-        const s3Result = await uploadToS3(fileBuffer, fileName, 'questions', mimetype)
+        const s3Result = await uploadToS3(
+            prepared.buffer,
+            fileName,
+            'questions',
+            prepared.contentType,
+            // Signed URL private qoladi; faqat foydalanuvchining browser cache'i
+            // bir haftagacha qayta downloadni tejaydi.
+            { cacheControl: 'private, max-age=604800, immutable' },
+        )
 
         res.json({
             url: await getSignedS3Url(s3Result.key),
             imageUrl: toStoredS3Ref(s3Result.key),
-            key: s3Result.key
+            key: s3Result.key,
+            width: prepared.width,
+            height: prepared.height,
+            optimized: prepared.optimized,
+            bytesSaved: Math.max(0, prepared.originalBytes - prepared.buffer.length),
         })
     } catch (e: any) {
+        if (e instanceof QuestionImageValidationError) {
+            return res.status(400).json({ error: e.message })
+        }
         console.error('Image upload error:', e?.message || e)
         res.status(500).json({ error: `Rasm yuklashda xatolik: ${e?.name === 'CredentialsProviderError' || /credential|access.?key|signature/i.test(String(e?.message)) ? 'S3 kaliti noto\'g\'ri' : 'saqlash xizmati javob bermadi'}` })
     }
