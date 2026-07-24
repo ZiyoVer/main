@@ -19,8 +19,8 @@ bilan o'zbek tilida suhbatlashib, testlar yechadi, flashcardlar ishlaydi.
 | Frontend | React 19, Vite 7, TypeScript, Tailwind CSS v4 |
 | Backend | Node.js, Express 5, TypeScript, Prisma 5 |
 | Database | PostgreSQL (Railway) |
-| AI (chat) | DeepSeek API — deepseek-chat, deepseek-reasoner |
-| AI (vision) | GPT-4o-mini (OCR) → DeepSeek (math tahlil) |
+| AI (chat) | DeepSeek API — `deepseek-v4-pro`, tezkor fallback `deepseek-v4-flash` |
+| AI (vision) | Gemini Flash (OCR/vision) → DeepSeek (tahlil va verifikatsiya) |
 | Auth | JWT 7 kun, rollar: STUDENT / TEACHER / ADMIN |
 | Email | Resend (noreply@dtmmax.uz) |
 | State | Zustand (auth), localStorage (test natijalar) |
@@ -120,13 +120,18 @@ Settings → MCP Servers → Add → `http://localhost:3100/mcp`
 
 ## Muhim qoidalar
 
-1. **Git:** Har o'zgarishdan keyin `git add → commit → push origin main`
+1. **Git:** Aktiv topshiriqdagi branch chekloviga amal qil. 2026-07-24 holatida redesign faqat
+   `redesign/dtmmax-v2` preview branchida davom etadi; `main` va `reysh` himoyalangan.
+   Foydalanuvchining alohida ruxsatisiz `main`ga merge yoki push qilma.
 2. **Til:** O'zbek tilida — UI matnlar, commit messagelar, izohlar
 3. **TypeScript:** strict mode — `any` ishlatma
 4. **Error handling:** Har bir `async` funksiyada `try/catch` bo'lsin
 5. **State:** `setX(prev => ...)` funksional update ishlat — stale closure oldini ol
 6. **Auth:** Har doim rolni tekshir (STUDENT/TEACHER/ADMIN)
 7. **Backend:** Har route da `authenticate` middleware bo'lsin (agar kerak bo'lsa)
+
+Preview redesignning joriy holati, qarorlar sababi, kreativ dizayn erkinligi va
+tekshirish tartibi uchun `docs/PREVIEW-REDESIGN-HANDOFF.md` ni o‘qi.
 
 ---
 
