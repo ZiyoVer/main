@@ -2112,12 +2112,14 @@ Iltimos, har bir savolni tahlil qilib ber:
                             })
                             setStreaming(''); setThinkingText(''); loadChats()
                             // Test avtomatik ochish
-                            const testMatch = fullText.match(/```test\s*([\s\S]*?)```/)
-                            if (testMatch) {
-                                const parsedTest = parseStructuredJson<unknown[]>(testMatch[1].trim())
-                                if (Array.isArray(parsedTest) && parsedTest.length > 0 && persistedMessageId) {
-                                    setTimeout(() => { handleOpenTest(testMatch[1].trim(), persistedMessageId) }, 400)
-                                }
+                            const validTestBlock = [...fullText.matchAll(/```test\s*([\s\S]*?)```/gi)]
+                                .map(match => match[1]?.trim() || '')
+                                .find(block => {
+                                    const parsedTest = parseStructuredJson<unknown[]>(block)
+                                    return Array.isArray(parsedTest) && parsedTest.length > 0
+                                })
+                            if (validTestBlock && persistedMessageId) {
+                                setTimeout(() => { handleOpenTest(validTestBlock, persistedMessageId) }, 400)
                             }
                         }
                     }

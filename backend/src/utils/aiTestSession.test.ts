@@ -19,6 +19,13 @@ test('rejects malformed, blank and duplicate options', () => {
     assert.equal(extractTrustedAiTestQuestions(wrap([{ q: 'Q', a: 'A', b: 'B', c: 'C', d: 'D', correct: 'x' }])), null)
 })
 
+test('uses a valid recovery block after a malformed model block', () => {
+    const valid = [{ q: 'Q2', a: 'A', b: 'B', c: 'C', d: 'D', correct: 'c', topic: 'Integral' }]
+    const content = '```test\n[{"q":"broken"}]\n```\n\n'
+        + `\`\`\`test\n${JSON.stringify(valid)}\n\`\`\``
+    assert.equal(extractTrustedAiTestQuestions(content)?.[0]?.q, 'Q2')
+})
+
 test('derives deterministic learning checkpoint purpose', () => {
     assert.equal(learningPurposeForStage('PREREQUISITE', null), 'PREREQUISITE')
     assert.equal(learningPurposeForStage('LESSON', null), 'CHECKPOINT')
