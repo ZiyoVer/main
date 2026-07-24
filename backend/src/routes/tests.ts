@@ -33,6 +33,7 @@ import {
 } from '../utils/testTrust'
 import { extractPdfText } from '../utils/pdfText'
 import { prepareQuestionImage, QuestionImageValidationError } from '../utils/questionImage'
+import { generateGeminiVisionContent, GeminiVisionImage } from '../utils/geminiVision'
 
 const TEST_SUBMIT_GRACE_MS = 5000
 
@@ -883,6 +884,56 @@ async function generateDtmQuestionsFromPdf(buffer: Buffer, subject: string, subj
 }
 
 async function generateQuestionJson(messages: any[], isVision = false): Promise<string> {
+    if (isVision) {
+        const images: GeminiVisionImage[] = []
+        const promptParts: string[] = []
+
+        for (const message of messages) {
+            const content = message?.content
+            if (typeof content === 'string') {
+                if (content.trim()) promptParts.push(content.trim())
+                continue
+            }
+            if (!Array.isArray(content)) continue
+
+            for (const part of content) {
+                if (part?.type === 'text' && typeof part.text === 'string' && part.text.trim()) {
+                    promptParts.push(part.text.trim())
+                    continue
+                }
+                const url = part?.type === 'image_url' ? part?.image_url?.url : null
+                const match = typeof url === 'string'
+                    ? /^data:([^;,]+);base64,([a-z0-9+/=\r\n]+)$/i.exec(url)
+                    : null
+                if (match) {
+                    images.push({
+                        mimeType: match[1],
+                        data: match[2].replace(/\s+/g, ''),
+                    })
+                }
+            }
+        }
+
+        const startedAt = Date.now()
+        const result = await generateGeminiVisionContent({
+            apiKey: process.env.GEMINI_API_KEY || '',
+            systemPrompt: buildQuestionGeneratorSystemPrompt(),
+            prompt: promptParts.join('\n\n'),
+            images,
+            maxOutputTokens: QUESTION_GENERATION_MAX_OUTPUT_TOKENS,
+            temperature: 0.1,
+        })
+
+        console.info('AI_TEST_GENERATION', {
+            model: result.model,
+            thinking: false,
+            fallback: result.model !== VISION_MODEL,
+            latencyMs: Date.now() - startedAt,
+            usage: result.usage,
+        })
+        return result.text
+    }
+
     const client = isVision ? gptClient : aiClient
     const model = isVision ? VISION_MODEL : aiModel
     const startedAt = Date.now()
