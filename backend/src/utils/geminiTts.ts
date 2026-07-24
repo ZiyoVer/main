@@ -21,11 +21,13 @@ export type CharonSpeechResult = {
 
 export class GeminiTtsError extends Error {
     status: number | null
+    clientFault: boolean
 
-    constructor(message: string, status: number | null = null) {
+    constructor(message: string, status: number | null = null, clientFault = false) {
         super(message)
         this.name = 'GeminiTtsError'
         this.status = status
+        this.clientFault = clientFault
     }
 }
 
@@ -96,7 +98,7 @@ export async function generateCharonSpeech(options: TtsOptions): Promise<CharonS
     const text = sanitizeSpeechText(options.text)
 
     if (!apiKey) throw new GeminiTtsError('Gemini API kaliti topilmadi')
-    if (!text) throw new GeminiTtsError('Ovozga aylantirish uchun matn topilmadi', 400)
+    if (!text) throw new GeminiTtsError('Ovozga aylantirish uchun matn topilmadi', 400, true)
 
     let lastError: GeminiTtsError | null = null
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -115,9 +117,6 @@ export async function generateCharonSpeech(options: TtsOptions): Promise<CharonS
                     input: `Read the transcript exactly as written. Use an informative, calm, natural pace. Preserve the transcript's original language.\n\nTranscript:\n${text}`,
                     response_format: {
                         type: 'audio',
-                        delivery: 'inline',
-                        mime_type: 'audio/wav',
-                        sample_rate: 24000,
                     },
                     generation_config: {
                         speech_config: [{ voice: 'Charon' }],

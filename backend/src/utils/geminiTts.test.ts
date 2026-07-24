@@ -46,7 +46,7 @@ test('Gemini so‘rovda doim Charon va WAV ishlatadi', async () => {
     })
 
     assert.equal(requestBody.generation_config.speech_config[0].voice, 'Charon')
-    assert.equal(requestBody.response_format.mime_type, 'audio/wav')
+    assert.deepEqual(requestBody.response_format, { type: 'audio' })
     assert.equal(requestBody.store, false)
     assert.equal(result.voice, 'Charon')
     assert.equal(result.audio.subarray(0, 4).toString('ascii'), 'RIFF')

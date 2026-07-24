@@ -58,7 +58,7 @@ router.post('/speech', authenticate, speechLimiter, async (req: AuthRequest, res
         })
         console.error('Charon TTS xato:', error?.message || error)
 
-        if (error instanceof GeminiTtsError && error.status === 400) {
+        if (error instanceof GeminiTtsError && error.clientFault) {
             return res.status(400).json({ error: error.message })
         }
         return res.status(503).json({
