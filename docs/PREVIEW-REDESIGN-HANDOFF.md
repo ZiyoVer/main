@@ -127,49 +127,60 @@ komponent va utilitylarni bosqichma-bosqich chiqarish afzal.
 
 - Focus Rail student/teacher/admin workspace yo‘nalishi.
 - Preview isolation, auth va migration hardening.
-- Dependency yangilanishlari va backend regression testlari.
+- Dependency yangilanishlari va 37 ta backend regression testi.
 - Tabiiy o‘quv savolini sessiyaga aylantirish:
   prerequisite → reja → tushuntirish → mashq → natija.
-- PDF/DOCX/rasmdan AI test generatsiyasi va javob verifikatsiyasi.
+- Model test blokini tashlab ketsa yoki buzsa, qat’iy JSON checkpoint recovery.
+- Matnli PDF, skan PDF, DOCX va rasmdan AI test generatsiyasi.
 - Rasmli testlarda oldindan joy rezervi, lazy decoding va signed URL.
 - Paylov onboarding tokenidan OAuth2 access/refresh token aylanishi.
+- Gemini `gemini-3.1-flash-tts-preview` + doimiy `Charon` ovozi, kunlik quota
+  va provider xatosida quota refund.
 - Landing production ko‘rinishiga vaqtincha qaytarilgan.
 - Tayyor CTA promptlari foydalanuvchi xabari sifatida chatga chiqarilmaydi.
+- Admin grafiklari alohida lazy chunkka ajratilgan: AdminPanel shell
+  taxminan 515 kB dan 140 kB ga tushgan.
+- PostCSS `8.5.23`ga yangilanib, `<=8.5.17` source-map path traversal
+  zaifligi yopilgan.
 
-## 7. Joriy backlog va “done” mezonlari
+## 7. Jonli QA natijalari va qolgan tashqi blok
 
-### PDF → AI test
+### Previewda tasdiqlangan
 
-- Matnli va scan PDF, DOCX hamda rasm uchun real preview smoke test.
-- Xato holatlarida umumiy “ishlamadi” emas, tuzatiladigan sabab ko‘rsatilishi.
-- AI natijasi publishdan oldin savol, variant, to‘g‘ri javob va rasm bo‘yicha
-  review qilinishi.
+- Text PDF: lokal extraction orqali savollar generatsiyasi o‘tgan.
+- Scan PDF: Gemini model fallback bilan 2 ta real savol, variant va correctIdx
+  to‘g‘ri generatsiya qilingan.
+- Katta rasm: 2200 px WebP optimizatsiya, private immutable cache va signed URL
+  unit/live oqimi o‘tgan.
+- AI tutor: integral so‘rovida 3 savolli prerequisite diagnostika, noto‘g‘ri
+  natijada `REMEDIATION`, to‘g‘ri natijada `LESSON`, dars oxirida aynan 5
+  savolli trusted checkpoint o‘tgan.
+- TTS: `200 audio/wav`, `Charon`, `gemini-3.1-flash-tts-preview`, `RIFF/WAVE`
+  va quota increment jonli tasdiqlangan.
+- Role E2E: teacher create → admin pending/approve → student open/submit/review
+  → teacher analytics. Pre-submit answer-key leak yo‘q, duplicate submit `409`,
+  student admin endpointida `403`.
+- Backend test: 37/37. Frontend TypeScript + Vite production build: yashil.
+- Barcha QA akkaunt/testlari preview bazasidan tekshiruvdan keyin o‘chirilgan.
 
-### Rasmli test
+### Paylov — tashqi javob kutilmoqda
 
-- Birinchi rasm tez, qolganlari viewportga yaqinlashganda yuklanishi.
-- Layout shift bo‘lmasligi.
-- Broken image savolni yechib bo‘lmas holga keltirmasligi.
-- Immutable objectlar uchun xavfsiz browser cache strategiyasi.
+- Railway static outbound IP’lar Paylov whitelistiga yuborilgan va qo‘shilgan.
+- Onboard token OAuth2 access token yaratish uchun ishlatiladi.
+- Supportdan DTMMax’ning 30 kunlik Pro xaridi uchun `Payment Without
+  Registration` yoki `Subscription` contractidan qaysi biri kerakligi
+  tasdiqlanishi kutilmoqda.
+- Shu javob va rasmiy sandbox karta/OTP oqimi tasdiqlanmaguncha billing contracti
+  o‘zgartirilmaydi hamda production payment yoqilmaydi.
 
-### AI ustoz
+### Dependency risk qarori
 
-- “Integralni tushuntir” kabi so‘rov darhol qisqa prerequisite diagnostikadan
-  boshlanishi.
-- Reja foydalanuvchiga ko‘rinadi, ammo ichki system prompt ko‘rinmaydi.
-- Tushuntirish kichik bosqichlarda; har bosqichdan keyin comprehension check.
-- Mashq/test alohida interaktiv blok bo‘lib ochiladi.
-- Audio o‘qish funksiyasi qo‘shilsa barcha Gemini TTS playback **Charon**
-  ovozidan foydalanadi. Inglizcha ham Charon bo‘ladi. Uzbek tili Gemini TTS
-  rasmiy supported-language ro‘yxatida bo‘lmagani uchun sifat va fallback
-  alohida tekshiriladi; UI yolg‘on “to‘liq qo‘llanadi” demaydi.
-
-### UX va performance
-
-- Student, teacher va admin happy-path hamda error-path tekshiriladi.
-- Keyboard, mobile, narrow desktop, loading/empty/error/success holatlari bor.
-- Frontend/backend build va backend testlar yashil.
-- Preview health va asosiy API smoke testlari yashil.
+- `npm audit` React Router 7.12–8.2 uchun high ogohlantirish ko‘rsatadi, ammo
+  advisory faqat unstable React Server Components API’larini ishlatadigan
+  ilovalarga taalluqli.
+- DTMMax `BrowserRouter` SPA; repo bo‘ylab RSC API importi/foydalanishi yo‘q.
+  Shuning uchun audit tavsiya qilgan `react-router-dom@7.11.0` downgrade
+  qilinmadi. 8.3 migratsiyasi alohida compatibility branchda ko‘riladi.
 
 ## 8. Verifikatsiya tartibi
 
@@ -210,4 +221,6 @@ Test data faqat previewda yaratiladi va tekshiruvdan keyin tozalanadi.
 | 2026-07-24 | `brand-light` ustidagi matn/ikon `brand`dan `brand-hover`ga o‘tkazildi (Bugun, test paneli, flashcard, Pro, badge’lar) | DESIGN.md’ning “pale tint ustida orange-600” qoidasi; #F15A24→#FFF1EB kontrasti ~2.7:1 AA talabidan past edi |
 | 2026-07-24 | Orange to‘ldirilgan control matni oqdan `#171717`ga (test navigatori, A/B/C/D doirasi) | DESIGN.md: kichik oq matn `orange-500` ustida qo‘llanmaydi |
 | 2026-07-24 | `alt="DtmMax"` → `alt="DTMMax"` (3 joy) | 09-landing auditidagi nom izchilligi qoidasi |
-
+| 2026-07-24 | O‘quv checkpointi model ixtiyoriga qoldirilmaydi | DeepSeek bir jonli darsda 5 savolli blokni tashlab ketdi; server recovery va trusted validation qo‘shildi |
+| 2026-07-24 | React Router audit ogohlantirishi hozircha accepted/not-applicable | Zaiflik faqat unstable RSC yo‘liga tegishli; DTMMax BrowserRouter SPA |
+| 2026-07-24 | Paylov contracti support javobigacha muzlatildi | Payment turini taxmin qilish moliyaviy oqim va callback semantikasini buzishi mumkin |
