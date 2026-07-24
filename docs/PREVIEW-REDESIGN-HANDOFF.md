@@ -167,6 +167,11 @@ komponent va utilitylarni bosqichma-bosqich chiqarish afzal.
 
 - Railway static outbound IP’lar Paylov whitelistiga yuborilgan va qo‘shilgan.
 - Onboard token OAuth2 access token yaratish uchun ishlatiladi.
+- Yakuniy preview config (`/api/billing/config`) hozir
+  `checkoutConfigured:false`, `paylovOAuthConfigured:false`,
+  `sandboxTestMode:false`, `paylovOnboardingRequired:true` qaytarmoqda.
+  Ya’ni preview muhitida payment hozir ishga tayyor emas va test to‘lov
+  boshlanmasligi kerak.
 - Supportdan DTMMax’ning 30 kunlik Pro xaridi uchun `Payment Without
   Registration` yoki `Subscription` contractidan qaysi biri kerakligi
   tasdiqlanishi kutilmoqda.
