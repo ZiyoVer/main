@@ -33,6 +33,10 @@ import '../../styles/student-workspace.css'
 
 interface Chat { id: string; title: string; subject?: string; subject2?: string; updatedAt: string; messageCount?: number }
 interface Msg { id: string; role: string; content: string; createdAt: string }
+interface SendOptions {
+    hideUserMessage?: boolean
+    actionLabel?: string
+}
 interface Profile { onboardingDone: boolean; examType?: 'DTM' | 'MS' | null; subject?: string; subject2?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string; totalTests?: number; avgScore?: number; abilityLevel?: number }
 interface PublicTest { id: string; title: string; shareLink: string; subject?: string; category?: string; source?: string; premium?: boolean; testType?: string; timeLimit?: number | null; _count?: { questions: number; attempts: number } }
 
@@ -1024,6 +1028,7 @@ export default function ChatLayout() {
     const [chatsLoaded, setChatsLoaded] = useState(false)
     const [messages, setMessages] = useState<Msg[]>([])
     const [loading, setLoading] = useState(false)
+    const [activeRequestPrompt, setActiveRequestPrompt] = useState('')
     const [creating, setCreating] = useState(false)
     const [streaming, setStreaming] = useState('')
     const [sideOpen, setSideOpen] = useState(true)
@@ -2007,10 +2012,18 @@ Iltimos, har bir savolni tahlil qilib ber:
         void createChat()
     }, [chatId, chats, createChat, isMobile, nav])
 
-    // Stream helper — displayText ixtiyoriy: chatda ko'rinadigan matn (prompt AI ga yuboriladi)
-    async function streamToChat(targetChatId: string, prompt: string, displayText?: string): Promise<boolean> {
+    // displayText fayl/test kabi holatlarda texnik prompt o'rniga ko'rinadigan matn.
+    // hideUserMessage tayyor action tugmalarining ichki promptini AI kontekstida saqlaydi,
+    // ammo live chat va keyingi history yuklanishida user bubble sifatida ko'rsatmaydi.
+    async function streamToChat(
+        targetChatId: string,
+        prompt: string,
+        displayText?: string,
+        options: SendOptions = {}
+    ): Promise<boolean> {
         const shown = displayText !== undefined ? displayText : prompt
-        setLoading(true); setStreaming(''); setThinkingText('')
+        const hideUserMessage = options.hideUserMessage === true
+        setLoading(true); setStreaming(''); setThinkingText(''); setActiveRequestPrompt(prompt)
         if (abortRef.current) {
             abortRef.current.abort()
         }
@@ -2036,6 +2049,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                     thinking: requestThinkingMode,
                     learningSessionId: learningSessionIdRef.current || undefined,
                     ...(displayText !== undefined && { displayText }),
+                    ...(hideUserMessage && { hideUserMessage: true }),
+                    ...(options.actionLabel && { actionLabel: options.actionLabel }),
                     todoContext: requestTodoContext,
                 }),
                 signal: controller.signal
@@ -2058,10 +2073,9 @@ Iltimos, har bir savolni tahlil qilib ber:
                         if (isCurrentChat()) {
                             setMessages(prev => {
                                 const filtered = prev.filter(m => m.id !== 'temp-u')
-                                return [...filtered,
-                                { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() },
-                                { id: 'err-' + Date.now(), role: 'assistant', content: `⚠️ ${d.error}`, createdAt: new Date().toISOString() }
-                                ]
+                                const errorMessage = { id: 'err-' + Date.now(), role: 'assistant', content: `⚠️ ${d.error}`, createdAt: new Date().toISOString() }
+                                if (hideUserMessage) return [...filtered, errorMessage]
+                                return [...filtered, { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() }, errorMessage]
                             })
                         }
                         setStreaming(''); setThinkingText('')
@@ -2092,10 +2106,9 @@ Iltimos, har bir savolni tahlil qilib ber:
                         if (isCurrentChat()) {
                             setMessages(prev => {
                                 const filtered = prev.filter(m => m.id !== 'temp-u')
-                                return [...filtered,
-                                { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() },
-                                { id: persistedMessageId || 'a-' + Date.now(), role: 'assistant', content: fullText, createdAt: new Date().toISOString() }
-                                ]
+                                const assistantMessage = { id: persistedMessageId || 'a-' + Date.now(), role: 'assistant', content: fullText, createdAt: new Date().toISOString() }
+                                if (hideUserMessage) return [...filtered, assistantMessage]
+                                return [...filtered, { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() }, assistantMessage]
                             })
                             setStreaming(''); setThinkingText(''); loadChats()
                             // Test avtomatik ochish
@@ -2144,20 +2157,18 @@ Iltimos, har bir savolni tahlil qilib ber:
                 if (fullText.trim() && isCurrentChat()) {
                     setMessages(prev => {
                         const filtered = prev.filter(m => m.id !== 'temp-u')
-                        return [...filtered,
-                        { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() },
-                        { id: 'a-' + Date.now(), role: 'assistant', content: fullText + '\n\n*[To\'xtatildi]*', createdAt: new Date().toISOString() }
-                        ]
+                        const assistantMessage = { id: 'a-' + Date.now(), role: 'assistant', content: fullText + '\n\n*[To\'xtatildi]*', createdAt: new Date().toISOString() }
+                        if (hideUserMessage) return [...filtered, assistantMessage]
+                        return [...filtered, { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() }, assistantMessage]
                     })
                 }
             } else if (isCurrentChat()) {
                 const errText = `⚠️ ${err?.message || 'AI javob bera olmadi. Qayta urinib ko\'ring.'}`
                 setMessages(prev => {
                     const filtered = prev.filter(m => m.id !== 'temp-u')
-                    return [...filtered,
-                    { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() },
-                    { id: 'err-' + Date.now(), role: 'assistant', content: errText, createdAt: new Date().toISOString() }
-                    ]
+                    const errorMessage = { id: 'err-' + Date.now(), role: 'assistant', content: errText, createdAt: new Date().toISOString() }
+                    if (hideUserMessage) return [...filtered, errorMessage]
+                    return [...filtered, { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() }, errorMessage]
                 })
             }
             setStreaming(''); setThinkingText('')
@@ -2165,7 +2176,7 @@ Iltimos, har bir savolni tahlil qilib ber:
         // Faqat bizning controller hali ham faol bo'lsa tozalaymiz — aks holda
         // bu oqim bekor qilingan, yangi oqim allaqachon abortRef'ni egallagan bo'lishi mumkin
         if (abortRef.current === controller) {
-            setLoading(false); abortRef.current = null
+            setLoading(false); setActiveRequestPrompt(''); abortRef.current = null
         }
         return completed && fullText.trim().length > 0
     }
@@ -2202,7 +2213,7 @@ Iltimos, har bir savolni tahlil qilib ber:
         }
     }, [chatId, profile?.subject, profile?.subject2]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    const handleSend = useCallback(async (text: string, files: AttachedFile[]) => {
+    const handleSend = useCallback(async (text: string, files: AttachedFile[], options: SendOptions = {}) => {
         if (loading) return
         if (aiQuota && !aiQuota.unlimited && aiQuota.chat.used >= aiQuota.chat.limit) {
             toast("Bugungi AI limiti tugadi — tayyor testlarni limitsiz yechishingiz mumkin", { icon: '⚡' })
@@ -2220,7 +2231,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                 const data = await fetchApi('/chat/new', {
                     method: 'POST',
                     body: JSON.stringify({
-                        title: text.substring(0, 50) || 'Yangi suhbat',
+                        title: options.actionLabel?.trim().substring(0, 50) || text.substring(0, 50) || 'Yangi suhbat',
                         subject: normalizeSubjectValue(profile?.subject) || undefined,
                         subject2: normalizeSubjectValue(profile?.subject2) || undefined,
                         forceNew: true
@@ -2254,11 +2265,17 @@ Iltimos, har bir savolni tahlil qilib ber:
             const success = await streamToChat(targetChatId!, promptText.trim(), displayText.trim())
             if (success) logActivity(5)
         } else {
-            setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: text, createdAt: new Date().toISOString() }])
-            const success = await streamToChat(targetChatId!, text)
+            if (!options.hideUserMessage) {
+                setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: text, createdAt: new Date().toISOString() }])
+            }
+            const success = await streamToChat(targetChatId!, text, undefined, options)
             if (success) logActivity(5)
         }
     }, [aiQuota, chatId, loading, profile])
+
+    const handleAction = useCallback((actionLabel: string, prompt: string) => {
+        return handleSend(prompt, [], { hideUserMessage: true, actionLabel })
+    }, [handleSend])
 
     // Paylov hosted checkout orqali Pro to'lovini boshlash.
     // Karta va OTP DTMMax frontend/backend'iga kirmaydi.
@@ -3424,7 +3441,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 <div key={i} className="flex items-center gap-2 py-1">
                                                     <p className="text-[12.5px] flex-1" style={{ color: 'var(--text-secondary)' }}>{cap.l}</p>
                                                     <button type="button"
-                                                        onClick={() => { setShowSettings(false); void handleSend(cap.p, []) }}
+                                                        onClick={() => { setShowSettings(false); void handleAction(cap.l, cap.p) }}
                                                         className="text-[11px] font-semibold px-2.5 py-1 rounded-lg transition flex-shrink-0"
                                                         style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
                                                         Sinash
@@ -3745,7 +3762,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             const needsDiagnostic = myResults.length === 0 && (profile?.totalTests ?? 0) === 0
                                             let title = 'Bugungi qisqa reja tuzing'
                                             let description = 'AI sizning maqsadingizga mos, bajariladigan reja tuzadi'
-                                            let onClick = () => { void handleSend('Menga bugun uchun qisqa, bajarsa bo‘ladigan o‘quv reja tuz — imtihonim va zaif mavzularimga mosla.', []) }
+                                            let onClick = () => { void handleAction('Bugungi reja', 'Menga bugun uchun qisqa, bajarsa bo‘ladigan o‘quv reja tuz — imtihonim va zaif mavzularimga mosla.') }
 
                                             if (needsDiagnostic) {
                                                 const subjects = diagnosticSubjects(profile)
@@ -3753,11 +3770,11 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 description = subjects.length >= 2
                                                     ? `${subjects.join(' + ')} bo‘yicha diagnostik test`
                                                     : `${subjects[0] || 'Asosiy faningiz'} bo‘yicha shaxsiy boshlang‘ich test`
-                                                onClick = () => { void handleSend(buildDiagnosticPrompt(profile), []) }
+                                                onClick = () => { void handleAction('Darajamni aniqlash', buildDiagnosticPrompt(profile)) }
                                             } else if (unfinishedTodo) {
                                                 title = 'Bugungi rejani davom ettiring'
                                                 description = `Navbatdagi vazifa: ${unfinishedTodo.task}`
-                                                onClick = () => { void handleSend(`Bugungi rejadagi "${unfinishedTodo.task}" vazifani boshlashimga yordam ber: eng muhim birinchi qadamni ayt.`, []) }
+                                                onClick = () => { void handleAction('Vazifani boshlash', `Bugungi rejadagi "${unfinishedTodo.task}" vazifani boshlashimga yordam ber: eng muhim birinchi qadamni ayt.`) }
                                             } else if (myResults.length > 0) {
                                                 title = 'Keyingi testni tanlang'
                                                 description = `Oxirgi natija ${myResults[0].score}% — endi davom etamiz`
@@ -3765,7 +3782,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             } else if (weakTopic) {
                                                 title = `Zaif mavzu: ${weakTopic.topic}`
                                                 description = '10 ta qisqa mashq bilan mustahkamlaymiz'
-                                                onClick = () => { void handleSend(`"${weakTopic.topic}" mavzusidan 10 ta savollik mashq testi tuz — bu mening zaif mavzum, oxirida xatolarimni tushuntir.`, []) }
+                                                onClick = () => { void handleAction(`${weakTopic.topic} mashqi`, `"${weakTopic.topic}" mavzusidan 10 ta savollik mashq testi tuz — bu mening zaif mavzum, oxirida xatolarimni tushuntir.`) }
                                             }
 
                                             return (
@@ -3845,7 +3862,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                         <div className="flex items-center justify-between gap-3 mt-1">
                                                             <p className="text-[12px]" style={{ color: 'var(--text-muted)' }}>Bugun uchun reja hali yo'q — AI 1 daqiqada tuzib beradi</p>
                                                             <button type="button" className="btn btn-outline btn-sm flex-shrink-0"
-                                                                onClick={() => { void handleSend(newPlanPrompt, []) }}>
+                                                                onClick={() => { void handleAction('Bugungi reja', newPlanPrompt) }}>
                                                                 Reja tuzish
                                                             </button>
                                                         </div>
@@ -3854,7 +3871,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                             <p className="text-[11px] mt-0.5 mb-1" style={{ color: 'var(--text-muted)' }}>Avvalgi rejadan qolgan vazifalar:</p>
                                                             {olderUndone.slice(0, 3).map(renderTodoRow)}
                                                             <button type="button" className="btn btn-outline btn-sm mt-2"
-                                                                onClick={() => { void handleSend(newPlanPrompt, []) }}>
+                                                                onClick={() => { void handleAction('Bugungi yangi reja', newPlanPrompt) }}>
                                                                 Bugun uchun yangi reja
                                                             </button>
                                                         </>
@@ -3915,7 +3932,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             if (!weakTopic) return null
                                             return (
                                                 <button type="button"
-                                                    onClick={() => { void handleSend(`"${weakTopic.topic}" mavzusidan 10 ta savollik mashq testi tuz — bu mening zaif mavzum, oxirida xatolarimni tushuntir.`, []) }}
+                                                    onClick={() => { void handleAction(`${weakTopic.topic} mashqi`, `"${weakTopic.topic}" mavzusidan 10 ta savollik mashq testi tuz — bu mening zaif mavzum, oxirida xatolarimni tushuntir.`) }}
                                                     className="student-today__section student-weak-topic w-full flex items-center gap-3 text-left transition">
                                                     <AlertTriangle className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--warning)' }} />
                                                     <span className="text-[12.5px] min-w-0 flex-1" style={{ color: 'var(--text-primary)' }}>
@@ -3942,7 +3959,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 { label: 'Mashq tuz', prompt: "Menga o‘z fanimdan 5 ta qisqa mashq tuz va har javobimdan keyin izoh ber." },
                                                 { label: 'Reja tuz', prompt: 'Bugun uchun qisqa va bajariladigan o‘qish rejasini tuz.' },
                                             ].map(action => (
-                                                <button key={action.label} type="button" onClick={() => { void handleSend(action.prompt, []) }}>
+                                                <button key={action.label} type="button" onClick={() => { void handleAction(action.label, action.prompt) }}>
                                                     <span>{action.label}</span><ArrowRight aria-hidden="true" />
                                                 </button>
                                             ))}
@@ -4003,7 +4020,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                                 { label: 'Misol ko‘rsat', prompt: 'Oxirgi tushuntirgan mavzuni bitta sodda misol bilan yana tushuntir.' },
                                                                 { label: '3 ta mashq', prompt: 'Oxirgi mavzu bo‘yicha 3 ta qisqa mashq ber.' },
                                                             ].map(action => (
-                                                                <button key={action.label} type="button" onClick={() => { void handleSend(action.prompt, []) }}
+                                                                <button key={action.label} type="button" onClick={() => { void handleAction(action.label, action.prompt) }}
                                                                     className="px-2.5 py-1 rounded-full text-[11px] font-medium transition"
                                                                     style={{ color: 'var(--text-secondary)', background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
                                                                     {action.label}
@@ -4062,7 +4079,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                 )}
                                 {loading && !streaming && !thinkingText && (
                                     <div className="flex py-1">
-                                        <span className="ai-generating"><span className="ai-star">✳</span> {getLoadingLabel(messages)}</span>
+                                        <span className="ai-generating"><span className="ai-star">✳</span> {getLoadingLabel(activeRequestPrompt ? [...messages, { role: 'user', content: activeRequestPrompt }] : messages)}</span>
                                     </div>
                                 )}
                                 {loading && thinkingText && !streaming && (
@@ -4823,7 +4840,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     <ClipboardList className="h-8 w-8" style={{ color: 'var(--text-muted)' }} />
                                                 </div>
                                                 <p className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>Hozircha testlar yo'q</p>
-                                                <button onClick={() => { setOverlayPanel(null); void handleSend("Menga o'z fanimdan 15 talik test tuzib ber.", []) }}
+                                                <button onClick={() => { setOverlayPanel(null); void handleAction("AI test", "Menga o'z fanimdan 15 talik test tuzib ber.") }}
                                                     className="text-xs font-semibold px-4 py-2 rounded-xl transition"
                                                     style={{ background: 'var(--brand)', color: 'white' }}>
                                                     AI'dan test so'rang
@@ -5060,7 +5077,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     <button
                                                         onClick={() => {
                                                             setOverlayPanel(null)
-                                                            void handleSend(`Mening zaif mavzularim: ${weakTopicSummary}. Shu mavzularni bugun o'rganish uchun qisqa reja tuzing va asosiy tushunchalarni tushuntiring.`, [])
+                                                            void handleAction('Zaif mavzular rejasi', `Mening zaif mavzularim: ${weakTopicSummary}. Shu mavzularni bugun o'rganish uchun qisqa reja tuzing va asosiy tushunchalarni tushuntiring.`)
                                                         }}
                                                         className="mt-3 w-full flex items-center gap-2.5 text-left text-[13px] font-semibold px-3.5 py-2.5 rounded-xl transition"
                                                         style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}

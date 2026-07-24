@@ -36,6 +36,7 @@ const upload = multer({
 })
 
 const router = Router()
+const INTERNAL_ACTION_FILE_TYPE = 'internal-action'
 
 
 // ASOSIY AI: DeepSeek (chat + test/essay/flashcard — structured bloklarni ISHONCHLI va tez beradi).
@@ -1396,7 +1397,15 @@ router.get('/:chatId/messages', authenticate, async (req: AuthRequest, res) => {
         if (!chat) return res.status(404).json({ error: 'Chat topilmadi' })
 
         const messages = await prisma.message.findMany({
-            where: { chatId: chat.id },
+            // Tayyor action tugmalarining ichki prompti AI kontekstida DB'da qoladi,
+            // lekin chat history API orqali foydalanuvchiga qaytarilmaydi.
+            where: {
+                chatId: chat.id,
+                OR: [
+                    { fileType: null },
+                    { fileType: { not: INTERNAL_ACTION_FILE_TYPE } }
+                ]
+            },
             orderBy: { createdAt: 'asc' }
         })
         res.json({ chat, messages })
@@ -2117,6 +2126,10 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
     let assistantMessageSaved = false
     try {
         const { content, thinking, displayText, todoContext, learningSessionId } = req.body
+        const hideUserMessage = req.body.hideUserMessage === true
+        const actionLabel = typeof req.body.actionLabel === 'string'
+            ? req.body.actionLabel.trim().slice(0, 80)
+            : ''
         if (!content?.trim()) return res.status(400).json({ error: 'Xabar bo\'sh' })
 
         // Bepul kunlik AI limiti (xarajat shipi) — SSE boshlanishidan OLDIN tekshiriladi,
@@ -2143,10 +2156,18 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
         // saveOnly rejimi: AI chaqirmasdan faqat xabarlarni saqlash (guest test tahlili uchun)
         if (req.body.saveOnly && req.body.aiResponse) {
             const savedUserContent = displayText?.trim() || content
-            await prisma.message.create({ data: { chatId: chat.id, role: 'user', content: savedUserContent } })
+            await prisma.message.create({
+                data: {
+                    chatId: chat.id,
+                    role: 'user',
+                    content: savedUserContent,
+                    fileType: hideUserMessage ? INTERNAL_ACTION_FILE_TYPE : undefined
+                }
+            })
             const savedAi = await prisma.message.create({ data: { chatId: chat.id, role: 'assistant', content: req.body.aiResponse } })
             // Chat title yangilash
-            const shortTitle = savedUserContent.substring(0, 40) + (savedUserContent.length > 40 ? '...' : '')
+            const titleSource = actionLabel || savedUserContent
+            const shortTitle = titleSource.substring(0, 40) + (titleSource.length > 40 ? '...' : '')
             await prisma.chat.update({ where: { id: chat.id }, data: { title: shortTitle } })
             return res.json({ success: true, id: savedAi.id })
         }
@@ -2165,7 +2186,7 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
         // "Birinchi xabar" = o'quvchi hali BIRINCHI marta yozmoqda (auto-salom tarixda bo'lsa ham).
         // Shunda "boshla" javobiga diagnostika ko'rsatmalari (newUserSection) hali ham amal qiladi.
         const isFirstMessage = history.filter(m => m.role === 'user').length === 0
-        const titleSrc = displayText?.trim() || content
+        const titleSrc = actionLabel || displayText?.trim() || content
 
         // Profile + ism olish (ism — shaxsiy murojaat uchun; JWT'da faqat id/role bor)
         const [profile, chatUser] = await Promise.all([
@@ -2260,7 +2281,12 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
         // yuqorida olingani sababli bu yozuv joriy promptga qo'shilmaydi, dublikat bo'lmaydi).
         try {
             await prisma.message.create({
-                data: { chatId: chat.id, role: 'user', content: savedUserContent }
+                data: {
+                    chatId: chat.id,
+                    role: 'user',
+                    content: savedUserContent,
+                    fileType: hideUserMessage ? INTERNAL_ACTION_FILE_TYPE : undefined
+                }
             })
             userMessageSaved = true
         } catch (userSaveErr) {
