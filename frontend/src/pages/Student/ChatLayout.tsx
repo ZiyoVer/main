@@ -13,14 +13,14 @@ import { renderMathHtml, normalizeMathText } from '@/lib/mathRender'
 import toast from 'react-hot-toast'
 import { fetchApi } from '@/lib/api'
 import { parseStructuredJson, extractStructuredPayload } from '@/lib/structuredJson'
-import { stableHash, legacyTestKey } from '@/lib/stableHash'
+import { stableHash } from '@/lib/stableHash'
 import { saveScopedItem, pruneDtmmaxStorage } from '@/lib/storagePrune'
 import GeometryFigure from '@/components/GeometryFigure'
 import { SUBJECTS, normalizeSubjectValue } from '@/constants'
 import { DTM_DIRECTIONS, SCORE_BOUNDS, dtmDirectionByCode, dtmDirectionBySubjects } from '@/constants/dtmDirections'
 import { useAuthStore } from '@/store/authStore'
 import ChatContext, { useChatContext, EssayPanel, TodoItem } from '../../contexts/ChatContext'
-import { useTestPanel } from '../../hooks/useTestPanel'
+import { getAiTestAnswersStorageKey, getAiTestCompletionKey, useTestPanel } from '../../hooks/useTestPanel'
 import { useFlashPanel } from '../../hooks/useFlashPanel'
 import { useIsPro, PRO_PRICE, PRO_PRICE_PERIOD, PRO_FEATURES, FREE_FEATURES, PRO_DISCLAIMER } from '@/lib/pro'
 import { AiQuotaRail } from './chat/AiQuotaRail'
@@ -29,9 +29,14 @@ import type { AiQuota } from './chat/useAiQuota'
 import { TestCatalogControls } from './chat/TestCatalogControls'
 import { useTestCatalog } from './chat/useTestCatalog'
 import type { TestCatalogFormat, TestCatalogSort, TestCatalogView } from './chat/useTestCatalog'
+import '../../styles/student-workspace.css'
 
 interface Chat { id: string; title: string; subject?: string; subject2?: string; updatedAt: string; messageCount?: number }
 interface Msg { id: string; role: string; content: string; createdAt: string }
+interface SendOptions {
+    hideUserMessage?: boolean
+    actionLabel?: string
+}
 interface Profile { onboardingDone: boolean; examType?: 'DTM' | 'MS' | null; subject?: string; subject2?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string; totalTests?: number; avgScore?: number; abilityLevel?: number }
 interface PublicTest { id: string; title: string; shareLink: string; subject?: string; category?: string; source?: string; premium?: boolean; testType?: string; timeLimit?: number | null; _count?: { questions: number; attempts: number } }
 
@@ -44,7 +49,7 @@ function testTypeLabel(testType?: string | null): string | null {
 /* Test manbasi badge'i — ishonch uchun (Rasmiy / Norasmiy / AI-bashorat). */
 function sourceBadge(source?: string | null): { label: string; bg: string; color: string } | null {
     if (source === 'OFFICIAL') return { label: 'Rasmiy', bg: 'var(--success-light)', color: 'var(--success)' }
-    if (source === 'AI_PREDICTION') return { label: 'AI bashorat', bg: 'var(--brand-light)', color: 'var(--brand)' }
+    if (source === 'AI_PREDICTION') return { label: 'AI bashorat', bg: 'var(--brand-light)', color: 'var(--brand-hover)' }
     if (source === 'UNOFFICIAL') return { label: 'Norasmiy', bg: 'var(--bg-muted)', color: 'var(--text-muted)' }
     return null
 }
@@ -255,9 +260,10 @@ function TodoDoneMount({ taskName, onMarkDone }: { taskName: string; onMarkDone:
 
 // MdMessage komponentni tashqarida va memo bilan ta'riflaymiz —
 // shunda har keystrokeda re-render bo'lmaydi (ReactMarkdown+KaTeX qimmat!)
-const MdMessage = memo(({ content, isStreaming }: {
+const MdMessage = memo(({ content, isStreaming, messageId }: {
     content: string
     isStreaming?: boolean
+    messageId?: string
 }) => {
     const { onOpenTest, onProfileUpdate, onOpenFlash, onOpenEssay, onSetTodo, onMarkTodoDoneByTask, isAiTestDone } = useChatContext()
     const processedContent = normalizeMathText(content) // 2.4: yagona manba — mathRender
@@ -287,13 +293,14 @@ const MdMessage = memo(({ content, isStreaming }: {
                     // 0 savol bo'lsa ko'rsatmaymiz — hali to'liq yuklanmagan
                     if (qCount === 0) return null
                     // Yechilgan test — karta "Natijani ko'rish" bo'ladi (o'quvchi testni qayta topa oladi)
-                    const done = !isStreaming && isAiTestDone(jsonStr)
+                    const trustedMessageReady = !isStreaming && Boolean(messageId)
+                    const done = trustedMessageReady && isAiTestDone(jsonStr, messageId)
                     return (
                         <div className="my-3 rounded-2xl overflow-hidden" style={done ? {
-                            background: 'linear-gradient(135deg, color-mix(in srgb, var(--success) 10%, transparent) 0%, color-mix(in srgb, var(--success) 4%, transparent) 100%)',
+                            background: 'var(--success-light)',
                             border: '1.5px solid color-mix(in srgb, var(--success) 35%, transparent)',
                         } : {
-                            background: 'linear-gradient(135deg, color-mix(in srgb, var(--brand) 10%, transparent) 0%, color-mix(in srgb, var(--brand) 4%, transparent) 100%)',
+                            background: 'var(--brand-light)',
                             border: '1.5px solid color-mix(in srgb, var(--brand) 30%, transparent)',
                         }}>
                             <div className="p-4">
@@ -310,11 +317,12 @@ const MdMessage = memo(({ content, isStreaming }: {
                                                 </span>
                                             </div>
                                             {done && <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Javoblaringiz va izohlar saqlangan</p>}
+                                            {!trustedMessageReady && <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Test serverda xavfsiz saqlanmoqda…</p>}
                                         </div>
                                     </div>
-                                    {!isStreaming && (
+                                    {trustedMessageReady ? (
                                         <button
-                                            onClick={() => onOpenTest(jsonStr)}
+                                            onClick={() => onOpenTest(jsonStr, messageId!)}
                                             className="flex-shrink-0 h-9 px-4 rounded-xl text-[13px] font-bold text-white flex items-center gap-2 transition-all"
                                             style={{ background: done ? 'var(--success)' : 'var(--k-accent-grad)' }}
                                             onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
@@ -322,6 +330,12 @@ const MdMessage = memo(({ content, isStreaming }: {
                                         >
                                             {done ? <><CheckCircle className="h-4 w-4" /> Natijani ko'rish</> : <><BookOpen className="h-4 w-4" /> Boshlash</>}
                                         </button>
+                                    ) : (
+                                        <span className="flex-shrink-0 h-9 px-3 rounded-xl text-[12px] font-semibold inline-flex items-center gap-2"
+                                            role="status" aria-live="polite"
+                                            style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+                                            <Clock className="h-3.5 w-3.5" /> Saqlanmoqda
+                                        </span>
                                     )}
                                 </div>
                             </div>
@@ -401,7 +415,7 @@ const MdMessage = memo(({ content, isStreaming }: {
                     if (count === 0) return null
                     return (
                         <div className="my-3 rounded-2xl overflow-hidden" style={{
-                            background: 'linear-gradient(135deg, color-mix(in srgb, var(--brand) 10%, transparent) 0%, color-mix(in srgb, var(--brand) 4%, transparent) 100%)',
+                            background: 'var(--brand-light)',
                             border: '1.5px solid color-mix(in srgb, var(--brand) 30%, transparent)',
                         }}>
                             <div className="p-4">
@@ -556,6 +570,15 @@ type AttachedFile = { id: string; name: string; text: string; type: string; prev
 
 const TODO_STORAGE_PREFIX = 'dtmmax_todo_items_v1'
 
+function loadStringSet(storageKey: string): Set<string> {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(storageKey) || '[]')
+        return new Set(Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === 'string') : [])
+    } catch {
+        return new Set()
+    }
+}
+
 function normalizeTodoSignaturePart(value: unknown): string {
     return String(value ?? '').toLowerCase().trim().replace(/\s+/g, ' ')
 }
@@ -626,6 +649,14 @@ function timeGreeting(): string {
     if (hour < 12) return 'Xayrli tong'
     if (hour < 18) return 'Xayrli kun'
     return 'Xayrli oqshom'
+}
+
+// Brauzer ICU paketiga bog'lanmaydigan, doim o'zbekcha chiqadigan sana.
+// Ayrim headless/eski brauzerlarda Intl `M07 18, Sat` kabi fallback qaytaradi.
+function formatUzbekDate(date = new Date()): string {
+    const weekdays = ['yakshanba', 'dushanba', 'seshanba', 'chorshanba', 'payshanba', 'juma', 'shanba']
+    const months = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr']
+    return `${date.getDate()}-${months[date.getMonth()]}, ${weekdays[date.getDay()]}`
 }
 
 // Diagnostik test tanlangan HAMMA fandan bo'lsin (DTM: 1+2 ixtisoslik) — bitta fanda
@@ -979,17 +1010,25 @@ export default function ChatLayout() {
     const { chatId } = useParams()
     const nav = useNavigate()
     const location = useLocation()
-    const { user, logout, token } = useAuthStore()
+    const { user, logout, token, clearSession } = useAuthStore()
     const isTodayView = !chatId
+    const storageUserId = user?.id || 'guest'
+    const completedTestsStorageKey = `dtmmax_done_tests_${storageUserId}`
+    const completedAiTestsStorageKey = `dtmmax_done_ai_tests_${storageUserId}`
+    const seenTestsStorageKey = `dtmmax_seen_tests_${storageUserId}`
+    const testResultStorageKey = `dtmmax_test_result_${storageUserId}`
+    const analysisChatStorageKey = `dtmmax_analysis_chat_id_${storageUserId}`
+    const publicAnswersStorageKey = useCallback((testId: string) => `dtmmax_pub_ans_${storageUserId}_${testId}`, [storageUserId])
     // Reja (todo) CHATGA bog'lab saqlanadi — yangi chatda eski chat rejasi ko'rinmasin.
     // 'new' — hali chat tanlanmagan (/suhbat) holat uchun vaqtinchalik bo'lim.
-    const todoStorageKey = `${TODO_STORAGE_PREFIX}_${user?.id || 'guest'}_${chatId || 'new'}`
+    const todoStorageKey = `${TODO_STORAGE_PREFIX}_${storageUserId}_${chatId || 'new'}`
     // Essay draft kaliti foydalanuvchi bo'yicha scoped — umumiy qurilmada boshqa userga sizib o'tmasin
-    const essayDraftKey = `dtmmax_essay_draft_${user?.id || 'guest'}`
+    const essayDraftKey = `dtmmax_essay_draft_${storageUserId}`
     const [chats, setChats] = useState<Chat[]>([])
     const [chatsLoaded, setChatsLoaded] = useState(false)
     const [messages, setMessages] = useState<Msg[]>([])
     const [loading, setLoading] = useState(false)
+    const [activeRequestPrompt, setActiveRequestPrompt] = useState('')
     const [creating, setCreating] = useState(false)
     const [streaming, setStreaming] = useState('')
     const [sideOpen, setSideOpen] = useState(true)
@@ -998,6 +1037,14 @@ export default function ChatLayout() {
     const [profileLoaded, setProfileLoaded] = useState(false)
     const [showOnboarding, setShowOnboarding] = useState(false)
     const [overlayPanel, setOverlayPanel] = useState<'tests' | 'flashcards' | 'progress' | 'pro' | null>(null)
+    useEffect(() => {
+        if (!overlayPanel) return
+        const closeOnEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setOverlayPanel(null)
+        }
+        window.addEventListener('keydown', closeOnEscape)
+        return () => window.removeEventListener('keydown', closeOnEscape)
+    }, [overlayPanel])
     const [testCatalogView, setTestCatalogView] = useState<TestCatalogView>('recommended')
     const [testSubject, setTestSubject] = useState('all')
     const [testFormat, setTestFormat] = useState<TestCatalogFormat>('all')
@@ -1028,8 +1075,6 @@ export default function ChatLayout() {
     const [editingExamInfo, setEditingExamInfo] = useState(false)
     // "Bugun" ekrani rejasi — barcha chatlardagi rejalar yig'indisi (chat tanlanmaganda ko'rinadi)
     const [homeTodos, setHomeTodos] = useState<Array<TodoItem & { storageKey: string }>>([])
-    // Bosh ekranda avval bitta aniq qadamni ko'rsatamiz; qolgan statistika xohlaganda ochiladi.
-    const [showTodayDetails, setShowTodayDetails] = useState(false)
     useEffect(() => {
         if (!chatId) setHomeTodos(loadAllUserTodos(user?.id || 'guest'))
         // todoItems deps: joriy chatda reja o'zgargan bo'lsa, bosh ekranga qaytganda yangilansin
@@ -1114,19 +1159,41 @@ export default function ChatLayout() {
     const streamChatIdRef = useRef<string | null>(null)
     const learningSessionIdRef = useRef<string | null>(null)
     const aiSessionPromiseRef = useRef<Promise<string | null> | null>(null)
+    const aiSessionByMessageRef = useRef<Map<string, string>>(new Map())
+    const aiSessionResolveSeqRef = useRef(0)
+    const publicTestReviewRef = useRef<Map<string, { questions: any[]; answers: Record<number, string> }>>(new Map())
+    const persistedAssistantMessageIdsRef = useRef<Set<string>>(new Set())
+    const testTimerDeadlineRef = useRef<number | null>(null)
     const chatIdRef = useRef<string | undefined>(chatId)
     const profileRef = useRef<Profile | null>(null)
     const [testsLoading, setTestsLoading] = useState(false)
     // Ko'rilgan test IDlari (localStorage) — yangi testlarni aniqlash uchun
     const [newTestIds, setNewTestIds] = useState<Set<string>>(new Set())
     // Yechilgan testlar IDlarini localStorage da saqlaymiz
-    const completedTestIdsRef = useRef<Set<string>>((() => {
-        try { return new Set(JSON.parse(localStorage.getItem('dtmmax_done_tests') || '[]')) } catch { return new Set() }
-    })())
+    const completedTestIdsRef = useRef<Set<string>>(loadStringSet(completedTestsStorageKey))
     // AI tomonidan yaratilgan yechilgan testlarni saqlash (JSON kaliti bo'yicha)
-    const completedAiTestsRef = useRef<Set<string>>((() => {
-        try { return new Set(JSON.parse(localStorage.getItem('dtmmax_done_ai_tests') || '[]')) } catch { return new Set() }
-    })())
+    const completedAiTestsRef = useRef<Set<string>>(loadStringSet(completedAiTestsStorageKey))
+
+    useEffect(() => {
+        completedTestIdsRef.current = loadStringSet(completedTestsStorageKey)
+        completedAiTestsRef.current = loadStringSet(completedAiTestsStorageKey)
+        publicTestReviewRef.current.clear()
+        aiSessionByMessageRef.current.clear()
+        aiSessionResolveSeqRef.current += 1
+    }, [completedTestsStorageKey, completedAiTestsStorageKey])
+
+    // Eski versiya public test answer-keylarini global localStorage'da saqlagan.
+    // Ular bir qurilmada boshqa akkauntga sizmasligi va brauzerda qolmasligi uchun o'chiriladi.
+    useEffect(() => {
+        try {
+            const leakedCorrectKeys: string[] = []
+            for (let index = 0; index < localStorage.length; index++) {
+                const key = localStorage.key(index)
+                if (key?.startsWith('dtmmax_correct_')) leakedCorrectKeys.push(key)
+            }
+            leakedCorrectKeys.forEach(key => localStorage.removeItem(key))
+        } catch { /* storage mavjud bo'lmasa UI ishlashda davom etadi */ }
+    }, [])
 
     useEffect(() => {
         thinkingModeRef.current = thinkingMode
@@ -1187,8 +1254,10 @@ export default function ChatLayout() {
         testWidth, setTestWidth, testDragRef, testTimeLeft, setTestTimeLeft,
         raschFeedback, setRaschFeedback, loadingPublicTest, setLoadingPublicTest,
         aiSessionId, setAiSessionId,
+        aiSessionStatus, setAiSessionStatus, aiSessionError, setAiSessionError,
+        activeAiMessageId,
         openTestPanel,
-    } = useTestPanel(completedTestIdsRef, completedAiTestsRef)
+    } = useTestPanel(completedTestIdsRef, completedAiTestsRef, storageUserId)
 
     const {
         flashPanel, setFlashPanel, flashIdx, setFlashIdx, flashFlipped, setFlashFlipped,
@@ -1230,11 +1299,11 @@ export default function ChatLayout() {
     const submitTestPanelRef = useRef<() => void>(() => { })
     const submitEssayRef = useRef<() => void>(() => { })
     const sidebarWidth = (() => {
-        if (typeof window === 'undefined') return 280
+        if (typeof window === 'undefined') return 252
         const w = window.innerWidth
         if (w < 768) return 280
-        if (w <= 1100) return 240
-        return 280
+        if (w <= 1100) return 228
+        return 252
     })()
 
     // Auto-close sidebar on mobile + isMobile track
@@ -1315,12 +1384,22 @@ export default function ChatLayout() {
         if (!params.get('analyzeTest')) return
         // URL dan flag ni darrov olib tashlaymiz (qayta ishlamasligi uchun)
         window.history.replaceState({}, '', location.pathname)
-        const raw = localStorage.getItem('dtmmax_guest_test_result')
+        let raw = localStorage.getItem(testResultStorageKey)
+        // Eski global kalit faqat guest testdan login/ro'yxatdan o'tishga o'tish ko'prigi sifatida
+        // bir marta qabul qilinadi. Darhol joriy user scope'iga ko'chirib, global nusxa o'chiriladi.
+        if (!raw) {
+            const guestHandoff = localStorage.getItem('dtmmax_guest_test_result')
+            if (guestHandoff) {
+                raw = guestHandoff
+                try { localStorage.setItem(testResultStorageKey, guestHandoff) } catch { }
+                localStorage.removeItem('dtmmax_guest_test_result')
+            }
+        }
         // analyzeTest=1 bor, lekin natija yo'q/buzilgan — jim qolmasdan xabar beramiz
         if (!raw) { toast('Test natijangiz topilmadi — testni qayta yeching yoki yangi suhbat boshlang.'); return }
         let guestData: any
         try { guestData = JSON.parse(raw) } catch { toast('Test natijasini o\'qib bo\'lmadi — qayta yeching.'); return }
-        localStorage.removeItem('dtmmax_guest_test_result')
+        localStorage.removeItem(testResultStorageKey)
 
         const triggerAnalysis = async () => {
             try {
@@ -1336,7 +1415,7 @@ export default function ChatLayout() {
                 await loadChats()
 
                 // Chatni localStorage ga saqlaymiz — "AI tahlil" tugmasi qayta bosganda shu chatga qaytadi
-                localStorage.setItem('dtmmax_analysis_chat_id', chatData.id)
+                localStorage.setItem(analysisChatStorageKey, chatData.id)
 
                 const displayText = `📊 "${guestData.title}" testi tahlili (${guestData.score}/${guestData.total} to'g'ri)`
                 // Test YO'QOLMASIN: tahlil bilan birga yechilgan testning sharhini ham ko'rsatamiz
@@ -1497,7 +1576,11 @@ Iltimos, har bir savolni tahlil qilib ber:
 
     // Test panel yopilganda timerni tozalash
     useEffect(() => {
-        if (!testPanel) { setTestTimeLeft(null); setRaschFeedback(null) }
+        if (!testPanel) {
+            testTimerDeadlineRef.current = null
+            setTestTimeLeft(null)
+            setRaschFeedback(null)
+        }
     }, [testPanel])
 
     // Notification count — har daqiqa yangilanadi (faqat settings yopiq bo'lganda)
@@ -1515,14 +1598,25 @@ Iltimos, har bir savolni tahlil qilib ber:
         return () => clearInterval(interval)
     }, [token, showSettings])
 
-    // Timer countdown (setInterval — har sekund 1 ta kamayadi)
+    // Timer server qaytargan qolgan vaqt asosidagi mutlaq deadline'ga tayanadi.
+    // Tab fon rejimida throttling bo'lsa ham vaqt sun'iy ravishda cho'zilmaydi.
     useEffect(() => {
-        if (testTimeLeft === null || testTimeLeft <= 0) return
-        const id = setInterval(() => {
-            setTestTimeLeft(t => (t !== null && t > 0) ? t - 1 : null)
-        }, 1000)
-        return () => clearInterval(id)
-    }, [testTimeLeft])
+        if (testTimeLeft === null || testSubmitted || testReadOnly) return
+        const syncRemaining = () => {
+            const deadline = testTimerDeadlineRef.current
+            if (deadline === null) return
+            setTestTimeLeft(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)))
+        }
+        syncRemaining()
+        const id = window.setInterval(syncRemaining, 1000)
+        document.addEventListener('visibilitychange', syncRemaining)
+        window.addEventListener('focus', syncRemaining)
+        return () => {
+            window.clearInterval(id)
+            document.removeEventListener('visibilitychange', syncRemaining)
+            window.removeEventListener('focus', syncRemaining)
+        }
+    }, [testTimeLeft !== null, testSubmitted, testReadOnly])
 
     // Vaqt tugaganda avtomatik topshirish — ref orqali stale closure oldini olamiz
     useEffect(() => {
@@ -1646,7 +1740,7 @@ Iltimos, har bir savolni tahlil qilib ber:
             setPublicTests(tests)
             // Ko'rilgan test IDlarini localStorage dan olish
             let seenIds: string[] = []
-            try { seenIds = JSON.parse(localStorage.getItem('dtmmax_seen_tests') || '[]') } catch { }
+            try { seenIds = JSON.parse(localStorage.getItem(seenTestsStorageKey) || '[]') } catch { }
             const seenSet = new Set(seenIds)
             // Yangi testlar = ko'rilmaganlar
             const newIds = new Set<string>(tests.filter((t: any) => !seenSet.has(t.id)).map((t: any) => t.id))
@@ -1657,16 +1751,16 @@ Iltimos, har bir savolni tahlil qilib ber:
     function markTestsSeen() {
         try {
             const allIds = publicTests.map((t: any) => t.id)
-            localStorage.setItem('dtmmax_seen_tests', JSON.stringify(allIds))
+            localStorage.setItem(seenTestsStorageKey, JSON.stringify(allIds))
         } catch { }
         setNewTestIds(new Set())
     }
 
     function markSingleTestSeen(testId: string) {
         try {
-            const seenIds: string[] = JSON.parse(localStorage.getItem('dtmmax_seen_tests') || '[]')
+            const seenIds: string[] = JSON.parse(localStorage.getItem(seenTestsStorageKey) || '[]')
             const nextSeenIds = Array.from(new Set([...seenIds, testId]))
-            localStorage.setItem('dtmmax_seen_tests', JSON.stringify(nextSeenIds))
+            localStorage.setItem(seenTestsStorageKey, JSON.stringify(nextSeenIds))
         } catch { }
         setNewTestIds(prev => {
             if (!prev.has(testId)) return prev
@@ -1696,7 +1790,11 @@ Iltimos, har bir savolni tahlil qilib ber:
     async function loadMyResults() {
         try {
             const data = await fetchApi('/tests/my-results')
-            setMyResults(ensureArray<MyResult>(data))
+            const results = ensureArray<MyResult>(data)
+            setMyResults(results)
+            const serverCompletedIds = new Set(results.map(result => result.testId).filter(Boolean))
+            completedTestIdsRef.current = serverCompletedIds
+            try { localStorage.setItem(completedTestsStorageKey, JSON.stringify([...serverCompletedIds])) } catch { }
         } catch (err) { console.error('loadMyResults:', err) }
     }
 
@@ -1847,6 +1945,9 @@ Iltimos, har bir savolni tahlil qilib ber:
             const data = await fetchApi(`/chat/${id}/messages`, { signal: controller.signal })
             if (controller.signal.aborted) return
             const nextMessages = ensureArray<Msg>(data?.messages)
+            persistedAssistantMessageIdsRef.current = new Set(nextMessages
+                .filter(message => message.role === 'assistant' && typeof message.id === 'string' && message.id)
+                .map(message => message.id))
             const nextChat = data?.chat && typeof data.chat === 'object' && !Array.isArray(data.chat) ? data.chat as Chat : null
             // Auto-greet O'CHIRILDI — bo'sh chatда AI salomi yozmaydi, o'rniga welcome
             // kartalari (Darajamni aniqlash, Mavzu tushuntirish ...) ko'rinadi va turadi.
@@ -1899,10 +2000,30 @@ Iltimos, har bir savolni tahlil qilib ber:
         setCreating(false)
     }, [creating, profile, chats])
 
-    // Stream helper — displayText ixtiyoriy: chatda ko'rinadigan matn (prompt AI ga yuboriladi)
-    async function streamToChat(targetChatId: string, prompt: string, displayText?: string): Promise<boolean> {
+    const openAiTutor = useCallback(() => {
+        setOverlayPanel(null)
+        if (isMobile) setSideOpen(false)
+        if (chatId) return
+        const latestChat = chats.find(chat => (chat.messageCount ?? 0) > 0)
+        if (latestChat) {
+            nav(`/suhbat/${latestChat.id}`)
+            return
+        }
+        void createChat()
+    }, [chatId, chats, createChat, isMobile, nav])
+
+    // displayText fayl/test kabi holatlarda texnik prompt o'rniga ko'rinadigan matn.
+    // hideUserMessage tayyor action tugmalarining ichki promptini AI kontekstida saqlaydi,
+    // ammo live chat va keyingi history yuklanishida user bubble sifatida ko'rsatmaydi.
+    async function streamToChat(
+        targetChatId: string,
+        prompt: string,
+        displayText?: string,
+        options: SendOptions = {}
+    ): Promise<boolean> {
         const shown = displayText !== undefined ? displayText : prompt
-        setLoading(true); setStreaming(''); setThinkingText('')
+        const hideUserMessage = options.hideUserMessage === true
+        setLoading(true); setStreaming(''); setThinkingText(''); setActiveRequestPrompt(prompt)
         if (abortRef.current) {
             abortRef.current.abort()
         }
@@ -1928,6 +2049,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                     thinking: requestThinkingMode,
                     learningSessionId: learningSessionIdRef.current || undefined,
                     ...(displayText !== undefined && { displayText }),
+                    ...(hideUserMessage && { hideUserMessage: true }),
+                    ...(options.actionLabel && { actionLabel: options.actionLabel }),
                     todoContext: requestTodoContext,
                 }),
                 signal: controller.signal
@@ -1950,10 +2073,9 @@ Iltimos, har bir savolni tahlil qilib ber:
                         if (isCurrentChat()) {
                             setMessages(prev => {
                                 const filtered = prev.filter(m => m.id !== 'temp-u')
-                                return [...filtered,
-                                { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() },
-                                { id: 'err-' + Date.now(), role: 'assistant', content: `⚠️ ${d.error}`, createdAt: new Date().toISOString() }
-                                ]
+                                const errorMessage = { id: 'err-' + Date.now(), role: 'assistant', content: `⚠️ ${d.error}`, createdAt: new Date().toISOString() }
+                                if (hideUserMessage) return [...filtered, errorMessage]
+                                return [...filtered, { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() }, errorMessage]
                             })
                         }
                         setStreaming(''); setThinkingText('')
@@ -1975,22 +2097,29 @@ Iltimos, har bir savolni tahlil qilib ber:
                     }
                     if (d.done) {
                         completed = true
+                        const persistedMessageId = typeof d.id === 'string' && d.id.trim() ? d.id : null
+                        const streamedAiSessionId = typeof d.aiSessionId === 'string' && d.aiSessionId.trim() ? d.aiSessionId : null
+                        if (persistedMessageId) persistedAssistantMessageIdsRef.current.add(persistedMessageId)
+                        if (persistedMessageId && streamedAiSessionId) {
+                            aiSessionByMessageRef.current.set(persistedMessageId, streamedAiSessionId)
+                        }
                         if (isCurrentChat()) {
                             setMessages(prev => {
                                 const filtered = prev.filter(m => m.id !== 'temp-u')
-                                return [...filtered,
-                                { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() },
-                                { id: d.id || 'a-' + Date.now(), role: 'assistant', content: fullText, createdAt: new Date().toISOString() }
-                                ]
+                                const assistantMessage = { id: persistedMessageId || 'a-' + Date.now(), role: 'assistant', content: fullText, createdAt: new Date().toISOString() }
+                                if (hideUserMessage) return [...filtered, assistantMessage]
+                                return [...filtered, { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() }, assistantMessage]
                             })
                             setStreaming(''); setThinkingText(''); loadChats()
                             // Test avtomatik ochish
-                            const testMatch = fullText.match(/```test\s*([\s\S]*?)```/)
-                            if (testMatch) {
-                                const parsedTest = parseStructuredJson<unknown[]>(testMatch[1].trim())
-                                if (Array.isArray(parsedTest) && parsedTest.length > 0) {
-                                    setTimeout(() => { handleOpenTest(testMatch[1].trim()) }, 400)
-                                }
+                            const validTestBlock = [...fullText.matchAll(/```test\s*([\s\S]*?)```/gi)]
+                                .map(match => match[1]?.trim() || '')
+                                .find(block => {
+                                    const parsedTest = parseStructuredJson<unknown[]>(block)
+                                    return Array.isArray(parsedTest) && parsedTest.length > 0
+                                })
+                            if (validTestBlock && persistedMessageId) {
+                                setTimeout(() => { handleOpenTest(validTestBlock, persistedMessageId) }, 400)
                             }
                         }
                     }
@@ -2030,20 +2159,18 @@ Iltimos, har bir savolni tahlil qilib ber:
                 if (fullText.trim() && isCurrentChat()) {
                     setMessages(prev => {
                         const filtered = prev.filter(m => m.id !== 'temp-u')
-                        return [...filtered,
-                        { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() },
-                        { id: 'a-' + Date.now(), role: 'assistant', content: fullText + '\n\n*[To\'xtatildi]*', createdAt: new Date().toISOString() }
-                        ]
+                        const assistantMessage = { id: 'a-' + Date.now(), role: 'assistant', content: fullText + '\n\n*[To\'xtatildi]*', createdAt: new Date().toISOString() }
+                        if (hideUserMessage) return [...filtered, assistantMessage]
+                        return [...filtered, { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() }, assistantMessage]
                     })
                 }
             } else if (isCurrentChat()) {
                 const errText = `⚠️ ${err?.message || 'AI javob bera olmadi. Qayta urinib ko\'ring.'}`
                 setMessages(prev => {
                     const filtered = prev.filter(m => m.id !== 'temp-u')
-                    return [...filtered,
-                    { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() },
-                    { id: 'err-' + Date.now(), role: 'assistant', content: errText, createdAt: new Date().toISOString() }
-                    ]
+                    const errorMessage = { id: 'err-' + Date.now(), role: 'assistant', content: errText, createdAt: new Date().toISOString() }
+                    if (hideUserMessage) return [...filtered, errorMessage]
+                    return [...filtered, { id: 'u-' + Date.now(), role: 'user', content: shown, createdAt: new Date().toISOString() }, errorMessage]
                 })
             }
             setStreaming(''); setThinkingText('')
@@ -2051,7 +2178,7 @@ Iltimos, har bir savolni tahlil qilib ber:
         // Faqat bizning controller hali ham faol bo'lsa tozalaymiz — aks holda
         // bu oqim bekor qilingan, yangi oqim allaqachon abortRef'ni egallagan bo'lishi mumkin
         if (abortRef.current === controller) {
-            setLoading(false); abortRef.current = null
+            setLoading(false); setActiveRequestPrompt(''); abortRef.current = null
         }
         return completed && fullText.trim().length > 0
     }
@@ -2088,7 +2215,7 @@ Iltimos, har bir savolni tahlil qilib ber:
         }
     }, [chatId, profile?.subject, profile?.subject2]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    const handleSend = useCallback(async (text: string, files: AttachedFile[]) => {
+    const handleSend = useCallback(async (text: string, files: AttachedFile[], options: SendOptions = {}) => {
         if (loading) return
         if (aiQuota && !aiQuota.unlimited && aiQuota.chat.used >= aiQuota.chat.limit) {
             toast("Bugungi AI limiti tugadi — tayyor testlarni limitsiz yechishingiz mumkin", { icon: '⚡' })
@@ -2106,7 +2233,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                 const data = await fetchApi('/chat/new', {
                     method: 'POST',
                     body: JSON.stringify({
-                        title: text.substring(0, 50) || 'Yangi suhbat',
+                        title: options.actionLabel?.trim().substring(0, 50) || text.substring(0, 50) || 'Yangi suhbat',
                         subject: normalizeSubjectValue(profile?.subject) || undefined,
                         subject2: normalizeSubjectValue(profile?.subject2) || undefined,
                         forceNew: true
@@ -2140,11 +2267,17 @@ Iltimos, har bir savolni tahlil qilib ber:
             const success = await streamToChat(targetChatId!, promptText.trim(), displayText.trim())
             if (success) logActivity(5)
         } else {
-            setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: text, createdAt: new Date().toISOString() }])
-            const success = await streamToChat(targetChatId!, text)
+            if (!options.hideUserMessage) {
+                setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: text, createdAt: new Date().toISOString() }])
+            }
+            const success = await streamToChat(targetChatId!, text, undefined, options)
             if (success) logActivity(5)
         }
     }, [aiQuota, chatId, loading, profile])
+
+    const handleAction = useCallback((actionLabel: string, prompt: string) => {
+        return handleSend(prompt, [], { hideUserMessage: true, actionLabel })
+    }, [handleSend])
 
     // Paylov hosted checkout orqali Pro to'lovini boshlash.
     // Karta va OTP DTMMax frontend/backend'iga kirmaydi.
@@ -2190,12 +2323,12 @@ Iltimos, har bir savolni tahlil qilib ber:
     function markTestCompleted(testId: string) {
         completedTestIdsRef.current.add(testId)
         markSingleTestSeen(testId)
-        try { localStorage.setItem('dtmmax_done_tests', JSON.stringify([...completedTestIdsRef.current])) } catch (err) { console.warn('localStorage limit to\'lgan:', err); toast.error("Xotira to'lgan, eski ma'lumotlar o'chirilishi mumkin") }
+        try { localStorage.setItem(completedTestsStorageKey, JSON.stringify([...completedTestIdsRef.current])) } catch (err) { console.warn('localStorage limit to\'lgan:', err); toast.error("Xotira to'lgan, eski ma'lumotlar o'chirilishi mumkin") }
     }
 
     function markAiTestCompleted(key: string) {
         completedAiTestsRef.current.add(key)
-        try { localStorage.setItem('dtmmax_done_ai_tests', JSON.stringify([...completedAiTestsRef.current])) } catch (err) { console.warn('localStorage limit to\'lgan:', err); toast.error("Xotira to'lgan, eski ma'lumotlar o'chirilishi mumkin") }
+        try { localStorage.setItem(completedAiTestsStorageKey, JSON.stringify([...completedAiTestsRef.current])) } catch (err) { console.warn('localStorage limit to\'lgan:', err); toast.error("Xotira to'lgan, eski ma'lumotlar o'chirilishi mumkin") }
     }
 
     // AI taklif qilgan profil yangilashni tasdiqlash
@@ -2214,7 +2347,13 @@ Iltimos, har bir savolni tahlil qilib ber:
 
 
     // Test panel ochish (todo ni yopadi)
-    const handleOpenTest = useCallback((jsonStr: string) => {
+    const handleOpenTest = useCallback((jsonStr: string, messageId: string) => {
+        if (!messageId?.trim()) {
+            toast.error('Test hali serverda saqlanmadi. Javob tugashini kutib, qayta urinib ko‘ring.')
+            return
+        }
+        const trustedMessageId = messageId.trim()
+        const resolveSeq = ++aiSessionResolveSeqRef.current
         aiSessionPromiseRef.current = null
         setTodoOpen(false)
         // AI chat testi efemer (DB da yo'q). Eski public test id'sini tozalamasak,
@@ -2223,32 +2362,45 @@ Iltimos, har bir savolni tahlil qilib ber:
         setActiveTestId(null)
         setActiveTestQuestions([])
         setActiveTestSource(null) // AI chat testi — manba badge'i yo'q
-        openTestPanel(jsonStr)
-        // 1.1: efemer AI testni SERVERда ro'yxatga olamiz — submit server-grade bo'lsin (klient
-        // ballni soxtalashtira olmaydi). Xato bo'lsa jim o'tamiz: submitTestPanel eski /submit-ai'ga
-        // fallback qiladi (uzilish yo'q).
-        try {
-            const parsedForSession = parseStructuredJson<unknown[]>(extractStructuredPayload(jsonStr))
-            if (Array.isArray(parsedForSession) && parsedForSession.length > 0) {
-                const subjectHint = profileRef.current?.subject || undefined
-                aiSessionPromiseRef.current = fetchApi('/tests/ai-session', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        questions: parsedForSession,
-                        subject: subjectHint,
-                        chatId: chatIdRef.current,
-                        learningSessionId: learningSessionIdRef.current || undefined,
-                    }),
-                    silent: true,
-                }).then((r: { sessionId?: string; learningSessionId?: string | null }) => {
-                    const sessionId = r?.sessionId || null
-                    if (sessionId) setAiSessionId(sessionId)
-                    if (typeof r?.learningSessionId === 'string') learningSessionIdRef.current = r.learningSessionId
-                    return sessionId
-                }).catch(() => null)
+        openTestPanel(jsonStr, trustedMessageId)
+
+        const streamedSessionId = aiSessionByMessageRef.current.get(trustedMessageId)
+        if (streamedSessionId) {
+            setAiSessionId(streamedSessionId)
+            setAiSessionStatus('ready')
+            setAiSessionError(null)
+            aiSessionPromiseRef.current = Promise.resolve(streamedSessionId)
+            return
+        }
+
+        setAiSessionStatus('resolving')
+        setAiSessionError(null)
+        aiSessionPromiseRef.current = fetchApi('/tests/ai-session', {
+            method: 'POST',
+            body: JSON.stringify({ messageId: trustedMessageId }),
+            silent: true,
+        }).then((response: { sessionId?: string }) => {
+            const sessionId = typeof response?.sessionId === 'string' && response.sessionId.trim()
+                ? response.sessionId
+                : null
+            if (!sessionId) throw new Error('Server tasdiqlagan test sessiyasi topilmadi')
+            aiSessionByMessageRef.current.set(trustedMessageId, sessionId)
+            if (aiSessionResolveSeqRef.current === resolveSeq) {
+                setAiSessionId(sessionId)
+                setAiSessionStatus('ready')
+                setAiSessionError(null)
             }
-        } catch { /* parse xato — fallback */ }
-    }, [openTestPanel, setActiveTestId, setActiveTestQuestions, setAiSessionId])
+            return sessionId
+        }).catch((error: any) => {
+            const message = error?.message || 'Test sessiyasini serverda tasdiqlab bo‘lmadi'
+            if (aiSessionResolveSeqRef.current === resolveSeq) {
+                setAiSessionId(null)
+                setAiSessionStatus('error')
+                setAiSessionError(message)
+            }
+            return null
+        })
+    }, [openTestPanel, setActiveTestId, setActiveTestQuestions, setAiSessionId, setAiSessionStatus, setAiSessionError])
 
     // Flashcard panelni ochish
     const handleOpenFlash = useCallback((jsonStr: string) => {
@@ -2436,26 +2588,58 @@ Iltimos, har bir savolni tahlil qilib ber:
             setActiveTestId(t.id)
             setActiveTestQuestions(rawQuestions)
             setActiveTestSource((data.source as string | undefined) ?? t.source ?? 'UNOFFICIAL')
-            if (completedTestIdsRef.current.has(t.id)) {
-                // Avval yechilgan — to'g'ri javoblarni localStorage dan olish
-                try {
-                    const savedCorrect = localStorage.getItem('dtmmax_correct_' + t.id)
-                    if (savedCorrect) {
-                        const correctMap: Record<string, number> = JSON.parse(savedCorrect)
-                        const withCorrect = converted.map((q: any) => {
-                            const ci = correctMap[q.id]
-                            return ci !== undefined ? { ...q, correct: (['a', 'b', 'c', 'd'] as const)[ci] ?? '' } : q
+            if (data.alreadySubmitted || completedTestIdsRef.current.has(t.id)) {
+                markTestCompleted(t.id)
+                testTimerDeadlineRef.current = null
+                const inMemoryReview = publicTestReviewRef.current.get(t.id)
+                if (inMemoryReview) {
+                    setTestPanel(JSON.stringify(inMemoryReview.questions))
+                    setTestAnswers(inMemoryReview.answers)
+                } else {
+                    try {
+                        const review = await fetchApi(`/tests/${t.id}/my-latest-review`, { silent: true })
+                        const correctAnswers = ensureArray<any>(review?.correctAnswers)
+                        let attemptResults: any[] = []
+                        const rawAttemptAnswers = review?.attempt?.answers ?? review?.results ?? review?.answers
+                        if (Array.isArray(rawAttemptAnswers)) attemptResults = rawAttemptAnswers
+                        else if (typeof rawAttemptAnswers === 'string') {
+                            try {
+                                const parsedAttemptAnswers = JSON.parse(rawAttemptAnswers)
+                                if (Array.isArray(parsedAttemptAnswers)) attemptResults = parsedAttemptAnswers
+                            } catch { /* buzilgan attempt javoblari — pastdagi aniq fallback */ }
+                        }
+                        if (correctAnswers.length === 0 || attemptResults.length === 0) {
+                            throw new Error('Avvalgi urinish tafsilotlari topilmadi')
+                        }
+                        const correctByQuestion = new Map(correctAnswers.map(answer => [String(answer.id || answer.questionId || ''), answer]))
+                        const attemptByQuestion = new Map(attemptResults.map(answer => [String(answer.questionId || ''), answer]))
+                        const answerLetters = ['a', 'b', 'c', 'd'] as const
+                        const reviewAnswers: Record<number, string> = {}
+                        const reviewedQuestions = converted.map((question: any, index: number) => {
+                            const correctAnswer = correctByQuestion.get(String(question.id))
+                            const attemptAnswer = attemptByQuestion.get(String(question.id)) || attemptResults[index]
+                            const selectedIdx = typeof attemptAnswer?.selectedIdx === 'number' ? attemptAnswer.selectedIdx : -1
+                            if (selectedIdx >= 0 && answerLetters[selectedIdx]) reviewAnswers[index] = answerLetters[selectedIdx]
+                            const correctIdx = typeof correctAnswer?.correctIdx === 'number' ? correctAnswer.correctIdx : -1
+                            return {
+                                ...question,
+                                correct: correctIdx >= 0 ? answerLetters[correctIdx] || '' : '',
+                                ...(typeof correctAnswer?.solutionImageUrl === 'string' && correctAnswer.solutionImageUrl
+                                    ? { solutionImage: correctAnswer.solutionImageUrl }
+                                    : {}),
+                            }
                         })
-                        setTestPanel(JSON.stringify(withCorrect))
-                    } else {
+                        publicTestReviewRef.current.set(t.id, { questions: reviewedQuestions, answers: reviewAnswers })
+                        setTestPanel(JSON.stringify(reviewedQuestions))
+                        setTestAnswers(reviewAnswers)
+                    } catch (error: any) {
+                        let scopedAnswers: Record<number, string> = {}
+                        try { scopedAnswers = JSON.parse(localStorage.getItem(publicAnswersStorageKey(t.id)) || '{}') } catch { }
                         setTestPanel(JSON.stringify(converted))
+                        setTestAnswers(scopedAnswers)
+                        toast.error(error?.message || 'Avvalgi natija tafsilotlarini yuklab bo‘lmadi. Javob kaliti taxmin qilinmadi.')
                     }
-                } catch { setTestPanel(JSON.stringify(converted)) }
-                // Avvalgi javoblarni ham ko'rsatish
-                try {
-                    const savedAnswers = localStorage.getItem('dtmmax_pub_ans_' + t.id)
-                    setTestAnswers(savedAnswers ? JSON.parse(savedAnswers) : {})
-                } catch { setTestAnswers({}) }
+                }
                 setTestSubmitted(true)
                 setTestReadOnly(true)
                 setTestPanelMaximized(false)
@@ -2468,7 +2652,11 @@ Iltimos, har bir savolni tahlil qilib ber:
                     const remainingSeconds = typeof data.timeRemainingSeconds === 'number'
                         ? data.timeRemainingSeconds
                         : data.timeLimit * 60
-                    setTestTimeLeft(Math.max(0, remainingSeconds))
+                    const safeRemainingSeconds = Math.max(0, remainingSeconds)
+                    testTimerDeadlineRef.current = Date.now() + safeRemainingSeconds * 1000
+                    setTestTimeLeft(safeRemainingSeconds)
+                } else {
+                    testTimerDeadlineRef.current = null
                 }
             }
         } catch (err) { console.error('openPublicTest:', err) }
@@ -2546,13 +2734,15 @@ Iltimos, har bir savolni tahlil qilib ber:
                         correctMap[c.id] = c.correctIdx
                         if (typeof c.solutionImageUrl === 'string' && c.solutionImageUrl) solutionImages[c.id] = c.solutionImageUrl
                     })
-                    saveScopedItem('dtmmax_correct_' + activeTestId, JSON.stringify(correctMap))
-                    saveScopedItem('dtmmax_pub_ans_' + activeTestId, JSON.stringify(testAnswers))
+                    // Answer-key faqat joriy React sessiyasida qoladi; localStorage'ga yozilmaydi.
+                    // O'quvchining o'z javoblari user-scoped kalitda saqlanishi mumkin.
+                    saveScopedItem(publicAnswersStorageKey(activeTestId), JSON.stringify(testAnswers))
                     questions = questions.map((q: any) => {
                         const ci = correctMap[q.id]
                         const withSolution = solutionImages[q.id] ? { solutionImage: solutionImages[q.id] } : {}
                         return ci !== undefined ? { ...q, ...withSolution, correct: (['a', 'b', 'c', 'd'] as const)[ci] ?? '' } : { ...q, ...withSolution }
                     })
+                    publicTestReviewRef.current.set(activeTestId, { questions, answers: { ...testAnswers } })
                     setTestPanel(JSON.stringify(questions))
                 }
                 markTestCompleted(activeTestId)
@@ -2568,8 +2758,11 @@ Iltimos, har bir savolni tahlil qilib ber:
         if (!activeTestId && !resolvedAiSessionId && aiSessionPromiseRef.current) {
             resolvedAiSessionId = await aiSessionPromiseRef.current
         }
-        if (!activeTestId && learningSessionIdRef.current && !resolvedAiSessionId) {
-            toast.error('Checkpoint sessiyasi tayyor bo‘lmadi. Testni yopib, qayta oching.')
+        if (!activeTestId && !resolvedAiSessionId) {
+            const trustError = aiSessionError || (aiSessionStatus === 'resolving'
+                ? 'Test hali serverda tasdiqlanmoqda. Bir ozdan so‘ng qayta urinib ko‘ring.'
+                : 'Server tasdiqlagan test sessiyasi topilmadi. Testni chatdagi saqlangan xabardan qayta oching.')
+            toast.error(trustError)
             isSubmittingRef.current = false
             return
         }
@@ -2584,13 +2777,34 @@ Iltimos, har bir savolni tahlil qilib ber:
                     body: JSON.stringify({ answers: answerLetters }),
                 })
                 backendSubmitHandled = true
-            } catch (err: any) {
-                if (learningSessionIdRef.current) {
-                    toast.error(err?.message || 'Checkpoint natijasini saqlab bo‘lmadi. Qayta urinib ko‘ring.')
-                    isSubmittingRef.current = false
-                    return
+                if (Array.isArray(backendSubmitResult?.perQuestion)) {
+                    const serverAnswers = new Map<number, string>()
+                    backendSubmitResult.perQuestion.forEach((result: any) => {
+                        if (typeof result?.index === 'number' && typeof result?.correct === 'string') {
+                            serverAnswers.set(result.index, result.correct.trim().toLowerCase())
+                        }
+                    })
+                    questions = questions.map((question: any, index: number) => ({
+                        ...question,
+                        correct: serverAnswers.get(index) || '',
+                    }))
+                    setTestPanel(JSON.stringify(questions))
                 }
+            } catch (err: any) {
+                toast.error(err?.message || 'Test natijasini serverda tasdiqlab bo‘lmadi. Qayta urinib ko‘ring.')
+                isSubmittingRef.current = false
+                return
             }
+        }
+        if (!backendSubmitHandled) {
+            toast.error('Test natijasi serverda tasdiqlanmadi. Ball hisoblanmadi.')
+            isSubmittingRef.current = false
+            return
+        }
+        if (typeof backendSubmitResult?.correct !== 'number' || typeof backendSubmitResult?.total !== 'number') {
+            toast.error('Server to‘liq natija qaytarmadi. Ball brauzerda taxmin qilinmadi.')
+            isSubmittingRef.current = false
+            return
         }
         setTestSubmitted(true)
         setTestTimeLeft(null)
@@ -2599,18 +2813,12 @@ Iltimos, har bir savolni tahlil qilib ber:
             const correctLetter = typeof q.correct === 'string' && q.correct ? q.correct : '?'
             return `${i + 1}. ${q.q} — Javob: ${(testAnswers[i] || '?').toUpperCase()}) ${correct ? '✅ to\'g\'ri' : '❌ xato (to\'g\'ri: ' + correctLetter.toUpperCase() + ')'}`
         }).join('\n')
-        const score = typeof backendSubmitResult?.correct === 'number'
-            ? backendSubmitResult.correct
-            : questions.filter((q: any, i: number) => testAnswers[i] === q.correct).length
-        const totalQuestionsForScore = typeof backendSubmitResult?.total === 'number'
-            ? backendSubmitResult.total
-            : questions.length
+        const score = backendSubmitResult.correct
+        const totalQuestionsForScore = backendSubmitResult.total
         // Mukofot lahzasi — natija qanchalik yaxshi bo'lsa, bayram shunchalik katta
         celebrate(totalQuestionsForScore > 0 ? score / totalQuestionsForScore : 0)
 
-        // Mavzu statistikasini yangilash + XP. TopicStat endi per-MAVZU yoziladi:
-        // saqlangan test → backend /submit; efemer AI test → /submit-ai (pastda, q.topic bilan).
-        // Eski "chat sarlavha bucket" olib tashlandi (ma'nosiz + ikki marta sanardi).
+        // Mavzu statistikasini yangilash + XP server tasdiqlagan submit natijasidan keladi.
         loadProgress()
         logActivity(20) // Test uchun +20 XP
         const hasImages = questions.some((q: any) => q.imageUrl)
@@ -2758,32 +2966,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                     throw new Error('Public test natijasi backendda tasdiqlanmadi')
                 }
             } else if (testPanel) {
-                const aiKey = stableHash(testPanel) // 2.1: butun JSON ustidan barqaror hash-kalit
-                saveScopedItem('dtmmax_ans_' + aiKey, JSON.stringify(testAnswers))
-                // 1.1: SERVER-GRADE. Sessiya ro'yxatga olingan bo'lsa (aiSessionId), FAQAT javob
-                // harflarini yuboramiz — server o'zi baholaydi (klient ballni soxtalashtira olmaydi).
-                // Ro'yxatga olinmagan/xato bo'lsa eski /submit-ai'ga fallback (statistika yoziladi).
-                const serverGraded = backendSubmitHandled
-                if (!serverGraded) {
-                    const scorePercent = (score / questions.length) * 100
-                    const raschResults = questions.map((q: any, i: number) => {
-                        const fallbackDifficulty = questions.length > 1
-                            ? -2 + (i / (questions.length - 1)) * 4
-                            : 0
-                        return {
-                            difficulty: typeof q.difficulty === 'number' && Number.isFinite(q.difficulty)
-                                ? q.difficulty
-                                : Math.round(fallbackDifficulty * 100) / 100,
-                            isCorrect: testAnswers[i] === q.correct,
-                            topic: typeof q.topic === 'string' ? q.topic : '' // yopiq halqa: per-mavzu TopicStat
-                        }
-                    })
-                    await fetchApi('/tests/submit-ai', {
-                        method: 'POST',
-                        body: JSON.stringify({ score: scorePercent, totalQuestions: questions.length, results: raschResults, subject: currentChat?.subject || currentChat?.subject2 || profile?.subject || 'Umumiy' })
-                    })
-                }
-                markAiTestCompleted(aiKey)
+                if (!backendSubmitHandled) throw new Error('AI test natijasi backendda tasdiqlanmadi')
+                const completionKey = getAiTestCompletionKey(testPanel, activeAiMessageId)
+                saveScopedItem(getAiTestAnswersStorageKey(storageUserId, completionKey), JSON.stringify(testAnswers))
+                markAiTestCompleted(completionKey)
                 loadProfile()
                 loadMyResults()
             }
@@ -2798,15 +2984,9 @@ Iltimos, har bir savolni tahlil qilib ber:
     // Bu MdMessage/TodoBlockMount ni keraksiz qayta mount qilishdan saqlab, X tugmasini tuzatadi
     // va streaming vaqtida sayt qotishini ham hal qiladi.
     // Chat kartasi tugallangan AI testni bilishi uchun — useTestPanel bilan BIR XIL kalit mantiq
-    const isAiTestDone = useCallback((jsonStr: string) => {
+    const isAiTestDone = useCallback((jsonStr: string, messageId?: string) => {
         try {
-            const normalized = extractStructuredPayload(jsonStr)
-            const parsed = parseStructuredJson<unknown[]>(normalized)
-            if (!Array.isArray(parsed) || parsed.length === 0) return false
-            const stableJson = JSON.stringify(parsed)
-            // 2.1: yangi hash-kalit + eski 500-belgili kalit (tarix saqlansin)
-            return completedAiTestsRef.current.has(stableHash(stableJson))
-                || completedAiTestsRef.current.has(legacyTestKey(stableJson))
+            return completedAiTestsRef.current.has(getAiTestCompletionKey(jsonStr, messageId))
         } catch { return false }
     }, [])
 
@@ -2892,13 +3072,13 @@ Iltimos, har bir savolni tahlil qilib ber:
                 : obStep === 3 ? `Ixtiyoriy — ${obScoreBounds.min}–${obScoreBounds.max} oralig'ida.`
                     : ''
         return (
-            <div className="kelviq flex items-center justify-center p-5" style={{ background: 'var(--bg-page)', minHeight: '100dvh' }}>
+            <div className="kelviq student-workspace flex items-center justify-center p-5" style={{ minHeight: '100dvh' }}>
                 <div className="w-full max-w-md">
-                    {/* Suhbat: avatar + savol pufakchasi (Fraunces serif) */}
+                    {/* Suhbat: avatar + savol pufakchasi */}
                     <div className="flex items-start gap-3 mb-6">
-                        <img src="/dtmmax-logo.png" alt="DtmMax" className="h-12 w-12 rounded-2xl flex-shrink-0" style={{ objectFit: 'contain', background: 'var(--bg-card)', boxShadow: 'var(--k-shadow-card)' }} />
-                        <div key={`q-${obStep}`} className="anim-up card" style={{ padding: '15px 19px', borderRadius: '5px 18px 18px 18px' }}>
-                            <p style={{ fontFamily: 'var(--k-serif)', fontSize: '21px', fontWeight: 500, lineHeight: 1.28, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>{obQuestion}</p>
+                        <img src="/dtmmax-logo.png" alt="DTMMax" className="h-12 w-12 rounded-2xl flex-shrink-0" style={{ objectFit: 'contain', background: 'var(--bg-card)', boxShadow: 'var(--k-shadow-card)' }} />
+                        <div key={`q-${obStep}`} className="anim-up card" style={{ padding: '15px 19px', borderRadius: '12px' }}>
+                            <p style={{ fontSize: '21px', fontWeight: 600, lineHeight: 1.28, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>{obQuestion}</p>
                             {obHint && <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>{obHint}</p>}
                         </div>
                     </div>
@@ -3014,11 +3194,11 @@ Iltimos, har bir savolni tahlil qilib ber:
     // Mobil pastki tab-bar faqat "ko'rish" kontekstlarida chiqadi — test/insho/kartochka/reja
     // kabi fokusli ish panellari ochiq bo'lsa yashirinadi (chalg'itmasin, layout ham buzilmasin)
     const mobileTabBarVisible = isMobile && !testPanel && !essayPanel && !flashPanel && !todoOpen
-    const MOBILE_TABBAR_PAD = 'calc(54px + env(safe-area-inset-bottom))'
+    const MOBILE_TABBAR_PAD = 'calc(62px + env(safe-area-inset-bottom))'
 
     return (
         <ChatContext.Provider value={chatContextValue}>
-            <div className="kelviq min-h-[100dvh] h-[100dvh] flex overflow-hidden relative" style={{ background: 'var(--bg-page)' }}>
+            <div className="kelviq student-workspace min-h-[100dvh] h-[100dvh] flex overflow-hidden relative">
                 {/* Mobile backdrop */}
                 {sideOpen && isMobile && (
                     <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setSideOpen(false)} />
@@ -3028,82 +3208,61 @@ Iltimos, har bir savolni tahlil qilib ber:
                     style={{
                         width: sideOpen ? (isMobile ? '280px' : `${sidebarWidth}px`) : '0px',
                         minWidth: sideOpen ? (isMobile ? '280px' : `${sidebarWidth}px`) : '0px',
-                        background: 'var(--bg-surface)',
-                        borderRight: '1px solid color-mix(in srgb, var(--border) 76%, rgba(15,23,42,0.12) 24%)',
                         ...(isMobile && sideOpen ? { position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 50, paddingBottom: mobileTabBarVisible ? MOBILE_TABBAR_PAD : undefined } : {})
                     }}
-                    className="flex flex-col transition-all duration-200 overflow-hidden flex-shrink-0 relative"
+                    className="student-focus-rail flex flex-col transition-all duration-200 overflow-hidden flex-shrink-0 relative"
                 >
-                    <div className="p-3 flex items-center justify-between h-14 flex-shrink-0" style={{ borderBottom: '1px solid color-mix(in srgb, var(--border) 76%, rgba(15,23,42,0.12) 24%)' }}>
+                    <div className="student-focus-rail__brand p-3 flex items-center justify-between h-14 flex-shrink-0">
                         <div className="flex items-center gap-2">
-                            <img src="/dtmmax-logo.png" alt="DtmMax" className="h-11 w-11 rounded-lg flex items-center justify-center" style={{ objectFit: 'contain' }} />
+                            <img src="/dtmmax-logo.png" alt="DTMMax" className="h-11 w-11 rounded-lg flex items-center justify-center" style={{ objectFit: 'contain' }} />
                             <span className="text-sm font-bold whitespace-nowrap">DTMMax</span>
                         </div>
-                        <button onClick={() => setSideOpen(false)} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-muted)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}><X className="h-4 w-4" /></button>
+                        <button type="button" onClick={() => setSideOpen(false)} className="student-icon-button h-8 w-8 flex items-center justify-center" aria-label="Yon panelni yopish"><X className="h-4 w-4" /></button>
                     </div>
 
                     {/* Asosiy o'qish navigatsiyasi */}
-                    <div className="px-2 pt-2 pb-2 flex-shrink-0 space-y-0.5">
-                        <button onClick={() => { setOverlayPanel(null); setSideOpen(!isMobile); nav('/bugun') }}
-                            className="sidebar-nav-button w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[14px] font-semibold tracking-[-0.01em] transition"
-                            style={isTodayView && !overlayPanel
-                                ? { background: 'var(--bg-card)', color: 'var(--text-primary)', borderColor: 'var(--border)' }
-                                : { color: 'var(--text-primary)' }}
-                        >
+                    <nav className="student-primary-nav px-2 pt-3 pb-3 flex-shrink-0" aria-label="Asosiy bo‘limlar">
+                        <button type="button" onClick={() => { setOverlayPanel(null); if (isMobile) setSideOpen(false); nav('/bugun') }}
+                            className={`student-primary-nav__item${isTodayView && !overlayPanel ? ' is-active' : ''}`}
+                            aria-current={isTodayView && !overlayPanel ? 'page' : undefined}>
                             <House className="h-4 w-4 flex-shrink-0" /> Bugun
                         </button>
-                        {/* Yangi suhbat */}
-                        <button onClick={createChat} disabled={creating}
-                            className="sidebar-nav-button w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[14px] font-semibold tracking-[-0.01em] transition disabled:opacity-50"
-                            style={{ color: 'var(--text-primary)' }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                        >
-                            <Plus className="h-4 w-4 flex-shrink-0" /> Yangi suhbat
+                        <button type="button" onClick={() => { setOverlayPanel(overlayPanel === 'flashcards' ? null : 'flashcards'); if (isMobile) setSideOpen(false) }}
+                            className={`student-primary-nav__item${overlayPanel === 'flashcards' ? ' is-active' : ''}`}
+                            aria-pressed={overlayPanel === 'flashcards'}>
+                            <BookOpen className="h-4 w-4 flex-shrink-0" /> O‘rganish
+                            {dueFlashcards.length > 0 && <span className="student-nav-count">{dueFlashcards.length > 9 ? '9+' : dueFlashcards.length}</span>}
                         </button>
-                        {/* Testlar */}
-                        <button onClick={() => { setOverlayPanel(overlayPanel === 'tests' ? null : 'tests'); markTestsSeen(); if (overlayPanel !== 'tests') { loadPublicTests(); loadMyResults() } }}
-                            className="sidebar-nav-button w-full flex items-center gap-2 px-3 py-1.5 rounded-xl text-[14px] font-semibold tracking-[-0.01em] transition"
-                            style={overlayPanel === 'tests'
-                                ? { background: 'color-mix(in srgb, var(--bg-muted) 88%, white 12%)', color: 'var(--text-primary)', borderColor: 'color-mix(in srgb, var(--border) 70%, rgba(15,23,42,0.12) 30%)' }
-                                : { color: 'var(--text-primary)' }}
-                            onMouseEnter={e => { if (overlayPanel !== 'tests') e.currentTarget.style.background = 'var(--bg-muted)' }}
-                            onMouseLeave={e => { if (overlayPanel !== 'tests') e.currentTarget.style.background = 'transparent' }}
-                        >
+                        <button type="button" onClick={() => { setOverlayPanel(overlayPanel === 'tests' ? null : 'tests'); if (isMobile) setSideOpen(false); markTestsSeen(); if (overlayPanel !== 'tests') { void loadPublicTests(); void loadMyResults() } }}
+                            className={`student-primary-nav__item${overlayPanel === 'tests' ? ' is-active' : ''}`}
+                            aria-pressed={overlayPanel === 'tests'}>
                             <ClipboardList className="h-4 w-4 flex-shrink-0" />
                             Testlar
-                            {newTestIds.size > 0 && <span className="ml-auto px-1.5 rounded-full text-white text-[10px] flex items-center font-bold" style={{ background: 'var(--danger)', height: '18px' }}>{newTestIds.size > 9 ? '9+' : newTestIds.size}</span>}
+                            {newTestIds.size > 0 && <span className="student-nav-count is-alert">{newTestIds.size > 9 ? '9+' : newTestIds.size}</span>}
                         </button>
-                        {/* Natijalar */}
-                        <button onClick={() => setOverlayPanel(overlayPanel === 'progress' ? null : 'progress')}
-                            className="sidebar-nav-button w-full flex items-center gap-2 px-3 py-1.5 rounded-xl text-[14px] font-semibold tracking-[-0.01em] transition"
-                            style={overlayPanel === 'progress'
-                                ? { background: 'color-mix(in srgb, var(--bg-muted) 88%, white 12%)', color: 'var(--text-primary)', borderColor: 'color-mix(in srgb, var(--border) 70%, rgba(15,23,42,0.12) 30%)' }
-                                : { color: 'var(--text-primary)' }}
-                            onMouseEnter={e => { if (overlayPanel !== 'progress') e.currentTarget.style.background = 'var(--bg-muted)' }}
-                            onMouseLeave={e => { if (overlayPanel !== 'progress') e.currentTarget.style.background = 'transparent' }}
-                        >
-                            <TrendingUp className="h-4 w-4 flex-shrink-0" /> Natijalar
+                        <button type="button" onClick={openAiTutor}
+                            className={`student-primary-nav__item${chatId && !overlayPanel ? ' is-active' : ''}`}
+                            aria-current={chatId && !overlayPanel ? 'page' : undefined}>
+                            <MessageSquare className="h-4 w-4 flex-shrink-0" /> AI ustoz
                         </button>
-                        {/* Kartochkalar — overlay avvaldan qurilgan edi, lekin ochadigan tugma YO'Q edi (o'lik bo'lim) */}
-                        <button onClick={() => setOverlayPanel(overlayPanel === 'flashcards' ? null : 'flashcards')}
-                            className="sidebar-nav-button w-full flex items-center gap-2 px-3 py-1.5 rounded-xl text-[14px] font-semibold tracking-[-0.01em] transition"
-                            style={overlayPanel === 'flashcards'
-                                ? { background: 'color-mix(in srgb, var(--bg-muted) 88%, white 12%)', color: 'var(--text-primary)', borderColor: 'color-mix(in srgb, var(--border) 70%, rgba(15,23,42,0.12) 30%)' }
-                                : { color: 'var(--text-primary)' }}
-                            onMouseEnter={e => { if (overlayPanel !== 'flashcards') e.currentTarget.style.background = 'var(--bg-muted)' }}
-                            onMouseLeave={e => { if (overlayPanel !== 'flashcards') e.currentTarget.style.background = 'transparent' }}
-                        >
-                            <Layers className="h-4 w-4 flex-shrink-0" /> Kartochkalar
-                            {dueFlashcards.length > 0 && <span className="ml-auto px-1.5 rounded-full text-white text-[10px] flex items-center font-bold" style={{ background: 'var(--brand)', height: '18px' }}>{dueFlashcards.length > 9 ? '9+' : dueFlashcards.length}</span>}
+                        <button type="button" onClick={() => { setOverlayPanel(overlayPanel === 'progress' ? null : 'progress'); if (isMobile) setSideOpen(false) }}
+                            className={`student-primary-nav__item${overlayPanel === 'progress' ? ' is-active' : ''}`}
+                            aria-pressed={overlayPanel === 'progress'}>
+                            <TrendingUp className="h-4 w-4 flex-shrink-0" /> Progress
                         </button>
-                    </div>
+                    </nav>
 
-                    <div className="mx-3 flex-shrink-0" style={{ height: '1px', background: 'color-mix(in srgb, var(--border) 76%, rgba(15,23,42,0.12) 24%)' }} />
+                    <div className="student-focus-rail__divider" />
 
                     {/* Chat list — doim ko'rinadi */}
                     {true && (
-                        <div className="flex-1 overflow-y-auto px-2 py-2" style={{ scrollbarWidth: 'thin' }}>
+                        <div className="student-chat-history flex-1 overflow-y-auto px-2 py-2" style={{ scrollbarWidth: 'thin' }}>
+                            <div className="student-chat-history__header">
+                                <span>Suhbatlar</span>
+                                <button type="button" onClick={createChat} disabled={creating} aria-label="Yangi suhbat" title="Yangi suhbat">
+                                    <Plus className="h-3.5 w-3.5" />
+                                </button>
+                            </div>
                             {chats.length === 0 ? (
                                 <p className="text-xs text-center py-6" style={{ color: 'var(--text-muted)' }}>Hali suhbatlar yo'q</p>
                             ) : groupChatsByDate(
@@ -3194,7 +3353,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
                             onClick={e => { if (e.target === e.currentTarget) setShowNotifications(false) }}
                         >
-                            <div className="card" style={{ width: '100%', maxWidth: '560px', maxHeight: 'min(620px, calc(100dvh - 32px))', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '16px' }}>
+                            <div className="card" style={{ width: '100%', maxWidth: '560px', maxHeight: 'min(620px, calc(100dvh - 32px))', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '12px' }}>
                                 <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                                     <div>
                                         <h2 className="text-base font-bold tracking-tight">Bildirishnomalar</h2>
@@ -3247,7 +3406,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
                             onClick={e => { if (e.target === e.currentTarget) setShowSettings(false) }}
                         >
-                            <div className="card" style={{ width: '100%', maxWidth: '560px', maxHeight: 'calc(100dvh - 32px)', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '16px' }}>
+                            <div className="card" style={{ width: '100%', maxWidth: '560px', maxHeight: 'calc(100dvh - 32px)', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '12px' }}>
                                 <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                                     <div>
                                         <h2 className="text-base font-bold tracking-tight">Profil va sozlamalar</h2>
@@ -3284,7 +3443,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 <div key={i} className="flex items-center gap-2 py-1">
                                                     <p className="text-[12.5px] flex-1" style={{ color: 'var(--text-secondary)' }}>{cap.l}</p>
                                                     <button type="button"
-                                                        onClick={() => { setShowSettings(false); void handleSend(cap.p, []) }}
+                                                        onClick={() => { setShowSettings(false); void handleAction(cap.l, cap.p) }}
                                                         className="text-[11px] font-semibold px-2.5 py-1 rounded-lg transition flex-shrink-0"
                                                         style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
                                                         Sinash
@@ -3439,35 +3598,45 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             <div className="space-y-3">
                                                 <p className="text-sm font-semibold flex items-center gap-2">
                                                     <User className="h-4 w-4" />
-                                                    Parolni o'zgartirish
+                                                    {user?.passwordConfigured === false ? 'Parol yaratish' : 'Parolni o\'zgartirish'}
                                                 </p>
+                                                {user?.passwordConfigured === false && (
+                                                    <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                                                        Siz Google orqali kirgansiz. Parol yaratsangiz email va parol bilan ham kira olasiz.
+                                                    </p>
+                                                )}
                                                 {changePwOk && <div className="text-sm px-3 py-2 rounded-lg" style={{ background: '#D1FAE5', color: '#065F46' }}>Parol muvaffaqiyatli yangilandi!</div>}
                                                 {changePwErr && <div className="text-sm px-3 py-2 rounded-lg" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>{changePwErr}</div>}
-                                                <input type="password" placeholder="Joriy parol" value={changePwForm.current} onChange={e => setChangePwForm(f => ({ ...f, current: e.target.value }))} className="input text-sm h-9" />
+                                                {user?.passwordConfigured !== false && (
+                                                    <input type="password" placeholder="Joriy parol" value={changePwForm.current} onChange={e => setChangePwForm(f => ({ ...f, current: e.target.value }))} className="input text-sm h-9" />
+                                                )}
                                                 <input type="password" placeholder="Yangi parol (kamida 8 belgi)" value={changePwForm.newPw} onChange={e => setChangePwForm(f => ({ ...f, newPw: e.target.value }))} className="input text-sm h-9" />
                                                 <input type="password" placeholder="Yangi parolni tasdiqlang" value={changePwForm.confirm} onChange={e => setChangePwForm(f => ({ ...f, confirm: e.target.value }))} className="input text-sm h-9" />
-                                                <button disabled={changePwLoading || !changePwForm.current || !changePwForm.newPw || !changePwForm.confirm}
+                                                <button disabled={changePwLoading || (user?.passwordConfigured !== false && !changePwForm.current) || !changePwForm.newPw || !changePwForm.confirm}
                                                     onClick={async () => {
                                                         setChangePwErr(''); setChangePwOk(false)
                                                         if (changePwForm.newPw !== changePwForm.confirm) { setChangePwErr('Yangi parollar mos kelmadi'); return }
                                                         setChangePwLoading(true)
                                                         try {
                                                             await fetchApi('/auth/change-password', { method: 'PUT', body: JSON.stringify({ currentPassword: changePwForm.current, newPassword: changePwForm.newPw }) })
-                                                            setChangePwOk(true); setChangePwForm({ current: '', newPw: '', confirm: '' })
+                                                            setChangePwForm({ current: '', newPw: '', confirm: '' })
+                                                            clearSession()
+                                                            nav('/kirish?reason=password-changed', { replace: true })
                                                         } catch (e: any) { setChangePwErr(e.message || 'Xatolik yuz berdi') }
                                                         setChangePwLoading(false)
                                                     }}
-                                                    className="btn btn-outline h-9 text-sm px-5 disabled:opacity-40">{changePwLoading ? 'Saqlanmoqda...' : 'Parolni yangilash'}</button>
+                                                    className="btn btn-outline h-9 text-sm px-5 disabled:opacity-40">{changePwLoading ? 'Saqlanmoqda...' : user?.passwordConfigured === false ? 'Parol yaratish' : 'Parolni yangilash'}</button>
                                             </div>
                                             <div className="rounded-xl p-4 space-y-2" style={{ border: '1px solid var(--danger-light)' }}>
                                                 <p className="text-sm font-semibold" style={{ color: 'var(--danger)' }}>Xavfli zona</p>
                                                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Akkauntni o'chirsangiz barcha ma'lumotlar butunlay yo'qoladi.</p>
                                                 <button onClick={() => { setShowDeleteModal(true); setDeleteErr(''); setDeletePassword('') }}
+                                                    disabled={user?.passwordConfigured === false}
                                                     className="h-9 flex items-center gap-2 text-sm font-medium rounded-lg px-4 transition"
-                                                    style={{ color: 'var(--danger)', border: '1px solid var(--danger)', background: 'transparent' }}
+                                                    style={{ color: 'var(--danger)', border: '1px solid var(--danger)', background: 'transparent', opacity: user?.passwordConfigured === false ? 0.5 : 1 }}
                                                     onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-light)'}
                                                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                                    Akkauntni o'chirish
+                                                    {user?.passwordConfigured === false ? 'Avval parol yarating' : 'Akkauntni o\'chirish'}
                                                 </button>
                                             </div>
                                         </div>
@@ -3480,7 +3649,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                     {/* User footer.
                         Streak vidjeti bu yerdan OLIB TASHLANDI — "Bugun" ekranidagi streak chipini
                         aynan takrorlardi (egasi: keraksiz takror bo'lmasin). */}
-                    <div className="p-3 flex-shrink-0" style={{ borderTop: '1px solid color-mix(in srgb, var(--border) 76%, rgba(15,23,42,0.12) 24%)' }}>
+                    <div className="student-profile-dock p-3 flex-shrink-0">
                         <div className="flex items-center gap-2.5 px-2 py-1.5">
                             <div className="h-8 w-8 rounded-full flex items-center justify-center text-[11px] font-semibold text-white flex-shrink-0" style={{ background: 'var(--brand)' }}>{user?.name?.[0]?.toUpperCase()}</div>
                             <div className="flex-1 min-w-0">
@@ -3523,29 +3692,29 @@ Iltimos, har bir savolni tahlil qilib ber:
 
 
                 {/* Main — mobil tab-bar ko'rinsa pastdan joy qoldiramiz (input yashirinmasin) */}
-                <div className="flex-1 flex flex-col min-w-0 overflow-hidden"
+                <div className="student-main flex-1 flex flex-col min-w-0 overflow-hidden"
                     style={mobileTabBarVisible ? { paddingBottom: MOBILE_TABBAR_PAD } : undefined}>
-                    <div className="h-14 flex items-center px-4 gap-2 flex-shrink-0" style={{ borderBottom: '1px solid color-mix(in srgb, var(--border) 74%, rgba(15,23,42,0.12) 26%)' }}>
-                        <button onClick={() => setSideOpen(v => !v)} className="h-8 w-8 flex items-center justify-center rounded-lg transition flex-shrink-0" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} title="Yonpanel"><Menu className="h-4 w-4" /></button>
+                    <header className="student-topbar h-14 flex items-center px-4 gap-2 flex-shrink-0">
+                        <button type="button" onClick={() => setSideOpen(v => !v)} className="student-icon-button h-8 w-8 flex items-center justify-center flex-shrink-0" title="Yon panel" aria-label="Yon panelni ochish"><Menu className="h-4 w-4" /></button>
                         <div className="min-w-0 flex-1">
                             <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
-                                {isTodayView ? 'Bugun' : currentChat?.title ? cleanChatTitle(currentChat.title) : 'Yangi suhbat'}
+                                {isTodayView ? 'Bugun' : 'AI ustoz'}
                             </p>
-                            {([profile?.subject, profile?.subject2].filter(Boolean).join(' + ')) && (
-                                <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>
-                                    {[profile?.subject, profile?.subject2].filter(Boolean).join(' + ')} · Bugungi o‘qish
-                                </p>
-                            )}
+                            <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>
+                                {isTodayView
+                                    ? `${[profile?.subject, profile?.subject2].filter(Boolean).join(' + ') || 'Shaxsiy tayyorgarlik'} · Bugungi o‘qish`
+                                    : currentChat?.title ? cleanChatTitle(currentChat.title) : 'Yangi suhbat'}
+                            </p>
                         </div>
                         {/* Mobilda yangi suhbat — drawer ochmasdan bir bosishda (desktop'da sidebar doim ochiq) */}
                         {isMobile && (
-                            <button onClick={createChat} disabled={creating} title="Yangi suhbat"
+                            <button type="button" onClick={createChat} disabled={creating} title="Yangi suhbat" aria-label="Yangi suhbat"
                                 className="h-8 w-8 flex items-center justify-center rounded-lg transition flex-shrink-0 disabled:opacity-50"
-                                style={{ color: 'var(--brand)', background: 'var(--brand-light)' }}>
+                                style={{ color: 'var(--brand-hover)', background: 'var(--brand-light)' }}>
                                 <Plus className="h-4 w-4" />
                             </button>
                         )}
-                    </div>
+                    </header>
 
                     {/* Messages */}
                     <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
@@ -3554,24 +3723,24 @@ Iltimos, har bir savolni tahlil qilib ber:
                             const far = el.scrollHeight - el.scrollTop - el.clientHeight > 350
                             setShowScrollDown(prev => prev === far ? prev : far)
                         }}>
-                        {(!chatId || (messages.length === 0 && !loading && !streaming)) ? (
-                            <div className="min-h-full flex flex-col items-center relative px-4 py-8 sm:px-8 sm:py-12" style={{ background: 'var(--bg-page)' }}>
+                        {isTodayView ? (
+                            <div className="student-today-view min-h-full flex flex-col items-center relative px-4 py-8 sm:px-8 sm:py-12">
                                 {(loading || streaming) ? (
                                     <div className="text-center px-4 anim-up relative" style={{ zIndex: 1 }}>
-                                        <img src="/dtmmax-logo.png" alt="DtmMax" className="h-14 w-14 rounded-xl mx-auto mb-3" style={{ objectFit: 'contain' }} />
+                                        <img src="/dtmmax-logo.png" alt="DTMMax" className="h-14 w-14 rounded-xl mx-auto mb-3" style={{ objectFit: 'contain' }} />
                                         <p className="text-base font-bold tracking-tight">AI <span className="k-italic">tayyorlayapti</span>...</p>
                                     </div>
                                 ) : (
-                                    <div className="today-shell w-full max-w-2xl anim-up relative" style={{ zIndex: 1 }}>
+                                    <div className="today-shell student-today w-full max-w-2xl anim-up relative" style={{ zIndex: 1 }}>
                                         {/* ===== "BUGUN" bosh ekrani — o'quvchi kirganda chat emas, shu dashboard ===== */}
-                                        <div className="today-intro">
-                                            <p className="today-date">{new Intl.DateTimeFormat('uz-UZ', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())}</p>
+                                        <header className="today-intro student-today__intro">
+                                            <p className="today-date">{formatUzbekDate()}</p>
                                             <h1>{timeGreeting()}{user?.name ? `, ${user.name}` : ''}.</h1>
                                             <p className="today-lede">Bugun katta reja shart emas. Eng foydali bitta qadamni tugatamiz.</p>
                                             <div className="flex items-center gap-2 mt-5 flex-wrap">
                                                 <button type="button" onClick={() => setOverlayPanel('progress')}
                                                     className="flex items-center gap-1.5 h-8 px-3 rounded-full text-[12px] font-semibold transition"
-                                                    style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
+                                                    style={{ background: 'var(--brand-light)', color: 'var(--brand-hover)' }}>
                                                     <Flame className={`h-3 w-3 ${(progressData?.currentStreak ?? 0) > 0 ? 'k-flame-live' : ''}`} />
                                                     {(progressData?.currentStreak ?? 0) > 0 ? `${progressData?.currentStreak} kun ketma-ket` : 'Bugun 1-kunni boshla'}
                                                 </button>
@@ -3586,7 +3755,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     Bugun 1 ta mashq yetadi — {progressData?.currentStreak} kunlik seriyang saqlanadi
                                                 </p>
                                             )}
-                                        </div>
+                                        </header>
 
                                         {/* Avval bittagina aniq ish: o'quvchi dashboarddan emas, harakatdan boshlaydi. */}
                                         {(() => {
@@ -3595,7 +3764,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             const needsDiagnostic = myResults.length === 0 && (profile?.totalTests ?? 0) === 0
                                             let title = 'Bugungi qisqa reja tuzing'
                                             let description = 'AI sizning maqsadingizga mos, bajariladigan reja tuzadi'
-                                            let onClick = () => { void handleSend('Menga bugun uchun qisqa, bajarsa bo‘ladigan o‘quv reja tuz — imtihonim va zaif mavzularimga mosla.', []) }
+                                            let onClick = () => { void handleAction('Bugungi reja', 'Menga bugun uchun qisqa, bajarsa bo‘ladigan o‘quv reja tuz — imtihonim va zaif mavzularimga mosla.') }
 
                                             if (needsDiagnostic) {
                                                 const subjects = diagnosticSubjects(profile)
@@ -3603,60 +3772,53 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 description = subjects.length >= 2
                                                     ? `${subjects.join(' + ')} bo‘yicha diagnostik test`
                                                     : `${subjects[0] || 'Asosiy faningiz'} bo‘yicha shaxsiy boshlang‘ich test`
-                                                onClick = () => { void handleSend(buildDiagnosticPrompt(profile), []) }
-                                            } else if (weakTopic) {
-                                                title = `Zaif mavzu: ${weakTopic.topic}`
-                                                description = '10 ta qisqa mashq bilan mustahkamlaymiz'
-                                                onClick = () => { void handleSend(`"${weakTopic.topic}" mavzusidan 10 ta savollik mashq testi tuz — bu mening zaif mavzum, oxirida xatolarimni tushuntir.`, []) }
+                                                onClick = () => { void handleAction('Darajamni aniqlash', buildDiagnosticPrompt(profile)) }
                                             } else if (unfinishedTodo) {
                                                 title = 'Bugungi rejani davom ettiring'
                                                 description = `Navbatdagi vazifa: ${unfinishedTodo.task}`
-                                                onClick = () => { void handleSend(`Bugungi rejadagi "${unfinishedTodo.task}" vazifani boshlashimga yordam ber: eng muhim birinchi qadamni ayt.`, []) }
+                                                onClick = () => { void handleAction('Vazifani boshlash', `Bugungi rejadagi "${unfinishedTodo.task}" vazifani boshlashimga yordam ber: eng muhim birinchi qadamni ayt.`) }
                                             } else if (myResults.length > 0) {
                                                 title = 'Keyingi testni tanlang'
                                                 description = `Oxirgi natija ${myResults[0].score}% — endi davom etamiz`
                                                 onClick = () => { setOverlayPanel('tests'); markTestsSeen(); void loadPublicTests(); void loadMyResults() }
+                                            } else if (weakTopic) {
+                                                title = `Zaif mavzu: ${weakTopic.topic}`
+                                                description = '10 ta qisqa mashq bilan mustahkamlaymiz'
+                                                onClick = () => { void handleAction(`${weakTopic.topic} mashqi`, `"${weakTopic.topic}" mavzusidan 10 ta savollik mashq testi tuz — bu mening zaif mavzum, oxirida xatolarimni tushuntir.`) }
                                             }
 
                                             return (
-                                                <div className="today-focus">
+                                                <section className="today-focus student-today__focus" aria-labelledby="today-focus-title">
                                                     <div className="min-w-0">
                                                         <p className="today-focus-label">Bugungi fokus</p>
-                                                        <h2>{title}</h2>
+                                                        <h2 id="today-focus-title">{title}</h2>
                                                         <p>{description}</p>
                                                     </div>
                                                     <button type="button" onClick={onClick} className="today-focus-action">
                                                         Boshlash <ArrowRight className="h-4 w-4" />
                                                     </button>
-                                                </div>
+                                                </section>
                                             )
                                         })()}
 
-                                        <button type="button" onClick={() => setShowTodayDetails(value => !value)}
-                                            className="mt-4 px-0 py-2 text-[12px] font-semibold transition"
-                                            style={{ display: 'block', color: 'var(--text-secondary)' }}>
-                                            {showTodayDetails ? 'Kamroq ko‘rsatish' : 'Bugungi reja va natijalarni ko‘rish'}
-                                        </button>
-
-                                        {showTodayDetails && <>
-                                        {/* Maqsad sari yo'l — har kirishda ko'z oldida (goal-gradient effekti) */}
+                                        {/* Maqsad sari yo'l — har kirishda ko'z oldida */}
                                         {(() => {
                                             if (profile?.examType !== 'DTM' || !profile?.targetScore || !progressData?.avgScore) return null
                                             const estimatedBall = Math.round((progressData.avgScore / 100) * 189)
                                             const pathPercent = Math.max(3, Math.min(100, Math.round((estimatedBall / profile.targetScore) * 100)))
                                             return (
-                                                <div className="rounded-2xl p-3.5 sm:p-4 mt-4 sm:mt-5 text-left" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                                <section className="student-today__section student-progress-path text-left">
                                                     <div className="flex items-center justify-between gap-2 mb-2">
                                                         <p className="text-[13px] font-bold flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
                                                             <Trophy className="h-4 w-4" style={{ color: 'var(--brand)' }} /> {profile.targetScore} ball sari yo'l
                                                         </p>
                                                         <span className="text-[11px] font-bold" style={{ color: 'var(--text-muted)' }}>hozir ~{estimatedBall} ball</span>
                                                     </div>
-                                                    <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--bg-surface)' }}>
-                                                        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pathPercent}%`, background: 'var(--k-accent-grad, var(--brand))' }} />
+                                                    <div className="student-progress-track" role="progressbar" aria-label={`${profile.targetScore} ball maqsad sari progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pathPercent}>
+                                                        <div className="transition-[width] duration-700" style={{ width: `${pathPercent}%` }} />
                                                     </div>
                                                     {!isMobile && <p className="text-[11px] mt-1.5" style={{ color: 'var(--text-muted)' }}>Har bir mashq shu chiziqni oldinga suradi</p>}
-                                                </div>
+                                                </section>
                                             )
                                         })()}
 
@@ -3687,7 +3849,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 )
                                             }
                                             return (
-                                                <div className="rounded-2xl p-3.5 sm:p-4 mt-3 sm:mt-4 text-left" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                                <section className="student-today__section student-day-plan text-left">
                                                     <div className="flex items-center justify-between gap-2 mb-1">
                                                         <p className="text-[13px] font-bold flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
                                                             <Target className="h-4 w-4" style={{ color: 'var(--brand)' }} /> Bugungi reja
@@ -3702,7 +3864,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                         <div className="flex items-center justify-between gap-3 mt-1">
                                                             <p className="text-[12px]" style={{ color: 'var(--text-muted)' }}>Bugun uchun reja hali yo'q — AI 1 daqiqada tuzib beradi</p>
                                                             <button type="button" className="btn btn-outline btn-sm flex-shrink-0"
-                                                                onClick={() => { void handleSend(newPlanPrompt, []) }}>
+                                                                onClick={() => { void handleAction('Bugungi reja', newPlanPrompt) }}>
                                                                 Reja tuzish
                                                             </button>
                                                         </div>
@@ -3711,7 +3873,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                             <p className="text-[11px] mt-0.5 mb-1" style={{ color: 'var(--text-muted)' }}>Avvalgi rejadan qolgan vazifalar:</p>
                                                             {olderUndone.slice(0, 3).map(renderTodoRow)}
                                                             <button type="button" className="btn btn-outline btn-sm mt-2"
-                                                                onClick={() => { void handleSend(newPlanPrompt, []) }}>
+                                                                onClick={() => { void handleAction('Bugungi yangi reja', newPlanPrompt) }}>
                                                                 Bugun uchun yangi reja
                                                             </button>
                                                         </>
@@ -3722,15 +3884,33 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                             {todayTodos.filter(t => !t.done || justDoneIds.has(t.id)).slice(0, 4).map(renderTodoRow)}
                                                         </div>
                                                     )}
-                                                </div>
+                                                </section>
                                             )
                                         })()}
+
+                                        {/* Davom etish — bugun qaytarilishi kerak bo'lgan kartochkalar real navbatdan olinadi. */}
+                                        {dueFlashcards.length > 0 && (
+                                            <section className="student-today__section student-continue flex items-center justify-between gap-3 text-left">
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--bg-surface)' }}>
+                                                        <BookOpen className="h-[18px] w-[18px]" style={{ color: 'var(--text-primary)' }} />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="text-[13px] font-bold" style={{ color: 'var(--text-primary)' }}>O‘rganishni davom ettiring</p>
+                                                        <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{dueFlashcards.length} ta kartochka takrorlashga tayyor</p>
+                                                    </div>
+                                                </div>
+                                                <button type="button" className="btn btn-outline btn-sm flex-shrink-0" onClick={() => setOverlayPanel('flashcards')}>
+                                                    Takrorlash
+                                                </button>
+                                            </section>
+                                        )}
 
                                         {/* Davom etish — natijasi bor o'quvchiga.
                                             Mobilda maqsad-yo'l kartasi bo'lsa YASHIRINADI: ikkisi ham progressni ko'rsatadi,
                                             "Testlar" tugmasi esa pastki tab-barda bor — takror karta joyni band qilardi */}
-                                        {myResults.length > 0 && !(isMobile && profile?.examType === 'DTM' && !!profile?.targetScore && !!progressData?.avgScore) && (
-                                            <div className="rounded-2xl p-3.5 sm:p-4 mt-3 flex items-center justify-between gap-3 text-left" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                                        {dueFlashcards.length === 0 && myResults.length > 0 && !(isMobile && profile?.examType === 'DTM' && !!profile?.targetScore && !!progressData?.avgScore) && (
+                                            <section className="student-today__section student-continue flex items-center justify-between gap-3 text-left">
                                                 <div className="flex items-center gap-3 min-w-0">
                                                     <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--success) 12%, transparent)' }}>
                                                         <TrendingUp className="h-[18px] w-[18px]" style={{ color: 'var(--success)' }} />
@@ -3740,12 +3920,12 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                         <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Davom etsak — natija o'sadi</p>
                                                     </div>
                                                 </div>
-                                                <button type="button" className="btn btn-primary btn-sm flex-shrink-0 relative"
+                                                <button type="button" className="btn btn-outline btn-sm flex-shrink-0 relative"
                                                     onClick={() => { setOverlayPanel('tests'); markTestsSeen(); void loadPublicTests(); void loadMyResults() }}>
                                                     Testlar
-                                                    {newTestIds.size > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full text-white text-[9px] flex items-center justify-center font-bold" style={{ background: 'var(--danger)' }}>{newTestIds.size > 9 ? '9+' : newTestIds.size}</span>}
+                                                    {newTestIds.size > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full text-[9px] flex items-center justify-center font-bold" style={{ background: 'var(--brand)', color: '#171717' }}>{newTestIds.size > 9 ? '9+' : newTestIds.size}</span>}
                                                 </button>
-                                            </div>
+                                            </section>
                                         )}
 
                                         {/* Zaif mavzu — bitta bosishda mashq */}
@@ -3754,9 +3934,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             if (!weakTopic) return null
                                             return (
                                                 <button type="button"
-                                                    onClick={() => { void handleSend(`"${weakTopic.topic}" mavzusidan 10 ta savollik mashq testi tuz — bu mening zaif mavzum, oxirida xatolarimni tushuntir.`, []) }}
-                                                    className="w-full rounded-2xl p-3.5 mt-3 flex items-center gap-3 text-left transition"
-                                                    style={{ background: 'color-mix(in srgb, var(--warning) 7%, transparent)', border: '1px solid color-mix(in srgb, var(--warning) 22%, transparent)' }}>
+                                                    onClick={() => { void handleAction(`${weakTopic.topic} mashqi`, `"${weakTopic.topic}" mavzusidan 10 ta savollik mashq testi tuz — bu mening zaif mavzum, oxirida xatolarimni tushuntir.`) }}
+                                                    className="student-today__section student-weak-topic w-full flex items-center gap-3 text-left transition">
                                                     <AlertTriangle className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--warning)' }} />
                                                     <span className="text-[12.5px] min-w-0 flex-1" style={{ color: 'var(--text-primary)' }}>
                                                         Zaif mavzu: <strong>{weakTopic.topic}</strong> — mashq qilamizmi?
@@ -3764,12 +3943,31 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                 </button>
                                             )
                                         })()}
-                                        </>}
                                     </div>
                                 )}
                             </div>
                         ) : (
                             <div className="chat-thread max-w-[760px] mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6 sm:space-y-9">
+                                {messages.length === 0 && !loading && !streaming && (
+                                    <section className="ai-tutor-empty" aria-labelledby="ai-tutor-empty-title">
+                                        <div className="ai-tutor-empty__icon"><BrainCircuit aria-hidden="true" /></div>
+                                        <div>
+                                            <h1 id="ai-tutor-empty-title">AI ustoz bilan boshlang</h1>
+                                            <p>{profile?.subject ? `${profile.subject} bo‘yicha savol bering` : 'Savol, masala yoki mavzuni yozing'} — javobni bosqichma-bosqich tushuntiraman.</p>
+                                        </div>
+                                        <div className="ai-tutor-empty__actions" aria-label="Tezkor so‘rovlar">
+                                            {[
+                                                { label: 'Mavzuni tushuntir', prompt: 'Menga qiyin bo‘layotgan mavzuni aniqlash uchun bitta savol ber, keyin uni sodda misol bilan tushuntir.' },
+                                                { label: 'Mashq tuz', prompt: "Menga o‘z fanimdan 5 ta qisqa mashq tuz va har javobimdan keyin izoh ber." },
+                                                { label: 'Reja tuz', prompt: 'Bugun uchun qisqa va bajariladigan o‘qish rejasini tuz.' },
+                                            ].map(action => (
+                                                <button key={action.label} type="button" onClick={() => { void handleAction(action.label, action.prompt) }}>
+                                                    <span>{action.label}</span><ArrowRight aria-hidden="true" />
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </section>
+                                )}
                                 {messages.map((m, i) => {
                                     // Sana ajratgichi — kun almashganda "Bugun/Kecha/5-iyul" chizig'i
                                     const msgDay = m.createdAt ? new Date(m.createdAt).toDateString() : ''
@@ -3809,7 +4007,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             <div className="ai-msg-row msg-group">
                                                 <img src="/dtmmax-logo.png" alt="" aria-hidden="true" className="ai-avatar" />
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="bubble-ai"><MdMessage content={m.content} /></div>
+                                                    <div className="bubble-ai"><MdMessage content={m.content} messageId={persistedAssistantMessageIdsRef.current.has(m.id) ? m.id : undefined} /></div>
                                                     <div className="flex items-center gap-1 mt-1">
                                                         {messageTime && <span className="text-[10px] px-1" style={{ color: 'var(--text-muted)' }}>{messageTime}</span>}
                                                         <button type="button" className="msg-copy-btn"
@@ -3824,7 +4022,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                                 { label: 'Misol ko‘rsat', prompt: 'Oxirgi tushuntirgan mavzuni bitta sodda misol bilan yana tushuntir.' },
                                                                 { label: '3 ta mashq', prompt: 'Oxirgi mavzu bo‘yicha 3 ta qisqa mashq ber.' },
                                                             ].map(action => (
-                                                                <button key={action.label} type="button" onClick={() => { void handleSend(action.prompt, []) }}
+                                                                <button key={action.label} type="button" onClick={() => { void handleAction(action.label, action.prompt) }}
                                                                     className="px-2.5 py-1 rounded-full text-[11px] font-medium transition"
                                                                     style={{ color: 'var(--text-secondary)', background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
                                                                     {action.label}
@@ -3883,7 +4081,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                 )}
                                 {loading && !streaming && !thinkingText && (
                                     <div className="flex py-1">
-                                        <span className="ai-generating"><span className="ai-star">✳</span> {getLoadingLabel(messages)}</span>
+                                        <span className="ai-generating"><span className="ai-star">✳</span> {getLoadingLabel(activeRequestPrompt ? [...messages, { role: 'user', content: activeRequestPrompt }] : messages)}</span>
                                     </div>
                                 )}
                                 {loading && thinkingText && !streaming && (
@@ -3907,7 +4105,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                     </div>
 
                     {/* Input + Quick Actions — har doim ko'rinadi */}
-                    <ChatInputArea
+                    {!isTodayView && <ChatInputArea
                         chatId={chatId}
                         loading={loading}
                         thinkingMode={thinkingMode}
@@ -3924,7 +4122,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                             void loadPublicTests()
                             void loadMyResults()
                         }}
-                    />
+                    />}
                 </div>
 
                 {/* Todo inline panel — mobilда fullscreen (aks holda chat ~40px ga siqiladi) */}
@@ -4018,7 +4216,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                         const resultTone = scorePercent >= 80
                             ? { color: 'var(--success)', background: 'var(--success-light)', title: 'Ajoyib natija!', message: 'Mavzuni yaxshi ushlabsiz. Shu ritmni saqlang.' }
                             : scorePercent >= 60
-                                ? { color: 'var(--brand)', background: 'var(--brand-light)', title: 'Yaxshi harakat!', message: 'Xatolardagi izohlarni ko‘rib, keyingi testda natijani oshiramiz.' }
+                                ? { color: 'var(--brand-hover)', background: 'var(--brand-light)', title: 'Yaxshi harakat!', message: 'Xatolardagi izohlarni ko‘rib, keyingi testda natijani oshiramiz.' }
                                 : { color: 'var(--warning)', background: 'color-mix(in srgb, var(--warning) 12%, transparent)', title: 'Boshlanish yaxshi!', message: 'Natija zaif joylarni ko‘rsatdi — endi aynan ulardan kuch olamiz.' }
                         const currentIndex = Math.min(testQuestionIndex, Math.max(0, questions.length - 1))
                         const currentQuestion = questions[currentIndex]
@@ -4083,13 +4281,13 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     onClick={() => setTestQuestionIndex(index)}
                                                     className="h-7 min-w-7 px-1.5 rounded-lg text-[10px] font-bold transition flex-shrink-0"
                                                     style={selected
-                                                        ? { background: 'var(--brand)', color: 'white' }
+                                                        ? { background: 'var(--brand)', color: '#171717' }
                                                         : correct
                                                             ? { background: 'var(--success-light)', color: 'var(--success)' }
                                                             : wrong
                                                                 ? { background: 'var(--danger-light)', color: 'var(--danger)' }
                                                                 : hasAnswer
-                                                                    ? { background: 'var(--brand-light)', color: 'var(--brand)' }
+                                                                    ? { background: 'var(--brand-light)', color: 'var(--brand-hover)' }
                                                                     : { background: 'var(--bg-surface)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
                                                     {index + 1}
                                                 </button>
@@ -4109,7 +4307,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             <>
                                             <div className="card p-5" style={{ borderColor: testAnswers[i] ? 'color-mix(in srgb, var(--brand) 28%, var(--border))' : undefined }}>
                                                 <div className="flex items-center justify-between gap-3 mb-2.5">
-                                                    <span className="text-[10px] uppercase tracking-[0.12em] font-bold px-2 py-1 rounded-lg" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>Savol {i + 1}</span>
+                                                    <span className="text-[10px] uppercase tracking-[0.12em] font-bold px-2 py-1 rounded-lg" style={{ background: 'var(--brand-light)', color: 'var(--brand-hover)' }}>Savol {i + 1}</span>
                                                     {testAnswers[i] && !testSubmitted && <span className="text-[10px] font-semibold" style={{ color: 'var(--success)' }}>Javob belgilandi ✓</span>}
                                                 </div>
                                                 {questionText ? (
@@ -4155,7 +4353,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                                 else sty = { borderColor: 'var(--border)', background: 'var(--bg-surface)', opacity: 0.6 }
                                                             } else {
                                                                 sty = isSelected
-                                                                    ? { borderColor: 'var(--brand)', background: 'var(--brand-light)', color: 'var(--brand)', fontWeight: 600 }
+                                                                    ? { borderColor: 'var(--brand)', background: 'var(--brand-light)', color: 'var(--brand-hover)', fontWeight: 600 }
                                                                     : { borderColor: 'var(--border)', background: 'var(--bg-card)' }
                                                             }
                                                             return (
@@ -4172,7 +4370,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                                         : testSubmitted && isSelected && !isCorrect
                                                                             ? { background: 'var(--danger)', color: 'white' }
                                                                             : isSelected
-                                                                                ? { background: 'var(--brand)', color: 'white' }
+                                                                                ? { background: 'var(--brand)', color: '#171717' }
                                                                                 : { background: 'var(--bg-muted)', color: 'var(--text-muted)' }}>{opt.toUpperCase()}</span>
                                                                     <span className="pointer-events-none pt-0.5">
                                                                         <MathText text={q[opt]} />
@@ -4200,13 +4398,13 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     <div className="mt-3">
                                                         {explanations[i] ? (
                                                             <div className="text-[12.5px] leading-relaxed px-3.5 py-2.5 rounded-xl" style={{ background: 'var(--brand-light)', color: 'var(--text-secondary)' }}>
-                                                                <span className="font-semibold inline-flex items-center gap-1 mr-1" style={{ color: 'var(--brand)' }}><Lightbulb className="h-3.5 w-3.5" /> Izoh:</span>
+                                                                <span className="font-semibold inline-flex items-center gap-1 mr-1" style={{ color: 'var(--brand-hover)' }}><Lightbulb className="h-3.5 w-3.5" /> Izoh:</span>
                                                                 <MathText text={explanations[i]} />
                                                             </div>
                                                         ) : (
                                                             <button type="button" onClick={() => explainQuestion(i, q)} disabled={explLoading !== null}
                                                                 className="text-[12px] font-semibold inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition disabled:opacity-50"
-                                                                style={{ color: 'var(--brand)', background: 'var(--brand-light)' }}>
+                                                                style={{ color: 'var(--brand-hover)', background: 'var(--brand-light)' }}>
                                                                 <Lightbulb className="h-3.5 w-3.5" /> {explLoading === i ? 'Tushuntirilmoqda...' : 'Nega xato? AI tushuntirsin'}
                                                             </button>
                                                         )}
@@ -4238,25 +4436,59 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         {testReadOnly ? (
                                             <div className="text-center space-y-2">
                                                 <div className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-full text-[12px] font-semibold mb-1" style={{ background: 'var(--success-light)', color: 'var(--success)' }}><CheckCircle className="h-3.5 w-3.5" /> Bu test avval yechilgan</div>
-                                                <p className="text-[12px]" style={{ color: 'var(--text-muted)' }}>To'g'ri javoblar yashil bilan ko'rsatilmoqda</p>
+                                                <p className="text-[12px]" style={{ color: 'var(--text-muted)' }}>
+                                                    {questions.some((question: any) => Boolean(question.correct))
+                                                        ? "To'g'ri javoblar yashil bilan ko'rsatilmoqda"
+                                                        : 'Natija saqlangan, lekin javob tafsilotlari hozir yuklanmadi'}
+                                                </p>
                                                 <button onClick={() => { setTestPanel(null); setTestPanelMaximized(false); setTestReadOnly(false); setActiveTestId(null); setActiveTestQuestions([]); setTestTimeLeft(null); setRaschFeedback(null) }} className="text-sm font-medium transition" style={{ color: 'var(--brand)' }}>Panelni yopish</button>
                                             </div>
                                         ) : !testSubmitted ? (
-                                            <button onClick={() => {
-                                                if (answered === questions.length) {
-                                                    void submitTestPanel()
-                                                } else if (nextUnansweredIndex >= 0) {
-                                                    setTestQuestionIndex(nextUnansweredIndex)
-                                                }
-                                            }} disabled={!currentHasAnswer && answered < questions.length}
-                                                className="btn btn-primary w-full h-12 flex items-center justify-center gap-2"
-                                                style={{ opacity: !currentHasAnswer && answered < questions.length ? 0.5 : 1 }}>
-                                                <Target className="h-4 w-4" /> {answered === questions.length
-                                                    ? 'Natijangni ko‘rish'
-                                                    : !currentHasAnswer
-                                                        ? 'Javobni belgilang'
-                                                        : `Keyingi javobsiz savol · ${questions.length - answered} qoldi`}
-                                            </button>
+                                            <div className="space-y-2.5">
+                                                {!activeTestId && aiSessionStatus === 'resolving' && (
+                                                    <div role="status" aria-live="polite" className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-[12px] font-medium"
+                                                        style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>
+                                                        <Clock className="h-4 w-4 flex-shrink-0" /> Test sessiyasi serverda tasdiqlanmoqda…
+                                                    </div>
+                                                )}
+                                                {!activeTestId && aiSessionStatus === 'error' && (
+                                                    <div role="alert" className="rounded-xl px-3 py-2.5 text-[12px]"
+                                                        style={{ background: 'var(--danger-light)', color: 'var(--danger)', border: '1px solid color-mix(in srgb, var(--danger) 25%, transparent)' }}>
+                                                        <div className="flex items-start gap-2">
+                                                            <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                                                            <div className="min-w-0 flex-1">
+                                                                <p className="font-semibold">Bu test uchun ishonchli server sessiyasi topilmadi</p>
+                                                                <p className="mt-0.5 leading-relaxed">{aiSessionError || 'Ball hisoblash to‘xtatildi. Testni chatdagi saqlangan xabardan qayta oching.'}</p>
+                                                            </div>
+                                                        </div>
+                                                        {activeAiMessageId && (
+                                                            <button type="button" onClick={() => handleOpenTest(testPanel, activeAiMessageId)}
+                                                                className="mt-2 font-semibold underline underline-offset-2">
+                                                                Qayta tekshirish
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                <button onClick={() => {
+                                                    if (answered === questions.length) {
+                                                        void submitTestPanel()
+                                                    } else if (nextUnansweredIndex >= 0) {
+                                                        setTestQuestionIndex(nextUnansweredIndex)
+                                                    }
+                                                }} disabled={(!currentHasAnswer && answered < questions.length) || (!activeTestId && aiSessionStatus !== 'ready')}
+                                                    className="btn btn-primary w-full h-12 flex items-center justify-center gap-2"
+                                                    style={{ opacity: ((!currentHasAnswer && answered < questions.length) || (!activeTestId && aiSessionStatus !== 'ready')) ? 0.5 : 1 }}>
+                                                    <Target className="h-4 w-4" /> {!activeTestId && aiSessionStatus === 'resolving'
+                                                        ? 'Server tasdiqlamoqda…'
+                                                        : !activeTestId && aiSessionStatus === 'error'
+                                                            ? 'Server sessiyasi kerak'
+                                                            : answered === questions.length
+                                                                ? 'Natijangni ko‘rish'
+                                                                : !currentHasAnswer
+                                                                    ? 'Javobni belgilang'
+                                                                    : `Keyingi javobsiz savol · ${questions.length - answered} qoldi`}
+                                                </button>
+                                            </div>
                                         ) : (
                                             <div className="rounded-2xl p-4 text-center space-y-2" style={{ background: resultTone.background, border: `1px solid color-mix(in srgb, ${resultTone.color} 24%, transparent)` }}>
                                                 <p className="text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: resultTone.color }}>Natijang tayyor</p>
@@ -4555,10 +4787,10 @@ Iltimos, har bir savolni tahlil qilib ber:
 
                 {/* ===== OVERLAY PANELS ===== */}
                 {overlayPanel && (
-                    <div className="fixed inset-0 z-50 flex" onClick={() => setOverlayPanel(null)}>
-                        <div className="absolute inset-0 k-fade-in" style={{ background: 'rgba(28,24,18,0.34)' }} />
-                        <div className="relative ml-auto h-full flex flex-col overflow-hidden k-slide-in-right"
-                            style={{ width: '100%', maxWidth: '680px', background: 'var(--bg-page)', boxShadow: '-16px 0 50px -16px rgba(33,28,22,0.22)', ...(mobileTabBarVisible ? { paddingBottom: MOBILE_TABBAR_PAD } : {}) }}
+                    <div className="student-overlay fixed inset-0 z-50 flex" onClick={() => setOverlayPanel(null)}>
+                        <div className="student-overlay__backdrop absolute inset-0 k-fade-in" />
+                        <div className="student-overlay__panel relative ml-auto h-full flex flex-col overflow-hidden k-slide-in-right" role="dialog" aria-modal="true" aria-labelledby="student-overlay-title"
+                            style={{ width: '100%', maxWidth: '680px', ...(mobileTabBarVisible ? { paddingBottom: MOBILE_TABBAR_PAD } : {}) }}
                             onClick={e => e.stopPropagation()}>
 
                             {/* Header */}
@@ -4566,25 +4798,22 @@ Iltimos, har bir savolni tahlil qilib ber:
                                 <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0"
                                     style={{ background: overlayPanel === 'progress' ? 'color-mix(in srgb, var(--success) 12%, transparent)' : 'color-mix(in srgb, var(--brand) 12%, transparent)' }}>
                                     {overlayPanel === 'tests' && <ClipboardList className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
-                                    {overlayPanel === 'flashcards' && <Brain className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
-                                    {overlayPanel === 'progress' && <BarChart2 className="h-5 w-5" style={{ color: 'var(--success)' }} />}
+                                    {overlayPanel === 'flashcards' && <BookOpen className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
+                                    {overlayPanel === 'progress' && <BarChart2 className="h-5 w-5" style={{ color: 'var(--text-primary)' }} />}
                                     {overlayPanel === 'pro' && <Sparkles className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
                                 </div>
                                 <div className="flex-1">
-                                    <h2 className="font-semibold text-base">
-                                        {overlayPanel === 'tests' ? 'Test markazi' : overlayPanel === 'flashcards' ? 'Kartochkalar' : overlayPanel === 'progress' ? 'Natijalar' : 'Pro'}
+                                    <h2 id="student-overlay-title" className="font-semibold text-base">
+                                        {overlayPanel === 'tests' ? 'Testlar' : overlayPanel === 'flashcards' ? 'O‘rganish' : overlayPanel === 'progress' ? 'Progress' : 'Pro'}
                                     </h2>
                                     <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
                                         {overlayPanel === 'tests' ? (publicTests.length > 0 ? `${publicTests.length} ta test` : 'Bugungi tayyorgarlik shu yerdan boshlanadi')
-                                            : overlayPanel === 'flashcards' ? `${dueFlashcards.length} ta kartochka qaytarish kerak`
+                                            : overlayPanel === 'flashcards' ? `${dueFlashcards.length} ta kartochka takrorlash kerak`
                                             : overlayPanel === 'progress' ? 'O\'qish tahlili'
                                             : 'Rejalar va imkoniyatlar'}
                                     </p>
                                 </div>
-                                <button onClick={() => setOverlayPanel(null)} className="h-8 w-8 flex items-center justify-center rounded-lg transition"
-                                    style={{ color: 'var(--text-muted)' }}
-                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
-                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                <button type="button" onClick={() => setOverlayPanel(null)} className="student-icon-button h-8 w-8 flex items-center justify-center" aria-label="Panelni yopish" autoFocus>
                                     <X className="h-4 w-4" />
                                 </button>
                             </div>
@@ -4613,7 +4842,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     <ClipboardList className="h-8 w-8" style={{ color: 'var(--text-muted)' }} />
                                                 </div>
                                                 <p className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>Hozircha testlar yo'q</p>
-                                                <button onClick={() => { setOverlayPanel(null); void handleSend("Menga o'z fanimdan 15 talik test tuzib ber.", []) }}
+                                                <button onClick={() => { setOverlayPanel(null); void handleAction("AI test", "Menga o'z fanimdan 15 talik test tuzib ber.") }}
                                                     className="text-xs font-semibold px-4 py-2 rounded-xl transition"
                                                     style={{ background: 'var(--brand)', color: 'white' }}>
                                                     AI'dan test so'rang
@@ -4653,7 +4882,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                             <span>Filtrlarni tozalang yoki boshqa bo‘limni tanlang.</span>
                                                         </div>
                                                         <button type="button" onClick={() => {
-                                                            setTestCatalogView('all')
+                                                            setTestCatalogView('subjects')
                                                             setTestSubject('all')
                                                             setTestFormat('all')
                                                             setTestSearch('')
@@ -4715,7 +4944,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     <p className="text-sm font-semibold">Kartochkalar progressi</p>
                                                     <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{reviewedFlashcards}/{totalFlashcards || 0} o'rganildi</p>
                                                 </div>
-                                                <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
+                                                <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: 'var(--brand-light)', color: 'var(--brand-hover)' }}>
                                                     {totalFlashcards > 0 ? Math.round((reviewedFlashcards / totalFlashcards) * 100) : 0}%
                                                 </span>
                                             </div>
@@ -4850,10 +5079,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     <button
                                                         onClick={() => {
                                                             setOverlayPanel(null)
-                                                            void handleSend(`Mening zaif mavzularim: ${weakTopicSummary}. Shu mavzularni bugun o'rganish uchun qisqa reja tuzing va asosiy tushunchalarni tushuntiring.`, [])
+                                                            void handleAction('Zaif mavzular rejasi', `Mening zaif mavzularim: ${weakTopicSummary}. Shu mavzularni bugun o'rganish uchun qisqa reja tuzing va asosiy tushunchalarni tushuntiring.`)
                                                         }}
                                                         className="mt-3 w-full flex items-center gap-2.5 text-left text-[13px] font-semibold px-3.5 py-2.5 rounded-xl transition"
-                                                        style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}
+                                                        style={{ background: 'var(--brand-light)', color: 'var(--brand-hover)' }}
                                                     >
                                                         <AlertTriangle className="h-4 w-4 flex-shrink-0" />
                                                         Zaif mavzularni o'rganish: {weakTopicSummary}
@@ -4920,7 +5149,7 @@ Iltimos, har bir savolni tahlil qilib ber:
 
                                         {/* Pro tier card */}
                                         <div className="rounded-2xl p-4 relative" style={{ background: 'var(--bg-card)', border: '1.5px solid var(--brand)', boxShadow: '0 8px 28px -16px color-mix(in srgb, var(--brand) 60%, transparent)' }}>
-                                            <span className="absolute top-3 right-3 text-[10px] font-bold px-2 py-1 rounded-full" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
+                                            <span className="absolute top-3 right-3 text-[10px] font-bold px-2 py-1 rounded-full" style={{ background: 'var(--brand-light)', color: 'var(--brand-hover)' }}>
                                                 {pro.statusLabel}
                                             </span>
                                             <div className="flex items-baseline gap-2">
@@ -4992,21 +5221,21 @@ Iltimos, har bir savolni tahlil qilib ber:
                 {/* Mobil pastki tab-bar — asosiy bo'limlar birinchi ekranda ko'rinib tursin.
                     z-60: sidebar (50) va overlay (50) ustida — bo'limlar orasida bir bosishda o'tiladi */}
                 {mobileTabBarVisible && (
-                    <nav className="fixed bottom-0 left-0 right-0 flex items-stretch"
-                        style={{ zIndex: 60, background: 'var(--bg-card)', borderTop: '1px solid var(--border)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+                    <nav className="student-mobile-nav fixed bottom-0 left-0 right-0 flex items-stretch" aria-label="Mobil navigatsiya">
                         {([
                             { key: 'today', label: 'Bugun', Icon: House, active: isTodayView && !overlayPanel && !sideOpen, tap: () => { setOverlayPanel(null); setSideOpen(false); nav('/bugun') } },
+                            { key: 'learn', label: 'O‘rganish', Icon: BookOpen, active: overlayPanel === 'flashcards', badge: dueFlashcards.length, tap: () => { setSideOpen(false); setOverlayPanel('flashcards') } },
                             { key: 'tests', label: 'Testlar', Icon: ClipboardList, active: overlayPanel === 'tests', badge: newTestIds.size, tap: () => { setSideOpen(false); setOverlayPanel('tests'); markTestsSeen(); void loadPublicTests(); void loadMyResults() } },
-                            { key: 'progress', label: 'Natijalar', Icon: TrendingUp, active: overlayPanel === 'progress', tap: () => { setSideOpen(false); setOverlayPanel('progress') } },
-                            { key: 'menu', label: 'Menyu', Icon: Menu, active: sideOpen, tap: () => { setOverlayPanel(null); setSideOpen(true) } },
+                            { key: 'tutor', label: 'AI ustoz', Icon: MessageSquare, active: !!chatId && !overlayPanel && !sideOpen, tap: openAiTutor },
+                            { key: 'progress', label: 'Progress', Icon: TrendingUp, active: overlayPanel === 'progress', tap: () => { setSideOpen(false); setOverlayPanel('progress') } },
                         ] as Array<{ key: string; label: string; Icon: typeof Menu; active: boolean; badge?: number; tap: () => void }>).map(tab => (
                             <button key={tab.key} type="button" onClick={tab.tap}
-                                className="flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 relative"
-                                style={{ color: tab.active ? 'var(--brand)' : 'var(--text-muted)', minHeight: 52 }}>
+                                className={`student-mobile-nav__item${tab.active ? ' is-active' : ''}`}
+                                aria-current={tab.active ? 'page' : undefined}>
                                 <tab.Icon className="h-5 w-5" />
-                                <span className="text-[10px] font-semibold">{tab.label}</span>
+                                <span>{tab.label}</span>
                                 {(tab.badge ?? 0) > 0 && (
-                                    <span className="absolute top-1 right-[calc(50%-18px)] min-w-[15px] h-[15px] px-0.5 rounded-full text-white text-[8px] flex items-center justify-center font-bold" style={{ background: 'var(--danger)' }}>
+                                    <span className="student-mobile-nav__badge">
                                         {(tab.badge ?? 0) > 9 ? '9+' : tab.badge}
                                     </span>
                                 )}

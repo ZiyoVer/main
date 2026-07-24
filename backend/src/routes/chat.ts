@@ -1,6 +1,5 @@
 import { Router } from 'express'
 import multer from 'multer'
-import pdfParse from 'pdf-parse'
 import mammoth from 'mammoth'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireVerified } from '../middleware/auth'
@@ -12,6 +11,9 @@ import { cosineSimilarity, createEmbedding, createEmbeddings, parseEmbedding, se
 import { getSubjectVariants, normalizeSubject } from '../utils/subjects'
 import { uploadToS3, getSignedS3Url } from '../utils/s3'
 import { AI_MODELS, deepseekThinking } from '../utils/aiModels'
+import { extractTrustedAiTestQuestions, learningPurposeForStage } from '../utils/aiTestSession'
+import { detectBroadLearningTopic } from '../utils/learningIntent'
+import { extractPdfText } from '../utils/pdfText'
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -34,6 +36,7 @@ const upload = multer({
 })
 
 const router = Router()
+const INTERNAL_ACTION_FILE_TYPE = 'internal-action'
 
 
 // ASOSIY AI: DeepSeek (chat + test/essay/flashcard — structured bloklarni ISHONCHLI va tez beradi).
@@ -77,17 +80,42 @@ interface LearningSessionContext {
     lastCheckpoint: string | null
 }
 
-function detectBroadLearningTopic(content: string): string | null {
-    const cleaned = content.trim().replace(/[.!?]+$/g, '')
-    const match = cleaned.match(/^(.{2,100}?)\s+(?:haqida\s+)?(?:tushuntir(?:ib ber)?|o['‘’`]?rgat(?:ib ber)?|o['‘’`]?rganmoqchiman)$/i)
-    if (!match?.[1]) return null
-    const topic = match[1]
-        .replace(/\s+mavzusini$/i, '')
-        .replace(/ni$/i, '')
-        .replace(/integeral/gi, 'integral')
-        .trim()
-    if (!topic || /^(bu|shu|uni)$/i.test(topic)) return null
-    return topic.charAt(0).toUpperCase() + topic.slice(1)
+async function createTrustedAiTestSession(input: {
+    userId: string
+    sourceMessageId: string
+    messageContent: string
+    subject?: string | null
+    learningSession?: Pick<LearningSessionContext, 'id' | 'stage' | 'lastCheckpoint'> | null
+}): Promise<string | null> {
+    const questions = extractTrustedAiTestQuestions(input.messageContent)
+    if (!questions) return null
+
+    try {
+        const session = await prisma.aiTestSession.create({
+            data: {
+                userId: input.userId,
+                subject: normalizeSubject(input.subject),
+                learningSessionId: input.learningSession?.id ?? null,
+                purpose: input.learningSession
+                    ? learningPurposeForStage(input.learningSession.stage, input.learningSession.lastCheckpoint)
+                    : null,
+                questions: JSON.stringify(questions),
+                sourceMessageId: input.sourceMessageId,
+            },
+        })
+        return session.id
+    } catch (error) {
+        // Stream reconnect yoki takroriy server ishida bir xabarga ikki answer-key
+        // sessiyasi yaratilmaydi. Unique sourceMessageId mavjud sessiyani qaytaradi.
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+            const existing = await prisma.aiTestSession.findUnique({
+                where: { sourceMessageId: input.sourceMessageId },
+                select: { id: true, userId: true },
+            })
+            return existing?.userId === input.userId ? existing.id : null
+        }
+        throw error
+    }
 }
 
 function getLearningPlan(topic: string): { plan: string[]; prerequisites: string[] } {
@@ -157,16 +185,20 @@ async function prepareLearningSession(
         })
     }
 
+    if (requestedSessionId) {
+        const requested = await prisma.learningSession.findFirst({
+            where: { id: requestedSessionId, userId, chatId, status: 'ACTIVE' },
+        })
+        // Tabiiy follow-up'lar ("yana bir misol", "nega +C?") ham shu dars
+        // kontekstida qoladi. Faqat aniq to'xtatish buyrug'i sessionni uzadi.
+        if (requested && !/^(darsni|mavzuni)\s+(tugat|to['‘’`]?xtat)|^sessiyani\s+(tugat|to['‘’`]?xtat)/i.test(content.trim())) {
+            return requested
+        }
+    }
+
     const continuesLesson = /^\s*---\s*YANGI TEST NATIJASI/im.test(content)
         || /^(davom et|davom ettir|keyingi dars|keyingi bosqich)[.!?]*$/i.test(content.trim())
     if (!continuesLesson) return null
-
-    if (requestedSessionId) {
-        const requested = await prisma.learningSession.findFirst({
-            where: { id: requestedSessionId, userId, chatId },
-        })
-        if (requested) return requested
-    }
 
     return prisma.learningSession.findFirst({
         where: { userId, chatId, status: 'ACTIVE' },
@@ -210,6 +242,96 @@ Oldingi natija: ${session.lastCheckpoint || session.prerequisiteState || 'hali y
 
 Faqat joriy bosqichni tushuntir: avval intuitiv ma'no, keyin qoida, keyin kamida bitta mayda qadamli to'liq misol, so'ng keng tarqalgan xato. O'quvchi prerequisite bilimni biladi deb taxmin qilma; zarur bog'lanishni bir jumlada eslat. Formulalar ro'yxatini tushuntirish o'rniga almashtirma.
 Oxirida AYNAN 5 ta savolli bitta interaktiv \`\`\`test JSON checkpoint ber. Bu o'quv sessiyasi checkpointi umumiy "minimum 10" va "o'zing test berma" qoidalaridan ISTISNO. Har savolda q/a/b/c/d/correct/topic bo'lsin. Testdan keyin matn yozma.`
+}
+
+function expectedLearningTestCount(session: LearningSessionContext | null): number {
+    if (!session || session.stage === 'COMPLETED') return 0
+    return session.stage === 'LESSON' ? 5 : 3
+}
+
+async function recoverLearningTestBlock(
+    session: LearningSessionContext,
+    assistantText: string,
+    client: OpenAI,
+    model: string,
+): Promise<string | null> {
+    const expectedCount = expectedLearningTestCount(session)
+    if (expectedCount === 0) return null
+    const existing = extractTrustedAiTestQuestions(assistantText)
+    if (existing?.length === expectedCount) return null
+
+    const plan = parseStringArray(session.plan)
+    const currentStep = plan[Math.min(session.stepIndex, Math.max(0, plan.length - 1))] || session.topic
+    const prompt = `Mavzu: ${session.topic}
+Joriy bosqich: ${currentStep}
+Holat: ${session.stage}
+
+Quyidagi tushuntirish asosida AYNAN ${expectedCount} ta qisqa, bir-biridan farqli checkpoint savoli tuz:
+${assistantText.slice(0, 6000)}
+
+Faqat JSON object qaytar:
+{"questions":[{"q":"savol","a":"variant","b":"variant","c":"variant","d":"variant","correct":"a","topic":"aniq kichik mavzu","difficulty":0}]}
+
+Qoidalar:
+- questions uzunligi aynan ${expectedCount};
+- har savolda q/a/b/c/d/correct/topic bo'lsin;
+- to'rtta variant mazmunan turlicha bo'lsin;
+- correct faqat a, b, c yoki d;
+- markdown va izoh yozma.`
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            const options: any = {
+                model,
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'You generate strict assessment JSON. Return only one valid JSON object and obey the exact question count.',
+                    },
+                    { role: 'user', content: prompt },
+                ],
+                response_format: { type: 'json_object' },
+                stream: false,
+                max_tokens: expectedCount === 5 ? 2200 : 1500,
+                temperature: attempt === 0 ? 0.2 : 0,
+            }
+            if (model.startsWith('deepseek-')) {
+                Object.assign(options, deepseekThinking(false))
+            } else {
+                options.reasoning_effort = 'low'
+            }
+            const response: any = await client.chat.completions.create(options)
+            const raw = response.choices?.[0]?.message?.content
+            if (typeof raw !== 'string' || !raw.trim()) continue
+            const parsed: unknown = JSON.parse(raw)
+            const questions = Array.isArray(parsed)
+                ? parsed
+                : parsed && typeof parsed === 'object'
+                    ? (parsed as { questions?: unknown }).questions
+                    : null
+            if (!Array.isArray(questions) || questions.length !== expectedCount) continue
+            const block = `\`\`\`test\n${JSON.stringify(questions)}\n\`\`\``
+            const validated = extractTrustedAiTestQuestions(block)
+            if (validated?.length === expectedCount) {
+                console.info('AI_LEARNING_TEST_RECOVERED', {
+                    model,
+                    learningSessionId: session.id,
+                    stage: session.stage,
+                    questionCount: validated.length,
+                    attempt: attempt + 1,
+                })
+                return block
+            }
+        } catch (error: any) {
+            console.warn('AI learning checkpoint recovery xato:', {
+                model,
+                attempt: attempt + 1,
+                status: error?.status ?? null,
+                error: error?.message || 'unknown',
+            })
+        }
+    }
+    return null
 }
 
 // AI Settings — umumiy cache modulidan foydalanamiz (aiSettings.ts bilan shared)
@@ -1365,7 +1487,15 @@ router.get('/:chatId/messages', authenticate, async (req: AuthRequest, res) => {
         if (!chat) return res.status(404).json({ error: 'Chat topilmadi' })
 
         const messages = await prisma.message.findMany({
-            where: { chatId: chat.id },
+            // Tayyor action tugmalarining ichki prompti AI kontekstida DB'da qoladi,
+            // lekin chat history API orqali foydalanuvchiga qaytarilmaydi.
+            where: {
+                chatId: chat.id,
+                OR: [
+                    { fileType: null },
+                    { fileType: { not: INTERNAL_ACTION_FILE_TYPE } }
+                ]
+            },
             orderBy: { createdAt: 'asc' }
         })
         res.json({ chat, messages })
@@ -1973,8 +2103,8 @@ router.post('/:chatId/upload-file', authenticate, requireVerified, uploadSingle,
 
         if (mimetype === 'application/pdf') {
             fileType = 'pdf'
-            const data = await pdfParse(buffer)
-            extractedText = data.text.trim()
+            const extracted = await extractPdfText(buffer)
+            extractedText = extracted.text.trim()
         } else if (mimetype.includes('word') || originalname.endsWith('.docx') || originalname.endsWith('.doc')) {
             fileType = 'word'
             const result = await mammoth.extractRawText({ buffer })
@@ -2083,8 +2213,13 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
     // reload'da yolg'iz user xabari qolishining oldini olamiz. Catch'da ko'rinishi uchun
     // try'dan TASHQARIDA e'lon qilinadi.
     let userMessageSaved = false
+    let assistantMessageSaved = false
     try {
         const { content, thinking, displayText, todoContext, learningSessionId } = req.body
+        const hideUserMessage = req.body.hideUserMessage === true
+        const actionLabel = typeof req.body.actionLabel === 'string'
+            ? req.body.actionLabel.trim().slice(0, 80)
+            : ''
         if (!content?.trim()) return res.status(400).json({ error: 'Xabar bo\'sh' })
 
         // Bepul kunlik AI limiti (xarajat shipi) — SSE boshlanishidan OLDIN tekshiriladi,
@@ -2111,10 +2246,18 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
         // saveOnly rejimi: AI chaqirmasdan faqat xabarlarni saqlash (guest test tahlili uchun)
         if (req.body.saveOnly && req.body.aiResponse) {
             const savedUserContent = displayText?.trim() || content
-            await prisma.message.create({ data: { chatId: chat.id, role: 'user', content: savedUserContent } })
+            await prisma.message.create({
+                data: {
+                    chatId: chat.id,
+                    role: 'user',
+                    content: savedUserContent,
+                    fileType: hideUserMessage ? INTERNAL_ACTION_FILE_TYPE : undefined
+                }
+            })
             const savedAi = await prisma.message.create({ data: { chatId: chat.id, role: 'assistant', content: req.body.aiResponse } })
             // Chat title yangilash
-            const shortTitle = savedUserContent.substring(0, 40) + (savedUserContent.length > 40 ? '...' : '')
+            const titleSource = actionLabel || savedUserContent
+            const shortTitle = titleSource.substring(0, 40) + (titleSource.length > 40 ? '...' : '')
             await prisma.chat.update({ where: { id: chat.id }, data: { title: shortTitle } })
             return res.json({ success: true, id: savedAi.id })
         }
@@ -2133,7 +2276,7 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
         // "Birinchi xabar" = o'quvchi hali BIRINCHI marta yozmoqda (auto-salom tarixda bo'lsa ham).
         // Shunda "boshla" javobiga diagnostika ko'rsatmalari (newUserSection) hali ham amal qiladi.
         const isFirstMessage = history.filter(m => m.role === 'user').length === 0
-        const titleSrc = displayText?.trim() || content
+        const titleSrc = actionLabel || displayText?.trim() || content
 
         // Profile + ism olish (ism — shaxsiy murojaat uchun; JWT'da faqat id/role bor)
         const [profile, chatUser] = await Promise.all([
@@ -2228,7 +2371,12 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
         // yuqorida olingani sababli bu yozuv joriy promptga qo'shilmaydi, dublikat bo'lmaydi).
         try {
             await prisma.message.create({
-                data: { chatId: chat.id, role: 'user', content: savedUserContent }
+                data: {
+                    chatId: chat.id,
+                    role: 'user',
+                    content: savedUserContent,
+                    fileType: hideUserMessage ? INTERNAL_ACTION_FILE_TYPE : undefined
+                }
             })
             userMessageSaved = true
         } catch (userSaveErr) {
@@ -2338,6 +2486,10 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
             }
         } catch (streamErr) {
             console.error('Stream error:', streamErr)
+            // Partial output is not a successful lesson/test. Propagate the failure so
+            // the client receives an explicit SSE error and no incomplete structured
+            // block is persisted as a valid assistant response.
+            if (!aborted) throw streamErr
         }
 
         if (aborted) {
@@ -2360,6 +2512,20 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
             return res.end()
         }
 
+        if (learningSession) {
+            const recoveredBlock = await recoverLearningTestBlock(
+                learningSession,
+                fullReply,
+                activeClient,
+                activeModel,
+            )
+            if (recoveredBlock) {
+                const appendedBlock = `\n\n${recoveredBlock}`
+                fullReply += appendedBlock
+                res.write(`data: ${JSON.stringify({ content: appendedBlock })}\n\n`)
+            }
+        }
+
         if (pendingTodoContext.length > 0 && !/```todo-done\b/i.test(fullReply)) {
             const autoDoneTask = findAutoDoneTodoTask(content, fullReply, pendingTodoContext)
             if (autoDoneTask) {
@@ -2375,13 +2541,29 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
             saved = await prisma.message.create({
                 data: { chatId: chat.id, role: 'assistant', content: fullReply }
             })
+            assistantMessageSaved = true
         } catch (dbErr) {
             console.error('Message save failed:', dbErr)
             res.write(`data: ${JSON.stringify({ done: true })}\n\n`)
             return res.end()
         }
 
-        res.write(`data: ${JSON.stringify({ done: true, id: saved.id })}\n\n`)
+        // Trust boundary: interactive test key is registered from the server-persisted
+        // assistant message. The browser never supplies `correct` to this record.
+        let aiSessionId: string | null = null
+        try {
+            aiSessionId = await createTrustedAiTestSession({
+                userId: req.user.id,
+                sourceMessageId: saved.id,
+                messageContent: fullReply,
+                subject: chat.subject || profile?.subject,
+                learningSession,
+            })
+        } catch (sessionError) {
+            console.error('Trusted AI test sessiyasini saqlashda xato:', sessionError)
+        }
+
+        res.write(`data: ${JSON.stringify({ done: true, id: saved.id, aiSessionId })}\n\n`)
         console.info('AI_CHAT', {
             model: activeModel,
             thinking: effectiveThinking,
@@ -2407,19 +2589,19 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
             : isAuth
                 ? 'AI kaliti noto\'g\'ri. Admin bilan bog\'laning.'
                 : `AI javob bera olmadi (${status || 'network'}). Qayta urinib ko\'ring.`
-        if (!res.headersSent) {
-            // Yetim xabar oldini olamiz: user xabari saqlangan bo'lsa-yu provayder umuman
-            // javob bermay bu yerga tushsak, juft assistant yozuvi bo'lmaydi. Qisqa xatolik
-            // xabarini saqlaymiz — reload'da yolg'iz user xabari ko'rinmaydi (abort yo'li kabi).
-            if (userMessageSaved) {
-                try {
-                    await prisma.message.create({
-                        data: { chatId: req.params.chatId as string, role: 'assistant', content: `*${userMsg}*` }
-                    })
-                } catch (orphanErr) {
-                    console.error('Yetim xabar saqlashda xato:', orphanErr)
-                }
+        // Yetim xabar oldini olamiz: SSE boshlanganidan keyingi upstream xato ham
+        // reload'da yolg'iz user xabarini qoldirmasin.
+        if (userMessageSaved && !assistantMessageSaved) {
+            try {
+                await prisma.message.create({
+                    data: { chatId: req.params.chatId as string, role: 'assistant', content: `*${userMsg}*` }
+                })
+                assistantMessageSaved = true
+            } catch (orphanErr) {
+                console.error('Yetim xabar saqlashda xato:', orphanErr)
             }
+        }
+        if (!res.headersSent) {
             res.status(500).json({ error: userMsg })
         } else {
             res.write(`data: ${JSON.stringify({ error: userMsg })}\n\n`)
@@ -2491,6 +2673,17 @@ router.post('/:chatId/send', authenticate, requireVerified, async (req: AuthRequ
         const saved = await prisma.message.create({
             data: { chatId: chat.id, role: 'assistant', content: reply }
         })
+        let aiSessionId: string | null = null
+        try {
+            aiSessionId = await createTrustedAiTestSession({
+                userId: req.user.id,
+                sourceMessageId: saved.id,
+                messageContent: reply,
+                subject: chat.subject || profile?.subject,
+            })
+        } catch (sessionError) {
+            console.error('Trusted AI test sessiyasini saqlashda xato:', sessionError)
+        }
 
         // history allaqachon yangi user xabarni o'z ichiga oladi
         if (history.length === 1) {
@@ -2498,7 +2691,7 @@ router.post('/:chatId/send', authenticate, requireVerified, async (req: AuthRequ
             await prisma.chat.update({ where: { id: chat.id }, data: { title: shortTitle } })
         }
 
-        res.json(saved)
+        res.json({ ...saved, aiSessionId })
     } catch (e: any) {
         console.error('AI error:', e.message)
         res.status(500).json({ error: 'AI javob bera olmadi' })

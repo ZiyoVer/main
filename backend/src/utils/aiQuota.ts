@@ -6,11 +6,12 @@ import prisma from './db'
  *
  * chat   — barcha DeepSeek so'rovlari: chat xabari, test/essay/flashcard yaratish
  *          (ular chat oqimi orqali keladi), xato tushuntirish.
- * vision — rasm/OCR tahlili (OpenAI orqali, eng qimmat yo'l) — alohida, qattiqroq.
+ * vision — rasm/OCR tahlili (Gemini orqali, eng qimmat yo'l) — alohida, qattiqroq.
+ * tts    — assistant matnini Charon ovozida audio qilish.
  *
  * Tayyor public testlarni yechish AI ishlatmaydi — CHEKSIZ, bu yerga kirmaydi.
  */
-export const FREE_DAILY_LIMITS = { chat: 30, vision: 5 } as const
+export const FREE_DAILY_LIMITS = { chat: 30, vision: 5, tts: 20 } as const
 export type AiQuotaKind = keyof typeof FREE_DAILY_LIMITS
 
 // Kun chegarasi foydalanuvchi yashaydigan vaqt bo'yicha (Asia/Tashkent, UTC+5) —
@@ -43,7 +44,11 @@ export async function consumeAiQuota(
     if (await hasActiveSubscription(userId)) return { ok: true, limit }
 
     const day = tashkentDay()
-    const field = kind === 'chat' ? 'chatCount' : 'visionCount'
+    const field = kind === 'chat'
+        ? 'chatCount'
+        : kind === 'vision'
+            ? 'visionCount'
+            : 'ttsCount'
     // Upsert + shartli increment: ikki parallel so'rov ham limitdan oshira olmaydi
     // (updateMany faqat count < limit bo'lsa yozadi — poyga-xavfsiz)
     await prisma.aiDailyUsage.upsert({
@@ -56,6 +61,26 @@ export async function consumeAiQuota(
         data: { [field]: { increment: 1 } },
     })
     return { ok: updated.count > 0, limit }
+}
+
+/**
+ * Provider so'rovi muvaffaqiyatsiz tugasa oldindan band qilingan kvotani qaytaradi.
+ * Bu limitni aylanib o'tishga yo'l bermasdan, Gemini vaqtinchalik 5xx berganda
+ * foydalanuvchining kunlik imkoniyatini bekorga yo'qotmasligini ta'minlaydi.
+ */
+export async function refundAiQuota(userId: string, role: string, kind: AiQuotaKind): Promise<void> {
+    if (role === 'ADMIN' || role === 'TEACHER') return
+    if (await hasActiveSubscription(userId)) return
+
+    const field = kind === 'chat'
+        ? 'chatCount'
+        : kind === 'vision'
+            ? 'visionCount'
+            : 'ttsCount'
+    await prisma.aiDailyUsage.updateMany({
+        where: { userId, day: tashkentDay(), [field]: { gt: 0 } },
+        data: { [field]: { decrement: 1 } },
+    })
 }
 
 /**
@@ -75,13 +100,14 @@ export async function getAiQuotaStatus(userId: string, role: string) {
     }
     const usage = await prisma.aiDailyUsage.findUnique({
         where: { userId_day: { userId, day: tashkentDay() } },
-        select: { chatCount: true, visionCount: true },
+        select: { chatCount: true, visionCount: true, ttsCount: true },
     })
     return {
         unlimited: false,
         // clamp: poyga tufayli count limitdan oshib yozilgan bo'lsa ham barda maks limit ko'rinsin
         chat: { used: Math.min(usage?.chatCount ?? 0, FREE_DAILY_LIMITS.chat), limit: FREE_DAILY_LIMITS.chat },
         vision: { used: Math.min(usage?.visionCount ?? 0, FREE_DAILY_LIMITS.vision), limit: FREE_DAILY_LIMITS.vision },
+        tts: { used: Math.min(usage?.ttsCount ?? 0, FREE_DAILY_LIMITS.tts), limit: FREE_DAILY_LIMITS.tts },
         resetsAt,
     }
 }
@@ -89,6 +115,9 @@ export async function getAiQuotaStatus(userId: string, role: string) {
 export function quotaExceededMessage(kind: AiQuotaKind): string {
     if (kind === 'vision') {
         return `Bugungi bepul rasm tahlili limiti tugadi (${FREE_DAILY_LIMITS.vision} ta). Ertaga yangilanadi.`
+    }
+    if (kind === 'tts') {
+        return `Bugungi bepul audio limiti tugadi (${FREE_DAILY_LIMITS.tts} ta). Ertaga yangilanadi.`
     }
     return `Bugungi bepul AI so'rovlari limiti tugadi (${FREE_DAILY_LIMITS.chat} ta). Ertaga yangilanadi — tayyor testlarni esa cheksiz yechishingiz mumkin.`
 }

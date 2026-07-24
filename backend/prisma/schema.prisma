@@ -17,6 +17,10 @@ model User {
   name      String
   role      Role     @default(STUDENT)
   status    String   @default("ACTIVE") // ACTIVE | SUSPENDED
+  // Parol/rol/xavfsizlik o'zgarganda oshiriladi; eski JWTlar darhol yaroqsiz bo'ladi.
+  authVersion Int    @default(0)
+  googleSubject String? @unique
+  passwordConfigured Boolean @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -131,6 +135,7 @@ model Message {
   fileUrl   String?  // Agar fayl yuklangan bo'lsa
   fileType  String?  // "image", "pdf", "word"
   createdAt DateTime @default(now())
+  aiTestSession AiTestSession?
 
   @@index([chatId])
   @@index([chatId, createdAt])
@@ -414,6 +419,7 @@ model AiDailyUsage {
   day         String
   chatCount   Int    @default(0) // AI so'rovlari (chat, test/essay/flashcard yaratish, tushuntirish)
   visionCount Int    @default(0) // rasm/OCR tahlili (eng qimmat yo'l)
+  ttsCount    Int    @default(0) // Charon ovozida matnni audio qilish
 
   @@unique([userId, day])
   @@index([day])
@@ -465,6 +471,10 @@ model AiTestSession {
   learningSession LearningSession? @relation(fields: [learningSessionId], references: [id], onDelete: SetNull)
   purpose     String?   // PREREQUISITE | CHECKPOINT | REMEDIATION
   questions   String    // JSON: [{q,a,b,c,d,correct,topic,difficulty}] — to'g'ri javoblar bilan (server-only)
+  // Faqat server saqlagan assistant xabaridan yaratilgan sessiya trusted hisoblanadi.
+  // Legacy/client answer-key sessiyalarida null qoladi va ular progressga ta'sir qilmaydi.
+  sourceMessageId String? @unique
+  sourceMessage Message? @relation(fields: [sourceMessageId], references: [id], onDelete: SetNull)
   submittedAt DateTime?
   createdAt   DateTime  @default(now())
 

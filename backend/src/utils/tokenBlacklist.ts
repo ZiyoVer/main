@@ -1,18 +1,29 @@
 import Redis from 'ioredis'
+import crypto from 'crypto'
 
-// Redis mavjud bo'lsa Redis, aks holda in-memory fallback
+// Redis sozlanmagan bo'lsa in-memory fallback ishlaydi. Redis sozlangan, lekin
+// vaqtincha ishlamayotgan bo'lsa auth fail-closed bo'lishi uchun xato qaytaramiz.
 let redis: Redis | null = null
-let redisHealthy = true
+let redisHealthy = false
 const requirePersistentBlacklist = process.env.REDIS_REQUIRED === 'true'
 
 // Redis operatsiyasi uchun max kutish vaqti (ms)
 const REDIS_TIMEOUT_MS = 2000
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-    return Promise.race([
-        promise,
-        new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Redis timeout')), ms))
-    ])
+    return new Promise<T>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('Redis timeout')), ms)
+        promise.then(
+            value => {
+                clearTimeout(timer)
+                resolve(value)
+            },
+            error => {
+                clearTimeout(timer)
+                reject(error)
+            }
+        )
+    })
 }
 
 if (process.env.REDIS_URL) {
@@ -46,30 +57,55 @@ function ensurePersistentStoreAvailable(): void {
     }
 }
 
+function redisUnavailable(): Error {
+    return new Error('Token blacklist xizmati vaqtincha ishlamayapti')
+}
+
+function tokenKey(token: string): string {
+    return `bl:${crypto.createHash('sha256').update(token).digest('hex')}`
+}
+
 export const tokenBlacklist = {
+    async ready(): Promise<void> {
+        if (!redis) {
+            ensurePersistentStoreAvailable()
+            return
+        }
+        try {
+            if (redis.status === 'wait') {
+                await withTimeout(redis.connect(), REDIS_TIMEOUT_MS)
+            }
+            await withTimeout(redis.ping(), REDIS_TIMEOUT_MS)
+            redisHealthy = true
+        } catch {
+            redisHealthy = false
+            throw redisUnavailable()
+        }
+    },
+
     async add(token: string): Promise<void> {
-        if (redis && redisHealthy) {
+        if (redis) {
             try {
-                await withTimeout(redis.set(`bl:${token}`, '1', 'EX', TOKEN_TTL), REDIS_TIMEOUT_MS)
+                await withTimeout(redis.set(tokenKey(token), '1', 'EX', TOKEN_TTL), REDIS_TIMEOUT_MS)
                 return
             } catch {
-                // Redis xato — in-memory fallback
+                throw redisUnavailable()
             }
         }
         ensurePersistentStoreAvailable()
-        memoryBlacklist.add(token)
+        memoryBlacklist.add(tokenKey(token))
     },
 
     async has(token: string): Promise<boolean> {
-        if (redis && redisHealthy) {
+        if (redis) {
             try {
-                const val = await withTimeout(redis.get(`bl:${token}`), REDIS_TIMEOUT_MS)
+                const val = await withTimeout(redis.get(tokenKey(token)), REDIS_TIMEOUT_MS)
                 return val !== null
             } catch {
-                // Redis xato — in-memory fallback
+                throw redisUnavailable()
             }
         }
         ensurePersistentStoreAvailable()
-        return memoryBlacklist.has(token)
+        return memoryBlacklist.has(tokenKey(token))
     }
 }

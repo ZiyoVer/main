@@ -1,7 +1,5 @@
 import { Router } from 'express'
-import crypto from 'crypto'
 import multer from 'multer'
-import pdfParse from 'pdf-parse'
 import mammoth from 'mammoth'
 import OpenAI from 'openai'
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
@@ -25,6 +23,17 @@ import {
     scoreMilliySertifikatAttempt,
     scoreRegularAttempt,
 } from '../utils/testScoring'
+import {
+    isAcceptedOpenAnswer,
+    normalizeOpenAnswer,
+    parseAcceptedAnswers,
+    parseStrictMatchingData,
+    parseStrictTextOptions,
+    stripPreSubmitAnswerFields,
+} from '../utils/testTrust'
+import { extractPdfText } from '../utils/pdfText'
+import { prepareQuestionImage, QuestionImageValidationError } from '../utils/questionImage'
+import { generateGeminiVisionContent, GeminiVisionImage } from '../utils/geminiVision'
 
 const TEST_SUBMIT_GRACE_MS = 5000
 
@@ -36,6 +45,32 @@ class AlreadySubmittedError extends Error {
     }
 }
 
+interface TestMutationGuardState {
+    isPublic: boolean
+    approved: boolean
+    _count: { attempts: number; sessions: number }
+}
+
+function getTestMutationConflict(test: TestMutationGuardState): string | null {
+    if (test._count.sessions > 0) {
+        return 'Bu test uchun yechish sessiyasi boshlangan. Savollarni o‘zgartirish yoki testni o‘chirish mumkin emas.'
+    }
+    if (test._count.attempts > 0) {
+        return 'Bu testda urinishlar bor. Natijalar ishonchliligi uchun savollarni o‘zgartirish yoki testni o‘chirish mumkin emas.'
+    }
+    if (test.isPublic && test.approved) {
+        return 'Tasdiqlangan public test o‘zgarmas hisoblanadi. Yangi nusxa yarating.'
+    }
+    return null
+}
+
+function sendTestMutationConflict(res: any, test: TestMutationGuardState): boolean {
+    const error = getTestMutationConflict(test)
+    if (!error) return false
+    res.status(409).json({ error, code: 'TEST_IMMUTABLE' })
+    return true
+}
+
 function getTimeLimitMs(timeLimit: number | null | undefined): number | null {
     if (typeof timeLimit !== 'number' || !Number.isFinite(timeLimit) || timeLimit <= 0) return null
     return Math.round(timeLimit * 60 * 1000)
@@ -43,6 +78,15 @@ function getTimeLimitMs(timeLimit: number | null | undefined): number | null {
 
 function getTimeRemainingSeconds(expiresAt: Date, now = new Date()): number {
     return Math.max(0, Math.ceil((expiresAt.getTime() - now.getTime()) / 1000))
+}
+
+function getTestAssetUrlExpiresInSeconds(timeLimitMinutes: number | null | undefined): number {
+    const oneHour = 60 * 60
+    const sevenDays = 7 * 24 * 60 * 60
+    const testWindowWithBuffer = (typeof timeLimitMinutes === 'number' && Number.isFinite(timeLimitMinutes) && timeLimitMinutes > 0)
+        ? Math.ceil(timeLimitMinutes * 60) + 15 * 60
+        : oneHour
+    return Math.min(sevenDays, Math.max(oneHour, testWindowWithBuffer))
 }
 
 // ---- Zaiflik tahlili (closed learning loop) yordamchilari ----
@@ -110,14 +154,6 @@ async function ensureTestSession(testId: string, userId: string, timeLimit: numb
     return existing
 }
 
-function normalizeOpenAnswer(text: string | null | undefined): string {
-    return (text || '')
-        .trim()
-        .replace(/\s+/g, ' ')
-        .replace(/[’`]/g, '\'')
-        .toLowerCase()
-}
-
 // YOPIQ HALQA: mavzu kalitini birxillashtirish — "Kvadrat tenglamalar" /
 // "kvadrat tenglamalar." / "Kvadrat  tenglamalar" bitta TopicStat qatoriga tushsin.
 // Aks holda har variant alohida qator bo'lib total>= porogga yetmaydi (halqa ochilmaydi).
@@ -128,13 +164,6 @@ function normalizeTopicKey(raw: string | null | undefined): string {
         .replace(/\s+/g, ' ')
         .replace(/[.,;:!?]+$/u, '')     // oxiridagi tinish belgilari
         .trim()
-}
-
-function parseAcceptedAnswers(text: string | null | undefined): string[] {
-    return String(text || '')
-        .split(/\r?\n+/)
-        .map((part) => part.trim())
-        .filter(Boolean)
 }
 
 function formatAcceptedAnswers(text: string | null | undefined): string {
@@ -198,45 +227,12 @@ function formatQuestionForAnalysis(question: any, index: number): string {
     return `${isCorrect ? '✅' : '❌'} ${index + 1}. ${questionText}${variants ? `\n   Variantlar: ${variants}` : ''}\n   O'quvchi: ${studentAnswer.toUpperCase()} | To'g'ri: ${correctAnswer.toUpperCase()}`
 }
 
-// Yozma javob baholash natijasi: aiVerified=false — AI tekshira olmadi (texnik xato),
-// javob "xato" deb belgilanadi, LEKIN bu holat JIM yutilmaydi: yuqoriga unverified
-// sifatida chiqadi va submit javobida unverifiedOpenCount bo'lib ko'rinadi.
+// Yozma javob bahosi tashqi AI'ga bog'liq emas: serverdagi har bir qatordagi accepted answer
+// normalizatsiya qilinib, o'quvchi javobi bilan deterministik solishtiriladi.
 interface OpenAnswerVerdict { correct: boolean; aiVerified: boolean }
 
 async function evaluateOpenAnswer(studentAnswer: string, correctAnswer: string): Promise<OpenAnswerVerdict> {
-    const normalizedStudent = normalizeOpenAnswer(studentAnswer)
-    const acceptedAnswers = parseAcceptedAnswers(correctAnswer)
-    const normalizedAnswers = [...new Set(acceptedAnswers.map(normalizeOpenAnswer).filter(Boolean))]
-
-    if (!normalizedStudent || normalizedAnswers.length === 0) {
-        return { correct: false, aiVerified: true }
-    }
-
-    if (normalizedAnswers.includes(normalizedStudent)) {
-        return { correct: true, aiVerified: true }
-    }
-
-    // AI semantik tekshiruv — 2 urinish (avval bitta xato = o'quvchi javobi jimgina 0 olardi)
-    for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-            const aiCheckRequest = {
-                model: aiModel,
-                messages: [{
-                    role: 'user' as const,
-                    content: `Test savoli uchun to'g'ri javob variantlari:\n${acceptedAnswers.map((answer, index) => `${index + 1}) "${answer}"`).join('\n')}\n\nO'quvchi javobi: "${studentAnswer.trim()}"\n\nO'quvchining javobi shu variantlardan biriga ma'nosi bo'yicha mos keladimi? Faqat "HA" yoki "YOQ" deb javob ber.`
-                }],
-                max_tokens: 5,
-                temperature: 0,
-                ...(hasDeepseek ? deepseekThinking(false) : { reasoning_effort: 'low' as const }),
-            }
-            const aiCheck = await aiClient.chat.completions.create(aiCheckRequest, { timeout: 8000 })
-            const reply = aiCheck.choices[0]?.message?.content?.trim().toUpperCase() || ''
-            return { correct: reply.startsWith('HA'), aiVerified: true }
-        } catch (e) {
-            if (attempt === 1) console.warn('evaluateOpenAnswer: AI 2 urinishda ham javob bermadi:', (e as Error)?.message)
-        }
-    }
-    return { correct: false, aiVerified: false }
+    return { correct: isAcceptedOpenAnswer(studentAnswer, correctAnswer), aiVerified: true }
 }
 
 const router = Router()
@@ -308,7 +304,11 @@ const VISION_MODEL = AI_MODELS.geminiFlash
 
 const geminiClient = new OpenAI({
     apiKey: process.env.GEMINI_API_KEY || '',
-    baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/'
+    baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+    // Vision endpoint ba'zan qisqa 429/5xx qaytaradi. SDK transient xatolarda
+    // exponential backoff bilan qayta urinadi; foydalanuvchi valid scan PDF'ni
+    // faqat bir martalik Gemini overload sabab qayta yuklamasligi kerak.
+    maxRetries: 4,
 })
 const deepseekClient = new OpenAI({
     baseURL: 'https://api.deepseek.com',
@@ -326,6 +326,13 @@ const QUESTION_GENERATION_TEXT_CHUNK_SIZE = 18000
 const QUESTION_GENERATION_TEXT_MAX_CHUNKS = 4
 const QUESTION_GENERATION_VISION_BATCH_PAGES = 2
 const QUESTION_GENERATION_VISION_MAX_PAGES = 12
+
+class VisionAnalysisUnavailableError extends Error {
+    constructor() {
+        super('Vision AI barcha sahifa batchlarini tahlil qila olmadi')
+        this.name = 'VisionAnalysisUnavailableError'
+    }
+}
 
 interface IncomingCreateQuestion {
     text?: string
@@ -508,10 +515,49 @@ function sanitizeIncomingOptionImages(value: unknown, optionCount: number): stri
 }
 
 // O'qish yo'llari uchun: saqlangan ref'larni signed URL'ga aylantiradi (rasm bo'lmasa null)
-async function resolveStoredOptionImages(raw?: string | null): Promise<(string | null)[] | null> {
+async function resolveStoredOptionImages(raw?: string | null, expiresIn = 60 * 60): Promise<(string | null)[] | null> {
     const refs = parseStoredOptionImages(raw)
     if (refs.length === 0 || !refs.some((r) => r !== null)) return null
-    return Promise.all(refs.map((ref) => (ref ? resolveStoredS3Url(ref) : Promise.resolve(null))))
+    return Promise.all(refs.map((ref) => (ref ? resolveStoredS3Url(ref, expiresIn) : Promise.resolve(null))))
+}
+
+async function buildPostSubmitCorrectAnswers(questions: any[]) {
+    return Promise.all(questions.map(async (question) => {
+        const solutionImageUrl = await resolveStoredS3Url(question.solutionImageUrl)
+        if (question.questionType === 'matching') {
+            let matchingData: { subQuestions?: Array<{ correctIdx?: number }> } = { subQuestions: [] }
+            try { matchingData = JSON.parse(question.options as string) } catch { /* invalid legacy row */ }
+            return {
+                id: question.id,
+                correctIdx: -1,
+                questionType: 'matching',
+                matchingCorrect: (matchingData.subQuestions || []).map((subQuestion) => subQuestion.correctIdx),
+                solutionImageUrl,
+            }
+        }
+        if (question.questionType === 'multipart_open') {
+            let multipartData: { subQuestions?: Array<{ label?: string; text?: string; correctText?: string }> } = { subQuestions: [] }
+            try { multipartData = JSON.parse(question.options as string) } catch { /* invalid legacy row */ }
+            return {
+                id: question.id,
+                correctIdx: -1,
+                questionType: 'multipart_open',
+                multipartCorrectText: (multipartData.subQuestions || []).map((subQuestion, subIndex) => ({
+                    label: String(subQuestion.label || String.fromCharCode(65 + subIndex)),
+                    text: String(subQuestion.text || ''),
+                    correctText: String(subQuestion.correctText || ''),
+                })),
+                solutionImageUrl,
+            }
+        }
+        return {
+            id: question.id,
+            correctIdx: question.correctIdx,
+            correctText: question.questionType === 'open' ? question.correctText : undefined,
+            questionType: question.questionType || 'mcq',
+            solutionImageUrl,
+        }
+    }))
 }
 
 function buildQuestionGeneratorSystemPrompt() {
@@ -616,6 +662,7 @@ async function generateQuestionsFromScannedPdf(buffer: Buffer, subjectNote: stri
     const pageLimit = Math.min(pdfDoc.numPages, QUESTION_GENERATION_VISION_MAX_PAGES)
     const truncated = pdfDoc.numPages > QUESTION_GENERATION_VISION_MAX_PAGES
     let rawQuestions: any[] = []
+    let lastBatchError: unknown = null
 
     for (let startPage = 1; startPage <= pageLimit; startPage += QUESTION_GENERATION_VISION_BATCH_PAGES) {
         const remainingSlots = QUESTION_GENERATION_MAX_TOTAL - rawQuestions.length
@@ -666,10 +713,14 @@ ${jsonFormat}`
             const validated = validateGeneratedQuestions(parsed)
             rawQuestions = dedupeGeneratedQuestions([...rawQuestions, ...validated]).slice(0, QUESTION_GENERATION_MAX_TOTAL)
         } catch (batchErr: any) {
+            lastBatchError = batchErr
             console.warn(`Scanned PDF pages ${startPage}-${endPage} generation failed:`, batchErr?.message || batchErr)
         }
     }
 
+    if (rawQuestions.length === 0 && lastBatchError) {
+        throw new VisionAnalysisUnavailableError()
+    }
     return { questions: rawQuestions, truncated }
 }
 
@@ -725,11 +776,13 @@ function collectDtmGeneratedItems(items: any[]): { questions: any[]; answerKeys:
             answerKeys.push({ blockType: blockType === 'GENERIC' ? null : blockType, answers: item.answers })
             continue
         }
-        if (!item.text || !Array.isArray(item.options)) continue
-        const options = item.options.filter((o: any) => typeof o === 'string' && o.trim().length > 0).slice(0, 4)
-        if (options.length < 2) continue
+        if (!item.text) continue
+        // DTM A/B/C/D indekslari o'zgarmasligi kerak: bo'sh variantni filter qilib
+        // correctIdx'ni boshqa javobga siljitmaymiz, savolni butunlay rad etamiz.
+        const options = parseStrictTextOptions(item.options, { exactCount: 4 })
+        if (!options) continue
         let correctIdx = typeof item.correctIdx === 'number' ? item.correctIdx : letterToIdx(item.correctIdx ?? item.correct ?? item.answer)
-        if (correctIdx < 0 || correctIdx >= options.length) correctIdx = -1
+        if (!Number.isInteger(correctIdx) || correctIdx < 0 || correctIdx >= options.length) continue
         const blockType = normalizeDtmBlockType(typeof item.blockType === 'string' ? item.blockType : undefined)
         const num = Number.parseInt(String(item.num ?? ''), 10)
         questions.push({
@@ -779,6 +832,7 @@ async function generateDtmQuestionsFromPdf(buffer: Buffer, subject: string, subj
 
     let allQuestions: any[] = []
     const allAnswerKeys: DtmAnswerKey[] = []
+    let lastBatchError: unknown = null
     // Batch orasida blok kontekstini tashiymiz — sarlavhasiz sahifa oldingi blokning davomi
     let lastBlock = 'MANDATORY_LANGUAGE (kitob boshi — ona tili)'
 
@@ -811,10 +865,14 @@ async function generateDtmQuestionsFromPdf(buffer: Buffer, subject: string, subj
             const lastTagged = [...questions].reverse().find(q => q.blockType)
             if (lastTagged) lastBlock = lastTagged.blockType
         } catch (batchErr: any) {
+            lastBatchError = batchErr
             console.warn(`DTM PDF pages ${startPage}-${endPage} generation failed:`, batchErr?.message || batchErr)
         }
     }
 
+    if (allQuestions.length === 0 && lastBatchError) {
+        throw new VisionAnalysisUnavailableError()
+    }
     const keyApplied = applyDtmAnswerKeys(allQuestions, allAnswerKeys)
     const questionsWithProvenance = allQuestions.slice(0, DTM_MAX_QUESTIONS).map(question => ({
         ...question,
@@ -826,6 +884,56 @@ async function generateDtmQuestionsFromPdf(buffer: Buffer, subject: string, subj
 }
 
 async function generateQuestionJson(messages: any[], isVision = false): Promise<string> {
+    if (isVision) {
+        const images: GeminiVisionImage[] = []
+        const promptParts: string[] = []
+
+        for (const message of messages) {
+            const content = message?.content
+            if (typeof content === 'string') {
+                if (content.trim()) promptParts.push(content.trim())
+                continue
+            }
+            if (!Array.isArray(content)) continue
+
+            for (const part of content) {
+                if (part?.type === 'text' && typeof part.text === 'string' && part.text.trim()) {
+                    promptParts.push(part.text.trim())
+                    continue
+                }
+                const url = part?.type === 'image_url' ? part?.image_url?.url : null
+                const match = typeof url === 'string'
+                    ? /^data:([^;,]+);base64,([a-z0-9+/=\r\n]+)$/i.exec(url)
+                    : null
+                if (match) {
+                    images.push({
+                        mimeType: match[1],
+                        data: match[2].replace(/\s+/g, ''),
+                    })
+                }
+            }
+        }
+
+        const startedAt = Date.now()
+        const result = await generateGeminiVisionContent({
+            apiKey: process.env.GEMINI_API_KEY || '',
+            systemPrompt: buildQuestionGeneratorSystemPrompt(),
+            prompt: promptParts.join('\n\n'),
+            images,
+            maxOutputTokens: QUESTION_GENERATION_MAX_OUTPUT_TOKENS,
+            temperature: 0.1,
+        })
+
+        console.info('AI_TEST_GENERATION', {
+            model: result.model,
+            thinking: false,
+            fallback: result.model !== VISION_MODEL,
+            latencyMs: Date.now() - startedAt,
+            usage: result.usage,
+        })
+        return result.text
+    }
+
     const client = isVision ? gptClient : aiClient
     const model = isVision ? VISION_MODEL : aiModel
     const startedAt = Date.now()
@@ -886,6 +994,7 @@ async function verifyGeneratedAnswers(questions: any[]): Promise<any[]> {
         .map((question, index) => ({ question, index }))
         .filter(({ question }) => question.questionType !== 'matching' && question.answerVerified !== true && Array.isArray(question.options))
 
+    let aiChecked = 0
     for (let start = 0; start < candidates.length; start += 20) {
         const batch = candidates.slice(start, start + 20)
         const payload = batch.map(({ question, index }) => ({
@@ -913,10 +1022,13 @@ ${JSON.stringify(payload)}`
                 const correctIdx = typeof result?.correctIdx === 'number' ? result.correctIdx : -1
                 const target = verified[index]
                 if (!target || result?.verified !== true || !Array.isArray(target.options)
-                    || correctIdx < 0 || correctIdx >= target.options.length) continue
+                    || !Number.isInteger(correctIdx) || correctIdx < 0 || correctIdx >= target.options.length) continue
                 target.correctIdx = correctIdx
                 target.answerSource = 'AI_INFERRED'
-                target.answerVerified = true
+                // Ikkinchi AI fikri mustaqil, inson yoki PDF javob kaliti emas. U correctIdx'ni
+                // taklif qilishi mumkin, lekin ishonch bayrog'ini hech qachon yoqmaydi.
+                target.answerVerified = false
+                aiChecked++
             }
         } catch (error) {
             console.warn('AI javob kaliti verifikatsiyasi ishlamadi:', error instanceof Error ? error.message : error)
@@ -926,6 +1038,7 @@ ${JSON.stringify(payload)}`
         model: AI_MODELS.deepseekPro,
         thinking: true,
         total: verified.length,
+        aiChecked,
         verified: verified.filter(question => question.answerVerified === true).length,
         unverified: verified.filter(question => question.answerVerified !== true).length,
     })
@@ -968,32 +1081,22 @@ function validateGeneratedQuestions(questions: any[]): any[] {
         .filter((q: any) => q && q.text)
         .map((q: any) => {
             if (q.questionType === 'matching') {
-                const answers: string[] = Array.isArray(q.answers)
-                    ? q.answers.filter((a: any) => typeof a === 'string' && a.trim()).slice(0, 6)
-                    : []
-                const subQuestions = Array.isArray(q.subQuestions)
-                    ? q.subQuestions
-                        .filter((sq: any) => sq && typeof sq.text === 'string' && sq.text.trim())
-                        .map((sq: any) => ({
-                            text: sq.text.trim(),
-                            correctIdx: typeof sq.correctIdx === 'number' ? sq.correctIdx : -1,
-                        }))
-                    : []
-                if (answers.length < 2 || subQuestions.length < 1
-                    || subQuestions.some((subQuestion: { correctIdx: number }) => subQuestion.correctIdx < 0 || subQuestion.correctIdx >= answers.length)) return null
+                const matching = parseStrictMatchingData({ answers: q.answers, subQuestions: q.subQuestions })
+                if (!matching) return null
                 return {
                     text: q.text.trim(),
                     questionType: 'matching',
-                    answers,
-                    subQuestions,
+                    answers: matching.answers,
+                    subQuestions: matching.subQuestions,
                     answerSource: 'AI_INFERRED',
                     answerVerified: false,
                 }
             }
 
-            if (!q.options || !Array.isArray(q.options)) return null
-            const options = q.options.filter((o: any) => typeof o === 'string' && o.trim().length > 0)
-            if (options.length < 2) return null
+            // Bo'sh variantni olib tashlash correctIdx'ni siljitardi. Endi 2–4 ta variantning
+            // har biri nonblank va unique bo'lmasa generatsiya natijasi rad etiladi.
+            const options = parseStrictTextOptions(q.options, { maxCount: 4 })
+            if (!options) return null
 
             let correctIdx = -1
             if (typeof q.correctIdx === 'number') {
@@ -1013,7 +1116,7 @@ function validateGeneratedQuestions(questions: any[]): any[] {
             if (correctIdx < 0 || correctIdx >= options.length) return null
             return {
                 text: q.text.trim(),
-                options: options.slice(0, 4),
+                options,
                 correctIdx,
                 answerSource: 'AI_INFERRED',
                 answerVerified: false,
@@ -1284,11 +1387,15 @@ router.get('/by-link/:shareLink', optionalAuthenticate, testReadLimiter, async (
 
         // Matching savollar uchun to'g'ri javoblarni (correctIdx) options dan olib tashlaymiz —
         // aks holda o'quvchi devtools orqali barcha javoblarni ko'ra oladi
+        const assetUrlExpiresIn = getTestAssetUrlExpiresInSeconds(test.timeLimit)
         const sanitizedQuestions = await Promise.all(test.questions.map(async (q: any) => {
-            const resolvedImageUrl = await resolveStoredS3Url(q.imageUrl)
+            const resolvedImageUrl = await resolveStoredS3Url(q.imageUrl, assetUrlExpiresIn)
             // FAZA 3: variant rasmlari — o'quvchiga signed URL massivi ketadi (xom ref emas)
-            const resolvedOptionImages = await resolveStoredOptionImages(q.optionImages)
-            const { optionImages: _rawOptionImages, ...qRest } = q
+            const resolvedOptionImages = await resolveStoredOptionImages(q.optionImages, assetUrlExpiresIn)
+            // Javob kaliti va yechim reference'i submitdan OLDIN brauzerga chiqmaydi.
+            // Matching/multipart ichidagi kalitlar pastda alohida sanitized qilinadi.
+            const qRest = stripPreSubmitAnswerFields(q)
+            delete qRest.optionImages
             const base = { ...qRest, imageUrl: resolvedImageUrl, ...(resolvedOptionImages ? { optionImages: resolvedOptionImages } : {}) }
             if (q.questionType === 'matching' && q.options) {
                 try {
@@ -1319,15 +1426,26 @@ router.get('/by-link/:shareLink', optionalAuthenticate, testReadLimiter, async (
             serverExpiresAt?: string
             serverNow?: string
             timeRemainingSeconds?: number
+            alreadySubmitted?: boolean
         } = {}
-        if (req.user && getTimeLimitMs(test.timeLimit)) {
-            const session = await ensureTestSession(test.id, req.user.id, test.timeLimit as number, shareLink)
-            const now = new Date()
-            timeWindow = {
-                serverStartedAt: session.startedAt.toISOString(),
-                serverExpiresAt: session.expiresAt.toISOString(),
-                serverNow: now.toISOString(),
-                timeRemainingSeconds: getTimeRemainingSeconds(session.expiresAt, now)
+        if (req.user) {
+            const completedAttempt = await prisma.testAttempt.findFirst({
+                where: { testId: test.id, userId: req.user.id },
+                select: { id: true },
+            })
+            if (completedAttempt) {
+                // Bir user+test faqat bir marta statistikaga ta'sir qiladi. Frontend review
+                // endpointini ochadi; ayniqsa timed test uchun yangi sessiya yaratmaymiz.
+                timeWindow = { alreadySubmitted: true }
+            } else if (getTimeLimitMs(test.timeLimit)) {
+                const session = await ensureTestSession(test.id, req.user.id, test.timeLimit as number, shareLink)
+                const now = new Date()
+                timeWindow = {
+                    serverStartedAt: session.startedAt.toISOString(),
+                    serverExpiresAt: session.expiresAt.toISOString(),
+                    serverNow: now.toISOString(),
+                    timeRemainingSeconds: getTimeRemainingSeconds(session.expiresAt, now)
+                }
             }
         }
 
@@ -1337,6 +1455,50 @@ router.get('/by-link/:shareLink', optionalAuthenticate, testReadLimiter, async (
         const { creatorId: _creatorId, approvedById: _approvedById, approvedAt: _approvedAt, ...safeTest } = test
         res.json({ ...safeTest, questions: sanitizedQuestions, ...timeWindow })
     } catch (e) {
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+// Faqat shu userning yakunlangan urinishini qayta ko'rish. Javob kaliti testni ochish
+// endpointida emas, serverda saqlangan attempt mavjud bo'lgandan keyingina qaytariladi.
+router.get('/:testId/my-latest-review', authenticate, async (req: AuthRequest, res) => {
+    try {
+        const testId = req.params.testId as string
+        const test = await prisma.test.findUnique({
+            where: { id: testId },
+            include: { questions: { orderBy: { orderIdx: 'asc' } } },
+        })
+        if (!test) return res.status(404).json({ error: 'Test topilmadi' })
+
+        const attempt = await prisma.testAttempt.findFirst({
+            where: { testId, userId: req.user.id },
+            orderBy: { createdAt: 'desc' },
+            select: {
+                id: true,
+                answers: true,
+                score: true,
+                rawScore: true,
+                scoreMax: true,
+                grade: true,
+                createdAt: true,
+            },
+        })
+        if (!attempt) {
+            return res.status(404).json({ error: 'Bu test uchun yakunlangan urinish topilmadi', code: 'ATTEMPT_NOT_FOUND' })
+        }
+
+        const isOwnerOrAdmin = req.user.role === 'ADMIN' || test.creatorId === req.user.id
+        const isApprovedPublic = test.isPublic && test.approved
+        // Private testni yechgan userning o'z attempt'i ham doimiy review huquqidir.
+        const canReview = isApprovedPublic || isOwnerOrAdmin || Boolean(attempt)
+        if (!canReview) {
+            return res.status(403).json({ error: 'Bu test natijasini ko‘rish uchun ruxsat yo‘q' })
+        }
+
+        const correctAnswers = await buildPostSubmitCorrectAnswers(test.questions)
+        res.json({ attempt, correctAnswers })
+    } catch (e) {
+        console.error('latest test review xato:', e)
         res.status(500).json({ error: 'Server xatoligi' })
     }
 })
@@ -1360,12 +1522,25 @@ router.post('/generate-from-file', authenticate, requireRole('TEACHER', 'ADMIN')
             }
             const dtmSubject = subject || 'Ixtisoslik fani'
             const dtmSubject2 = (req.body.subject2 as string) || '2-ixtisoslik fani'
-            const dtmResult = await generateDtmQuestionsFromPdf(buffer, dtmSubject, dtmSubject2)
-            return res.json({
-                questions: dtmResult.questions,
-                truncated: dtmResult.truncated,
-                keyApplied: dtmResult.keyApplied, // javoblar jadvalidan olingan javoblar soni
-            })
+            try {
+                const dtmResult = await generateDtmQuestionsFromPdf(buffer, dtmSubject, dtmSubject2)
+                return res.json({
+                    questions: dtmResult.questions,
+                    truncated: dtmResult.truncated,
+                    keyApplied: dtmResult.keyApplied, // javoblar jadvalidan olingan javoblar soni
+                })
+            } catch (error) {
+                if (error instanceof VisionAnalysisUnavailableError) {
+                    return res.status(503).json({
+                        error: 'DTM PDF tahlili vaqtincha band. Bir ozdan keyin qayta urinib ko‘ring.',
+                        code: 'VISION_TEMPORARILY_UNAVAILABLE',
+                    })
+                }
+                return res.status(400).json({
+                    error: 'PDF faylni ochib bo‘lmadi. Fayl buzilmaganini tekshiring.',
+                    code: 'PDF_INVALID',
+                })
+            }
         }
         // MCQ va Moslashtirish (matching) format namunasi
         const jsonFormat = `[
@@ -1379,8 +1554,9 @@ router.post('/generate-from-file', authenticate, requireRole('TEACHER', 'ADMIN')
         let rawQuestions: any[] = []
 
         if (mimetype === 'application/pdf') {
-            const data = await pdfParse(buffer)
-            const fullText = data.text.trim()
+            const extractedPdf = await extractPdfText(buffer)
+            const fullText = extractedPdf.text.trim()
+            truncated = extractedPdf.truncated
             const needsVisionPdf = !fullText || fullText.length < 50
 
             if (needsVisionPdf) {
@@ -1391,9 +1567,19 @@ router.post('/generate-from-file', authenticate, requireRole('TEACHER', 'ADMIN')
                 try {
                     const scannedResult = await generateQuestionsFromScannedPdf(buffer, subjectNote, jsonFormat)
                     rawQuestions = scannedResult.questions
-                    truncated = scannedResult.truncated
+                    truncated = truncated || scannedResult.truncated
                 } catch (err) {
                     console.error('PDF render failed:', err)
+                    if (!(err instanceof VisionAnalysisUnavailableError)) {
+                        return res.status(400).json({
+                            error: 'PDF faylni ochib bo‘lmadi. Fayl buzilmaganini tekshiring.',
+                            code: 'PDF_INVALID',
+                        })
+                    }
+                    return res.status(503).json({
+                        error: 'Skanerlangan PDF tahlili vaqtincha band. Bir ozdan keyin qayta urinib ko‘ring.',
+                        code: 'VISION_TEMPORARILY_UNAVAILABLE',
+                    })
                 }
             } else {
                 if (!fullText) {
@@ -1401,7 +1587,7 @@ router.post('/generate-from-file', authenticate, requireRole('TEACHER', 'ADMIN')
                 }
 
                 const textChunks = chunkTextForQuestionGeneration(fullText)
-                truncated = textChunks.truncated
+                truncated = truncated || textChunks.truncated
 
                 for (const [chunkIndex, textChunk] of textChunks.chunks.entries()) {
                     const remainingSlots = QUESTION_GENERATION_MAX_TOTAL - rawQuestions.length
@@ -1483,7 +1669,7 @@ ${jsonFormat}`
                 ]
             }]
         } else {
-            return res.status(400).json({ error: 'Faqat PDF va rasm fayllari qo\'llab-quvvatlanadi' })
+            return res.status(400).json({ error: 'Faqat PDF, Word (.docx) yoki rasm fayllari qo\'llab-quvvatlanadi' })
         }
 
         // Rasm tahlili: DeepSeek vision qabul qilmaydi, Gemini kerak
@@ -1527,14 +1713,20 @@ ${jsonFormat}`
 router.post('/:testId/questions', authenticate, requireRole('TEACHER', 'ADMIN'), testMutateLimiter, async (req: AuthRequest, res) => {
     try {
         const testId = req.params.testId as string
-        const test = await prisma.test.findUnique({ where: { id: testId } })
+        const test = await prisma.test.findUnique({
+            where: { id: testId },
+            include: { _count: { select: { attempts: true, sessions: true } } },
+        })
         if (!test) return res.status(404).json({ error: 'Test topilmadi' })
         if (req.user.role !== 'ADMIN' && test.creatorId !== req.user.id) {
             return res.status(403).json({ error: 'Ruxsat yo\'q' })
         }
+        if (sendTestMutationConflict(res, test)) return
 
-        const { text, imageUrl, options, correctIdx, orderIdx, difficulty, questionType } = req.body
+        const { text, imageUrl, options, correctIdx, correctText, orderIdx, difficulty } = req.body
+        const questionType = typeof req.body.questionType === 'string' ? req.body.questionType : 'mcq'
         const normalizedTestType = normalizeTestType(test.testType)
+        let storedOptions: unknown = options
 
         // Savol matni validatsiyasi
         if (!text || typeof text !== 'string' || !text.trim()) {
@@ -1549,14 +1741,11 @@ router.post('/:testId/questions', authenticate, requireRole('TEACHER', 'ADMIN'),
 
         // Validatsiya — questionType ga qarab
         if (questionType === 'matching') {
-            let matchData: any = {}
-            try { matchData = typeof options === 'string' ? JSON.parse(options) : options } catch {
-                return res.status(400).json({ error: 'Matching options formati xato' })
+            const matching = parseStrictMatchingData(options)
+            if (!matching) {
+                return res.status(400).json({ error: 'Matching javoblari nonblank/unique, correctIdx esa answers chegarasida bo‘lishi kerak' })
             }
-            const mAnswers = (matchData.answers || []).filter((a: any) => typeof a === 'string' && a.trim())
-            const mSubs = matchData.subQuestions || []
-            if (mAnswers.length < 2) return res.status(400).json({ error: 'Kamida 2 ta javob varianti bo\'lishi kerak' })
-            if (mSubs.length < 1) return res.status(400).json({ error: 'Kamida 1 ta kichik savol bo\'lishi kerak' })
+            storedOptions = matching
         } else if (questionType === 'multipart_open') {
             let multipartData: any = {}
             try { multipartData = typeof options === 'string' ? JSON.parse(options) : options } catch {
@@ -1572,17 +1761,35 @@ router.post('/:testId/questions', authenticate, requireRole('TEACHER', 'ADMIN'),
                     return res.status(400).json({ error: 'Har bir bo\'lim uchun to\'g\'ri javob kerak' })
                 }
             }
-        } else if (questionType !== 'open') {
-            if (!Array.isArray(options) || options.length < 2) {
-                return res.status(400).json({ error: 'Kamida 2 ta variant bo\'lishi kerak' })
+            storedOptions = multipartData
+        } else if (questionType === 'open') {
+            if (parseAcceptedAnswers(correctText).length === 0) {
+                return res.status(400).json({ error: 'Ochiq savol uchun kamida bitta to‘g‘ri javob kerak' })
             }
-            if (typeof correctIdx !== 'number' || correctIdx < 0 || correctIdx >= options.length) {
+        } else if (questionType !== 'open') {
+            const strictOptions = parseStrictTextOptions(options)
+            if (!strictOptions) {
+                return res.status(400).json({ error: 'Kamida 2 ta nonblank va takrorlanmagan variant bo‘lishi kerak' })
+            }
+            if (!Number.isInteger(correctIdx) || correctIdx < 0 || correctIdx >= strictOptions.length) {
                 return res.status(400).json({ error: 'To\'g\'ri javob indeksi xato' })
             }
+            storedOptions = strictOptions
         }
 
-        if (normalizedTestType === 'DTM_BLOCK' && questionType !== 'mcq') {
-            return res.status(400).json({ error: 'DTM blok testida faqat A/B/C/D savollar bo\'lishi kerak' })
+        if (normalizedTestType === 'DTM_BLOCK') {
+            const dtmOptions = parseStrictTextOptions(options, { exactCount: 4 })
+            if (!dtmOptions) {
+                return res.status(400).json({ error: 'DTM savolida aynan 4 ta nonblank va takrorlanmagan A/B/C/D variant bo‘lishi kerak' })
+            }
+            if (!Number.isInteger(correctIdx) || correctIdx < 0 || correctIdx > 3) {
+                return res.status(400).json({ error: 'DTM savolida correctIdx 0 dan 3 gacha butun son bo‘lishi kerak' })
+            }
+            storedOptions = dtmOptions
+        }
+
+        if (req.body.answerSource && req.body.answerVerified !== true) {
+            return res.status(400).json({ error: 'AI javobi inson yoki ishonchli kalit bilan tasdiqlanmagan' })
         }
 
         const parsedBlockType = normalizeDtmBlockType(req.body.blockType)
@@ -1595,15 +1802,16 @@ router.post('/:testId/questions', authenticate, requireRole('TEACHER', 'ADMIN'),
                 imageUrl: imageUrl || null,
                 questionType: questionType || 'mcq',
                 options: questionType === 'open' ? '[]'
-                       : questionType === 'multipart_open' ? (typeof options === 'string' ? options : JSON.stringify(options))
-                       : questionType === 'matching' ? (typeof options === 'string' ? options : JSON.stringify(options))
-                       : JSON.stringify(options),
+                       : JSON.stringify(storedOptions),
                 // FAZA 3: variant/yechim rasmlari
                 optionImages: (questionType === 'open' || questionType === 'matching' || questionType === 'multipart_open')
                     ? null
                     : sanitizeIncomingOptionImages(req.body.optionImages, Array.isArray(options) ? options.length : 0),
                 solutionImageUrl: sanitizeIncomingImageRef(req.body.solutionImageUrl),
                 correctIdx: (questionType === 'open' || questionType === 'matching' || questionType === 'multipart_open') ? -1 : (correctIdx ?? 0),
+                correctText: questionType === 'open' ? String(correctText).trim() : null,
+                answerSource: req.body.answerSource || null,
+                answerVerified: req.body.answerVerified !== false,
                 orderIdx: orderIdx || 0,
                 difficulty: difficulty || 0.0,
                 blockType: parsedBlockType,
@@ -1655,15 +1863,11 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
                 return res.status(400).json({ error: `${i + 1}-savol: DTM blok testida faqat A/B/C/D savollar bo'lishi kerak` })
             }
             if (questionType === 'matching') {
-                // Moslashtirish savol validatsiyasi
-                let matchData: any = {}
-                try { matchData = typeof q.options === 'string' ? JSON.parse(q.options) : q.options } catch {
-                    return res.status(400).json({ error: `${i + 1}-savol: matching options formati xato` })
+                const matching = parseStrictMatchingData(q.options)
+                if (!matching) {
+                    return res.status(400).json({ error: `${i + 1}-savol: matching javoblari nonblank/unique, correctIdx esa answers chegarasida bo‘lishi kerak` })
                 }
-                const mAnswers = (matchData.answers || []).filter((a: any) => typeof a === 'string' && a.trim())
-                const mSubs = matchData.subQuestions || []
-                if (mAnswers.length < 2) return res.status(400).json({ error: `${i + 1}-savol: kamida 2 ta javob varianti bo'lishi kerak` })
-                if (mSubs.length < 1) return res.status(400).json({ error: `${i + 1}-savol: kamida 1 ta kichik savol bo'lishi kerak` })
+                q.options = JSON.stringify(matching)
             } else if (questionType === 'multipart_open') {
                 let multipartData: any = {}
                 try { multipartData = typeof q.options === 'string' ? JSON.parse(q.options) : q.options } catch {
@@ -1684,31 +1888,38 @@ router.post('/create', authenticate, requireRole('TEACHER', 'ADMIN'), createLimi
                         return res.status(400).json({ error: `${i + 1}-savol: ${si + 1}-bo'lim uchun to'g'ri javob yo'q` })
                     }
                 }
+            } else if (questionType === 'open') {
+                if (parseAcceptedAnswers(q.correctText).length === 0) {
+                    return res.status(400).json({ error: `${i + 1}-savol: ochiq savol uchun kamida bitta to‘g‘ri javob kerak` })
+                }
             } else if (questionType !== 'open') {
                 // MCQ validatsiyasi
-                let opts: any[]
+                let rawOptions: unknown
                 try {
-                    opts = Array.isArray(q.options) ? q.options : JSON.parse(q.options || '[]')
+                    rawOptions = Array.isArray(q.options) ? q.options : JSON.parse(q.options || '[]')
                 } catch {
                     return res.status(400).json({ error: `${i + 1}-savol: options to'g'ri format emas` })
                 }
-                if (!Array.isArray(opts) || opts.length < 2) {
-                    return res.status(400).json({ error: `${i + 1}-savol: kamida 2 ta variant bo'lishi kerak` })
-                }
-                // Variant rasmi bo'lsa matn bo'sh bo'lishi mumkin (rasm-only variantlar)
-                const optionImageRefs = parseStoredOptionImages(sanitizeIncomingOptionImages(q.optionImages, opts.length))
-                for (let j = 0; j < opts.length; j++) {
-                    if (typeof opts[j] !== 'string' || (!opts[j].trim() && !optionImageRefs[j])) {
-                        return res.status(400).json({ error: `${i + 1}-savol: ${String.fromCharCode(65 + j)} variantda matn yoki rasm bo'lishi kerak` })
-                    }
+                const opts = parseStrictTextOptions(rawOptions)
+                if (!opts) {
+                    return res.status(400).json({ error: `${i + 1}-savol: kamida 2 ta nonblank va takrorlanmagan variant bo‘lishi kerak` })
                 }
                 const idx = q.correctIdx ?? 0
-                if (typeof idx !== 'number' || idx < 0 || idx >= opts.length) {
+                if (!Number.isInteger(idx) || idx < 0 || idx >= opts.length) {
                     return res.status(400).json({ error: `${i + 1}-savol: correctIdx 0 dan ${opts.length - 1} gacha bo'lishi kerak` })
                 }
+                q.options = opts
             }
 
             if (normalizedTestType === 'DTM_BLOCK') {
+                const dtmOptions = parseStrictTextOptions(q.options, { exactCount: 4 })
+                if (!dtmOptions) {
+                    return res.status(400).json({ error: `${i + 1}-savol: DTM savolida aynan 4 ta nonblank va takrorlanmagan A/B/C/D variant bo‘lishi kerak` })
+                }
+                if (!Number.isInteger(q.correctIdx) || (q.correctIdx as number) < 0 || (q.correctIdx as number) > 3) {
+                    return res.status(400).json({ error: `${i + 1}-savol: DTM correctIdx 0 dan 3 gacha butun son bo‘lishi kerak` })
+                }
+                q.options = dtmOptions
                 const blockType = normalizeDtmBlockType(typeof q.blockType === 'string' ? q.blockType : undefined)
                 if (blockType === 'SPECIALTY_2' && !normalizedSubject2) {
                     return res.status(400).json({ error: `${i + 1}-savol: 2-ixtisoslik bloki uchun 2-fan tanlanishi kerak` })
@@ -1831,16 +2042,14 @@ router.patch('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), testMuta
 
         const existing = await prisma.test.findFirst({
             where,
-            include: { _count: { select: { attempts: true } } }
+            include: { _count: { select: { attempts: true, sessions: true } } }
         })
 
         if (!existing) {
             return res.status(404).json({ error: 'Test topilmadi yoki ruxsat yo\'q' })
         }
 
-        if (existing._count.attempts > 0) {
-            return res.status(409).json({ error: 'Bu testni tahrirlab bo\'lmaydi. Unda allaqachon urinishlar bor, nusxa yaratib ishlang.' })
-        }
+        if (sendTestMutationConflict(res, existing)) return
 
         const normalizedSubject = normalizeSubject(subject)
         const normalizedSubject2 = normalizeSubject(subject2)
@@ -1873,14 +2082,11 @@ router.patch('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), testMuta
                 return res.status(400).json({ error: `${i + 1}-savol: DTM blok testida faqat A/B/C/D savollar bo'lishi kerak` })
             }
             if (questionType === 'matching') {
-                let matchData: { answers?: string[]; subQuestions?: Array<{ text?: string; correctIdx?: number }> } = {}
-                try { matchData = typeof q.options === 'string' ? JSON.parse(q.options) : (q.options as typeof matchData) } catch {
-                    return res.status(400).json({ error: `${i + 1}-savol: matching options formati xato` })
+                const matching = parseStrictMatchingData(q.options)
+                if (!matching) {
+                    return res.status(400).json({ error: `${i + 1}-savol: matching javoblari nonblank/unique, correctIdx esa answers chegarasida bo‘lishi kerak` })
                 }
-                const matchingAnswers = (matchData.answers || []).filter((answer) => typeof answer === 'string' && answer.trim())
-                const matchingSubQuestions = matchData.subQuestions || []
-                if (matchingAnswers.length < 2) return res.status(400).json({ error: `${i + 1}-savol: kamida 2 ta javob varianti bo'lishi kerak` })
-                if (matchingSubQuestions.length < 1) return res.status(400).json({ error: `${i + 1}-savol: kamida 1 ta kichik savol bo'lishi kerak` })
+                q.options = JSON.stringify(matching)
             } else if (questionType === 'multipart_open') {
                 let multipartData: { subQuestions?: Array<{ text?: string; correctText?: string }> } = {}
                 try { multipartData = typeof q.options === 'string' ? JSON.parse(q.options) : (q.options as typeof multipartData) } catch {
@@ -1901,30 +2107,37 @@ router.patch('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), testMuta
                         return res.status(400).json({ error: `${i + 1}-savol: ${si + 1}-bo'lim uchun to'g'ri javob yo'q` })
                     }
                 }
+            } else if (questionType === 'open') {
+                if (parseAcceptedAnswers(q.correctText).length === 0) {
+                    return res.status(400).json({ error: `${i + 1}-savol: ochiq savol uchun kamida bitta to‘g‘ri javob kerak` })
+                }
             } else if (questionType !== 'open') {
-                let options: string[]
+                let rawOptions: unknown
                 try {
-                    options = Array.isArray(q.options) ? q.options.map((option) => String(option || '')) : JSON.parse(q.options || '[]')
+                    rawOptions = Array.isArray(q.options) ? q.options : JSON.parse(q.options || '[]')
                 } catch {
                     return res.status(400).json({ error: `${i + 1}-savol: options to'g'ri format emas` })
                 }
-                if (!Array.isArray(options) || options.length < 2) {
-                    return res.status(400).json({ error: `${i + 1}-savol: kamida 2 ta variant bo'lishi kerak` })
-                }
-                // Variant rasmi bo'lsa matn bo'sh bo'lishi mumkin (rasm-only variantlar)
-                const optionImageRefs = parseStoredOptionImages(sanitizeIncomingOptionImages(q.optionImages, options.length))
-                for (let j = 0; j < options.length; j++) {
-                    if (typeof options[j] !== 'string' || (!options[j].trim() && !optionImageRefs[j])) {
-                        return res.status(400).json({ error: `${i + 1}-savol: ${String.fromCharCode(65 + j)} variantda matn yoki rasm bo'lishi kerak` })
-                    }
+                const options = parseStrictTextOptions(rawOptions)
+                if (!options) {
+                    return res.status(400).json({ error: `${i + 1}-savol: kamida 2 ta nonblank va takrorlanmagan variant bo‘lishi kerak` })
                 }
                 const idx = q.correctIdx ?? 0
-                if (typeof idx !== 'number' || idx < 0 || idx >= options.length) {
+                if (!Number.isInteger(idx) || idx < 0 || idx >= options.length) {
                     return res.status(400).json({ error: `${i + 1}-savol: correctIdx 0 dan ${options.length - 1} gacha bo'lishi kerak` })
                 }
+                q.options = options
             }
 
             if (normalizedTestType === 'DTM_BLOCK') {
+                const dtmOptions = parseStrictTextOptions(q.options, { exactCount: 4 })
+                if (!dtmOptions) {
+                    return res.status(400).json({ error: `${i + 1}-savol: DTM savolida aynan 4 ta nonblank va takrorlanmagan A/B/C/D variant bo‘lishi kerak` })
+                }
+                if (!Number.isInteger(q.correctIdx) || (q.correctIdx as number) < 0 || (q.correctIdx as number) > 3) {
+                    return res.status(400).json({ error: `${i + 1}-savol: DTM correctIdx 0 dan 3 gacha butun son bo‘lishi kerak` })
+                }
+                q.options = dtmOptions
                 const blockType = normalizeDtmBlockType(typeof q.blockType === 'string' ? q.blockType : undefined)
                 if (blockType === 'SPECIALTY_2' && !normalizedSubject2) {
                     return res.status(400).json({ error: `${i + 1}-savol: 2-ixtisoslik bloki uchun 2-fan tanlanishi kerak` })
@@ -2013,9 +2226,6 @@ router.patch('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), testMuta
 router.post('/upload-image', authenticate, requireRole('TEACHER', 'ADMIN'), upload.single('image'), async (req: AuthRequest, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'Rasm yuklanmadi' })
-        if (!req.file.mimetype.startsWith('image/')) {
-            return res.status(400).json({ error: 'Faqat rasm fayllari yuklanadi' })
-        }
         // Storage (Railway Bucket / S3) sozlanmagan bo'lsa — aniq xabar (umumiy 500 chalg'itadi).
         if (!isStorageConfigured) {
             console.error('upload-image: storage kalitlari sozlanmagan (Bucket ulanmagan)')
@@ -2023,18 +2233,36 @@ router.post('/upload-image', authenticate, requireRole('TEACHER', 'ADMIN'), uplo
         }
 
         // s3 ga yuklash
-        const fileName = `${Date.now()}-${req.file.originalname.replace(/\s+/g, '-')}`
-        const fileBuffer = req.file.buffer
-        const mimetype = req.file.mimetype
+        const prepared = await prepareQuestionImage(
+            req.file.buffer,
+            req.file.originalname,
+            req.file.mimetype,
+        )
+        const fileName = `${Date.now()}-${prepared.fileName.replace(/\s+/g, '-')}`
 
-        const s3Result = await uploadToS3(fileBuffer, fileName, 'questions', mimetype)
+        const s3Result = await uploadToS3(
+            prepared.buffer,
+            fileName,
+            'questions',
+            prepared.contentType,
+            // Signed URL private qoladi; faqat foydalanuvchining browser cache'i
+            // bir haftagacha qayta downloadni tejaydi.
+            { cacheControl: 'private, max-age=604800, immutable' },
+        )
 
         res.json({
             url: await getSignedS3Url(s3Result.key),
             imageUrl: toStoredS3Ref(s3Result.key),
-            key: s3Result.key
+            key: s3Result.key,
+            width: prepared.width,
+            height: prepared.height,
+            optimized: prepared.optimized,
+            bytesSaved: Math.max(0, prepared.originalBytes - prepared.buffer.length),
         })
     } catch (e: any) {
+        if (e instanceof QuestionImageValidationError) {
+            return res.status(400).json({ error: e.message })
+        }
         console.error('Image upload error:', e?.message || e)
         res.status(500).json({ error: `Rasm yuklashda xatolik: ${e?.name === 'CredentialsProviderError' || /credential|access.?key|signature/i.test(String(e?.message)) ? 'S3 kaliti noto\'g\'ri' : 'saqlash xizmati javob bermadi'}` })
     }
@@ -2284,81 +2512,12 @@ O'zbek tilida yoz. Matematik formulalar uchun KaTeX ($...$ formatda) ishlat.`
     }
 })
 
-// AI test natijasi — faqat avgScore/totalTests yangilash (Rasch YO'Q — AI testlar ability o'zgartirmasin)
-router.post('/submit-ai', authenticate, submitLimiter, async (req: AuthRequest, res) => {
-    try {
-        const { score, totalQuestions, results, subject } = req.body
-        if (!results || !Array.isArray(results)) {
-            return res.status(400).json({ error: 'results kerak' })
-        }
-        // Klient yuborgan ball'ni 0–100 oralig'iga cheklaymiz (poisoning oldini olish)
-        const safeScore = Number.isFinite(Number(score)) ? Math.max(0, Math.min(100, Number(score))) : 0
-
-        // YOPIQ O'QUV HALQASI: AI test natijalarini per-MAVZU TopicStat'ga yozamiz, shunda
-        // chat-tutor real zaif mavzularni ko'radi (oldin ma'nosiz chat-sarlavha bucket'iga tushardi).
-        const subjectKey = normalizeSubject(typeof subject === 'string' ? subject : '') ?? (typeof subject === 'string' && subject.trim() ? subject.trim() : 'Umumiy')
-        // Poisoning blast-radiusni cheklash: real diagnostika <=90 savol, <=~25 mavzu.
-        // (To'liq himoya — server-side baholash — keyinroq alohida tuzatiladi.)
-        const MAX_RESULTS = 120
-        const MAX_TOPICS = 50
-        const topicAgg = new Map<string, { correct: number; total: number }>()
-        for (const r of results.slice(0, MAX_RESULTS)) {
-            const topic = normalizeTopicKey(typeof r?.topic === 'string' ? r.topic : '')
-            if (!topic || topic.length > 80) continue
-            if (!topicAgg.has(topic) && topicAgg.size >= MAX_TOPICS) continue
-            // Klient yuborgan son'larni cheklaymiz: total 1..50 butun, correct 0..total (accuracy>1 bo'lmasin)
-            const contrib = topicContribution(r)
-            const safeTotal = Math.max(0, Math.min(50, Math.floor(contrib.total)))
-            if (safeTotal === 0) continue
-            const safeCorrect = Math.max(0, Math.min(safeTotal, Math.floor(contrib.correct)))
-            const cur = topicAgg.get(topic) || { correct: 0, total: 0 }
-            cur.correct += safeCorrect
-            cur.total += safeTotal
-            topicAgg.set(topic, cur)
-        }
-
-        // IDEMPOTENTLIK: bir xil natijani qayta yuborish statistikani shishirmasin
-        // (avval bitta {score:100} ni qayta-qayta POST qilib avgScore/totalTests'ni
-        // buzish mumkin edi). Payload hash unique — takrori jim qabul qilinadi, yozilmaydi.
-        const payloadHash = crypto.createHash('sha256')
-            .update(JSON.stringify({ s: safeScore, t: totalQuestions ?? null, r: results.slice(0, MAX_RESULTS), sub: subjectKey }))
-            .digest('hex')
-        try {
-            await prisma.aiSubmitDedup.create({ data: { userId: req.user.id, hash: payloadHash } })
-        } catch {
-            return res.json({ ok: true, idempotent: true })
-        }
-
-        // AI testlar uchun Rasch yangilanmaydi — faqat statistika + TopicStat.
-        // Atomik tranzaksiya: bir vaqtda kelgan submit'lar avgScore'ni buzmasin.
-        await prisma.$transaction(async (tx) => {
-            const profile = await tx.studentProfile.upsert({
-                where: { userId: req.user.id },
-                create: { userId: req.user.id, totalTests: 0, avgScore: 0 },
-                update: {}
-            })
-            await tx.studentProfile.update({
-                where: { userId: req.user.id },
-                data: {
-                    totalTests: { increment: 1 },
-                    avgScore: Math.round(((profile.avgScore * profile.totalTests + safeScore) / (profile.totalTests + 1)) * 100) / 100
-                }
-            })
-            const practicedAt = new Date()
-            for (const [topic, agg] of topicAgg) {
-                await tx.topicStat.upsert({
-                    where: { userId_subject_topic: { userId: req.user.id, subject: subjectKey, topic } },
-                    update: { correct: { increment: agg.correct }, total: { increment: agg.total }, lastPracticed: practicedAt },
-                    create: { userId: req.user.id, subject: subjectKey, topic, correct: agg.correct, total: agg.total, lastPracticed: practicedAt },
-                })
-            }
-        }, { timeout: 15000 })
-
-        res.json({ ok: true, topicsTracked: topicAgg.size })
-    } catch (e) {
-        console.error(e)
-        res.status(500).json({ error: 'Server xatoligi' })
-    }
+// Legacy endpoint klient hisoblagan ballga ishongan. Trust chegarasi uchun butunlay yopilgan.
+router.post('/submit-ai', authenticate, submitLimiter, async (_req: AuthRequest, res) => {
+    return res.status(410).json({
+        error: 'Eski AI test topshirish endpointi o‘chirildi. Server sessiyasi orqali topshiring.',
+        code: 'LEGACY_AI_SUBMIT_REMOVED',
+    })
 })
 
 // ─── 1.1: AI-TEST SERVER-GRADE ────────────────────────────────────────────────
@@ -2368,85 +2527,47 @@ router.post('/submit-ai', authenticate, submitLimiter, async (req: AuthRequest, 
 // muammosi). Kalit yo'q bo'lsa ham ishlaydi (AI bloki chat streamдan keladi).
 router.post('/ai-session', authenticate, createLimiter, async (req: AuthRequest, res) => {
     try {
-        const { questions, subject, learningSessionId, chatId } = req.body
-        if (!Array.isArray(questions) || questions.length === 0) {
-            return res.status(400).json({ error: 'questions massiv bo\'lishi kerak' })
+        if (Object.prototype.hasOwnProperty.call(req.body || {}, 'questions')
+            || Object.prototype.hasOwnProperty.call(req.body || {}, 'correct')) {
+            return res.status(400).json({
+                error: 'Savollar va javob kaliti klientdan qabul qilinmaydi',
+                code: 'CLIENT_ANSWER_KEY_REJECTED',
+            })
         }
-        if (questions.length > 120) {
-            return res.status(400).json({ error: 'Juda ko\'p savol (maks 120)' })
-        }
-        // Faqat kerakli maydonlar; to'g'ri javob = 'a'|'b'|'c'|'d' harfi (server-only saqlanadi).
-        const cleaned = questions.slice(0, 120).map((q: any) => ({
-            q: typeof q?.q === 'string' ? q.q.slice(0, 2000) : '',
-            a: typeof q?.a === 'string' ? q.a.slice(0, 1000) : '',
-            b: typeof q?.b === 'string' ? q.b.slice(0, 1000) : '',
-            c: typeof q?.c === 'string' ? q.c.slice(0, 1000) : '',
-            d: typeof q?.d === 'string' ? q.d.slice(0, 1000) : '',
-            correct: typeof q?.correct === 'string' ? q.correct.trim().toLowerCase().slice(0, 1) : '',
-            topic: typeof q?.topic === 'string' ? q.topic.slice(0, 120) : '',
-            difficulty: typeof q?.difficulty === 'number' && Number.isFinite(q.difficulty) ? q.difficulty : null,
-        }))
-        const invalidQuestion = cleaned.some((question) =>
-            !question.q.trim()
-            || !question.a.trim()
-            || !question.b.trim()
-            || !question.c.trim()
-            || !question.d.trim()
-            || !['a', 'b', 'c', 'd'].includes(question.correct)
-        )
-        if (invalidQuestion) {
-            return res.status(400).json({ error: 'AI testida savol, 4 ta variant yoki tasdiqlangan to‘g‘ri javob yetishmaydi' })
+        const messageId = typeof req.body?.messageId === 'string' ? req.body.messageId.trim() : ''
+        if (!messageId) {
+            return res.status(400).json({ error: 'Server saqlagan assistant messageId kerak' })
         }
 
-        let linkedLearningSessionId: string | null = null
-        let purpose: string | null = null
-        const requestedLearningSession = typeof learningSessionId === 'string' && learningSessionId.trim()
-            ? await prisma.learningSession.findFirst({
-                where: { id: learningSessionId.trim(), userId: req.user.id, status: 'ACTIVE' },
-            })
-            : (typeof chatId === 'string' && chatId.trim()
-                ? await prisma.learningSession.findFirst({
-                    where: { chatId: chatId.trim(), userId: req.user.id, status: 'ACTIVE' },
-                    orderBy: { updatedAt: 'desc' },
-                })
-                : null)
-        if (typeof learningSessionId === 'string' && learningSessionId.trim() && !requestedLearningSession) {
-            return res.status(404).json({ error: 'O‘quv sessiyasi topilmadi' })
-        }
-        if (requestedLearningSession) {
-            const learningSession = requestedLearningSession
-            linkedLearningSessionId = learningSession.id
-            if (learningSession.stage === 'PREREQUISITE') {
-                purpose = 'PREREQUISITE'
-            } else if (learningSession.stage === 'REMEDIATION') {
-                let previousPurpose = ''
-                try {
-                    const checkpoint: unknown = JSON.parse(learningSession.lastCheckpoint || '{}')
-                    if (checkpoint && typeof checkpoint === 'object' && 'purpose' in checkpoint) {
-                        previousPurpose = String((checkpoint as { purpose?: unknown }).purpose || '')
-                    }
-                } catch { /* eski/buzilgan holatda oddiy checkpoint sifatida davom etadi */ }
-                purpose = previousPurpose.startsWith('PREREQUISITE')
-                    ? 'PREREQUISITE_REMEDIATION'
-                    : 'CHECKPOINT_REMEDIATION'
-            } else {
-                purpose = 'CHECKPOINT'
-            }
-        }
-        const subjectKey = normalizeSubject(typeof subject === 'string' ? subject : '')
-            ?? (typeof subject === 'string' && subject.trim() ? subject.trim() : null)
-        const sess = await prisma.aiTestSession.create({
-            data: {
+        // Sessiyani faqat chat stream yaratadi. Bu endpoint persisted assistant xabar,
+        // chat ownership va session ownership uchalasini birga tekshirib mavjud id'ni qaytaradi.
+        const sess = await prisma.aiTestSession.findFirst({
+            where: {
+                sourceMessageId: messageId,
                 userId: req.user.id,
-                subject: subjectKey,
-                learningSessionId: linkedLearningSessionId,
-                purpose,
-                questions: JSON.stringify(cleaned),
-            }
+                sourceMessage: {
+                    is: {
+                        role: 'assistant',
+                        chat: { userId: req.user.id },
+                    },
+                },
+            },
+            select: { id: true, learningSessionId: true, sourceMessageId: true },
         })
-        res.json({ sessionId: sess.id, learningSessionId: linkedLearningSessionId })
+        if (!sess) {
+            return res.status(422).json({
+                error: 'Bu assistant xabari uchun ishonchli AI test sessiyasi topilmadi',
+                code: 'TRUSTED_AI_SESSION_NOT_FOUND',
+            })
+        }
+
+        res.json({
+            sessionId: sess.id,
+            learningSessionId: sess.learningSessionId,
+            sourceMessageId: sess.sourceMessageId,
+        })
     } catch (e) {
-        console.error('ai-session create xato:', e)
+        console.error('ai-session lookup xato:', e)
         res.status(500).json({ error: 'Server xatoligi' })
     }
 })
@@ -2458,6 +2579,12 @@ router.post('/ai-session/:sessionId/submit', authenticate, submitLimiter, async 
         const sess = await prisma.aiTestSession.findUnique({ where: { id: req.params.sessionId as string } })
         if (!sess || sess.userId !== req.user.id) {
             return res.status(404).json({ error: 'AI test sessiyasi topilmadi' })
+        }
+        if (!sess.sourceMessageId) {
+            return res.status(409).json({
+                error: 'Eski yoki klient yaratgan AI test sessiyasi baholanmaydi',
+                code: 'UNTRUSTED_AI_TEST_SESSION',
+            })
         }
         if (sess.submittedAt) {
             return res.status(409).json({ error: 'Bu test allaqachon yechilgan' })
@@ -2660,6 +2787,17 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
             }
         }
 
+        const previousAttempt = await prisma.testAttempt.findFirst({
+            where: { testId: test.id, userId: req.user.id },
+            select: { id: true },
+        })
+        if (previousAttempt) {
+            return res.status(409).json({
+                error: 'Bu test allaqachon yechilgan. Natijani qayta ko‘rish rejimida oching.',
+                code: 'TEST_ALREADY_SUBMITTED',
+            })
+        }
+
         const timeLimitMs = getTimeLimitMs(test.timeLimit)
         let activeSessionId: string | null = null
         if (timeLimitMs) {
@@ -2847,19 +2985,15 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
             // ikki tranzaksiya findFirst'ni ikkalasi ham "urinish yo'q" ko'rib, ikkitasini yaratardi.
             // pg_advisory_xact_lock tranzaksiya oxirida avtomatik bo'shaydi (deadlock xavfi yo'q).
             await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${test.id + ':' + req.user.id}, 0))`
-            // Idempotentlik: vaqt-limitsiz testlarda sessiya guard'i yo'q (timeLimitMs === null),
-            // shuning uchun double-submit/replay'ni shu yerda to'xtatamiz — bir foydalanuvchi
-            // vaqt-limitsiz testni faqat bir marta yechadi. Vaqtli testlar sessiya orqali
-            // (yuqorida 1724-1738) himoyalangan va qayta ochilganda yangi sessiya bilan
-            // qayta yechilishi mumkin — bu xatti-harakatga tegmaymiz.
-            if (!timeLimitMs) {
-                const existingAttempt = await tx.testAttempt.findFirst({
-                    where: { testId: test.id, userId: req.user.id }
-                })
-                if (existingAttempt) {
-                    throw new AlreadySubmittedError()
-                }
-            } else if (activeSessionId) {
+            // Bir user+test faqat bitta scored attemptga ega: timed retake ham profil va
+            // TopicStatni qayta-qayta shishira olmaydi. Advisory lock poygani yopadi.
+            const existingAttempt = await tx.testAttempt.findFirst({
+                where: { testId: test.id, userId: req.user.id }
+            })
+            if (existingAttempt) {
+                throw new AlreadySubmittedError()
+            }
+            if (timeLimitMs && activeSessionId) {
                 // P0-01 ATOMIK CLAIM: vaqtli test sessiyasini faqat submittedAt hali null
                 // bo'lgandagina egallaymiz (compare-and-swap). Sessiya tekshiruvi (~2404)
                 // transaction TASHQARISIDA edi — ikki parallel POST ikkalasi ham submittedAt=null
@@ -2961,40 +3095,7 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
         }, { timeout: 15000, maxWait: 5000 })
 
         // Submit dan keyin to'g'ri javoblarni qaytaramiz (oldin emas!)
-        const correctAnswers = await Promise.all(test.questions.map(async q => {
-            // FAZA 3: yechim rasmi faqat submitdan KEYIN, signed URL bilan
-            const solutionImageUrl = await resolveStoredS3Url((q as any).solutionImageUrl)
-            if ((q as any).questionType === 'matching') {
-                let matchingData: any = { subQuestions: [] }
-                try { matchingData = JSON.parse(q.options as string) } catch { }
-                return {
-                    id: q.id, correctIdx: -1, questionType: 'matching',
-                    matchingCorrect: (matchingData.subQuestions || []).map((sq: any) => sq.correctIdx),
-                    solutionImageUrl
-                }
-            }
-            if ((q as any).questionType === 'multipart_open') {
-                let multipartData: any = { subQuestions: [] }
-                try { multipartData = JSON.parse(q.options as string) } catch { }
-                return {
-                    id: q.id,
-                    correctIdx: -1,
-                    questionType: 'multipart_open',
-                    multipartCorrectText: (multipartData.subQuestions || []).map((subQuestion: any, subIndex: number) => ({
-                        label: String(subQuestion.label || String.fromCharCode(65 + subIndex)),
-                        text: String(subQuestion.text || ''),
-                        correctText: String(subQuestion.correctText || '')
-                    })),
-                    solutionImageUrl
-                }
-            }
-            return {
-                id: q.id, correctIdx: q.correctIdx,
-                correctText: (q as any).questionType === 'open' ? (q as any).correctText : undefined,
-                questionType: (q as any).questionType || 'mcq',
-                solutionImageUrl
-            }
-        }))
+        const correctAnswers = await buildPostSubmitCorrectAnswers(test.questions)
 
         const computedScore = attempt.computedScore
 
@@ -3058,13 +3159,12 @@ router.post('/:testId/submit', authenticate, submitLimiter, async (req: AuthRequ
             correctAnswers,
             topicBreakdown,
             recommendation,
-            // AI texnik xato sabab tekshirilmay "xato" deb belgilangan yozma javoblar soni —
-            // frontend buni ko'rsatadi, o'quvchi jimgina noto'g'ri baholanmaydi
+            // Backward-compatible maydon: yozma javob bahosi endi deterministik, shu bois 0.
             unverifiedOpenCount: results.filter((resultItem) => (resultItem as { aiUnverified?: boolean }).aiUnverified).length
         })
     } catch (e) {
         if (e instanceof AlreadySubmittedError) {
-            return res.status(409).json({ error: e.message })
+            return res.status(409).json({ error: e.message, code: 'TEST_ALREADY_SUBMITTED' })
         }
         console.error(e)
         res.status(500).json({ error: 'Server xatoligi' })
@@ -3416,13 +3516,21 @@ router.delete('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), async (
             ? { id: testId }
             : { id: testId, creatorId: req.user.id }
 
-        // Audit meta uchun testni avval o'qib olamiz (faqat admin uchun)
-        const existing = isAdmin
-            ? await prisma.test.findUnique({ where: { id: testId }, select: { title: true, creatorId: true } })
-            : null
+        const existing = await prisma.test.findFirst({
+            where,
+            select: {
+                id: true,
+                title: true,
+                creatorId: true,
+                isPublic: true,
+                approved: true,
+                _count: { select: { attempts: true, sessions: true } },
+            },
+        })
+        if (!existing) return res.status(404).json({ error: 'Test topilmadi yoki ruxsat yo\'q' })
+        if (sendTestMutationConflict(res, existing)) return
 
-        const deleted = await prisma.test.deleteMany({ where })
-        if (deleted.count === 0) return res.status(404).json({ error: 'Test topilmadi yoki ruxsat yo\'q' })
+        await prisma.test.delete({ where: { id: existing.id } })
 
         // AUDIT (best-effort) — faqat admin o'chirishi audit qilinadi
         if (isAdmin) {

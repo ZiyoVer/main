@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { fetchApi } from '@/lib/api'
-import { readGoogleCallback, readGoogleError, startGoogleLogin } from '@/lib/googleAuth'
+import { consumeGoogleReturnTo, readGoogleCallback, readGoogleError, startGoogleLogin } from '@/lib/googleAuth'
 
 /* Google redirect oqimining qaytish nuqtasi (/auth/google/callback).
    URL fragment'dan id_token olinadi → /auth/google'ga yuboriladi → JWT → tizimga kirish.
@@ -28,11 +28,18 @@ export default function GoogleCallback() {
         fetchApi('/auth/google', {
             method: 'POST',
             body: JSON.stringify({ credential: cb.idToken, nonce: cb.nonce }),
+            authFailure: 'throw',
         })
             .then((data: { token: string; user: { role?: string } }) => {
                 login(data.token, data.user as never)
                 const role = data.user?.role
-                const to = role === 'ADMIN' ? '/boshqaruv' : role === 'TEACHER' ? '/oqituvchi' : '/suhbat'
+                const returnTo = role === 'STUDENT' ? consumeGoogleReturnTo() : null
+                const hasGuestResult = !!localStorage.getItem('dtmmax_guest_test_result')
+                const to = role === 'ADMIN'
+                    ? '/boshqaruv'
+                    : role === 'TEACHER'
+                        ? '/oqituvchi'
+                        : returnTo || (hasGuestResult ? '/suhbat?analyzeTest=1' : '/bugun')
                 nav(to, { replace: true })
             })
             .catch((e: unknown) => {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
-import { BrainCircuit, Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 import GoogleSignInButton from '@/components/GoogleSignInButton'
@@ -10,6 +10,14 @@ export default function Login() {
     const nav = useNavigate()
     const location = useLocation()
     const from = (location.state as any)?.from
+    const reason = new URLSearchParams(location.search).get('reason')
+    const sessionNotice = reason === 'password-changed'
+        ? 'Parol yangilandi. Yangi parol bilan qayta kiring.'
+        : reason === 'blocked'
+            ? 'Akkauntingiz bloklangan. Administrator bilan bog‘laning.'
+            : reason === 'session'
+                ? 'Sessiya tugadi. Qayta kiring.'
+                : null
     const login = useAuthStore(s => s.login)
     const { token, user } = useAuthStore()
 
@@ -17,11 +25,6 @@ export default function Login() {
 
     useEffect(() => {
         if (token && user) {
-            // Email tasdiqlanmagan bo'lsa — eng avval bloklash ekraniga (faqat STUDENT; admin/o'qituvchiga tegmaydi)
-            if (user.role === 'STUDENT' && user.emailVerified === false) {
-                nav('/email-tasdiqlang', { replace: true })
-                return
-            }
             if (from && from !== '/kirish') {
                 nav(from, { replace: true })
             } else if (hasGuestTestResult()) {
@@ -30,7 +33,7 @@ export default function Login() {
             else if (user.role === 'TEACHER') nav('/oqituvchi', { replace: true })
             else nav('/bugun', { replace: true })
         }
-    }, [token, user])
+    }, [from, nav, token, user])
 
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
@@ -72,16 +75,26 @@ export default function Login() {
                 {/* Logo */}
                 <div className="flex items-center gap-2 justify-center mb-8">
                     <img src="/dtmmax-logo.png" alt="DtmMax" className="h-11 w-11 rounded-xl flex items-center justify-center" style={{ objectFit: 'contain' }} />
-                    <span className="font-bold text-xl tracking-tight">DTM<span className="k-italic">Max</span></span>
+                    <span className="font-bold text-xl tracking-tight">DTMMax</span>
                 </div>
 
                 {/* Card */}
                 <div className="card" style={{ padding: '2rem' }}>
-                    <span className="k-eyebrow">KIRISH</span>
-                    <h1 className="text-xl font-bold mb-1 mt-2">Xush <span className="k-italic">kelibsiz</span>!</h1>
+                    <span className="k-eyebrow">Kirish</span>
+                    <h1 className="text-xl font-bold mb-1 mt-2">Xush kelibsiz!</h1>
                     <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
                         Platformaga kirish
                     </p>
+
+                    {sessionNotice && !err && (
+                        <div
+                            className="text-sm px-3.5 py-2.5 rounded-lg mb-4"
+                            style={{ background: 'var(--brand-light)', color: 'var(--text-primary)' }}
+                            role="status"
+                        >
+                            {sessionNotice}
+                        </div>
+                    )}
 
                     {err && (
                         <div

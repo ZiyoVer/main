@@ -22,5 +22,22 @@ export default defineConfig({
     },
     build: {
         target: 'es2015',
+        rollupOptions: {
+            output: {
+                // Recharts faqat admin analitikada kerak. Uni AdminPanel ichiga
+                // qo'shib yubormaymiz: admin shell tezroq parse bo'ladi va 500 kB
+                // chunk chegarasidan oshmaydi.
+                manualChunks(id) {
+                    if (
+                        id.includes('/node_modules/recharts/')
+                        || id.includes('/node_modules/d3-')
+                        || id.includes('/node_modules/@reduxjs/toolkit/')
+                        || id.includes('/node_modules/redux/')
+                    ) {
+                        return 'charts-vendor'
+                    }
+                },
+            },
+        },
     }
 })

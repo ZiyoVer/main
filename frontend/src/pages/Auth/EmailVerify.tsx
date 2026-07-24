@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { BrainCircuit, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { CheckCircle, XCircle, Loader2 } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 
@@ -18,7 +18,7 @@ export default function EmailVerify() {
         if (ran.current) return
         ran.current = true
         if (!token) { setStatus('error'); setMessage('Noto\'g\'ri havola'); return }
-        fetchApi(`/auth/verify-email/${token}`, { method: 'GET' })
+        fetchApi(`/auth/verify-email/${token}`, { method: 'POST', authFailure: 'throw' })
             .then(() => {
                 setStatus('success')
                 // authStore da user ni yangilash — /auth/me orqali yangi user'ni olib kelamiz,
@@ -58,15 +58,15 @@ export default function EmailVerify() {
             <div className="w-full max-w-sm" style={{ position: 'relative', zIndex: 1 }}>
                 <div className="flex items-center gap-2 justify-center mb-8">
                     <img src="/dtmmax-logo.png" alt="DtmMax" className="h-11 w-11 rounded-xl flex items-center justify-center" style={{ objectFit: 'contain' }} />
-                    <span className="font-bold text-xl tracking-tight">DTM<span className="k-italic">Max</span></span>
+                    <span className="font-bold text-xl tracking-tight">DTMMax</span>
                 </div>
 
                 <div className="card text-center" style={{ padding: '2.5rem 2rem' }}>
                     {status === 'loading' && (
                         <>
                             <Loader2 className="h-12 w-12 mx-auto mb-4 animate-spin" style={{ color: 'var(--brand)' }} />
-                            <span className="k-eyebrow">TASDIQLASH</span>
-                            <h2 className="text-lg font-bold mb-2 mt-2">Tekshi<span className="k-italic">rilmoqda</span>...</h2>
+                            <span className="k-eyebrow">Tasdiqlash</span>
+                            <h2 className="text-lg font-bold mb-2 mt-2">Tekshirilmoqda...</h2>
                             <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                                 Email manzil tasdiqlanmoqda, kuting...
                             </p>
@@ -75,7 +75,7 @@ export default function EmailVerify() {
                     {status === 'success' && (
                         <>
                             <CheckCircle className="h-12 w-12 mx-auto mb-4" style={{ color: 'var(--success)' }} />
-                            <h2 className="text-lg font-bold mb-2">Email <span className="k-italic">tasdiqlandi</span>!</h2>
+                            <h2 className="text-lg font-bold mb-2">Email tasdiqlandi!</h2>
                             <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
                                 {hasToken
                                     ? 'Email manzilingiz muvaffaqiyatli tasdiqlandi. Endi barcha imkoniyatlar ochiq!'
@@ -89,7 +89,7 @@ export default function EmailVerify() {
                     {status === 'error' && (
                         <>
                             <XCircle className="h-12 w-12 mx-auto mb-4" style={{ color: 'var(--danger)' }} />
-                            <h2 className="text-lg font-bold mb-2">Tasdiqlash <span className="k-italic">muvaffaqiyatsiz</span></h2>
+                            <h2 className="text-lg font-bold mb-2">Tasdiqlash muvaffaqiyatsiz</h2>
                             <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
                                 {message}
                             </p>

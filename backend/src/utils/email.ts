@@ -1,14 +1,62 @@
-import { Resend } from 'resend'
+import { Resend, type ErrorResponse } from 'resend'
+import { AUTH_ERROR_CODES } from './authErrors'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 const FROM = process.env.EMAIL_FROM || 'DTMMax <noreply@dtmmax.uz>'
 // Fallback jonli www xost (apex dtmmax.uz hali sozlanmagan). FRONTEND_URL Railway'da o'rnatilsin.
 const BASE_URL = process.env.FRONTEND_URL || 'https://www.dtmmax.uz'
 
+export type EmailDeliveryKind = 'verification' | 'password_reset'
+
+export class EmailDeliveryError extends Error {
+    readonly code = AUTH_ERROR_CODES.EMAIL_DELIVERY_FAILED
+    readonly provider = 'resend' as const
+    readonly kind: EmailDeliveryKind
+    readonly providerErrorName: string
+    readonly statusCode: number | null
+
+    constructor(kind: EmailDeliveryKind, providerError: ErrorResponse) {
+        super('Email yetkazib berish xizmati so\'rovni qabul qilmadi')
+        this.name = 'EmailDeliveryError'
+        this.kind = kind
+        this.providerErrorName = providerError.name
+        this.statusCode = providerError.statusCode
+    }
+
+    toSafeLog() {
+        return {
+            code: this.code,
+            provider: this.provider,
+            kind: this.kind,
+            providerErrorName: this.providerErrorName,
+            statusCode: this.statusCode,
+        }
+    }
+}
+
+function assertDelivered(kind: EmailDeliveryKind, error: ErrorResponse | null): void {
+    if (error) throw new EmailDeliveryError(kind, error)
+}
+
+function escapeHtml(value: string): string {
+    return value.replace(/[&<>"']/g, (char) => {
+        const entities: Record<string, string> = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;',
+        }
+        return entities[char]
+    })
+}
+
 export async function sendVerificationEmail(to: string, name: string, token: string) {
     const link = `${BASE_URL}/email-tasdiqlash/${token}`
+    const safeName = escapeHtml(name)
+    const safeLink = escapeHtml(link)
     const year = new Date().getFullYear()
-    await resend.emails.send({
+    const result = await resend.emails.send({
         from: FROM,
         to,
         subject: 'Emailingizni tasdiqlang — DtmMax',
@@ -38,13 +86,13 @@ export async function sendVerificationEmail(to: string, name: string, token: str
             <td style="padding:24px 40px 8px 40px">
               <h1 style="margin:0 0 14px 0;font-size:24px;line-height:1.25;font-weight:700;letter-spacing:-0.5px;color:#111111;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">Emailingizni tasdiqlang</h1>
               <p style="margin:0 0 28px 0;font-size:15px;line-height:1.6;color:#6b7280;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
-                Salom, ${name}! DtmMax akkauntingizni ishga tushirish uchun email manzilingizni tasdiqlang.
+                Salom, ${safeName}! DtmMax akkauntingizni ishga tushirish uchun email manzilingizni tasdiqlang.
               </p>
               <!-- Green button -->
               <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td align="center" bgcolor="#16A34A" style="border-radius:10px">
-                    <a href="${link}" target="_blank" style="display:inline-block;padding:14px 34px;font-size:15px;font-weight:700;line-height:1;color:#ffffff;text-decoration:none;border-radius:10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+                    <a href="${safeLink}" target="_blank" style="display:inline-block;padding:14px 34px;font-size:15px;font-weight:700;line-height:1;color:#ffffff;text-decoration:none;border-radius:10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
                       Emailni tasdiqlash
                     </a>
                   </td>
@@ -59,7 +107,7 @@ export async function sendVerificationEmail(to: string, name: string, token: str
                 Tugma ishlamasa, quyidagi havolani brauzerga joylang:
               </p>
               <p style="margin:0;font-size:13px;line-height:1.5;color:#16A34A;word-break:break-all;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
-                <a href="${link}" target="_blank" style="color:#16A34A;text-decoration:none">${link}</a>
+                <a href="${safeLink}" target="_blank" style="color:#16A34A;text-decoration:none">${safeLink}</a>
               </p>
             </td>
           </tr>
@@ -100,12 +148,15 @@ export async function sendVerificationEmail(to: string, name: string, token: str
             'X-Entity-Ref-ID': token.substring(0, 16),
         }
     })
+    assertDelivered('verification', result.error)
 }
 
 export async function sendPasswordResetEmail(to: string, name: string, token: string) {
     const link = `${BASE_URL}/parol-tiklash/${token}`
+    const safeName = escapeHtml(name)
+    const safeLink = escapeHtml(link)
     const year = new Date().getFullYear()
-    await resend.emails.send({
+    const result = await resend.emails.send({
         from: FROM,
         to,
         subject: 'Parolni tiklash — DtmMax',
@@ -135,13 +186,13 @@ export async function sendPasswordResetEmail(to: string, name: string, token: st
             <td style="padding:24px 40px 8px 40px">
               <h1 style="margin:0 0 14px 0;font-size:24px;line-height:1.25;font-weight:700;letter-spacing:-0.5px;color:#111111;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">Parolni tiklash</h1>
               <p style="margin:0 0 28px 0;font-size:15px;line-height:1.6;color:#6b7280;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
-                Salom, ${name}! DtmMax akkauntingiz uchun parolni tiklash so'rovi olindi. Yangi parol o'rnatish uchun quyidagi tugmani bosing.
+                Salom, ${safeName}! DtmMax akkauntingiz uchun parolni tiklash so'rovi olindi. Yangi parol o'rnatish uchun quyidagi tugmani bosing.
               </p>
               <!-- Orange button -->
               <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td align="center" bgcolor="#F15A24" style="border-radius:10px">
-                    <a href="${link}" target="_blank" style="display:inline-block;padding:14px 34px;font-size:15px;font-weight:700;line-height:1;color:#ffffff;text-decoration:none;border-radius:10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+                    <a href="${safeLink}" target="_blank" style="display:inline-block;padding:14px 34px;font-size:15px;font-weight:700;line-height:1;color:#ffffff;text-decoration:none;border-radius:10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
                       Parolni tiklash
                     </a>
                   </td>
@@ -156,7 +207,7 @@ export async function sendPasswordResetEmail(to: string, name: string, token: st
                 Tugma ishlamasa, quyidagi havolani brauzerga joylang:
               </p>
               <p style="margin:0;font-size:13px;line-height:1.5;color:#F15A24;word-break:break-all;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
-                <a href="${link}" target="_blank" style="color:#F15A24;text-decoration:none">${link}</a>
+                <a href="${safeLink}" target="_blank" style="color:#F15A24;text-decoration:none">${safeLink}</a>
               </p>
             </td>
           </tr>
@@ -197,4 +248,5 @@ export async function sendPasswordResetEmail(to: string, name: string, token: st
             'X-Entity-Ref-ID': token.substring(0, 16),
         }
     })
+    assertDelivered('password_reset', result.error)
 }

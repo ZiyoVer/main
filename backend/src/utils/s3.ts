@@ -86,7 +86,8 @@ export async function uploadToS3(
     buffer: Buffer,
     originalName: string,
     folder: string = 'uploads',
-    contentType?: string
+    contentType?: string,
+    options?: { cacheControl?: string },
 ): Promise<{ key: string; url: string }> {
     const ext = path.extname(originalName)
     const key = `${folder}/${uuid()}${ext}`
@@ -96,6 +97,7 @@ export async function uploadToS3(
         Key: key,
         Body: buffer,
         ContentType: contentType || getMimeType(ext),
+        ...(options?.cacheControl ? { CacheControl: options.cacheControl } : {}),
     }))
 
     const url = buildS3Url(key)

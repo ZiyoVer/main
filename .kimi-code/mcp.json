@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "dtmmax": {
+      "url": "http://localhost:3100/mcp"
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest", "--headless"],
+      "startupTimeoutMs": 60000
+    }
+  }
+}

@@ -1,0 +1,142 @@
+/* Focus Rail — test-taking workspace.  The test engine and answer logic stay in
+   TestPage.tsx; this layer only controls hierarchy, density and adaptation. */
+
+.test-workspace {
+  color: var(--text-primary);
+  background: var(--bg-page);
+}
+
+.test-workspace__header {
+  isolation: isolate;
+}
+
+.test-workspace__header button,
+.test-workspace__content button,
+.test-workspace__answer-sheet button {
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    opacity 180ms ease;
+}
+
+.test-workspace__header button:focus-visible,
+.test-workspace__content button:focus-visible,
+.test-workspace__answer-sheet button:focus-visible,
+.test-workspace textarea:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+.test-workspace__content {
+  width: min(100%, 46rem);
+  padding-block: clamp(1.25rem, 3vw, 2.5rem);
+}
+
+.test-workspace__question,
+.test-workspace__next-step {
+  box-shadow: none;
+}
+
+.test-workspace__question {
+  scroll-margin-top: 6rem;
+}
+
+.test-workspace__question-text {
+  font-size: 1rem;
+  line-height: 1.625;
+  overflow-wrap: anywhere;
+}
+
+.test-workspace__question-jump {
+  min-height: 2rem;
+  background: transparent;
+  touch-action: manipulation;
+}
+
+.test-workspace__answer-target {
+  touch-action: manipulation;
+}
+
+.test-workspace__next-step {
+  position: relative;
+  overflow: hidden;
+}
+
+.test-workspace__next-step::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--brand);
+}
+
+.test-workspace--dtm .test-workspace__question {
+  max-width: 52rem;
+  margin-inline: auto;
+}
+
+.test-workspace__answer-sheet {
+  box-shadow: 0 -8px 28px rgba(23, 23, 23, 0.12);
+  padding-bottom: env(safe-area-inset-bottom);
+  overscroll-behavior: contain;
+}
+
+@media (min-width: 1024px) {
+  .test-workspace--dtm .test-workspace__header {
+    min-height: 3.5rem;
+    padding-inline: 1.5rem;
+  }
+}
+
+@media (max-width: 639px) {
+  .test-workspace__header > div {
+    padding-inline: 0.875rem;
+  }
+
+  .test-workspace__content {
+    padding-inline: 0.875rem;
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+  }
+
+  .test-workspace__question {
+    padding: 1rem;
+  }
+}
+
+@media (pointer: coarse) {
+  .test-workspace__header button,
+  .test-workspace__content button,
+  .test-workspace__answer-sheet button {
+    min-height: 44px;
+  }
+
+  .test-workspace__header button {
+    min-width: 44px;
+  }
+
+  .test-workspace__question button,
+  .test-workspace__answer-target,
+  .test-workspace__question-jump {
+    min-width: 44px;
+  }
+
+  .test-workspace__question-jump-spacer {
+    width: 44px;
+  }
+
+  .test-workspace__sheet-row {
+    height: 48px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .test-workspace *,
+  .test-workspace *::before,
+  .test-workspace *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

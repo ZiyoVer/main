@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BrainCircuit, Mail, CheckCircle } from 'lucide-react'
+import { Mail, CheckCircle } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 
@@ -110,13 +110,13 @@ export default function VerifyEmailNotice() {
         return false
     }, [handleVerified])
 
-    // Polling: /auth/me ni har 5s tekshiramiz. document.hidden guard YO'Q — backgrounded
-    // mobil tab ham o'zini tozalaydi (/auth/me arzon). Fokus/visibility'ga ham bog'lanamiz.
+    // Polling: faqat tab ko'rinib turganda tekshiramiz; background tab API'ni bekorga urmaydi.
+    // Fokus/visibility qaytganda darhol bir marta tekshiriladi.
     useEffect(() => {
         if (verified) return
         let active = true
 
-        const tick = () => { if (active) void checkVerifiedOnce() }
+        const tick = () => { if (active && !document.hidden) void checkVerifiedOnce() }
 
         // Mount'da darhol bir marta — yangidan yuklangan tab stale localStorage'ga ishonmasin
         tick()
@@ -196,7 +196,7 @@ export default function VerifyEmailNotice() {
                 {/* Logo */}
                 <div className="flex items-center gap-2 justify-center mb-8">
                     <img src="/dtmmax-logo.png" alt="DtmMax" className="h-11 w-11 rounded-xl flex items-center justify-center" style={{ objectFit: 'contain' }} />
-                    <span className="font-bold text-xl tracking-tight">DTM<span className="k-italic">Max</span></span>
+                    <span className="font-bold text-xl tracking-tight">DTMMax</span>
                 </div>
 
                 <div className="card text-center" style={{ padding: '2.5rem 2rem' }}>
@@ -216,7 +216,7 @@ export default function VerifyEmailNotice() {
                                 className="text-xl font-bold tracking-tight mb-2"
                                 style={{ color: 'var(--text-primary)', outline: 'none' }}
                             >
-                                <span className="k-italic">Tasdiqlandi</span>!
+                                Tasdiqlandi!
                             </h1>
                             <p className="text-sm" style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
                                 Hammasi tayyor. Sizni platformaga yo'naltiramiz…
@@ -236,14 +236,14 @@ export default function VerifyEmailNotice() {
                                 <Mail aria-hidden="true" style={{ width: '28px', height: '28px', color: 'var(--brand-hover)' }} />
                             </div>
 
-                            <span className="k-eyebrow">TASDIQLASH</span>
+                            <span className="k-eyebrow">Tasdiqlash</span>
                             <h1
                                 ref={headingRef}
                                 tabIndex={-1}
                                 className="text-xl font-bold tracking-tight mb-2 mt-2"
                                 style={{ color: 'var(--text-primary)', outline: 'none' }}
                             >
-                                Emailingizni <span className="k-italic">tasdiqlang</span>
+                                Emailingizni tasdiqlang
                             </h1>
 
                             {/* Email pill */}
@@ -321,6 +321,15 @@ export default function VerifyEmailNotice() {
                             <p className="text-sm mt-3" style={{ color: 'var(--text-secondary)' }}>
                                 Xat kelmadimi? Spam papkasini ham tekshiring.
                             </p>
+
+                            <button
+                                type="button"
+                                onClick={() => nav('/bugun', { replace: true })}
+                                className="btn btn-ghost mt-2"
+                                style={{ width: '100%' }}
+                            >
+                                Hozircha platformaga o‘tish
+                            </button>
 
                             {/* Poll indikatori — fonда avtomatik ham tekshirib turamiz */}
                             <div className="flex items-center justify-center gap-2 mt-5 pt-4" style={{ borderTop: '1px solid var(--border)' }} role="status" aria-live="polite">

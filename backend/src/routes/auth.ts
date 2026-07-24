@@ -1,6 +1,5 @@
 import { Router } from 'express'
 import bcrypt from 'bcryptjs'
-import jwt from 'jsonwebtoken'
 import dns from 'dns/promises'
 import crypto from 'crypto'
 import { OAuth2Client } from 'google-auth-library'
@@ -8,16 +7,17 @@ import rateLimit from 'express-rate-limit'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
 import { tokenBlacklist } from '../utils/tokenBlacklist'
-import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/email'
+import { EmailDeliveryError, sendVerificationEmail, sendPasswordResetEmail } from '../utils/email'
 import { updateOnline } from '../utils/onlineTracker'
 import { normalizeSubject } from '../utils/subjects'
 import { parseOptionalExamDate, parseOptionalExamType, validateTargetScore } from '../utils/profileValidation'
 import { isValidDtmPair } from '../utils/dtmPairs'
 import { logAdminAction } from '../utils/adminAudit'
 import { getAiQuotaStatus } from '../utils/aiQuota'
+import { AUTH_ERROR_CODES, authError } from '../utils/authErrors'
+import { signAuthToken } from '../utils/authToken'
 
 const router = Router()
-const JWT_SECRET = process.env.JWT_SECRET!
 
 // Google OAuth — GOOGLE_CLIENT_ID o'rnatilmasa inert (endpoint 503 qaytaradi)
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID
@@ -28,8 +28,117 @@ const PRESENCE_CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000
 const lastPresenceWrite = new Map<string, number>()
 let lastPresenceCleanupAt = 0
 
+const EMAIL_MAX_LENGTH = 254
+const NAME_MAX_LENGTH = 80
+const BCRYPT_MAX_BYTES = 72
+
+function normalizeEmailInput(value: unknown): string | null {
+    if (typeof value !== 'string') return null
+    const email = value.trim().toLowerCase()
+    if (!email || email.length > EMAIL_MAX_LENGTH) return null
+    return email
+}
+
+function normalizeNameInput(value: unknown): string | null {
+    if (typeof value !== 'string') return null
+    const name = value.trim()
+    if (name.length < 2 || name.length > NAME_MAX_LENGTH) return null
+    return name
+}
+
+function passwordValidationError(value: unknown, label = 'Parol'): string | null {
+    if (typeof value !== 'string' || value.length < 8) {
+        return `${label} kamida 8 ta belgi bo'lishi kerak`
+    }
+    // bcrypt 72 byte'dan keyingi qismini xavfsiz farqlamaydi; yashirin truncationga yo'l qo'ymaymiz.
+    if (Buffer.byteLength(value, 'utf8') > BCRYPT_MAX_BYTES) {
+        return `${label} juda uzun (ko'pi bilan 72 bayt)`
+    }
+    if (!/[a-zA-Z]/.test(value) || !/[0-9]/.test(value)) {
+        return `${label}da kamida bitta harf va bitta raqam bo'lishi shart`
+    }
+    return null
+}
+
 function hashToken(token: string): string {
     return crypto.createHash('sha256').update(token).digest('hex')
+}
+
+function logEmailError(context: string, error: unknown): void {
+    if (error instanceof EmailDeliveryError) {
+        console.error(context, error.toSafeLog())
+        return
+    }
+    console.error(context, {
+        code: 'EMAIL_DELIVERY_UNEXPECTED',
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+    })
+}
+
+function emailErrorResponse(error: unknown, message: string) {
+    return error instanceof EmailDeliveryError
+        ? authError(message, AUTH_ERROR_CODES.EMAIL_DELIVERY_FAILED)
+        : { error: message }
+}
+
+type EmailTarget = {
+    id: string
+    email: string
+    name: string
+    verificationToken?: string | null
+    verificationTokenExpiry?: Date | null
+    resetToken?: string | null
+    resetTokenExpiry?: Date | null
+}
+
+async function issueVerificationEmail(target: EmailTarget): Promise<void> {
+    const token = crypto.randomBytes(32).toString('hex')
+    const tokenHash = hashToken(token)
+    const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000)
+
+    await prisma.user.update({
+        where: { id: target.id },
+        data: { verificationToken: tokenHash, verificationTokenExpiry: tokenExpiry }
+    })
+
+    try {
+        await sendVerificationEmail(target.email, target.name, token)
+    } catch (error) {
+        // Provider rad etsa oldingi ishlaydigan havolani yo'qotmaymiz. updateMany
+        // concurrency guard'i keyingi resend tokenini tasodifan orqaga qaytarmaydi.
+        await prisma.user.updateMany({
+            where: { id: target.id, verificationToken: tokenHash },
+            data: {
+                verificationToken: target.verificationToken ?? null,
+                verificationTokenExpiry: target.verificationTokenExpiry ?? null,
+            }
+        }).catch(() => undefined)
+        throw error
+    }
+}
+
+async function issuePasswordResetEmail(target: EmailTarget): Promise<void> {
+    const token = crypto.randomBytes(32).toString('hex')
+    const tokenHash = hashToken(token)
+    const tokenExpiry = new Date(Date.now() + 60 * 60 * 1000)
+
+    await prisma.user.update({
+        where: { id: target.id },
+        data: { resetToken: tokenHash, resetTokenExpiry: tokenExpiry }
+    })
+
+    try {
+        await sendPasswordResetEmail(target.email, target.name, token)
+    } catch (error) {
+        await prisma.user.updateMany({
+            where: { id: target.id, resetToken: tokenHash },
+            data: {
+                resetToken: target.resetToken ?? null,
+                resetTokenExpiry: target.resetTokenExpiry ?? null,
+            }
+        }).catch(() => undefined)
+        throw error
+    }
 }
 
 // Audit log uchun admin (actor) email'ini DB dan oladi. JWT faqat {id, role}
@@ -149,17 +258,13 @@ router.post('/register', authLimiter, async (req, res) => {
         if (!email || !password || !name) {
             return res.status(400).json({ error: 'Ism, email va parol majburiy' })
         }
-        if (typeof name !== 'string' || name.trim().length < 2) {
-            return res.status(400).json({ error: 'Ism kamida 2 ta belgi bo\'lishi kerak' })
-        }
-        if (password.length < 8) {
-            return res.status(400).json({ error: 'Parol kamida 8 ta belgi bo\'lishi kerak' })
-        }
-        if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
-            return res.status(400).json({ error: 'Parolda kamida bitta harf va bitta raqam bo\'lishi shart' })
-        }
+        const normalizedName = normalizeNameInput(name)
+        if (!normalizedName) return res.status(400).json({ error: 'Ism 2–80 ta belgi bo\'lishi kerak' })
+        const passwordError = passwordValidationError(password)
+        if (passwordError) return res.status(400).json({ error: passwordError })
 
-        const normalizedEmail = email.trim().toLowerCase()
+        const normalizedEmail = normalizeEmailInput(email)
+        if (!normalizedEmail) return res.status(400).json({ error: 'Email manzil noto\'g\'ri' })
 
         // Email format tekshiruv
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
@@ -192,47 +297,57 @@ router.post('/register', authLimiter, async (req, res) => {
         // DTM ixtisos fanlari ENDI MUSTAQIL tanlanadi — yo'nalish juftligi majburlanmaydi
         // (o'quvchi 1-fan va 2-fanni erkin tanlaydi, masalan Matematika + Kimyo).
 
-        const user = await prisma.user.create({
-            data: {
-                email: normalizedEmail,
-                password: hashed,
-                name: name.trim(),
-                role: 'STUDENT',
-                emailVerified: false,
-                verificationToken: hashedVerificationToken,
-                verificationTokenExpiry,
-            }
-        })
+        // User, profil va register audit yozuvi bitta atomik birlik: oraliq qadam
+        // yiqilsa email band bo'lib qolgan yarim akkaunt yaratilmaydi.
+        const user = await prisma.$transaction(async (tx) => {
+            const createdUser = await tx.user.create({
+                data: {
+                    email: normalizedEmail,
+                    password: hashed,
+                    name: normalizedName,
+                    role: 'STUDENT',
+                    emailVerified: false,
+                    verificationToken: hashedVerificationToken,
+                    verificationTokenExpiry,
+                }
+            })
 
-        // Profil yaratish
-        await prisma.studentProfile.create({
-            data: {
-                userId: user.id,
-                subject: normalizedSubject,
-                subject2: normalizedSubject2,
-                examType: normalizedExamType ?? null,
-                examDate: normalizedExamDate ?? null,
-                targetScore: normalizedTargetScore ?? null,
-                onboardingDone: false,
-            }
-        })
+            await tx.studentProfile.create({
+                data: {
+                    userId: createdUser.id,
+                    subject: normalizedSubject,
+                    subject2: normalizedSubject2,
+                    examType: normalizedExamType ?? null,
+                    examDate: normalizedExamDate ?? null,
+                    targetScore: normalizedTargetScore ?? null,
+                    onboardingDone: false,
+                }
+            })
 
-        // Visit log
-        await prisma.visitLog.create({ data: { userId: user.id, action: 'register' } })
+            await tx.visitLog.create({ data: { userId: createdUser.id, action: 'register' } })
+            return createdUser
+        })
 
         // Verification email yuboramiz (xato bo'lsa ham ro'yxatdan o'tadi)
         try {
             await sendVerificationEmail(user.email, user.name, verificationToken)
         } catch (emailErr) {
-            console.error('Verification email yuborishda xato:', emailErr)
+            logEmailError('Verification email yuborishda xato:', emailErr)
         }
 
         // Token darhol qaytaramiz — alohida login chaqiruvi shart emas
-        const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' })
+        const token = signAuthToken(user)
 
         res.status(201).json({
             token,
-            user: { id: user.id, email: user.email, name: user.name, role: user.role, emailVerified: false }
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                role: user.role,
+                emailVerified: false,
+                passwordConfigured: true,
+            }
         })
     } catch (e: any) {
         console.error('Register error:', e)
@@ -246,19 +361,6 @@ router.post('/register', authLimiter, async (req, res) => {
     }
 })
 
-// Email mavjudligini tekshirish (register step 1 uchun)
-router.get('/check-email', authLimiter, async (req, res) => {
-    try {
-        const email = String(req.query.email || '').trim().toLowerCase()
-        if (!email) return res.json({ available: true })
-        const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } })
-        res.json({ available: !existing })
-    } catch {
-        // Xato bo'lsa bloklamaymiz — ro'yxatdan o'tishda baribir dublikat tekshiriladi
-        res.json({ available: true })
-    }
-})
-
 // Login
 router.post('/login', authLimiter, async (req, res) => {
     try {
@@ -266,7 +368,11 @@ router.post('/login', authLimiter, async (req, res) => {
         if (!email || !password) {
             return res.status(400).json({ error: 'Email va parol majburiy' })
         }
-        const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } })
+        const normalizedEmail = normalizeEmailInput(email)
+        if (!normalizedEmail || typeof password !== 'string' || Buffer.byteLength(password, 'utf8') > BCRYPT_MAX_BYTES) {
+            return res.status(400).json({ error: 'Email yoki parol xato' })
+        }
+        const user = await prisma.user.findUnique({ where: { email: normalizedEmail } })
         if (!user) return res.status(400).json({ error: 'Email yoki parol xato' })
 
         const valid = await bcrypt.compare(password, user.password)
@@ -274,17 +380,31 @@ router.post('/login', authLimiter, async (req, res) => {
 
         // Bloklangan (SUSPENDED) akkauntga token berilmaydi
         if (user.status === 'SUSPENDED') {
-            return res.status(403).json({ error: 'Akkauntingiz bloklangan. Administrator bilan bog\'laning.' })
+            return res.status(403).json(authError(
+                'Akkauntingiz bloklangan. Administrator bilan bog\'laning.',
+                AUTH_ERROR_CODES.ACCOUNT_SUSPENDED
+            ))
         }
 
-        const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' })
+        const token = signAuthToken(user)
 
-        // Visit log
-        await prisma.visitLog.create({ data: { userId: user.id, action: 'login' } })
+        // Analytics authning o'zini bloklamaydi.
+        try {
+            await prisma.visitLog.create({ data: { userId: user.id, action: 'login' } })
+        } catch (visitError) {
+            console.warn('Login visit log yozilmadi:', visitError instanceof Error ? visitError.name : 'UnknownError')
+        }
 
         res.json({
             token,
-            user: { id: user.id, email: user.email, name: user.name, role: user.role, emailVerified: user.emailVerified }
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                role: user.role,
+                emailVerified: user.emailVerified,
+                passwordConfigured: user.passwordConfigured,
+            }
         })
     } catch (e) {
         console.error('Login error:', e)
@@ -311,41 +431,91 @@ router.post('/google', authLimiter, async (req, res) => {
         }
         const ticket = await googleClient.verifyIdToken({ idToken: credential, audience: GOOGLE_CLIENT_ID })
         const payload = ticket.getPayload()
-        if (!payload?.email || payload.email_verified === false) {
+        if (!payload?.email || !payload.sub || payload.email_verified !== true) {
             return res.status(401).json({ error: 'Google email tasdiqlanmadi' })
         }
-        // Redirect (implicit) oqimida id_token ichida nonce bo'ladi — replay'ga qarshi
-        // MAJBURIY tekshiramiz: token nonce bilan kelgan bo'lsa, klient ham aynan o'shani
-        // yuborishi shart (yo'qligi tekshiruvni o'chirib qo'ymasligi uchun).
-        if (payload.nonce) {
-            if (typeof nonce !== 'string' || nonce !== payload.nonce) {
-                return res.status(401).json({ error: 'Google nonce mos kelmadi' })
-            }
+        // Redirect oqimida nonce ikkala tomonda ham majburiy. Token nonce'siz kelsa ham
+        // qabul qilmaymiz — replay himoyasi requestga qarab o'chib qolmaydi.
+        if (typeof payload.nonce !== 'string' || typeof nonce !== 'string' || nonce !== payload.nonce) {
+            return res.status(401).json({ error: 'Google nonce mos kelmadi' })
         }
-        const email = payload.email.trim().toLowerCase()
-        const name = (payload.name || payload.given_name || email.split('@')[0]).slice(0, 80)
+        const email = normalizeEmailInput(payload.email)
+        if (!email) return res.status(401).json({ error: 'Google email noto\'g\'ri' })
+        const name = normalizeNameInput(payload.name || payload.given_name)
+            || email.split('@')[0].slice(0, NAME_MAX_LENGTH)
 
-        let user = await prisma.user.findUnique({ where: { email } })
+        let user = await prisma.user.findUnique({ where: { googleSubject: payload.sub } })
         if (!user) {
-            // Yangi user — Google orqali → parol ishlatilmaydi (random hash), email tasdiqlangan
-            const randomPwd = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10)
-            user = await prisma.user.create({
-                data: { email, name, password: randomPwd, role: 'STUDENT', emailVerified: true }
-            })
-        } else if (!user.emailVerified) {
-            // Mavjud user Google bilan kirsa — email egaligi tasdiqlangani uchun verified qilamiz
-            user = await prisma.user.update({ where: { id: user.id }, data: { emailVerified: true } })
+            const emailOwner = await prisma.user.findUnique({ where: { email } })
+            if (emailOwner) {
+                // Privileged accountni faqat email mosligi bilan avtomatik linklamaymiz.
+                // Alohida recent-password re-auth linking oqimi ishlab chiqilmaguncha
+                // admin/o'qituvchi xavfsiz mavjud parol orqali kiradi.
+                if (emailOwner.role !== 'STUDENT') {
+                    return res.status(403).json(authError(
+                        'Admin va o\'qituvchi uchun Google orqali kirish hozircha yoqilmagan. Parol bilan kiring.',
+                        AUTH_ERROR_CODES.GOOGLE_LINK_REQUIRED
+                    ))
+                }
+                if (emailOwner.googleSubject && emailOwner.googleSubject !== payload.sub) {
+                    return res.status(409).json(authError(
+                        'Bu email boshqa Google akkauntiga bog\'langan.',
+                        AUTH_ERROR_CODES.GOOGLE_IDENTITY_CONFLICT
+                    ))
+                }
+                user = await prisma.user.update({
+                    where: { id: emailOwner.id },
+                    data: { googleSubject: payload.sub, emailVerified: true }
+                })
+            } else {
+                // Google-only student: random hash login uchun ishlatilmaydi; user keyin
+                // authenticated "set password" oqimi orqali o'z parolini yaratishi mumkin.
+                const randomPwd = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10)
+                user = await prisma.$transaction(async (tx) => {
+                    const created = await tx.user.create({
+                        data: {
+                            email,
+                            name,
+                            password: randomPwd,
+                            role: 'STUDENT',
+                            emailVerified: true,
+                            googleSubject: payload.sub,
+                            passwordConfigured: false,
+                        }
+                    })
+                    await tx.studentProfile.create({ data: { userId: created.id, onboardingDone: false } })
+                    await tx.visitLog.create({ data: { userId: created.id, action: 'register' } })
+                    return created
+                })
+            }
+        } else if (user.email !== email) {
+            // `sub` asosiy identity; email o'zgarishini hozir avtomatik ko'chirmaymiz,
+            // chunki yangi email boshqa lokal userga tegishli bo'lishi mumkin.
+            return res.status(409).json(authError(
+                'Google akkaunt emaili DTMMax akkaunti bilan mos emas.',
+                AUTH_ERROR_CODES.GOOGLE_IDENTITY_CONFLICT
+            ))
         }
 
         if (user.status === 'SUSPENDED') {
-            return res.status(403).json({ error: 'Akkauntingiz bloklangan. Administrator bilan bog\'laning.' })
+            return res.status(403).json(authError(
+                'Akkauntingiz bloklangan. Administrator bilan bog\'laning.',
+                AUTH_ERROR_CODES.ACCOUNT_SUSPENDED
+            ))
         }
 
-        const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' })
+        const token = signAuthToken(user)
         try { await prisma.visitLog.create({ data: { userId: user.id, action: 'login' } }) } catch { }
         res.json({
             token,
-            user: { id: user.id, email: user.email, name: user.name, role: user.role, emailVerified: user.emailVerified }
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                role: user.role,
+                emailVerified: user.emailVerified,
+                passwordConfigured: user.passwordConfigured,
+            }
         })
     } catch (e) {
         console.error('Google auth error:', e)
@@ -379,7 +549,15 @@ router.get('/me', authenticate, async (req: AuthRequest, res) => {
     try {
         const user = await prisma.user.findUnique({
             where: { id: req.user.id },
-            select: { id: true, email: true, name: true, role: true, emailVerified: true },
+            select: {
+                id: true,
+                email: true,
+                name: true,
+                role: true,
+                status: true,
+                emailVerified: true,
+                passwordConfigured: true,
+            },
         })
         if (!user) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' })
         res.json(user)
@@ -404,25 +582,21 @@ router.post('/create-teacher', authenticate, requireRole('ADMIN'), async (req: A
         if (!email || !password || !name) {
             return res.status(400).json({ error: 'Barcha maydonlarni to\'ldiring' })
         }
-        if (typeof name !== 'string' || name.trim().length < 2) {
-            return res.status(400).json({ error: 'Ism kamida 2 ta belgi bo\'lishi kerak' })
-        }
-        const teacherEmail = email?.trim().toLowerCase()
+        const teacherName = normalizeNameInput(name)
+        if (!teacherName) return res.status(400).json({ error: 'Ism 2–80 ta belgi bo\'lishi kerak' })
+        const teacherEmail = normalizeEmailInput(email)
+        if (!teacherEmail) return res.status(400).json({ error: 'Email manzil noto\'g\'ri' })
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(teacherEmail)) {
             return res.status(400).json({ error: 'Email manzil noto\'g\'ri' })
         }
-        if (password.length < 8) {
-            return res.status(400).json({ error: 'Parol kamida 8 ta belgi bo\'lishi kerak' })
-        }
-        if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
-            return res.status(400).json({ error: 'Parolda kamida bitta harf va bitta raqam bo\'lishi shart' })
-        }
+        const passwordError = passwordValidationError(password)
+        if (passwordError) return res.status(400).json({ error: passwordError })
         const existing = await prisma.user.findUnique({ where: { email: teacherEmail } })
         if (existing) return res.status(400).json({ error: 'Bu email allaqachon band' })
 
         const hashed = await bcrypt.hash(password, 10)
         const created = await prisma.user.create({
-            data: { email: teacherEmail, password: hashed, name: name.trim(), role: 'TEACHER' }
+            data: { email: teacherEmail, password: hashed, name: teacherName, role: 'TEACHER' }
         })
 
         // AUDIT (best-effort)
@@ -563,7 +737,12 @@ router.patch('/users/:userId', authenticate, requireRole('ADMIN'), async (req: A
             return res.status(400).json({ error: 'O\'zgartirish uchun rol, ism yoki holat kiriting' })
         }
 
-        const data: { role?: 'STUDENT' | 'TEACHER' | 'ADMIN'; name?: string; status?: 'ACTIVE' | 'SUSPENDED' } = {}
+        const data: {
+            role?: 'STUDENT' | 'TEACHER' | 'ADMIN'
+            name?: string
+            status?: 'ACTIVE' | 'SUSPENDED'
+            authVersion?: { increment: number }
+        } = {}
 
         // Rol — faqat ruxsat etilgan qiymatlar (whitelist)
         const ALLOWED_ROLES = ['STUDENT', 'TEACHER', 'ADMIN'] as const
@@ -593,14 +772,20 @@ router.patch('/users/:userId', authenticate, requireRole('ADMIN'), async (req: A
 
         // Ism — bo'sh bo'lmasligi kerak
         if (name !== undefined) {
-            if (typeof name !== 'string' || name.trim().length < 2) {
-                return res.status(400).json({ error: 'Ism kamida 2 ta belgi bo\'lishi kerak' })
-            }
-            data.name = name.trim()
+            const normalizedName = normalizeNameInput(name)
+            if (!normalizedName) return res.status(400).json({ error: 'Ism 2–80 ta belgi bo\'lishi kerak' })
+            data.name = normalizedName
         }
 
         const target = await prisma.user.findUnique({ where: { id: uid } })
         if (!target) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' })
+
+        const roleChanged = data.role !== undefined && data.role !== target.role
+        const statusChanged = data.status !== undefined && data.status !== target.status
+        if (roleChanged || statusChanged) {
+            // Reactivate ham eski, ehtimol o'g'irlangan tokenni qayta tiriltirmaydi.
+            data.authVersion = { increment: 1 }
+        }
 
         const updated = await prisma.user.update({
             where: { id: uid },
@@ -618,8 +803,6 @@ router.patch('/users/:userId', authenticate, requireRole('ADMIN'), async (req: A
 
         // AUDIT (best-effort) — rol o'zgarishi va suspend/activate.
         // JWT faqat {id, role} saqlagani uchun actor email'ini DB dan olamiz.
-        const roleChanged = data.role !== undefined && data.role !== target.role
-        const statusChanged = data.status !== undefined && data.status !== target.status
         if (roleChanged || statusChanged) {
             const actorEmail = await getActorEmail(req.user.id)
             if (roleChanged) {
@@ -658,14 +841,7 @@ router.post('/users/:userId/resend-verification', authenticate, requireRole('ADM
         if (!target) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' })
         if (target.emailVerified) return res.status(400).json({ error: 'Email allaqachon tasdiqlangan' })
 
-        const verificationToken = crypto.randomBytes(32).toString('hex')
-        const hashedVerificationToken = hashToken(verificationToken)
-        const verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 soat
-        await prisma.user.update({
-            where: { id: target.id },
-            data: { verificationToken: hashedVerificationToken, verificationTokenExpiry }
-        })
-        await sendVerificationEmail(target.email, target.name, verificationToken)
+        await issueVerificationEmail(target)
 
         // AUDIT (best-effort)
         await logAdminAction(req.user.id, await getActorEmail(req.user.id), 'USER_RESEND_VERIFICATION', 'USER', target.id, {
@@ -674,8 +850,8 @@ router.post('/users/:userId/resend-verification', authenticate, requireRole('ADM
 
         res.json({ ok: true })
     } catch (e) {
-        console.error('admin resend-verification error:', e)
-        res.status(500).json({ error: 'Email yuborishda xato. Qayta urinib ko\'ring.' })
+        logEmailError('admin resend-verification error:', e)
+        res.status(500).json(emailErrorResponse(e, 'Email yuborishda xato. Qayta urinib ko\'ring.'))
     }
 })
 
@@ -688,14 +864,7 @@ router.post('/users/:userId/reset-password', authenticate, requireRole('ADMIN'),
         const target = await prisma.user.findUnique({ where: { id: uid } })
         if (!target) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' })
 
-        const resetToken = crypto.randomBytes(32).toString('hex')
-        const hashedResetToken = hashToken(resetToken)
-        const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000) // 1 soat
-        await prisma.user.update({
-            where: { id: target.id },
-            data: { resetToken: hashedResetToken, resetTokenExpiry }
-        })
-        await sendPasswordResetEmail(target.email, target.name, resetToken)
+        await issuePasswordResetEmail(target)
 
         // AUDIT (best-effort)
         await logAdminAction(req.user.id, await getActorEmail(req.user.id), 'USER_RESET_PASSWORD', 'USER', target.id, {
@@ -704,13 +873,14 @@ router.post('/users/:userId/reset-password', authenticate, requireRole('ADMIN'),
 
         res.json({ ok: true })
     } catch (e) {
-        console.error('admin reset-password error:', e)
-        res.status(500).json({ error: 'Email yuborishda xato. Qayta urinib ko\'ring.' })
+        logEmailError('admin reset-password error:', e)
+        res.status(500).json(emailErrorResponse(e, 'Email yuborishda xato. Qayta urinib ko\'ring.'))
     }
 })
 
-// Email tasdiqlash — token orqali
-router.get('/verify-email/:token', async (req, res) => {
+// Email tasdiqlash — mutation GET emas, POST. Email link frontend sahifasini ochadi,
+// sahifa keyin explicit POST yuboradi; link-preview scanner oddiy GET bilan consume qilmaydi.
+router.post('/verify-email/:token', async (req, res) => {
     try {
         const { token } = req.params
         if (!token || token.length !== 64) {
@@ -718,13 +888,20 @@ router.get('/verify-email/:token', async (req, res) => {
         }
         const user = await prisma.user.findUnique({ where: { verificationToken: hashToken(token) } })
         if (!user) return res.status(400).json({ error: 'Havola noto\'g\'ri yoki muddati o\'tgan' })
-        if (user.verificationTokenExpiry && user.verificationTokenExpiry < new Date()) {
+        if (!user.verificationTokenExpiry || user.verificationTokenExpiry < new Date()) {
             return res.status(400).json({ error: 'Tasdiqlash havolasi muddati o\'tgan. Yangi havola so\'rang.' })
         }
-        await prisma.user.update({
-            where: { id: user.id },
+        const consumed = await prisma.user.updateMany({
+            where: {
+                id: user.id,
+                verificationToken: hashToken(token),
+                verificationTokenExpiry: { gt: new Date() },
+            },
             data: { emailVerified: true, verificationToken: null, verificationTokenExpiry: null }
         })
+        if (consumed.count !== 1) {
+            return res.status(400).json({ error: 'Havola noto\'g\'ri yoki allaqachon ishlatilgan' })
+        }
         res.json({ message: 'Email muvaffaqiyatli tasdiqlandi!' })
     } catch (e) {
         console.error('verify-email error:', e)
@@ -739,18 +916,11 @@ router.post('/resend-verification', emailLimiter, authenticate, async (req: Auth
         if (!user) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' })
         if (user.emailVerified) return res.status(400).json({ error: 'Email allaqachon tasdiqlangan' })
 
-        const verificationToken = crypto.randomBytes(32).toString('hex')
-        const hashedVerificationToken = hashToken(verificationToken)
-        const verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000)
-        await prisma.user.update({
-            where: { id: user.id },
-            data: { verificationToken: hashedVerificationToken, verificationTokenExpiry }
-        })
-        await sendVerificationEmail(user.email, user.name, verificationToken)
+        await issueVerificationEmail(user)
         res.json({ message: 'Tasdiqlash emaili yuborildi' })
     } catch (e) {
-        console.error('resend-verification error:', e)
-        res.status(500).json({ error: 'Email yuborishda xato. Qayta urinib ko\'ring.' })
+        logEmailError('resend-verification error:', e)
+        res.status(500).json(emailErrorResponse(e, 'Email yuborishda xato. Qayta urinib ko\'ring.'))
     }
 })
 
@@ -759,23 +929,23 @@ router.post('/forgot-password', authLimiter, emailLimiter, async (req, res) => {
     try {
         const { email } = req.body
         if (!email) return res.status(400).json({ error: 'Email manzil kiritilmagan' })
-        const normalizedEmail = email.trim().toLowerCase()
+        const normalizedEmail = normalizeEmailInput(email)
+        if (!normalizedEmail) return res.status(400).json({ error: 'Email manzil noto\'g\'ri' })
         const user = await prisma.user.findUnique({ where: { email: normalizedEmail } })
         // Xavfsizlik: topilmasa ham muvaffaqiyatli javob qaytaramiz
         if (!user) return res.json({ message: 'Agar bu email ro\'yxatda bo\'lsa, parol tiklash havolasi yuborildi.' })
 
-        const resetToken = crypto.randomBytes(32).toString('hex')
-        const hashedResetToken = hashToken(resetToken)
-        const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000) // 1 soat
-        await prisma.user.update({
-            where: { id: user.id },
-            data: { resetToken: hashedResetToken, resetTokenExpiry }
-        })
-        await sendPasswordResetEmail(user.email, user.name, resetToken)
+        try {
+            await issuePasswordResetEmail(user)
+        } catch (emailError) {
+            // Email bor/yo'qligini response orqali ajratib bo'lmasin. Delivery xatosi
+            // server log/monitoringda qoladi, public javob esa doim bir xil.
+            logEmailError('forgot-password delivery error:', emailError)
+        }
         res.json({ message: 'Agar bu email ro\'yxatda bo\'lsa, parol tiklash havolasi yuborildi.' })
     } catch (e) {
-        console.error('forgot-password error:', e)
-        res.status(500).json({ error: 'Email yuborishda xato. Qayta urinib ko\'ring.' })
+        logEmailError('forgot-password error:', e)
+        res.status(500).json(emailErrorResponse(e, 'Email yuborishda xato. Qayta urinib ko\'ring.'))
     }
 })
 
@@ -784,22 +954,34 @@ router.post('/reset-password', authLimiter, async (req, res) => {
     try {
         const { token, password } = req.body
         if (!token || !password) return res.status(400).json({ error: 'Token va yangi parol kiritilmagan' })
-        if (password.length < 8) return res.status(400).json({ error: 'Parol kamida 8 ta belgi bo\'lishi kerak' })
-        if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
-            return res.status(400).json({ error: 'Parolda kamida bitta harf va bitta raqam bo\'lishi shart' })
-        }
+        if (typeof token !== 'string' || token.length !== 64) return res.status(400).json({ error: 'Token noto\'g\'ri' })
+        const passwordError = passwordValidationError(password)
+        if (passwordError) return res.status(400).json({ error: passwordError })
 
         const user = await prisma.user.findUnique({ where: { resetToken: hashToken(token) } })
         if (!user) return res.status(400).json({ error: 'Havola noto\'g\'ri yoki muddati o\'tgan' })
-        if (user.resetTokenExpiry && user.resetTokenExpiry < new Date()) {
+        if (!user.resetTokenExpiry || user.resetTokenExpiry < new Date()) {
             return res.status(400).json({ error: 'Parol tiklash havolasi muddati o\'tgan. Yangi havola so\'rang.' })
         }
 
         const hashed = await bcrypt.hash(password, 10)
-        await prisma.user.update({
-            where: { id: user.id },
-            data: { password: hashed, resetToken: null, resetTokenExpiry: null }
+        const consumed = await prisma.user.updateMany({
+            where: {
+                id: user.id,
+                resetToken: hashToken(token),
+                resetTokenExpiry: { gt: new Date() },
+            },
+            data: {
+                password: hashed,
+                passwordConfigured: true,
+                resetToken: null,
+                resetTokenExpiry: null,
+                authVersion: { increment: 1 },
+            }
         })
+        if (consumed.count !== 1) {
+            return res.status(400).json({ error: 'Havola noto\'g\'ri yoki allaqachon ishlatilgan' })
+        }
         res.json({ message: 'Parol muvaffaqiyatli yangilandi! Endi kirish mumkin.' })
     } catch (e) {
         console.error('reset-password error:', e)
@@ -811,18 +993,29 @@ router.post('/reset-password', authLimiter, async (req, res) => {
 router.put('/change-password', authenticate, async (req: AuthRequest, res) => {
     try {
         const { currentPassword, newPassword } = req.body
-        if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Barcha maydonlar to\'ldirilishi shart' })
-        if (newPassword.length < 8) return res.status(400).json({ error: 'Yangi parol kamida 8 ta belgi bo\'lishi kerak' })
-        if (!/[a-zA-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
-            return res.status(400).json({ error: 'Parolda kamida bitta harf va bitta raqam bo\'lishi shart' })
-        }
+        if (!newPassword) return res.status(400).json({ error: 'Yangi parolni kiriting' })
+        const passwordError = passwordValidationError(newPassword, 'Yangi parol')
+        if (passwordError) return res.status(400).json({ error: passwordError })
         const user = await prisma.user.findUnique({ where: { id: req.user.id } })
         if (!user) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' })
-        const valid = await bcrypt.compare(currentPassword, user.password)
-        if (!valid) return res.status(400).json({ error: 'Joriy parol noto\'g\'ri' })
+        if (user.passwordConfigured) {
+            if (typeof currentPassword !== 'string' || Buffer.byteLength(currentPassword, 'utf8') > BCRYPT_MAX_BYTES) {
+                return res.status(400).json({ error: 'Joriy parol noto\'g\'ri' })
+            }
+            const valid = await bcrypt.compare(currentPassword, user.password)
+            if (!valid) return res.status(400).json({ error: 'Joriy parol noto\'g\'ri' })
+        }
         const hashed = await bcrypt.hash(newPassword, 10)
-        await prisma.user.update({ where: { id: user.id }, data: { password: hashed } })
-        res.json({ message: 'Parol muvaffaqiyatli yangilandi' })
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { password: hashed, passwordConfigured: true, authVersion: { increment: 1 } }
+        })
+        res.json({
+            message: user.passwordConfigured
+                ? 'Parol muvaffaqiyatli yangilandi. Barcha sessiyalardan chiqildi.'
+                : 'Parol yaratildi. Xavfsizlik uchun qayta kiring.',
+            sessionRevoked: true,
+        })
     } catch (e) {
         console.error('change-password error:', e)
         res.status(500).json({ error: 'Server xatoligi' })
@@ -833,10 +1026,19 @@ router.put('/change-password', authenticate, async (req: AuthRequest, res) => {
 router.delete('/account', authenticate, async (req: AuthRequest, res) => {
     try {
         const { password } = req.body
-        if (!password) return res.status(400).json({ error: 'Parolni kiriting' })
         const user = await prisma.user.findUnique({ where: { id: req.user.id } })
         if (!user) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' })
         if (user.role === 'ADMIN') return res.status(403).json({ error: 'Admin akkauntni o\'chirish mumkin emas' })
+        if (!user.passwordConfigured) {
+            return res.status(409).json(authError(
+                'Akkauntni o\'chirishdan oldin xavfsizlik bo\'limida parol yarating.',
+                AUTH_ERROR_CODES.PASSWORD_SETUP_REQUIRED
+            ))
+        }
+        if (!password) return res.status(400).json({ error: 'Parolni kiriting' })
+        if (typeof password !== 'string' || Buffer.byteLength(password, 'utf8') > BCRYPT_MAX_BYTES) {
+            return res.status(400).json({ error: 'Parol noto\'g\'ri' })
+        }
         const valid = await bcrypt.compare(password, user.password)
         if (!valid) return res.status(400).json({ error: 'Parol noto\'g\'ri' })
         const uid = user.id
@@ -871,7 +1073,11 @@ router.post('/logout', authenticate, async (req: AuthRequest, res) => {
         }
         res.json({ message: 'Tizimdan chiqdingiz' })
     } catch (e) {
-        res.status(500).json({ error: 'Server xatoligi' })
+        console.error('logout blacklist error:', e)
+        res.status(503).json(authError(
+            'Autentifikatsiya xizmati vaqtincha ishlamayapti. Qayta urinib ko\'ring.',
+            AUTH_ERROR_CODES.SERVICE_UNAVAILABLE
+        ))
     }
 })
 

@@ -20,8 +20,9 @@ interface TestCatalogControlsProps {
 
 const VIEWS: Array<{ value: TestCatalogView; label: string }> = [
     { value: 'recommended', label: 'Tavsiya' },
-    { value: 'all', label: 'Barcha' },
-    { value: 'completed', label: 'Yechilgan' },
+    { value: 'dtm', label: 'DTM' },
+    { value: 'subjects', label: 'Fanlar' },
+    { value: 'mine', label: 'Mening testlarim' },
 ]
 
 export function TestCatalogControls({
@@ -140,7 +141,7 @@ export function TestCatalogControls({
             <div className="test-catalog-summary">
                 <div>
                     <span>{resultCount} ta test</span>
-                    <span>{counts.completed}/{counts.all} yechilgan</span>
+                    <span>{counts.mine}/{counts.subjects} yechilgan</span>
                 </div>
                 {hasFilters && <button type="button" onClick={clearFilters}>Filtrlarni tozalash</button>}
             </div>

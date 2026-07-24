@@ -1,9 +1,18 @@
 import { Router } from 'express'
 import prisma from '../utils/db'
 import { authenticate } from '../middleware/auth'
+import { calculateFlashcardReview, parseFlashcardQuality } from '../utils/flashcardReview'
 
 const router = Router()
 router.use(authenticate)
+
+class FlashcardNotFoundError extends Error { }
+
+class FlashcardNotDueError extends Error {
+    constructor(readonly nextReview: Date) {
+        super('Flashcard is not due')
+    }
+}
 
 // ────────────────────────────────────────────────────────────
 // GET /api/flashcards/due — Bugun ko'rish kerak bo'lgan kartochkalar
@@ -124,73 +133,83 @@ router.post('/:id/review', async (req: any, res) => {
     try {
         const userId = req.user.id
         const { id } = req.params
-        const { quality } = req.body  // 0-5
+        const quality = parseFlashcardQuality(req.body?.quality)
 
-        if (quality === undefined || quality < 0 || quality > 5) {
-            return res.status(400).json({ error: 'quality 0-5 orasida bo\'lishi kerak' })
-        }
-
-        const card = await prisma.flashcard.findFirst({ where: { id, userId } })
-        if (!card) return res.status(404).json({ error: 'Kartochka topilmadi' })
-
-        // SM-2 algoritm
-        let { ease, interval, repetitions } = card
-
-        if (quality < 3) {
-            // Noto'g'ri javob — boshidan
-            repetitions = 0
-            interval = 1
-        } else {
-            // To'g'ri javob
-            if (repetitions === 0) interval = 1
-            else if (repetitions === 1) interval = 6
-            else interval = Math.round(interval * ease)
-
-            repetitions += 1
-        }
-
-        // Easiness factor yangilash (SM-2 formula)
-        ease = Math.max(1.3, ease + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
-
-        // Keyingi ko'rish vaqti
-        const nextReview = new Date()
-        nextReview.setDate(nextReview.getDate() + interval)
-
-        const { updated } = await prisma.$transaction(async (tx) => {
-            const updatedCard = await tx.flashcard.update({
-                where: { id },
-                data: { ease, interval, repetitions, nextReview },
+        if (quality === null) {
+            return res.status(400).json({
+                error: 'quality 0-5 oralig\'idagi butun son bo\'lishi kerak',
+                code: 'INVALID_FLASHCARD_QUALITY',
             })
+        }
 
-            // XP qo'shish
-            const progress = await tx.userProgress.findUnique({ where: { userId } })
-
-            if (!progress) {
-                await tx.userProgress.create({
-                    data: {
-                        userId,
-                        xp: 5,
-                        streak: 0,
-                        longestStreak: 0,
-                        lastActiveDate: new Date()
-                    }
-                })
-            } else {
-                await tx.userProgress.update({
-                    where: { userId },
-                    data: { xp: progress.xp + 5, lastActiveDate: new Date() }
-                })
+        const reviewedAt = new Date()
+        const result = await prisma.$transaction(async (tx) => {
+            const card = await tx.flashcard.findFirst({ where: { id, userId } })
+            if (!card) throw new FlashcardNotFoundError()
+            if (card.nextReview.getTime() > reviewedAt.getTime()) {
+                throw new FlashcardNotDueError(card.nextReview)
             }
 
-            return { updated: updatedCard }
+            const schedule = calculateFlashcardReview(card, quality, reviewedAt)
+
+            // Optimistic claim: bir vaqtda kelgan ikkita review bir xil eski nextReview'ni
+            // o'qishi mumkin, ammo faqat bittasi shu qiymatni yangilay oladi. Ikkinchi
+            // transaction count=0 oladi va XP yozilishidan OLDIN rollback bo'ladi.
+            const claimed = await tx.flashcard.updateMany({
+                where: { id, userId, nextReview: card.nextReview },
+                data: {
+                    ease: schedule.ease,
+                    interval: schedule.interval,
+                    repetitions: schedule.repetitions,
+                    nextReview: schedule.nextReview,
+                },
+            })
+            if (claimed.count !== 1) {
+                const current = await tx.flashcard.findFirst({ where: { id, userId }, select: { nextReview: true } })
+                if (!current) throw new FlashcardNotFoundError()
+                throw new FlashcardNotDueError(current.nextReview)
+            }
+
+            // Increment atomik: boshqa qonuniy XP manbasi bilan bir vaqtda yozilsa ham
+            // read-modify-write orqali uning XP sini bosib yubormaydi.
+            const progress = await tx.userProgress.upsert({
+                where: { userId },
+                create: {
+                    userId,
+                    xp: 5,
+                    streak: 0,
+                    longestStreak: 0,
+                    lastActiveDate: reviewedAt,
+                },
+                update: {
+                    xp: { increment: 5 },
+                    lastActiveDate: reviewedAt,
+                },
+                select: { xp: true },
+            })
+
+            return { schedule, xp: progress.xp }
         })
 
         res.json({
-            interval,
-            nextReview: updated.nextReview,
-            ease: Math.round(ease * 100) / 100,
+            interval: result.schedule.interval,
+            nextReview: result.schedule.nextReview,
+            ease: Math.round(result.schedule.ease * 100) / 100,
+            xp: result.xp,
+            xpGained: 5,
         })
     } catch (e) {
+        if (e instanceof FlashcardNotFoundError) {
+            return res.status(404).json({ error: 'Kartochka topilmadi', code: 'FLASHCARD_NOT_FOUND' })
+        }
+        if (e instanceof FlashcardNotDueError) {
+            return res.status(409).json({
+                error: 'Bu kartochka hali takrorlash uchun tayyor emas.',
+                code: 'FLASHCARD_NOT_DUE',
+                nextReview: e.nextReview,
+                xpGained: 0,
+            })
+        }
         console.error(e)
         res.status(500).json({ error: 'Server xatoligi' })
     }

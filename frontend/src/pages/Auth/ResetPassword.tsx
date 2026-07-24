@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { BrainCircuit, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
+import { useAuthStore } from '@/store/authStore'
 
 export default function ResetPassword() {
     const { token } = useParams<{ token: string }>()
@@ -40,6 +41,9 @@ export default function ResetPassword() {
                 method: 'POST',
                 body: JSON.stringify({ token, password })
             })
+            // Backend authVersion'ni oshirib barcha eski JWTlarni bekor qiladi.
+            // Shu browserdagi revoked sessiyani ham darhol olib tashlaymiz.
+            useAuthStore.getState().clearSession()
             setSuccess(true)
             if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current)
             redirectTimerRef.current = setTimeout(() => {

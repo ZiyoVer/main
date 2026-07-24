@@ -1,88 +1,69 @@
-# DB Migratsiyalar — P0-06 (schema drift oldini olish)
+# DTMMax database migration siyosati
 
-## Muammo (eski holat)
-`start.sh` har deployda `prisma db push`ni **shartsiz** ishlatardi. `db push`
-migration tarixini chetlab schema'ni jonli DBga majburan o'rnatadi — bu:
-- **drift** yaratadi (jonli DB va migration tarixi bir-biriga mos kelmaydi),
-- jonli DBni hech qachon to'liq migration-managed qilmaydi,
-- ba'zan kutilmagan ustun/jadval o'zgarishlari (data xavfi) olib keladi.
+## Runtime qoidasi
 
-## Yangi holat (`start.sh`)
+Deploy faqat quyidagi deterministik oqim bilan ishga tushadi:
+
 ```sh
-if npx prisma migrate deploy; then
-    # muvaffaqiyatli -> db push O'TKAZIB YUBORILADI (drift yo'q)
-else
-    npx prisma db push --skip-generate   # faqat FALLBACK (oraliq davr)
-fi
+npx prisma migrate deploy
+node dist/app.js
 ```
 
-**Bu o'zgarish orqaga-mos va xavfsiz:** agar jonli DB hali baseline-resolve
-qilinmagan bo'lsa, `migrate deploy` fail bo'ladi va `db push` fallback ishlaydi —
-ya'ni worst case = eski xatti-harakat. Hech narsa buzilmaydi.
+`prisma db push`, avtomatik schema reset va migration fallback runtime’da
+ishlatilmaydi. Migration bajarilmasa servis fail-closed holatda to‘xtaydi.
 
----
+## Noldan tiklanadigan zanjir
 
-## ⚠️ MUHIM workflow o'zgarishi
-To'liq migration rejimiga o'tgandan keyin **har schema o'zgarishi uchun migration
-yaratish SHART**. Aks holda `migrate deploy` "no pending" deb o'tadi, `db push`
-skip bo'ladi va o'zgarish jonli DBga **jimgina qo'llanmaydi**.
+Tarixiy repo’da boshlang‘ich migration bo‘lmagan. Shu sabab bo‘sh PostgreSQL
+bazasida birinchi eski migration `Test` jadvalini topa olmay yiqilgan. Zanjir
+quyidagi immutable repair migrationlar bilan tiklandi:
 
-```bash
-# Har schema.prisma o'zgarishidan keyin (local Postgres bilan):
-npx prisma migrate dev --name <ozgarish_nomi>
-git add prisma/migrations && git commit
-```
+- `20250316000000_initial_schema` — birinchi eski migrationdan oldingi schema;
+- `20260417150000_drop_test_type_enum_default` — eski enum/text conversion uchun bridge;
+- `20260715115900_sync_pre_learning_schema` — learning-session migrationidan oldingi catch-up;
+- `20260718180000_add_auth_version` — password/security o‘zgarishida JWT revocation epoch’i.
 
----
+Repair migrationlar bilan barcha migrationlar disposable PostgreSQL schema’da
+noldan replay qilingan. `prisma migrate status` up-to-date va joriy
+`schema.prisma` bilan diff `No difference detected` bo‘lishi shart.
 
-## Jonli DBni to'liq migration-managed qilish (BIR MARTALIK)
+## Har bir schema o‘zgarishi
 
-> Bu qadamlar ixtiyoriy va shoshilinch emas — start.sh allaqachon xavfsiz
-> fallback bilan ishlaydi. Lekin drift'ni butunlay to'xtatish uchun bir marta
-> bajarilishi kerak. **Avval jonli DB backup oling.**
+1. `schema.prisma`ni o‘zgartiring.
+2. Yangi, forward-only migration yarating.
+3. Bo‘sh disposable DB’da butun zanjirni replay qiling.
+4. Joriy schema bilan zero-diff tekshiring.
+5. Faqat shundan keyin branch/preview’ga deploy qiling.
 
-Hozir jonli DBda schema `db push` orqali to'liq mavjud, lekin ba'zi o'zgarishlar
-(`User.status`, `AdminAuditLog`, `AiDailyUsage`, `AiSubmitDedup`, `Payment`,
-`Subscription`, `AiTestSession` va h.k.) uchun migration fayli **yo'q**.
+Mavjud migration faylini tahrirlash taqiqlanadi: production checksum tarixi
+buziladi. Data-loss SQL alohida backup va rollback rejasisiz qabul qilinmaydi.
 
-### 1-qadam — yetishmayotgan migration'ni yaratish (local shadow DB)
-```bash
-# Docker bilan vaqtinchalik Postgres:
-docker run --name dtmmax-shadow -e POSTGRES_PASSWORD=pass \
-  -e POSTGRES_DB=dtmmax -p 5433:5432 -d postgres:16
+## Preview muhiti
 
-export DATABASE_URL="postgresql://postgres:pass@localhost:5433/dtmmax"
-cd backend
-# Mavjud 6 migrationni qo'llaydi + schema bilan farqni yangi migration qiladi:
-npx prisma migrate dev --name sync_current_schema
-git add prisma/migrations && git commit -m "migration: sync current schema"
+Preview DB production’dan alohida ekanligi isbotlangandan keyingina reset qilish
+mumkin. Reset deploy scriptiga yoki environment variable’ga yashirilmaydi; u
+bir martalik, ko‘rinadigan operator amali bo‘lishi kerak.
 
-docker rm -f dtmmax-shadow
-```
+## Production cutover — avtomatik emas
 
-### 2-qadam — jonli DBni baseline-resolve qilish (Railway shell / DATABASE_URL)
-Jonli DBda schema allaqachon mavjud (db push qo'ygan), shuning uchun migration
-SQL'larini **qayta ishlatmasdan**, ularni "applied" deb belgilaymiz:
+Production schema ilgari `db push` bilan yaratilgan bo‘lishi mumkin. Oldingi
+sanali repair migrationlarni production’da oddiy `migrate deploy` bilan ishga
+tushirish mavjud jadvallar ustida qayta `CREATE/ALTER` qilishga urinish bo‘ladi.
+Railway `production` muhitida `start.sh` shu sabab
+`PRODUCTION_MIGRATION_RECONCILED=true` bo‘lmaguncha deployni migrationdan oldin
+fail-closed to‘xtatadi. Bu flag faqat quyidagi jarayon to‘liq tugagach qo‘yiladi.
 
-```bash
-# Jonli DATABASE_URL bilan. Har bir migration uchun (6 ta + sync_current_schema):
-npx prisma migrate resolve --applied 20250316000001_add_test_type
-npx prisma migrate resolve --applied 20260320103000_add_chat_subject2_and_embeddings
-npx prisma migrate resolve --applied 20260417133000_split_test_scales
-npx prisma migrate resolve --applied 20260417164500_test_type_text_compat
-npx prisma migrate resolve --applied 20260428120000_add_test_sessions
-npx prisma migrate resolve --applied 20260516120000_add_notification_target
-npx prisma migrate resolve --applied <sync_current_schema_nomi>
-```
+Merge/deploy’dan oldin alohida tasdiqlangan operatsion jarayon talab qilinadi:
 
-> Agar `_prisma_migrations` jadvali allaqachon bu migrationlarni "applied" deb
-> bilsa (oldin `migrate deploy` ishlagan bo'lsa), faqat yangi
-> `sync_current_schema`ni resolve qilish kifoya. Har `resolve`dan oldin
-> `npx prisma migrate status` bilan holatni tekshiring.
+1. DB backup yoki production clone olish.
+2. `_prisma_migrations` va real schema’ni read-only inventarizatsiya qilish.
+3. Clone’da migration history reconciliation’ni sinash.
+4. Repair migration effektlari real schema’da allaqachon borligini diff bilan isbotlash.
+5. Faqat shundan keyin tegishli repair migrationlarni `prisma migrate resolve --applied`
+   orqali metadata sifatida belgilash.
+6. `migrate status`, schema diff va smoke testlar muvaffaqiyatli bo‘lgach strict
+   deployga o‘tish.
 
-### 3-qadam — tekshirish
-```bash
-npx prisma migrate status   # "Database schema is up to date!" bo'lishi kerak
-```
-Shundan keyin deploylarda `migrate deploy` muvaffaqiyatli o'tadi va `db push`
-umuman ishlamaydi — drift to'liq to'xtaydi.
+Qaysi migrationni `resolve` qilish inventarizatsiya natijasiga bog‘liq. Shu sabab
+production uchun ko‘r-ko‘rona ko‘chiriladigan `resolve` komandalar bu hujjatda
+berilmaydi.

@@ -4,6 +4,12 @@ import https from 'node:https'
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest } from '../middleware/auth'
+import {
+    PaylovOAuthTokenError,
+    PaylovOAuthTokenManager,
+    PaylovTokenGrant,
+    PaylovTokenResponse,
+} from '../utils/paylovOAuth'
 
 /* =========================================================================
    DtmMax — To'lov / obuna (Paylov OAuth2, hosted legacy, Octo zaxira)
@@ -19,9 +25,10 @@ import { authenticate, AuthRequest } from '../middleware/auth'
    Paylov hostlariga qat'iy bog'langan — tunnel yoki ixtiyoriy URL qabul qilinmaydi.
    Kalit yo'q bo'lsa endpointlar INERT (503) — xavfsiz.
 
-   Kerakli Paylov env:
-     merchant_id (yoki PAYLOV_MERCHANT_ID), Token (yoki PAYLOV_TOKEN),
-     PAYLOV_CALLBACK_LOGIN, PAYLOV_CALLBACK_PASSWORD, PRO_PRICE_UZS, FRONTEND_URL.
+   Kerakli Paylov OAuth2 env:
+     merchant_id (yoki PAYLOV_MERCHANT_ID), PAYLOV_CONSUMER_KEY,
+     PAYLOV_CONSUMER_SECRET, PAYLOV_USERNAME, PAYLOV_PASSWORD.
+   Emaildagi Token — faqat bir martalik onboarding uchun; Bearer sifatida ishlatilmaydi.
 
    GATING: PRO_ENFORCED !== 'true' bo'lsa hamma uchun Pro ochiq (beta). To'lovni
    yoqish = Paylov callback sozlamalari + PRO_ENFORCED=true. Frontend useIsPro()
@@ -50,10 +57,15 @@ function envAny(...names: string[]): string {
     return ''
 }
 
-// Paylov emailida aynan `merchant_id` va `Token` nomlari berilgan. Railway'dagi
-// mavjud nomlarni buzmaymiz, lekin standart uppercase aliaslarni ham qo'llaymiz.
+// Paylov emailida aynan `merchant_id` va `Token` nomlari berilgan. `Token`
+// onboarding token: undan bir marta consumer credential olinadi, to'lov API'siga
+// Bearer sifatida yuborilmaydi.
 const PAYLOV_MERCHANT_ID = envAny('PAYLOV_MERCHANT_ID', 'merchant_id')
-const PAYLOV_TOKEN = envAny('PAYLOV_TOKEN', 'Token')
+const PAYLOV_ONBOARDING_TOKEN = envAny('PAYLOV_ONBOARDING_TOKEN', 'Token', 'PAYLOV_TOKEN')
+const PAYLOV_CONSUMER_KEY = envAny('PAYLOV_CONSUMER_KEY')
+const PAYLOV_CONSUMER_SECRET = envAny('PAYLOV_CONSUMER_SECRET')
+const PAYLOV_USERNAME = envAny('PAYLOV_USERNAME')
+const PAYLOV_PASSWORD = envAny('PAYLOV_PASSWORD')
 const PAYLOV_CALLBACK_LOGIN = envAny('PAYLOV_CALLBACK_LOGIN', 'PAYLOV_CALLBACK_USERNAME')
 const PAYLOV_CALLBACK_PASSWORD = envAny('PAYLOV_CALLBACK_PASSWORD')
 const configuredPaylovFlow = envAny('PAYLOV_FLOW').toLowerCase()
@@ -64,9 +76,15 @@ const PAYLOV_API_BASE = PAYLOV_ENVIRONMENT === 'production'
     ? PAYLOV_PRODUCTION_API_BASE
     : PAYLOV_SANDBOX_API_BASE
 const configuredProvider = envAny('BILLING_PROVIDER').toLowerCase()
+const PAYLOV_OAUTH_CONFIGURED = Boolean(
+    PAYLOV_CONSUMER_KEY
+    && PAYLOV_CONSUMER_SECRET
+    && PAYLOV_USERNAME
+    && PAYLOV_PASSWORD,
+)
 const BILLING_PROVIDER = configuredProvider === 'octo' || configuredProvider === 'paylov'
     ? configuredProvider
-    : (PAYLOV_MERCHANT_ID && PAYLOV_TOKEN ? 'paylov' : 'octo')
+    : (PAYLOV_MERCHANT_ID && (PAYLOV_OAUTH_CONFIGURED || PAYLOV_ONBOARDING_TOKEN) ? 'paylov' : 'octo')
 
 const paylovOAuthLimiter = rateLimit({
     windowMs: 10 * 60 * 1000,
@@ -179,13 +197,6 @@ function sanitizedProviderCode(error: unknown): string | undefined {
     return safe || undefined
 }
 
-function paylovTokenFormatError(token: string): string | null {
-    if (/^(?:Bearer\s+|Token\s*:)/i.test(token)) return 'paylov_token_prefix_invalid'
-    if (/["']/.test(token)) return 'paylov_token_quotes_invalid'
-    if (!token || /\s|[\u0000-\u001f\u007f]/.test(token)) return 'paylov_token_format_invalid'
-    return null
-}
-
 function safeNetworkCode(error: unknown): string | undefined {
     if (!error || typeof error !== 'object') return undefined
     const code = (error as NodeJS.ErrnoException).code
@@ -219,14 +230,14 @@ function mapPaylovTransportError(error: unknown): PaylovGatewayError {
 }
 
 /**
- * Rasmiy Paylov hostiga bitta HTTP so'rov yuboradi. IPv4 majburiy — Railway
- * egress/DNS yo'lida dual-stack ulanish qotib qolmasin. Avtomatik retry YO'Q:
- * payment yaratish so'rovini takrorlash providerda duplicate tranzaksiya ochishi mumkin.
+ * Rasmiy Paylov hostiga bitta cheklangan HTTP so'rov yuboradi. IPv4 majburiy —
+ * Railway egress/DNS yo'lida dual-stack ulanish qotib qolmasin.
  */
-function postPaylov(endpoint: 'paymentWithoutRegistration/' | 'confirmPayment/', payload: Record<string, unknown>): Promise<PaylovHttpResponse> {
-    const target = new URL(`${PAYLOV_API_BASE}/${endpoint}`)
-    const requestBody = Buffer.from(JSON.stringify(payload), 'utf8')
-
+function postPaylovHttp(
+    target: URL,
+    requestBody: Buffer,
+    headers: Record<string, string>,
+): Promise<PaylovHttpResponse> {
     return new Promise((resolve, reject) => {
         let responseStream: import('node:http').IncomingMessage | null = null
         let overallTimeout: NodeJS.Timeout
@@ -238,11 +249,10 @@ function postPaylov(endpoint: 'paymentWithoutRegistration/' | 'confirmPayment/',
             method: 'POST',
             family: 4,
             headers: {
-                Authorization: `Bearer ${PAYLOV_TOKEN}`,
-                'Content-Type': 'application/json',
                 Accept: 'application/json',
                 'Content-Length': requestBody.length,
                 'User-Agent': 'DTMMax/2.0',
+                ...headers,
             },
         }, response => {
             responseStream = response
@@ -290,12 +300,106 @@ function postPaylov(endpoint: 'paymentWithoutRegistration/' | 'confirmPayment/',
     })
 }
 
-async function requestPaylov<T>(endpoint: 'paymentWithoutRegistration/' | 'confirmPayment/', payload: Record<string, unknown>): Promise<T> {
-    const tokenError = paylovTokenFormatError(PAYLOV_TOKEN)
-    if (tokenError) throw new PaylovGatewayError(tokenError, 503)
+function postPaylovTokenGrant(grant: PaylovTokenGrant): Promise<PaylovHttpResponse> {
+    const target = new URL(`${PAYLOV_API_BASE}/oauth2/token/`)
+    const body = new URLSearchParams({ grant_type: grant.grantType })
+    if (grant.grantType === 'password') {
+        body.set('username', grant.username)
+        body.set('password', grant.password)
+    } else {
+        body.set('refresh_token', grant.refreshToken)
+    }
+    const requestBody = Buffer.from(body.toString(), 'utf8')
+    const basicAuth = Buffer.from(`${PAYLOV_CONSUMER_KEY}:${PAYLOV_CONSUMER_SECRET}`, 'utf8').toString('base64')
+    return postPaylovHttp(target, requestBody, {
+        Authorization: `Basic ${basicAuth}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+    })
+}
 
+async function requestPaylovToken(grant: PaylovTokenGrant): Promise<PaylovTokenResponse> {
     try {
-        const response = await postPaylov(endpoint, payload)
+        const response = await postPaylovTokenGrant(grant)
+        let payload: (PaylovTokenResponse & { error?: unknown }) | null = null
+        try {
+            payload = response.body
+                ? JSON.parse(response.body) as PaylovTokenResponse & { error?: unknown }
+                : null
+        } catch {
+            throw new PaylovGatewayError('paylov_oauth_invalid_response', 502)
+        }
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+            const rejected = [400, 401, 403].includes(response.statusCode)
+            throw new PaylovGatewayError(
+                rejected ? 'paylov_oauth_credentials_rejected' : 'paylov_oauth_unavailable',
+                rejected ? 503 : 502,
+                sanitizedProviderCode(payload?.error),
+            )
+        }
+        if (!payload) throw new PaylovGatewayError('paylov_oauth_invalid_response', 502)
+        return payload
+    } catch (error) {
+        if (error instanceof PaylovGatewayError) throw error
+        const mapped = mapPaylovTransportError(error)
+        console.warn('paylov oauth transport xato:', {
+            environment: PAYLOV_ENVIRONMENT,
+            error: mapped.code,
+            networkCode: mapped.networkCode || 'unknown',
+        })
+        throw mapped
+    }
+}
+
+const paylovTokenManager = new PaylovOAuthTokenManager({
+    credentials: {
+        consumerKey: PAYLOV_CONSUMER_KEY,
+        consumerSecret: PAYLOV_CONSUMER_SECRET,
+        username: PAYLOV_USERNAME,
+        password: PAYLOV_PASSWORD,
+    },
+    requestToken: requestPaylovToken,
+    shouldFallbackFromRefresh: error =>
+        error instanceof PaylovGatewayError && error.code === 'paylov_oauth_credentials_rejected',
+})
+
+async function getPaylovAccessToken(): Promise<string> {
+    try {
+        return await paylovTokenManager.getAccessToken()
+    } catch (error) {
+        if (error instanceof PaylovOAuthTokenError) {
+            throw new PaylovGatewayError(error.code, 503)
+        }
+        throw error
+    }
+}
+
+/**
+ * Payment yaratish/confirm so'rovi avtomatik umumiy retry qilinmaydi: providerda
+ * duplicate tranzaksiya ochilishi mumkin. Faqat aniq 401 javobida access token
+ * bir marta yangilanadi — autentifikatsiyadan o'tmagan so'rov pul yaratmagan bo'ladi.
+ */
+function postPaylov(
+    endpoint: 'paymentWithoutRegistration/' | 'confirmPayment/',
+    payload: Record<string, unknown>,
+    accessToken: string,
+): Promise<PaylovHttpResponse> {
+    const target = new URL(`${PAYLOV_API_BASE}/${endpoint}`)
+    const requestBody = Buffer.from(JSON.stringify(payload), 'utf8')
+    return postPaylovHttp(target, requestBody, {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+    })
+}
+
+async function requestPaylov<T>(endpoint: 'paymentWithoutRegistration/' | 'confirmPayment/', payload: Record<string, unknown>): Promise<T> {
+    try {
+        let accessToken = await getPaylovAccessToken()
+        let response = await postPaylov(endpoint, payload, accessToken)
+        if (response.statusCode === 401) {
+            paylovTokenManager.clearAccessToken()
+            accessToken = await getPaylovAccessToken()
+            response = await postPaylov(endpoint, payload, accessToken)
+        }
         let envelope: PaylovEnvelope<T> | null = null
         try {
             envelope = response.body ? JSON.parse(response.body) as PaylovEnvelope<T> : null
@@ -343,9 +447,8 @@ function paylovGatewayErrorResponse(error: unknown): { status: number; body: { e
 function paylovOAuthAccessError(user: AuthRequest['user']): { status: number; error: string } | null {
     if (BILLING_PROVIDER !== 'paylov') return { status: 503, error: 'paylov_not_active_provider' }
     if (PAYLOV_FLOW !== 'oauth2') return { status: 409, error: 'paylov_oauth2_not_enabled' }
-    if (!TRANSACTION_UUID.test(PAYLOV_MERCHANT_ID) || !PAYLOV_TOKEN) {
-        return { status: 503, error: 'billing_not_configured' }
-    }
+    if (!TRANSACTION_UUID.test(PAYLOV_MERCHANT_ID)) return { status: 503, error: 'billing_not_configured' }
+    if (!PAYLOV_OAUTH_CONFIGURED) return { status: 503, error: 'paylov_oauth_credentials_missing' }
     if (!Number.isSafeInteger(PRO_PRICE_UZS) || PRO_PRICE_UZS <= 0) {
         return { status: 503, error: 'billing_price_invalid' }
     }
@@ -393,6 +496,14 @@ type PaylovActivationOutcome =
     | 'already_paid'
     | 'duplicate_transaction'
     | 'transaction_mismatch'
+    | 'busy'
+
+type OctoActivationOutcome =
+    | 'activated'
+    | 'paid'
+    | 'not_found'
+    | 'refunded'
+    | 'uuid_mismatch'
     | 'busy'
 
 async function activatePaylovPayment(
@@ -486,6 +597,99 @@ async function activatePaylovPayment(
     })
 }
 
+function safeBillingLogId(value: string): string {
+    return value.replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 96)
+}
+
+function buildSafeOctoNotifyMeta(
+    status: string,
+    shopTxnId: string,
+    notifiedSum: number,
+    receivedAt: Date,
+): Record<string, unknown> {
+    return {
+        status: status.slice(0, 32),
+        shopTransactionId: shopTxnId.slice(0, 160),
+        ...(Number.isFinite(notifiedSum) ? { totalSum: notifiedSum } : {}),
+        receivedAt: receivedAt.toISOString(),
+    }
+}
+
+/**
+ * Octo succeeded callback'ini bir marta claim qiladi va obunani shu payment
+ * bilan bitta transaction ichida uzaytiradi. Payment claim bir xil callback
+ * replay/parallel kelganda double-creditni, user advisory lock esa ikki haqiqiy
+ * checkout parallel to'langanda bir oy yo'qolishini oldini oladi.
+ */
+async function activateOctoPayment(
+    paymentId: string,
+    octoUuid: string,
+    notifyMeta: Record<string, unknown>,
+): Promise<OctoActivationOutcome> {
+    return prisma.$transaction(async tx => {
+        const current = await tx.payment.findUnique({ where: { id: paymentId } })
+        if (!current || current.provider !== 'octo') return 'not_found' as const
+        if (current.status === 'PAID') return 'paid' as const
+        if (current.status === 'REFUNDED') return 'refunded' as const
+
+        const currentMeta = parsePaymentMeta(current.meta)
+        const storedUuid = typeof currentMeta.octo_payment_UUID === 'string'
+            ? currentMeta.octo_payment_UUID
+            : ''
+        if (!storedUuid || storedUuid !== octoUuid) return 'uuid_mismatch' as const
+
+        const claimed = await tx.payment.updateMany({
+            where: { id: current.id, status: { in: ['CREATED', 'FAILED'] } },
+            data: { status: 'PROCESSING' },
+        })
+        if (claimed.count !== 1) {
+            const refreshed = await tx.payment.findUnique({ where: { id: current.id }, select: { status: true } })
+            return refreshed?.status === 'PAID' ? 'paid' as const : 'busy' as const
+        }
+
+        // Paylov activation ham aynan shu user lockini ishlatadi. Turli provider
+        // paymentlari parallel kelsa ham har bir to'langan oy ketma-ket qo'shiladi.
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${current.userId}))`
+
+        const now = new Date()
+        const active = await tx.subscription.findFirst({
+            where: { userId: current.userId, status: 'ACTIVE', expiresAt: { gt: now } },
+            orderBy: { expiresAt: 'desc' },
+        })
+        const base = active?.expiresAt && active.expiresAt > now ? active.expiresAt : now
+        const expiresAt = new Date(base.getTime() + MONTH_MS)
+        const subscription = active
+            ? await tx.subscription.update({
+                where: { id: active.id },
+                data: { expiresAt, provider: 'octo', status: 'ACTIVE' },
+            })
+            : await tx.subscription.create({
+                data: {
+                    userId: current.userId,
+                    plan: 'PRO',
+                    status: 'ACTIVE',
+                    startedAt: now,
+                    expiresAt,
+                    provider: 'octo',
+                },
+            })
+
+        await tx.payment.update({
+            where: { id: current.id },
+            data: {
+                status: 'PAID',
+                subscriptionId: subscription.id,
+                meta: JSON.stringify({
+                    ...currentMeta,
+                    octo_payment_UUID: storedUuid,
+                    notify: notifyMeta,
+                }),
+            },
+        })
+        return 'activated' as const
+    })
+}
+
 export interface Entitlement {
     isPro: boolean
     enforced: boolean
@@ -526,30 +730,22 @@ export async function requirePro(req: AuthRequest, res: import('express').Respon
     }
 }
 
-/** Obunani 30 kunga ochish yoki uzaytirish (provider-agnostik). */
-async function extendProSubscription(userId: string, provider: string) {
-    const now = new Date()
-    const active = await prisma.subscription.findFirst({
-        where: { userId, status: 'ACTIVE', expiresAt: { gt: now } },
-        orderBy: { expiresAt: 'desc' },
-    })
-    const base = active?.expiresAt && active.expiresAt > now ? active.expiresAt : now
-    const expiresAt = new Date(base.getTime() + MONTH_MS)
-    return active
-        ? prisma.subscription.update({ where: { id: active.id }, data: { expiresAt, provider, status: 'ACTIVE' } })
-        : prisma.subscription.create({
-            data: { userId, plan: 'PRO', status: 'ACTIVE', startedAt: now, expiresAt, provider },
-        })
-}
-
 /** Frontend uchun maxfiy bo'lmagan billing konfiguratsiyasi. */
 router.get('/config', (_req, res) => {
-    const paylovOAuthConfigured = Boolean(TRANSACTION_UUID.test(PAYLOV_MERCHANT_ID) && PAYLOV_TOKEN)
+    const paylovOAuthConfigured = Boolean(
+        TRANSACTION_UUID.test(PAYLOV_MERCHANT_ID)
+        && PAYLOV_OAUTH_CONFIGURED,
+    )
+    const paylovOnboardingRequired = Boolean(
+        TRANSACTION_UUID.test(PAYLOV_MERCHANT_ID)
+        && PAYLOV_ONBOARDING_TOKEN
+        && !PAYLOV_OAUTH_CONFIGURED,
+    )
     const callbackConfigured = Boolean(PAYLOV_CALLBACK_LOGIN && PAYLOV_CALLBACK_PASSWORD)
     const checkoutConfigured = BILLING_PROVIDER === 'paylov'
         ? (PAYLOV_FLOW === 'oauth2'
             ? paylovOAuthConfigured
-            : Boolean(paylovOAuthConfigured && callbackConfigured))
+            : Boolean(TRANSACTION_UUID.test(PAYLOV_MERCHANT_ID) && callbackConfigured))
         : Boolean(process.env.OCTO_SHOP_ID && process.env.OCTO_SECRET)
     res.setHeader('Cache-Control', 'no-store')
     res.json({
@@ -560,6 +756,8 @@ router.get('/config', (_req, res) => {
         sandboxTestMode: BILLING_SANDBOX_TEST,
         paylovFlow: BILLING_PROVIDER === 'paylov' ? PAYLOV_FLOW : null,
         paylovEnvironment: BILLING_PROVIDER === 'paylov' ? PAYLOV_ENVIRONMENT : null,
+        paylovOAuthConfigured: BILLING_PROVIDER === 'paylov' ? paylovOAuthConfigured : false,
+        paylovOnboardingRequired: BILLING_PROVIDER === 'paylov' ? paylovOnboardingRequired : false,
         callbackConfigured: BILLING_PROVIDER === 'paylov' ? callbackConfigured : false,
         officialGateway: BILLING_PROVIDER === 'paylov',
     })
@@ -607,7 +805,7 @@ router.post('/checkout', authenticate, async (req: AuthRequest, res) => {
             if (PAYLOV_ENVIRONMENT !== 'production') {
                 return res.status(503).json({ error: 'paylov_hosted_production_only' })
             }
-            if (!TRANSACTION_UUID.test(PAYLOV_MERCHANT_ID) || !PAYLOV_TOKEN
+            if (!TRANSACTION_UUID.test(PAYLOV_MERCHANT_ID)
                 || !PAYLOV_CALLBACK_LOGIN || !PAYLOV_CALLBACK_PASSWORD) {
                 return res.status(503).json({ error: 'billing_not_configured' })
             }
@@ -994,7 +1192,8 @@ router.post('/paylov/callback', async (req, res) => {
         if (outcome === 'busy') return res.json(paylovRpcResult(id, '+1', 'transaction_processing'))
         return res.json(paylovRpcResult(id, '0', 'OK'))
     } catch (error) {
-        console.error('paylov callback xato:', error)
+        // Callback body/auth header va payment meta logga tushmaydi.
+        console.error('paylov callback xato:', error instanceof Error ? error.name : 'unknown')
         return res.status(500).json({ error: 'server_error' })
     }
 })
@@ -1020,13 +1219,14 @@ router.post('/octo/notify', async (req, res) => {
         // prod'da imzo har doim majburiy (tasodifan o'chirib qo'yish pul teshigi edi).
         const expected = crypto.createHash('sha1').update(`${notifySecret}${uuid}${status}`).digest('hex')
         const verifyOn = process.env.NODE_ENV === 'production' || process.env.OCTO_VERIFY_SIGNATURE !== 'false'
-        if (verifyOn && signature !== expected) {
-            console.warn('octo notify imzo mos emas — kutilgan:', expected, '| kelgan:', signature)
+        if (verifyOn && !secureEqual(signature, expected)) {
+            // Kutilgan/kelgan signature'ni loglash replay uchun maxfiy materialni oshkor qiladi.
+            console.warn('octo notify imzo mos emas', { shopTxnId: safeBillingLogId(shopTxnId) })
             return res.status(401).json({ error: 'bad_signature' })
         }
 
         const payment = await prisma.payment.findUnique({ where: { providerTxnId: shopTxnId } })
-        if (!payment) return res.status(404).json({ error: 'payment_not_found' })
+        if (!payment || payment.provider !== 'octo') return res.status(404).json({ error: 'payment_not_found' })
         if (payment.status === 'PAID') return res.json({ ok: true, idempotent: true })
 
         // REPLAY HIMOYASI: Octo imzosi faqat (uuid+status)ga bog'liq — shop_transaction_id
@@ -1036,77 +1236,61 @@ router.post('/octo/notify', async (req, res) => {
         let storedUuid = ''
         try { storedUuid = String((JSON.parse(payment.meta || '{}') as { octo_payment_UUID?: string })?.octo_payment_UUID || '') } catch { /* meta buzuq — quyida rad etiladi */ }
         if (!storedUuid || storedUuid !== uuid) {
-            console.warn('octo notify: uuid to\'lovga mos emas', { shopTxnId, uuid, storedUuid })
+            console.warn('octo notify: uuid to\'lovga mos emas', { shopTxnId: safeBillingLogId(shopTxnId) })
             return res.status(400).json({ error: 'uuid_mismatch' })
         }
 
         // Summa tekshiruvi (notify'da kelsa) — qisman to'lov to'liq obuna ochmasin
         const notifiedSum = Number((body as { total_sum?: unknown }).total_sum ?? NaN)
         if (Number.isFinite(notifiedSum) && Math.round(notifiedSum) < payment.amount) {
-            console.warn('octo notify: summa yetarli emas', { shopTxnId, notifiedSum, expected: payment.amount })
+            console.warn('octo notify: summa yetarli emas', {
+                shopTxnId: safeBillingLogId(shopTxnId),
+                notifiedSum,
+                expected: payment.amount,
+            })
             return res.status(400).json({ error: 'amount_mismatch' })
         }
 
+        const receivedAt = new Date()
+        const safeNotifyMeta = buildSafeOctoNotifyMeta(status, shopTxnId, notifiedSum, receivedAt)
         const paid = status === 'succeeded'
         if (!paid) {
-            // uuid meta'da SAQLAB QOLINADI — keyingi notify'lar ham tekshirila olishi uchun
-            await prisma.payment.update({
-                where: { providerTxnId: shopTxnId },
-                data: { status: 'FAILED', meta: JSON.stringify({ octo_payment_UUID: storedUuid, notify: body }) },
+            // PAID/PROCESSING holatini kech kelgan failed callback qayta yozmasin.
+            // Raw callback (signature va noma'lum PII) DB meta'ga ham saqlanmaydi.
+            await prisma.payment.updateMany({
+                where: { id: payment.id, status: { in: ['CREATED', 'FAILED'] } },
+                data: {
+                    status: 'FAILED',
+                    meta: JSON.stringify({
+                        ...parsePaymentMeta(payment.meta),
+                        octo_payment_UUID: storedUuid,
+                        notify: safeNotifyMeta,
+                    }),
+                },
             })
             return res.json({ ok: true })
         }
 
-        const sub = await extendProSubscription(payment.userId, 'octo')
-        await prisma.payment.update({
-            where: { providerTxnId: shopTxnId },
-            data: { status: 'PAID', subscriptionId: sub.id, meta: JSON.stringify({ octo_payment_UUID: storedUuid, notify: body }) },
-        })
-        res.json({ ok: true })
+        const outcome = await activateOctoPayment(payment.id, uuid, safeNotifyMeta)
+        if (outcome === 'not_found') return res.status(404).json({ error: 'payment_not_found' })
+        if (outcome === 'uuid_mismatch') return res.status(400).json({ error: 'uuid_mismatch' })
+        if (outcome === 'refunded') return res.status(409).json({ error: 'payment_refunded' })
+        if (outcome === 'busy') return res.status(409).json({ error: 'payment_processing' })
+        return res.json({ ok: true, idempotent: outcome === 'paid' })
     } catch (e) {
-        console.error('octo notify xato:', e)
+        // Callback body, signature va provider identifikatorlari logga tushmaydi.
+        console.error('octo notify xato:', e instanceof Error ? e.name : 'unknown')
         res.status(500).json({ error: 'server_error' })
     }
 })
 
 /**
- * Umumiy provider webhook (eski skelet — boshqa agregator uchun zaxira).
- * BILLING_WEBHOOK_SECRET sozlanmagan bo'lsa INERT.
+ * Eski generic webhook o'chirilgan. Dedicated `/paylov/callback` va
+ * `/octo/notify` provider-specific tekshiruvlardan o'tadi; generic body'dagi
+ * userId/amount/provider asosida entitlement berish xavfsiz emas.
  */
-router.post('/webhook', async (req, res) => {
-    const secret = process.env.BILLING_WEBHOOK_SECRET
-    if (!secret) return res.status(503).json({ error: 'billing_not_configured' })
-    try {
-        if (req.header('x-webhook-secret') !== secret) {
-            return res.status(401).json({ error: 'unauthorized' })
-        }
-        const body = (req.body || {}) as Record<string, unknown>
-        const providerTxnId = String(body.transactionId || body.id || '')
-        const userId = String(body.userId || '')
-        const amount = Number(body.amount || PRO_PRICE_UZS)
-        const provider = String(body.provider || 'octo')
-        const paid = body.status === 'paid' || body.status === 'success'
-        if (!providerTxnId || !userId) return res.status(400).json({ error: 'invalid_payload' })
-
-        const existing = await prisma.payment.findUnique({ where: { providerTxnId } })
-        if (existing) return res.json({ ok: true, idempotent: true })
-
-        if (!paid) {
-            await prisma.payment.create({
-                data: { userId, amount, provider, providerTxnId, status: 'FAILED', meta: JSON.stringify(body) },
-            })
-            return res.json({ ok: true })
-        }
-
-        const sub = await extendProSubscription(userId, provider)
-        await prisma.payment.create({
-            data: { userId, subscriptionId: sub.id, amount, provider, providerTxnId, status: 'PAID', meta: JSON.stringify(body) },
-        })
-        res.json({ ok: true })
-    } catch (e) {
-        console.error('billing webhook:', e)
-        res.status(500).json({ error: 'server_error' })
-    }
+router.post('/webhook', (_req, res) => {
+    res.status(410).json({ error: 'billing_webhook_retired' })
 })
 
 export default router
