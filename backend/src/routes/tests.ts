@@ -303,7 +303,11 @@ const VISION_MODEL = AI_MODELS.geminiFlash
 
 const geminiClient = new OpenAI({
     apiKey: process.env.GEMINI_API_KEY || '',
-    baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/'
+    baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+    // Vision endpoint ba'zan qisqa 429/5xx qaytaradi. SDK transient xatolarda
+    // exponential backoff bilan qayta urinadi; foydalanuvchi valid scan PDF'ni
+    // faqat bir martalik Gemini overload sabab qayta yuklamasligi kerak.
+    maxRetries: 4,
 })
 const deepseekClient = new OpenAI({
     baseURL: 'https://api.deepseek.com',
@@ -321,6 +325,13 @@ const QUESTION_GENERATION_TEXT_CHUNK_SIZE = 18000
 const QUESTION_GENERATION_TEXT_MAX_CHUNKS = 4
 const QUESTION_GENERATION_VISION_BATCH_PAGES = 2
 const QUESTION_GENERATION_VISION_MAX_PAGES = 12
+
+class VisionAnalysisUnavailableError extends Error {
+    constructor() {
+        super('Vision AI barcha sahifa batchlarini tahlil qila olmadi')
+        this.name = 'VisionAnalysisUnavailableError'
+    }
+}
 
 interface IncomingCreateQuestion {
     text?: string
@@ -650,6 +661,7 @@ async function generateQuestionsFromScannedPdf(buffer: Buffer, subjectNote: stri
     const pageLimit = Math.min(pdfDoc.numPages, QUESTION_GENERATION_VISION_MAX_PAGES)
     const truncated = pdfDoc.numPages > QUESTION_GENERATION_VISION_MAX_PAGES
     let rawQuestions: any[] = []
+    let lastBatchError: unknown = null
 
     for (let startPage = 1; startPage <= pageLimit; startPage += QUESTION_GENERATION_VISION_BATCH_PAGES) {
         const remainingSlots = QUESTION_GENERATION_MAX_TOTAL - rawQuestions.length
@@ -700,10 +712,14 @@ ${jsonFormat}`
             const validated = validateGeneratedQuestions(parsed)
             rawQuestions = dedupeGeneratedQuestions([...rawQuestions, ...validated]).slice(0, QUESTION_GENERATION_MAX_TOTAL)
         } catch (batchErr: any) {
+            lastBatchError = batchErr
             console.warn(`Scanned PDF pages ${startPage}-${endPage} generation failed:`, batchErr?.message || batchErr)
         }
     }
 
+    if (rawQuestions.length === 0 && lastBatchError) {
+        throw new VisionAnalysisUnavailableError()
+    }
     return { questions: rawQuestions, truncated }
 }
 
@@ -815,6 +831,7 @@ async function generateDtmQuestionsFromPdf(buffer: Buffer, subject: string, subj
 
     let allQuestions: any[] = []
     const allAnswerKeys: DtmAnswerKey[] = []
+    let lastBatchError: unknown = null
     // Batch orasida blok kontekstini tashiymiz — sarlavhasiz sahifa oldingi blokning davomi
     let lastBlock = 'MANDATORY_LANGUAGE (kitob boshi — ona tili)'
 
@@ -847,10 +864,14 @@ async function generateDtmQuestionsFromPdf(buffer: Buffer, subject: string, subj
             const lastTagged = [...questions].reverse().find(q => q.blockType)
             if (lastTagged) lastBlock = lastTagged.blockType
         } catch (batchErr: any) {
+            lastBatchError = batchErr
             console.warn(`DTM PDF pages ${startPage}-${endPage} generation failed:`, batchErr?.message || batchErr)
         }
     }
 
+    if (allQuestions.length === 0 && lastBatchError) {
+        throw new VisionAnalysisUnavailableError()
+    }
     const keyApplied = applyDtmAnswerKeys(allQuestions, allAnswerKeys)
     const questionsWithProvenance = allQuestions.slice(0, DTM_MAX_QUESTIONS).map(question => ({
         ...question,
@@ -1450,12 +1471,25 @@ router.post('/generate-from-file', authenticate, requireRole('TEACHER', 'ADMIN')
             }
             const dtmSubject = subject || 'Ixtisoslik fani'
             const dtmSubject2 = (req.body.subject2 as string) || '2-ixtisoslik fani'
-            const dtmResult = await generateDtmQuestionsFromPdf(buffer, dtmSubject, dtmSubject2)
-            return res.json({
-                questions: dtmResult.questions,
-                truncated: dtmResult.truncated,
-                keyApplied: dtmResult.keyApplied, // javoblar jadvalidan olingan javoblar soni
-            })
+            try {
+                const dtmResult = await generateDtmQuestionsFromPdf(buffer, dtmSubject, dtmSubject2)
+                return res.json({
+                    questions: dtmResult.questions,
+                    truncated: dtmResult.truncated,
+                    keyApplied: dtmResult.keyApplied, // javoblar jadvalidan olingan javoblar soni
+                })
+            } catch (error) {
+                if (error instanceof VisionAnalysisUnavailableError) {
+                    return res.status(503).json({
+                        error: 'DTM PDF tahlili vaqtincha band. Bir ozdan keyin qayta urinib ko‘ring.',
+                        code: 'VISION_TEMPORARILY_UNAVAILABLE',
+                    })
+                }
+                return res.status(400).json({
+                    error: 'PDF faylni ochib bo‘lmadi. Fayl buzilmaganini tekshiring.',
+                    code: 'PDF_INVALID',
+                })
+            }
         }
         // MCQ va Moslashtirish (matching) format namunasi
         const jsonFormat = `[
@@ -1485,6 +1519,16 @@ router.post('/generate-from-file', authenticate, requireRole('TEACHER', 'ADMIN')
                     truncated = truncated || scannedResult.truncated
                 } catch (err) {
                     console.error('PDF render failed:', err)
+                    if (!(err instanceof VisionAnalysisUnavailableError)) {
+                        return res.status(400).json({
+                            error: 'PDF faylni ochib bo‘lmadi. Fayl buzilmaganini tekshiring.',
+                            code: 'PDF_INVALID',
+                        })
+                    }
+                    return res.status(503).json({
+                        error: 'Skanerlangan PDF tahlili vaqtincha band. Bir ozdan keyin qayta urinib ko‘ring.',
+                        code: 'VISION_TEMPORARILY_UNAVAILABLE',
+                    })
                 }
             } else {
                 if (!fullText) {
