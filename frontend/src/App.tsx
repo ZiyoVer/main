@@ -18,6 +18,8 @@ const ProResult = lazy(() => import('./pages/ProResult'))
 const GoogleCallback = lazy(() => import('./pages/Auth/GoogleCallback'))
 const ChatLayout = lazy(() => import('./pages/Student/ChatLayout'))
 const TestPage = lazy(() => import('./pages/Student/TestPage'))
+const TestsPage = lazy(() => import('./pages/Student/TestsPage'))
+const CertificatePage = lazy(() => import('./pages/Student/CertificatePage'))
 const AdminPanel = lazy(() => import('./pages/Admin/AdminPanel'))
 const TeacherPanel = lazy(() => import('./pages/Teacher/TeacherPanel'))
 const NotFound = lazy(() => import('./pages/NotFound'))
@@ -204,6 +206,7 @@ function AppContent() {
                     <Route path="/bugun" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
                     <Route path="/suhbat" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
                     <Route path="/suhbat/:chatId" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
+                    <Route path="/testlar" element={<ProtectedRoute><TestsPage /></ProtectedRoute>} />
                     <Route path="/oqituvchi" element={<ProtectedRoute roles={['TEACHER', 'ADMIN']}><TeacherPanel /></ProtectedRoute>} />
                     <Route path="/boshqaruv" element={<ProtectedRoute roles={['ADMIN']}><AdminPanel /></ProtectedRoute>} />
                     {/* Legacy routes — backward compat */}
@@ -213,6 +216,7 @@ function AppContent() {
                     <Route path="/chat" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
                     <Route path="/chat/:chatId" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
                     <Route path="/test/:shareLink" element={<TestPage />} />
+                    <Route path="/sertifikat/:code" element={<CertificatePage />} />
                     <Route path="/admin" element={<ProtectedRoute roles={['ADMIN']}><AdminPanel /></ProtectedRoute>} />
                     <Route path="/teacher" element={<ProtectedRoute roles={['TEACHER', 'ADMIN']}><TeacherPanel /></ProtectedRoute>} />
                     <Route path="/shartlar" element={<Terms />} />

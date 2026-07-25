@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, type NavigateFunction } from 'react-router-dom'
-import { BrainCircuit, CheckCircle, XCircle, ArrowLeft, Sparkles, LogIn, Lock, MessageSquare, ChevronLeft, ChevronRight, Clock } from 'lucide-react'
+import { BrainCircuit, CheckCircle, XCircle, ArrowLeft, Sparkles, LogIn, Lock, MessageSquare, ChevronLeft, ChevronRight, Clock, Award } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
@@ -402,6 +402,7 @@ export default function TestPage() {
     const [recommendation, setRecommendation] = useState<TestRecommendation | null>(null) // 5.3
     const [focusedQ, setFocusedQ] = useState(0) // for DTM mode: highlight active question
     const [timeLeft, setTimeLeft] = useState<number | null>(null)
+    const [certificateLoading, setCertificateLoading] = useState(false)
 
     const questionsRef = useRef<HTMLDivElement>(null)
     const submitRef = useRef<(skipConfirm?: boolean) => void>(() => { })
@@ -606,6 +607,18 @@ export default function TestPage() {
 
     submitRef.current = (skipConfirm = false) => { void submit(skipConfirm ? { skipConfirm: true } : undefined) }
 
+    async function openCertificate() {
+        const attemptId = result?.attempt?.id
+        if (!attemptId || normalizedTestType !== 'MILLIY_SERTIFIKAT') return
+        setCertificateLoading(true)
+        try {
+            const certificate = await fetchApi(`/tests/attempts/${attemptId}/certificate`)
+            nav(`/sertifikat/${encodeURIComponent(certificate.code)}`)
+        } finally {
+            setCertificateLoading(false)
+        }
+    }
+
     function scrollToQuestion(idx: number) {
         const el = questionsRef.current?.querySelector(`[data-qi="${idx}"]`) as HTMLElement | null
         const container = questionsRef.current
@@ -682,7 +695,7 @@ export default function TestPage() {
             <header className="test-workspace__header sticky top-0 z-40" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
                 <div className="max-w-2xl mx-auto flex items-center justify-between py-3 px-5">
                     <div className="flex items-center gap-2">
-                        <button type="button" aria-label="Testdan chiqish" onClick={() => nav(token ? '/suhbat' : '/')} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        <button type="button" aria-label="Testdan chiqish" onClick={() => nav(token ? '/testlar' : '/')} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                             <ArrowLeft className="h-4 w-4" />
                         </button>
                         <img src="/dtmmax-logo.png" alt="DtmMax" width={32} height={32} className="h-8 w-8 rounded-md flex items-center justify-center" style={{ objectFit: 'contain' }} />
@@ -756,6 +769,18 @@ export default function TestPage() {
                         <div className="mt-3 flex items-center justify-center gap-2 flex-wrap">
                             {normalizedTestType === 'MILLIY_SERTIFIKAT' && result.msBall !== undefined && <div className="px-3 py-1.5 rounded-lg text-[12px] font-semibold" style={{ background: 'color-mix(in srgb, var(--brand) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', color: 'var(--brand)' }}>MS: {result.msBall} / {result.msMax}</div>}
                         </div>
+                        {normalizedTestType === 'MILLIY_SERTIFIKAT' && result?.attempt?.id && (
+                            <button
+                                type="button"
+                                onClick={() => { void openCertificate() }}
+                                disabled={certificateLoading}
+                                className="mt-4 mx-auto min-h-10 px-4 rounded-lg text-[13px] font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+                                style={{ background: 'var(--text-primary)', color: 'var(--text-inverse)' }}
+                            >
+                                <Award className="h-4 w-4" />
+                                {certificateLoading ? 'Tayyorlanmoqda…' : 'Natija sertifikatini ko‘rish'}
+                            </button>
+                        )}
                                 </>
                             )
                         })()}
@@ -960,7 +985,7 @@ export default function TestPage() {
                         ? <button onClick={() => nav('/kirish', { state: { from: `/test/${shareLink}` } })} className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2" style={{ background: 'var(--brand)', color: '#171717' }}><LogIn className="h-4 w-4" /> Yechishni boshlash uchun kiring</button>
                         : <button onClick={() => submit()} disabled={submitting || answeredCount === 0} className="w-full h-11 rounded-xl text-sm font-semibold transition disabled:opacity-40" style={{ background: 'var(--brand)', color: '#171717' }}>{submitting ? 'Tekshirilmoqda...' : answeredCount < total ? `Testni yuborish (${total - answeredCount} ta javobsiz)` : `Testni yuborish (${answeredCount}/${total})`}</button>
                 )}
-                {submitted && <button onClick={() => nav('/suhbat')} className="w-full h-11 rounded-xl text-sm font-semibold transition" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>Chatga qaytish</button>}
+                {submitted && <button onClick={() => nav('/testlar')} className="w-full h-11 rounded-xl text-sm font-semibold transition" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>Test markaziga qaytish</button>}
             </main>
         </div>
     )

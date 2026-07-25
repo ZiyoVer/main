@@ -34,8 +34,59 @@ import {
 import { extractPdfText } from '../utils/pdfText'
 import { prepareQuestionImage, QuestionImageValidationError } from '../utils/questionImage'
 import { generateGeminiVisionContent, GeminiVisionImage } from '../utils/geminiVision'
+import { createCertificateCode, verifyCertificateCode } from '../utils/certificateCode'
 
 const TEST_SUBMIT_GRACE_MS = 5000
+
+const CERTIFICATE_PRODUCT_NAME = 'DTMMax sinov imtihoni'
+
+async function findMilliySertifikatAttempt(attemptId: string) {
+    const attempt = await prisma.testAttempt.findUnique({
+        where: { id: attemptId },
+        select: {
+            id: true,
+            userId: true,
+            score: true,
+            rawScore: true,
+            scoreMax: true,
+            grade: true,
+            createdAt: true,
+            user: { select: { name: true } },
+            test: {
+                select: {
+                    id: true,
+                    title: true,
+                    subject: true,
+                    testType: true,
+                },
+            },
+        },
+    })
+    if (!attempt || normalizeTestType(attempt.test.testType) !== 'MILLIY_SERTIFIKAT') return null
+    return attempt
+}
+
+function toCertificatePayload(attempt: NonNullable<Awaited<ReturnType<typeof findMilliySertifikatAttempt>>>) {
+    const code = createCertificateCode(attempt.id)
+    const frontendUrl = (process.env.FRONTEND_URL || 'https://www.dtmmax.uz').replace(/\/+$/, '')
+    const grade = attempt.grade || getMsGrade(attempt.rawScore ?? 0)
+    return {
+        code,
+        verificationUrl: `${frontendUrl}/sertifikat/${encodeURIComponent(code)}`,
+        holderName: attempt.user.name,
+        subject: attempt.test.subject || 'Umumiy fan',
+        testTitle: attempt.test.title,
+        scorePercent: roundScore(attempt.score),
+        rawScore: roundScore(attempt.rawScore ?? 0),
+        scoreMax: roundScore(attempt.scoreMax ?? 75),
+        grade,
+        qualified: grade !== 'D',
+        completedAt: attempt.createdAt.toISOString(),
+        productName: CERTIFICATE_PRODUCT_NAME,
+        official: false,
+        disclaimer: 'Ushbu hujjat DTMMax platformasidagi sinov imtihoni natijasini tasdiqlaydi. Davlat milliy sertifikati hisoblanmaydi.',
+    }
+}
 
 // Test allaqachon yechilgan bo'lsa (double-submit/replay) — 409 qaytarish uchun sentinel xato.
 class AlreadySubmittedError extends Error {
@@ -1252,6 +1303,43 @@ router.get('/my-results', authenticate, async (req: AuthRequest, res) => {
         res.json(attempts)
     } catch (e) {
         res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
+// Milliy Sertifikat sinov urinishining egasi uchun tekshiriladigan sertifikat kodi.
+// Kod HMAC bilan imzolangan; klient attempt ID'dan o'zi haqiqiy kod yasay olmaydi.
+router.get('/attempts/:attemptId/certificate', authenticate, testReadLimiter, async (req: AuthRequest, res) => {
+    try {
+        const attempt = await findMilliySertifikatAttempt(req.params.attemptId as string)
+        if (!attempt) {
+            return res.status(404).json({ error: 'Milliy Sertifikat sinov natijasi topilmadi' })
+        }
+        if (attempt.userId !== req.user.id && req.user.role !== 'ADMIN') {
+            return res.status(403).json({ error: 'Bu sertifikatni ko‘rish uchun ruxsat yo‘q' })
+        }
+        res.json(toCertificatePayload(attempt))
+    } catch (error) {
+        console.error('sertifikat yaratish xato:', error)
+        res.status(500).json({ error: 'Sertifikatni tayyorlab bo‘lmadi' })
+    }
+})
+
+// QR/barcode orqali ochiladigan public verification endpoint. To'liq ism sertifikatning
+// o'zida ham ko'rinadi; email va boshqa shaxsiy ma'lumotlar hech qachon qaytarilmaydi.
+router.get('/certificates/:code', testReadLimiter, async (req, res) => {
+    try {
+        const attemptId = verifyCertificateCode(req.params.code as string)
+        if (!attemptId) {
+            return res.status(404).json({ error: 'Sertifikat kodi haqiqiy emas', code: 'CERTIFICATE_INVALID' })
+        }
+        const attempt = await findMilliySertifikatAttempt(attemptId)
+        if (!attempt) {
+            return res.status(404).json({ error: 'Sertifikat topilmadi', code: 'CERTIFICATE_NOT_FOUND' })
+        }
+        res.json(toCertificatePayload(attempt))
+    } catch (error) {
+        console.error('sertifikatni tekshirish xato:', error)
+        res.status(500).json({ error: 'Sertifikatni tekshirib bo‘lmadi' })
     }
 })
 

@@ -755,7 +755,7 @@ interface ChatInputAreaProps {
     loading: boolean
     thinkingMode: boolean
     setThinkingMode: React.Dispatch<React.SetStateAction<boolean>>
-    onSend: (text: string, files: AttachedFile[]) => void
+    onSend: (text: string, files: AttachedFile[], displayText?: string) => void
     onStop: () => void
     blobUrlsRef: React.MutableRefObject<string[]>
     // chatId yo'q bo'lsa (yangi suhbat) chat yaratib id qaytaradi — paste/rasm shu holatda ham ishlasin
@@ -763,11 +763,14 @@ interface ChatInputAreaProps {
     aiQuota: AiQuota | null
     refreshAiQuota: () => Promise<void>
     onOpenTests: () => void
+    // Composer chip paneli uchun fan konteksti (chat fani → profil fanlari)
+    subject?: string
+    subject2?: string
 }
 
 const ChatInputArea = memo(function ChatInputArea({
     chatId, loading, thinkingMode, setThinkingMode, onSend, onStop, blobUrlsRef, onEnsureChat,
-    aiQuota, refreshAiQuota, onOpenTests
+    aiQuota, refreshAiQuota, onOpenTests, subject, subject2
 }: ChatInputAreaProps) {
     const [input, setInput] = useState('')
     const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
@@ -775,6 +778,40 @@ const ChatInputArea = memo(function ChatInputArea({
     const [showComposerOptions, setShowComposerOptions] = useState(false)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
+
+    // ---- Composer chip rejimi ----
+    // Chip bosish hech qachon generic prompt YUBORMAYDI — faqat rejim va
+    // placeholder o'zgaradi; texnik prompt yuborish paytida o'raladi va
+    // displayText orqali foydalanuvchiga ko'rinmaydi.
+    type ComposerMode = 'explain' | 'test' | 'plan'
+    const [composerMode, setComposerMode] = useState<ComposerMode | null>(null)
+    const subjectOptions = useMemo(
+        () => [subject, subject2].filter((s, i, arr): s is string => !!s && arr.indexOf(s) === i),
+        [subject, subject2]
+    )
+    const [composerSubject, setComposerSubject] = useState<string | undefined>(subjectOptions[0])
+    useEffect(() => {
+        setComposerSubject(prev => (prev && subjectOptions.includes(prev)) ? prev : subjectOptions[0])
+    }, [subjectOptions])
+    const cycleSubject = () => {
+        if (subjectOptions.length === 0) return
+        setComposerSubject(prev => {
+            const idx = subjectOptions.indexOf(prev ?? '')
+            return subjectOptions[(idx + 1) % subjectOptions.length]
+        })
+        textareaRef.current?.focus()
+    }
+    const toggleMode = (mode: ComposerMode) => {
+        setComposerMode(prev => (prev === mode ? null : mode))
+        textareaRef.current?.focus()
+    }
+    const composerPlaceholder = composerMode === 'explain'
+        ? `Qaysi mavzuni tushuntirib beray${composerSubject ? ` (${composerSubject})` : ''}?`
+        : composerMode === 'test'
+            ? `Qaysi mavzudan test tuzay${composerSubject ? ` (${composerSubject})` : ''}?`
+            : composerMode === 'plan'
+                ? 'Nima uchun reja tuzay? Masalan: bugungi 2 soatlik o‘qish'
+                : 'Savolingizni yozing yoki masala rasmini biriktiring…'
 
     const adjustTextareaHeight = useCallback(() => {
         const el = textareaRef.current
@@ -3286,9 +3323,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                             <BookOpen className="h-4 w-4 flex-shrink-0" /> O‘rganish
                             {dueFlashcards.length > 0 && <span className="student-nav-count">{dueFlashcards.length > 9 ? '9+' : dueFlashcards.length}</span>}
                         </button>
-                        <button type="button" onClick={() => { setOverlayPanel(overlayPanel === 'tests' ? null : 'tests'); if (isMobile) setSideOpen(false); markTestsSeen(); if (overlayPanel !== 'tests') { void loadPublicTests(); void loadMyResults() } }}
-                            className={`student-primary-nav__item${overlayPanel === 'tests' ? ' is-active' : ''}`}
-                            aria-pressed={overlayPanel === 'tests'}>
+                        <button type="button" onClick={() => { markTestsSeen(); if (isMobile) setSideOpen(false); nav('/testlar') }}
+                            className="student-primary-nav__item">
                             <ClipboardList className="h-4 w-4 flex-shrink-0" />
                             Testlar
                             {newTestIds.size > 0 && <span className="student-nav-count is-alert">{newTestIds.size > 9 ? '9+' : newTestIds.size}</span>}
@@ -3836,7 +3872,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             } else if (myResults.length > 0) {
                                                 title = 'Keyingi testni tanlang'
                                                 description = `Oxirgi natija ${myResults[0].score}% — endi davom etamiz`
-                                                onClick = () => { setOverlayPanel('tests'); markTestsSeen(); void loadPublicTests(); void loadMyResults() }
+                                                onClick = () => { markTestsSeen(); nav('/testlar') }
                                             } else if (weakTopic) {
                                                 title = `Zaif mavzu: ${weakTopic.topic}`
                                                 description = '10 ta qisqa mashq bilan mustahkamlaymiz'
@@ -3977,7 +4013,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                     </div>
                                                 </div>
                                                 <button type="button" className="btn btn-outline btn-sm flex-shrink-0 relative"
-                                                    onClick={() => { setOverlayPanel('tests'); markTestsSeen(); void loadPublicTests(); void loadMyResults() }}>
+                                                    onClick={() => { markTestsSeen(); nav('/testlar') }}>
                                                     Testlar
                                                     {newTestIds.size > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full text-[9px] flex items-center justify-center font-bold" style={{ background: 'var(--brand)', color: '#171717' }}>{newTestIds.size > 9 ? '9+' : newTestIds.size}</span>}
                                                 </button>
@@ -4213,10 +4249,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                         aiQuota={aiQuota}
                         refreshAiQuota={refreshAiQuota}
                         onOpenTests={() => {
-                            setOverlayPanel('tests')
                             markTestsSeen()
-                            void loadPublicTests()
-                            void loadMyResults()
+                            nav('/testlar')
                         }}
                     />}
                 </div>
@@ -5321,7 +5355,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                         {([
                             { key: 'today', label: 'Bugun', Icon: House, active: isTodayView && !overlayPanel && !sideOpen, tap: () => { setOverlayPanel(null); setSideOpen(false); nav('/bugun') } },
                             { key: 'learn', label: 'O‘rganish', Icon: BookOpen, active: overlayPanel === 'flashcards', badge: dueFlashcards.length, tap: () => { setSideOpen(false); setOverlayPanel('flashcards') } },
-                            { key: 'tests', label: 'Testlar', Icon: ClipboardList, active: overlayPanel === 'tests', badge: newTestIds.size, tap: () => { setSideOpen(false); setOverlayPanel('tests'); markTestsSeen(); void loadPublicTests(); void loadMyResults() } },
+                            { key: 'tests', label: 'Testlar', Icon: ClipboardList, active: false, badge: newTestIds.size, tap: () => { markTestsSeen(); nav('/testlar') } },
                             { key: 'tutor', label: 'AI ustoz', Icon: MessageSquare, active: !!chatId && !overlayPanel && !sideOpen, tap: openAiTutor },
                             { key: 'progress', label: 'Progress', Icon: TrendingUp, active: overlayPanel === 'progress', tap: () => { setSideOpen(false); setOverlayPanel('progress') } },
                         ] as Array<{ key: string; label: string; Icon: typeof Menu; active: boolean; badge?: number; tap: () => void }>).map(tab => (
