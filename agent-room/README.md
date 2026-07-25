@@ -150,6 +150,14 @@ JWT, S3 va boshqa app secretlari child agentga uzatilmaydi. Faqat CLI auth
 keychain orqali ishlamasa, alohida agent credential bilan forwardingni ongli
 ravishda yoqish mumkin.
 
+### Codex va Node arxitekturasi
+
+Agent Room defaultda `bin/codex-local` wrapperidan foydalanadi. Wrapper NVM
+bilan o‘rnatilgan Codex launcheri yonidagi `node` binarysini tanlaydi; shu
+sabab parent process boshqa Node arxitekturasida ishlasa ham Codex to‘g‘ri
+ishga tushadi. Kerak bo‘lsa `AGENT_ROOM_CODEX_BIN` yoki
+`AGENT_ROOM_CODEX_COMMAND` bilan aniq yo‘l berish mumkin.
+
 ## Hozirgi cheklovlar
 
 - Codex CLI health ishlamasa supervisor uni `offline` qiladi; boshqa agentlar

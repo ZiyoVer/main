@@ -57,7 +57,8 @@ export function loadConfig(): RoomConfig {
     commands: {
       claude: process.env.AGENT_ROOM_CLAUDE_COMMAND?.trim() || 'claude',
       kimi: process.env.AGENT_ROOM_KIMI_COMMAND?.trim() || 'kimi',
-      codex: process.env.AGENT_ROOM_CODEX_COMMAND?.trim() || 'codex',
+      codex: process.env.AGENT_ROOM_CODEX_COMMAND?.trim()
+        || resolve(repoRoot, 'agent-room/bin/codex-local'),
     },
   }
 }
