@@ -3,6 +3,9 @@
     "dtmmax": {
       "url": "http://localhost:3100/mcp"
     },
+    "agent-room": {
+      "url": "http://localhost:3101/mcp"
+    },
     "playwright": {
       "command": "npx",
       "args": ["-y", "@playwright/mcp@latest", "--headless"],

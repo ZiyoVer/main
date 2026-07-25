@@ -1,0 +1,35 @@
+{
+  "name": "dtmmax-agent-room",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Claude, Codex va Kimi uchun lokal task queue, inbox, review va worktree koordinatori",
+  "type": "module",
+  "main": "build/server.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "node --watch build/server.js",
+    "start": "node build/server.js",
+    "supervisor": "node build/supervisor.js",
+    "start:all": "node build/overnight.js",
+    "overnight": "caffeinate -dimsu node build/overnight.js",
+    "doctor": "node build/cli.js doctor",
+    "status": "node build/cli.js status",
+    "smoke": "node --test build/**/*.test.js",
+    "check": "npm run build && npm run smoke"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.19.15",
+    "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "@hono/node-server": "2.0.11"
+  }
+}
