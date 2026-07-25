@@ -32,9 +32,17 @@
   box-shadow: none;
 }
 
-.student-workspace :is(button, a, input, select, textarea):focus-visible {
+.student-workspace :is(button, a, input, select):focus-visible {
   outline: 2px solid var(--text-primary);
   outline-offset: 2px;
+}
+
+/* Composer textareasi alohida: fokus holati konteynerning yagona orange
+   ring'i (focus-within) bilan ko'rinadi — qo'shimcha qora outline
+   double-border hosil qilardi. Keyboard fokus yo'qolmaydi: ring box'da. */
+.student-workspace .chat-input-box textarea:focus,
+.student-workspace .chat-input-box textarea:focus-visible {
+  outline: none;
 }
 
 .student-icon-button {
