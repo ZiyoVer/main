@@ -29,7 +29,8 @@ import type { AiQuota } from './chat/useAiQuota'
 import { TestCatalogControls } from './chat/TestCatalogControls'
 import { useTestCatalog } from './chat/useTestCatalog'
 import type { TestCatalogFormat, TestCatalogSort, TestCatalogView } from './chat/useTestCatalog'
-import SessionRail, { deriveSessionPhase } from './chat/SessionRail'
+import SessionRail, { deriveSessionPhaseFromLearning } from './chat/SessionRail'
+import { useLearningSession } from './chat/useLearningSession'
 import '../../styles/student-workspace.css'
 
 interface Chat { id: string; title: string; subject?: string; subject2?: string; updatedAt: string; messageCount?: number }
@@ -568,22 +569,46 @@ const MdMessage = memo(({ content, isStreaming, messageId }: {
 })
 
 // Uzun AI javoblari qatlami — 1200+ belgilik "matn to'kish" yig'iladigan bo'ladi.
-// Gradient fade ISHLATILMAYDI (anti-pattern): qattiq chegara + alohida tugma.
+// QATTIQ QOIDALAR:
+// - Kesish FAQAT paragraf chegarasida (formula/KaTeX hech qachon yarmidan kesilmaydi);
+// - ``` struktur blok (test, flashcard, todo...) yoki display formula ($$, \[) bor
+//   xabar UMUMAN qisqartirilmaydi — muhim kontent yo'qolmasligi shart;
+// - Gradient fade ISHLATILMAYDI (anti-pattern): qattiq chegara + alohida tugma.
 const AI_COLLAPSE_THRESHOLD = 1200
+const AI_COLLAPSE_HEAD = 700
+
+function splitCollapsibleContent(content: string): { head: string; rest: string } | null {
+    if (content.length <= AI_COLLAPSE_THRESHOLD) return null
+    if (/```/.test(content) || /\$\$/.test(content) || /\\\[/.test(content)) return null
+    const paragraphs = content.split(/\n{2,}/)
+    let headLen = 0
+    let cut = 0
+    for (const p of paragraphs) {
+        if (cut > 0 && headLen + p.length > AI_COLLAPSE_HEAD) break
+        headLen += p.length + 2
+        cut++
+        if (headLen >= AI_COLLAPSE_HEAD) break
+    }
+    if (cut === 0 || cut >= paragraphs.length) return null
+    const rest = paragraphs.slice(cut).join('\n\n')
+    if (rest.length < 200) return null
+    return { head: paragraphs.slice(0, cut).join('\n\n'), rest }
+}
+
 const CollapsibleAiBubble = memo(({ content, messageId }: { content: string; messageId?: string }) => {
     const [expanded, setExpanded] = useState(false)
-    const collapsible = content.length > AI_COLLAPSE_THRESHOLD
+    const split = useMemo(() => splitCollapsibleContent(content), [content])
+    if (!split) {
+        return <div className="bubble-ai"><MdMessage content={content} messageId={messageId} /></div>
+    }
     return (
         <div className="bubble-ai">
-            <div className={collapsible && !expanded ? 'ai-msg-clamped' : undefined}>
-                <MdMessage content={content} messageId={messageId} />
-            </div>
-            {collapsible && (
-                <button type="button" className="ai-msg-toggle" onClick={() => setExpanded(v => !v)} aria-expanded={expanded}>
-                    {expanded ? <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />}
-                    {expanded ? 'Yig‘ish' : 'To‘liq o‘qish'}
-                </button>
-            )}
+            <MdMessage content={split.head} messageId={messageId} />
+            {expanded && <MdMessage content={split.rest} />}
+            <button type="button" className="ai-msg-toggle" onClick={() => setExpanded(v => !v)} aria-expanded={expanded}>
+                {expanded ? <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />}
+                {expanded ? 'Yig‘ish' : 'To‘liq o‘qish'}
+            </button>
         </div>
     )
 })
@@ -3218,11 +3243,10 @@ Iltimos, har bir savolni tahlil qilib ber:
     const mobileTabBarVisible = isMobile && !testPanel && !essayPanel && !flashPanel && !todoOpen
     const MOBILE_TABBAR_PAD = 'calc(62px + env(safe-area-inset-bottom))'
 
-    // Sessiya raili — suhbat qaysi o'quv bosqichida ekanini REAL dalillardan chiqaradi
-    const sessionPhase = useMemo(
-        () => deriveSessionPhase({ messages, testActive: !!testPanel, testSubmitted }),
-        [messages, testPanel, testSubmitted]
-    )
+    // Sessiya raili — FAQAT backend LearningSession real holatidan.
+    // Stream tugaganda va test topshirilganda qayta yuklanadi.
+    const learningSession = useLearningSession(chatId, streaming, testSubmitted)
+    const sessionPhase = useMemo(() => deriveSessionPhaseFromLearning(learningSession), [learningSession])
 
     return (
         <ChatContext.Provider value={chatContextValue}>
@@ -3986,16 +4010,9 @@ Iltimos, har bir savolni tahlil qilib ber:
                                     const unfinishedTodo = homeTodos.find(item => !item.done)
                                     const needsDiagnostic = myResults.length === 0 && (profile?.totalTests ?? 0) === 0
                                     let focus: { title: string; description: string; prompt: string } | null = null
-                                    if (needsDiagnostic) {
-                                        const subjects = diagnosticSubjects(profile)
-                                        focus = {
-                                            title: 'Darajangizni aniqlaymiz',
-                                            description: subjects.length >= 2
-                                                ? `${subjects.join(' + ')} bo‘yicha diagnostik test — keyin shaxsiy reja`
-                                                : `${subjects[0] || 'Asosiy faningiz'} bo‘yicha shaxsiy boshlang‘ich test`,
-                                            prompt: buildDiagnosticPrompt(profile),
-                                        }
-                                    } else if (unfinishedTodo) {
+                                    // Tartib: 1) REAL reja (DB/localStorage'dagi todo), 2) REAL zaif mavzu
+                                    // (backend progress), 3) diagnostika — faqat yangi o'quvchiga
+                                    if (unfinishedTodo) {
                                         focus = {
                                             title: 'Bugungi rejani davom ettiramiz',
                                             description: `Navbatdagi vazifa: ${unfinishedTodo.task}`,
@@ -4006,6 +4023,15 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             title: `Zaif mavzu: ${weakTopic.topic}`,
                                             description: 'Avval qisqa tushuntirish, keyin mashq bilan mustahkamlaymiz',
                                             prompt: `"${weakTopic.topic}" mavzusini avval qisqa tushuntir, keyin 10 ta savollik mashq testi tuz — bu mening zaif mavzum, oxirida xatolarimni tushuntir.`,
+                                        }
+                                    } else if (needsDiagnostic) {
+                                        const subjects = diagnosticSubjects(profile)
+                                        focus = {
+                                            title: 'Darajangizni aniqlaymiz',
+                                            description: subjects.length >= 2
+                                                ? `${subjects.join(' + ')} bo‘yicha diagnostik test — keyin shaxsiy reja`
+                                                : `${subjects[0] || 'Asosiy faningiz'} bo‘yicha shaxsiy boshlang‘ich test`,
+                                            prompt: buildDiagnosticPrompt(profile),
                                         }
                                     }
                                     return (

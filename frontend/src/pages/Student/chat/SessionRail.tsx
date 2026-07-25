@@ -1,10 +1,12 @@
 import { Check } from 'lucide-react'
+import type { LearningSessionInfo } from './useLearningSession'
 
 // ============================================================
 // Sessiya raili — AI ustoz suhbatining o'quv bosqichlari.
-// Handoff'dagi oqim: diagnostika → reja → tushuntirish → mashq → natija.
-// Fevristik aniqlash: faqat chatdagi REAL dalillarga tayanadi
-// (struktur bloklar, test holati) — dekorativ progress emas.
+// MUHIM QOIDA: rail FAQAT backend LearningSession real holatidan
+// ishlaydi. Xabar matni, uzunligi yoki regex taxminlari ishlatilmaydi —
+// soxta progress taqiqlangan. Sessiya yo'q bo'lsa rail umuman
+// chizilmaydi.
 // ============================================================
 
 export type SessionPhaseId = 'diagnostika' | 'reja' | 'tushuntirish' | 'mashq' | 'natija'
@@ -12,12 +14,8 @@ export type SessionPhaseId = 'diagnostika' | 'reja' | 'tushuntirish' | 'mashq' |
 export interface SessionPhaseState {
     current: SessionPhaseId
     done: SessionPhaseId[]
-}
-
-export interface SessionPhaseInput {
-    messages: Array<{ role: string; content: string }>
-    testActive: boolean
-    testSubmitted: boolean
+    /** LESSON bosqichida real qadam ko'rsatkichi, masalan "2/4" (backend stepIndex/plan) */
+    stepLabel?: string
 }
 
 export const SESSION_PHASES: Array<{ id: SessionPhaseId; label: string }> = [
@@ -28,37 +26,30 @@ export const SESSION_PHASES: Array<{ id: SessionPhaseId; label: string }> = [
     { id: 'natija', label: 'Natija' },
 ]
 
-const PHASE_ORDER: SessionPhaseId[] = SESSION_PHASES.map(p => p.id)
-
 /**
- * Joriy bosqich — dalili topilgan ENG OXIRGI bosqich.
- * "done" — joriydan oldingi, dalili bor bosqichlar (o'tkazib yuborilganlar
- * neutral qoladi — rail haqiqatni ko'rsatadi, taxminni emas).
- * Hech qanday dalil bo'lmasa null — rail umuman chizilmaydi.
+ * Backend LearningSession → rail holati.
+ * - PREREQUISITE: diagnostika joriy (reja DBda yaratilgan — real)
+ * - LESSON/REMEDIATION: diagnostika+reja o'tgan, tushuntirish joriy;
+ *   lastCheckpoint bor bo'lsa mashq ham real bajarilgan
+ * - COMPLETED: hamma bosqich o'tgan, natija joriy
  */
-export function deriveSessionPhase({ messages, testActive, testSubmitted }: SessionPhaseInput): SessionPhaseState | null {
-    if (messages.length === 0 && !testActive) return null
+export function deriveSessionPhaseFromLearning(session: LearningSessionInfo | null): SessionPhaseState | null {
+    if (!session) return null
 
-    const assistant = messages.filter(m => m.role === 'assistant')
-    const user = messages.filter(m => m.role === 'user')
+    const stepLabel = session.plan.length > 0
+        ? `${Math.min(session.stepIndex + 1, session.plan.length)}/${session.plan.length}`
+        : undefined
 
-    const hit: Record<SessionPhaseId, boolean> = {
-        diagnostika: user.some(m => /diagnostik|darajamni aniqla/i.test(m.content)),
-        reja: assistant.some(m => m.content.includes('```todo')),
-        // Struktur bloklarsiz 400+ belgilik javob — haqiqiy tushuntirish bo'lgan
-        tushuntirish: assistant.some(m => m.content.replace(/```[\s\S]*?```/g, '').trim().length > 400),
-        mashq: testActive || assistant.some(m => m.content.includes('```test')),
-        natija: testSubmitted || assistant.some(m => /natija[\s\S]{0,80}\d+\s*%|\d+\s*%[\s\S]{0,80}natija/i.test(m.content)),
+    if (session.status === 'COMPLETED' || session.stage === 'COMPLETED') {
+        return { current: 'natija', done: ['diagnostika', 'reja', 'tushuntirish', 'mashq'], stepLabel }
     }
-
-    let currentIdx = -1
-    PHASE_ORDER.forEach((id, i) => { if (hit[id]) currentIdx = Math.max(currentIdx, i) })
-    if (currentIdx < 0) return null
-
-    return {
-        current: PHASE_ORDER[currentIdx],
-        done: PHASE_ORDER.filter((id, i) => i < currentIdx && hit[id]),
+    if (session.stage === 'LESSON' || session.stage === 'REMEDIATION') {
+        const done: SessionPhaseId[] = ['diagnostika', 'reja']
+        if (session.hasCheckpoint) done.push('mashq')
+        return { current: 'tushuntirish', done, stepLabel }
     }
+    // PREREQUISITE — reja sessiya yaratilganda DBga yozilgan (real holat)
+    return { current: 'diagnostika', done: ['reja'], stepLabel }
 }
 
 export default function SessionRail({ phase }: { phase: SessionPhaseState }) {
@@ -77,7 +68,10 @@ export default function SessionRail({ phase }: { phase: SessionPhaseState }) {
                             <span className="session-rail__dot" aria-hidden="true">
                                 {isDone ? <Check className="h-2.5 w-2.5" strokeWidth={3} /> : idx + 1}
                             </span>
-                            <span className="session-rail__label">{step.label}</span>
+                            <span className="session-rail__label">
+                                {step.label}
+                                {isCurrent && phase.stepLabel && step.id === 'tushuntirish' ? ` · ${phase.stepLabel}` : ''}
+                            </span>
                         </li>
                     )
                 })}

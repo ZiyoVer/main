@@ -1504,6 +1504,41 @@ router.get('/:chatId/messages', authenticate, async (req: AuthRequest, res) => {
     }
 })
 
+// Learning session holati — frontend sessiya raili FAQAT shu real DB holatidan
+// ishlaydi (soxta progress yo'q). Read-only, mavjud contractni o'zgartirmaydi.
+router.get('/:chatId/learning-session', authenticate, async (req: AuthRequest, res) => {
+    try {
+        const chat = await prisma.chat.findFirst({
+            where: { id: (req.params.chatId as string), userId: req.user.id },
+            select: { id: true }
+        })
+        if (!chat) return res.status(404).json({ error: 'Chat topilmadi' })
+
+        const session = await prisma.learningSession.findFirst({
+            where: { chatId: chat.id, userId: req.user.id, status: { not: 'ABANDONED' } },
+            orderBy: { updatedAt: 'desc' },
+            select: {
+                id: true, topic: true, subject: true, status: true,
+                stage: true, stepIndex: true, plan: true, lastCheckpoint: true
+            }
+        })
+        res.json({
+            session: session ? {
+                id: session.id,
+                topic: session.topic,
+                subject: session.subject,
+                status: session.status,
+                stage: session.stage,
+                stepIndex: session.stepIndex,
+                plan: parseStringArray(session.plan),
+                hasCheckpoint: Boolean(session.lastCheckpoint),
+            } : null
+        })
+    } catch (e) {
+        res.status(500).json({ error: 'Server xatoligi' })
+    }
+})
+
 router.post('/:chatId/auto-greet', authenticate, requireVerified, async (req: AuthRequest, res) => {
     try {
         const chat = await prisma.chat.findFirst({

@@ -579,14 +579,9 @@
 }
 
 /* ============================================================
-   Uzun AI javobini yig'ish — qattiq chegara + alohida tugma.
-   Gradient fade ishlatilmaydi (anti-pattern).
+   Uzun AI javobini yig'ish — kesish faqat paragraf chegarasida
+   (formula/struktur blok himoyalangan), gradient fade yo'q.
    ============================================================ */
-.ai-msg-clamped {
-  max-height: 300px;
-  overflow: hidden;
-}
-
 .ai-msg-toggle {
   display: inline-flex;
   align-items: center;
