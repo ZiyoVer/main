@@ -746,7 +746,7 @@ interface ChatInputAreaProps {
     loading: boolean
     thinkingMode: boolean
     setThinkingMode: React.Dispatch<React.SetStateAction<boolean>>
-    onSend: (text: string, files: AttachedFile[], displayText?: string) => void
+    onSend: (text: string, files: AttachedFile[], options?: SendOptions) => void
     onStop: () => void
     blobUrlsRef: React.MutableRefObject<string[]>
     // chatId yo'q bo'lsa (yangi suhbat) chat yaratib id qaytaradi — paste/rasm shu holatda ham ishlasin
