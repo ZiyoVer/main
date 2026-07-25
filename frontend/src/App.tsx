@@ -19,6 +19,8 @@ const GoogleCallback = lazy(() => import('./pages/Auth/GoogleCallback'))
 const ChatLayout = lazy(() => import('./pages/Student/ChatLayout'))
 const TestPage = lazy(() => import('./pages/Student/TestPage'))
 const TestsPage = lazy(() => import('./pages/Student/TestsPage'))
+const OrganishPage = lazy(() => import('./pages/Student/OrganishPage'))
+const ProgressPage = lazy(() => import('./pages/Student/ProgressPage'))
 const CertificatePage = lazy(() => import('./pages/Student/CertificatePage'))
 const AdminPanel = lazy(() => import('./pages/Admin/AdminPanel'))
 const TeacherPanel = lazy(() => import('./pages/Teacher/TeacherPanel'))
@@ -207,6 +209,8 @@ function AppContent() {
                     <Route path="/suhbat" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
                     <Route path="/suhbat/:chatId" element={<ProtectedRoute><ChatLayout /></ProtectedRoute>} />
                     <Route path="/testlar" element={<ProtectedRoute><TestsPage /></ProtectedRoute>} />
+                    <Route path="/organish" element={<ProtectedRoute><OrganishPage /></ProtectedRoute>} />
+                    <Route path="/progress" element={<ProtectedRoute><ProgressPage /></ProtectedRoute>} />
                     <Route path="/oqituvchi" element={<ProtectedRoute roles={['TEACHER', 'ADMIN']}><TeacherPanel /></ProtectedRoute>} />
                     <Route path="/boshqaruv" element={<ProtectedRoute roles={['ADMIN']}><AdminPanel /></ProtectedRoute>} />
                     {/* Legacy routes — backward compat */}

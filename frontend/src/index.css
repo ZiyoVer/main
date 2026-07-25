@@ -482,10 +482,12 @@ button:focus-visible {
     .msg-copy-btn { opacity: 0.65; } /* mobilda hover yo'q — doim biroz ko'rinadi */
     .ai-avatar { width: 22px; height: 22px; }
 }
-/* Input konteyner fokus halqasi */
+/* Input konteyner fokus halqasi — bitta aniq 2px orange ring.
+   Qalin qora border va qo'sha shadow YO'Q: default 1px neutral,
+   focusda faqat brand rangidagi border + 1px tashqi ring. */
 .chat-input-box:focus-within {
-    border-color: color-mix(in srgb, var(--brand) 55%, var(--border-strong)) !important;
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 10%, transparent), 0 2px 8px rgba(33, 28, 22, 0.06) !important;
+    border-color: var(--brand) !important;
+    box-shadow: 0 0 0 1px var(--brand) !important;
 }
 
 /* Bugun — dashboard emas, o'qish sessiyasiga sokin kirish nuqtasi. */
@@ -589,6 +591,17 @@ button:focus-visible {
     border-top: 1px solid var(--border);
     background: color-mix(in srgb, var(--bg-card) 82%, var(--bg-surface));
     color: var(--text-secondary);
+}
+
+/* Composer footer — rail karta tashqarisida, ixcham va ajratilgan */
+.chat-composer-footer {
+    padding: 6px 4px 0;
+}
+
+.chat-composer-footer .ai-quota-rail {
+    padding: 0.35rem 0.25rem 0;
+    border-top: 0;
+    background: transparent;
 }
 
 .ai-quota-rail__meta,

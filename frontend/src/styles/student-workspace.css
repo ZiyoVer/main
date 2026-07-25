@@ -630,6 +630,9 @@
   overflow-x: auto;
   scrollbar-width: none;
   flex-shrink: 0;
+  /* Kesilgan (yarim ko'ringan) chip holati qolmasin — scroll har doim
+     chip chegarasida to'xtaydi */
+  scroll-snap-type: x mandatory;
 }
 
 .composer-chips::-webkit-scrollbar {
@@ -650,6 +653,7 @@
   font-weight: 600;
   white-space: nowrap;
   flex-shrink: 0;
+  scroll-snap-align: start;
   transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
 }
 

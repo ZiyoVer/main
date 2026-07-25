@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, FileText, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, RotateCcw, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, ArrowUp, ArrowDown, ArrowRight, BarChart2, User, Calendar, Shield, Sparkles, Clock, Flame, Zap, Copy, MessageSquare, Pencil, MoreHorizontal, House } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, FileText, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, RotateCcw, AlertTriangle, TrendingUp, PenLine, CheckCircle, Bell, Trophy, ArrowUp, ArrowDown, ArrowRight, User, Calendar, Shield, Sparkles, Clock, Flame, Zap, Copy, MessageSquare, Pencil, MoreHorizontal, House } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import remarkGfm from 'remark-gfm'
@@ -957,14 +957,14 @@ const ChatInputArea = memo(function ChatInputArea({
         ? Math.max(0, aiQuota.vision.limit - aiQuota.vision.used)
         : null
     const attachLabel = visionLeft === null
-        ? 'Fayl biriktirish'
-        : `Fayl biriktirish · rasm tahlili ${visionLeft}/${aiQuota?.vision.limit ?? 0}`
+        ? 'Hujjat biriktirish (PDF, DOCX, TXT)'
+        : `Hujjat biriktirish (PDF, DOCX, TXT) · rasm tahlili ${visionLeft}/${aiQuota?.vision.limit ?? 0}`
 
     return (
         <div className="px-3 sm:px-6 pb-4 sm:pb-6 pt-3 chat-input-area chat-composer-shell flex-shrink-0" style={{ background: 'var(--bg-page)' }}>
             <form onSubmit={handleSubmit} className="max-w-[760px] mx-auto">
                 <input ref={fileInputRef} type="file" multiple accept=".pdf,.doc,.docx,.txt,image/*" className="hidden" onChange={handleFileSelect} />
-                <div className="rounded-2xl overflow-hidden chat-input-box" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-strong)', boxShadow: '0 2px 8px rgba(33,28,22,0.06)', transition: 'border-color 0.15s, box-shadow 0.15s' }}>
+                <div className="rounded-2xl overflow-hidden chat-input-box" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', transition: 'border-color 0.15s, box-shadow 0.15s' }}>
                     {/* Attached files */}
                     {attachedFiles.length > 0 && (
                         <div className="flex flex-wrap gap-2 px-4 pt-3">
@@ -1021,8 +1021,8 @@ const ChatInputArea = memo(function ChatInputArea({
                             <Target className="h-3.5 w-3.5" aria-hidden="true" />
                             <span>Reja</span>
                         </button>
-                        <button type="button" className="composer-chip" onClick={() => fileInputRef.current?.click()}
-                            disabled={loading || uploadingFile} aria-label="Rasm yoki fayl tanlash">
+                        <button type="button" className="composer-chip" onClick={() => { const el = fileInputRef.current; if (el) { el.accept = 'image/*'; el.click() } }}
+                            disabled={loading || uploadingFile} aria-label="Rasm tanlash (AI tahlili)" title="Rasm tanlash (AI tahlili)">
                             <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />
                             <span>Rasm</span>
                         </button>
@@ -1038,12 +1038,13 @@ const ChatInputArea = memo(function ChatInputArea({
                         disabled={loading}
                         rows={1}
                         className="w-full bg-transparent outline-none text-sm resize-none leading-relaxed px-4"
-                        style={{ color: 'var(--text-primary)', minHeight: '64px', maxHeight: '160px', paddingTop: '14px', paddingBottom: '8px', overflowX: 'hidden', wordBreak: 'break-word' }}
+                        style={{ color: 'var(--text-primary)', minHeight: '40px', maxHeight: '160px', paddingTop: '10px', paddingBottom: '8px', overflowX: 'hidden', wordBreak: 'break-word' }}
                     />
                     {/* Toolbar row */}
                     <div className="relative flex items-center gap-2 px-3 pb-3">
-                        {/* Attach */}
-                        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={loading || uploadingFile}
+                        {/* Hujjat biriktirish — Rasm chipidan farqli: hujjatlar (PDF/DOCX/TXT) ham ochiladi.
+                            Rasm chipi faqat image/* ochadi (vision tahlili). */}
+                        <button type="button" onClick={() => { const el = fileInputRef.current; if (el) { el.accept = '.pdf,.doc,.docx,.txt,image/*'; el.click() } }} disabled={loading || uploadingFile}
                             className="h-8 w-8 flex items-center justify-center rounded-lg transition disabled:opacity-40"
                             style={{ color: 'var(--text-muted)' }}
                             onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
@@ -1054,10 +1055,10 @@ const ChatInputArea = memo(function ChatInputArea({
                                 : <Paperclip className="h-3.5 w-3.5" />}
                         </button>
                         <button type="button" onClick={() => setShowComposerOptions(v => !v)}
-                            aria-label="Chat sozlamalari" aria-expanded={showComposerOptions}
+                            aria-label="Qo‘shimcha: chuqur javob va AI limit holati" aria-expanded={showComposerOptions}
                             className="h-8 w-8 flex items-center justify-center rounded-lg transition"
                             style={showComposerOptions ? { background: 'var(--bg-surface)', color: 'var(--text-primary)' } : { color: 'var(--text-muted)' }}
-                            title="Chat sozlamalari">
+                            title="Qo‘shimcha: chuqur javob va AI limit holati">
                             <MoreHorizontal className="h-4 w-4" />
                         </button>
                         {showComposerOptions && (
@@ -1084,13 +1085,17 @@ const ChatInputArea = memo(function ChatInputArea({
                             </button>
                         ) : (
                             <button type="submit" disabled={chatQuotaExhausted || (!input.trim() && attachedFiles.length === 0)}
-                                className="h-9 w-9 flex items-center justify-center rounded-xl transition disabled:opacity-30"
+                                className="h-11 w-11 flex items-center justify-center rounded-xl transition disabled:opacity-30"
                                 style={{ background: 'var(--k-accent-grad)', color: 'white', boxShadow: 'var(--k-shadow-cta)' }}
                                 title="Yuborish">
                                 <ArrowUp className="h-4 w-4" />
                             </button>
                         )}
                     </div>
+                </div>
+                {/* AI limit rail — composer kardidan ajratilgan ixcham footer.
+                    Karta ichida bosilib qolmasligi uchun alohida qatorda. */}
+                <div className="chat-composer-footer max-w-[760px] mx-auto">
                     <AiQuotaRail quota={aiQuota} onOpenTests={onOpenTests} />
                 </div>
             </form>
@@ -1164,7 +1169,7 @@ export default function ChatLayout() {
     const [profile, setProfile] = useState<Profile | null>(null)
     const [profileLoaded, setProfileLoaded] = useState(false)
     const [showOnboarding, setShowOnboarding] = useState(false)
-    const [overlayPanel, setOverlayPanel] = useState<'flashcards' | 'progress' | 'pro' | null>(null)
+    const [overlayPanel, setOverlayPanel] = useState<'pro' | null>(null)
     useEffect(() => {
         if (!overlayPanel) return
         const closeOnEscape = (event: KeyboardEvent) => {
@@ -1229,8 +1234,6 @@ export default function ChatLayout() {
     const [myResults, setMyResults] = useState<MyResult[]>([])
     const [progressData, setProgressData] = useState<ProgressData | null>(null)
     const [dueFlashcards, setDueFlashcards] = useState<Array<{ id: string; front: string; back: string; subject: string }>>([])
-    const [dueCount, setDueCount] = useState(0)
-    const [totalFlashcards, setTotalFlashcards] = useState(0)
     const [flashIsReview, setFlashIsReview] = useState(false)
     const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 768 : false)
     const [onboardingForm, setOnboardingForm] = useState<{
@@ -1911,8 +1914,6 @@ Iltimos, har bir savolni tahlil qilib ber:
             const data = await fetchApi('/flashcards/due')
             const cards = ensureArray<{ id: string; front: string; back: string; subject: string }>(data?.cards)
             setDueFlashcards(cards)
-            setDueCount(typeof data?.dueCount === 'number' ? data.dueCount : 0)
-            setTotalFlashcards(typeof data?.total === 'number' ? data.total : 0)
         } catch (err) { console.error('loadDueFlashcards:', err) }
     }
 
@@ -2418,8 +2419,6 @@ Iltimos, har bir savolni tahlil qilib ber:
         } catch (err) { console.error('deleteChat:', err); toast.error("Suhbatni o'chirishda xatolik") }
     }
 
-    const reviewedFlashcards = Math.max(totalFlashcards - dueCount, 0)
-    const weakTopicSummary = (progressData?.weakTopics ?? []).slice(0, 2).map(item => item.topic).join(', ')
     function markTestCompleted(testId: string) {
         completedTestIdsRef.current.add(testId)
         markSingleTestSeen(testId)
@@ -3333,9 +3332,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                             aria-current={isTodayView && !overlayPanel ? 'page' : undefined}>
                             <House className="h-4 w-4 flex-shrink-0" /> Bugun
                         </button>
-                        <button type="button" onClick={() => { setOverlayPanel(overlayPanel === 'flashcards' ? null : 'flashcards'); if (isMobile) setSideOpen(false) }}
-                            className={`student-primary-nav__item${overlayPanel === 'flashcards' ? ' is-active' : ''}`}
-                            aria-pressed={overlayPanel === 'flashcards'}>
+                        <button type="button" onClick={() => { if (isMobile) setSideOpen(false); nav('/organish') }}
+                            className="student-primary-nav__item">
                             <BookOpen className="h-4 w-4 flex-shrink-0" /> O‘rganish
                             {dueFlashcards.length > 0 && <span className="student-nav-count">{dueFlashcards.length > 9 ? '9+' : dueFlashcards.length}</span>}
                         </button>
@@ -3350,9 +3348,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                             aria-current={chatId && !overlayPanel ? 'page' : undefined}>
                             <MessageSquare className="h-4 w-4 flex-shrink-0" /> AI ustoz
                         </button>
-                        <button type="button" onClick={() => { setOverlayPanel(overlayPanel === 'progress' ? null : 'progress'); if (isMobile) setSideOpen(false) }}
-                            className={`student-primary-nav__item${overlayPanel === 'progress' ? ' is-active' : ''}`}
-                            aria-pressed={overlayPanel === 'progress'}>
+                        <button type="button" onClick={() => { if (isMobile) setSideOpen(false); nav('/progress') }}
+                            className="student-primary-nav__item">
                             <TrendingUp className="h-4 w-4 flex-shrink-0" /> Progress
                         </button>
                     </nav>
@@ -3846,7 +3843,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             <h1>{timeGreeting()}{user?.name ? `, ${user.name}` : ''}.</h1>
                                             <p className="today-lede">Bugun katta reja shart emas. Eng foydali bitta qadamni tugatamiz.</p>
                                             <div className="flex items-center gap-2 mt-5 flex-wrap">
-                                                <button type="button" onClick={() => setOverlayPanel('progress')}
+                                                <button type="button" onClick={() => nav('/progress')}
                                                     className="flex items-center gap-1.5 h-8 px-3 rounded-full text-[12px] font-semibold transition"
                                                     style={{ background: 'var(--brand-light)', color: 'var(--brand-hover)' }}>
                                                     <Flame className={`h-3 w-3 ${(progressData?.currentStreak ?? 0) > 0 ? 'k-flame-live' : ''}`} />
@@ -4008,7 +4005,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                         <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{dueFlashcards.length} ta kartochka takrorlashga tayyor</p>
                                                     </div>
                                                 </div>
-                                                <button type="button" className="btn btn-outline btn-sm flex-shrink-0" onClick={() => setOverlayPanel('flashcards')}>
+                                                <button type="button" className="btn btn-outline btn-sm flex-shrink-0" onClick={() => nav('/organish')}>
                                                     Takrorlash
                                                 </button>
                                             </section>
@@ -4944,19 +4941,15 @@ Iltimos, har bir savolni tahlil qilib ber:
                             {/* Header */}
                             <div className="flex items-center gap-3 px-4 sm:px-5 py-3.5 sm:py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                                 <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                                    style={{ background: overlayPanel === 'progress' ? 'color-mix(in srgb, var(--success) 12%, transparent)' : 'color-mix(in srgb, var(--brand) 12%, transparent)' }}>
-                                    {overlayPanel === 'flashcards' && <BookOpen className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
-                                    {overlayPanel === 'progress' && <BarChart2 className="h-5 w-5" style={{ color: 'var(--text-primary)' }} />}
-                                    {overlayPanel === 'pro' && <Sparkles className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
+                                    style={{ background: 'color-mix(in srgb, var(--brand) 12%, transparent)' }}>
+                                    <Sparkles className="h-5 w-5" style={{ color: 'var(--brand)' }} />
                                 </div>
                                 <div className="flex-1">
                                     <h2 id="student-overlay-title" className="font-semibold text-base">
-                                        {overlayPanel === 'flashcards' ? 'O‘rganish' : overlayPanel === 'progress' ? 'Progress' : 'Pro'}
+                                        Pro
                                     </h2>
                                     <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                                        {overlayPanel === 'flashcards' ? `${dueFlashcards.length} ta kartochka takrorlash kerak`
-                                            : overlayPanel === 'progress' ? 'O\'qish tahlili'
-                                            : 'Rejalar va imkoniyatlar'}
+                                        Rejalar va imkoniyatlar
                                     </p>
                                 </div>
                                 <button type="button" onClick={() => setOverlayPanel(null)} className="student-icon-button h-8 w-8 flex items-center justify-center" aria-label="Panelni yopish" autoFocus>
@@ -4966,171 +4959,6 @@ Iltimos, har bir savolni tahlil qilib ber:
 
                             {/* Content */}
                             <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-3.5 sm:py-4">
-                                {overlayPanel === 'flashcards' && (
-                                    <div className="space-y-3">
-                                        <div className="rounded-2xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                            <div className="flex items-center justify-between gap-3 mb-3">
-                                                <div>
-                                                    <p className="text-sm font-semibold">Kartochkalar progressi</p>
-                                                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{reviewedFlashcards}/{totalFlashcards || 0} o'rganildi</p>
-                                                </div>
-                                                <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: 'var(--brand-light)', color: 'var(--brand-hover)' }}>
-                                                    {totalFlashcards > 0 ? Math.round((reviewedFlashcards / totalFlashcards) * 100) : 0}%
-                                                </span>
-                                            </div>
-                                            <div className="progress-bar">
-                                                <div className="progress-bar-fill" style={{ width: `${totalFlashcards > 0 ? (reviewedFlashcards / totalFlashcards) * 100 : 0}%` }} />
-                                            </div>
-                                        </div>
-                                        {dueFlashcards.length > 0 && (
-                                            <div className="rounded-2xl p-4 mb-2" style={{ background: 'var(--danger-light)', border: '1px solid var(--danger)' }}>
-                                                <div className="flex items-center justify-between">
-                                                    <div>
-                                                        <p className="font-semibold text-sm" style={{ color: 'var(--danger)' }}>{dueFlashcards.length} ta kartochka takrorlash vaqti keldi</p>
-                                                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Xotirani mustahkamlash uchun takrorlang</p>
-                                                    </div>
-                                                    <button onClick={() => { setOverlayPanel(null); setFlashPanel(dueFlashcards.map(f => ({ id: f.id, front: f.front, back: f.back }))); setFlashIdx(0); setFlashFlipped(false); setFlashIsReview(true) }}
-                                                        className="text-sm font-semibold px-4 py-2 rounded-xl transition"
-                                                        style={{ background: 'var(--danger)', color: 'white' }}>
-                                                        Boshlash
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-                                        {dueFlashcards.length === 0 && (
-                                            <div className="flex flex-col items-center justify-center py-16 gap-3">
-                                                <div className="h-16 w-16 rounded-2xl flex items-center justify-center" style={{ background: 'var(--bg-muted)' }}>
-                                                    <Brain className="h-8 w-8" style={{ color: 'var(--text-muted)' }} />
-                                                </div>
-                                                <p className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>Barcha kartochkalar takrorlandi</p>
-                                                <p className="text-xs text-center" style={{ color: 'var(--text-muted)' }}>Chatda "kartochkalar" deb yozing — AI yangi kartochkalar tuzadi</p>
-                                            </div>
-                                        )}
-                                        {dueFlashcards.map(f => (
-                                            <div key={f.id} className="rounded-2xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                                <p className="text-sm font-medium"><MathText text={f.front} /></p>
-                                                <p className="text-xs mt-2 pt-2" style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}><MathText text={f.back} /></p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-
-                                {overlayPanel === 'progress' && (
-                                    <div className="space-y-4">
-                                        {/* Imtihon countdown — DTM yaqin uchun urgency (rang: 30+ ko'k, 14-30 sariq, <14 qizil) */}
-                                        {(() => {
-                                            if (!profile?.examDate) return null
-                                            const d = Math.ceil((new Date(profile.examDate).getTime() - Date.now()) / 86400000)
-                                            if (!Number.isFinite(d) || d < 0) return null
-                                            const c = d > 30 ? '#2563eb' : d > 14 ? '#ea580c' : '#dc2626'
-                                            return (
-                                                <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: `color-mix(in srgb, ${c} 10%, var(--bg-card))`, border: `1px solid color-mix(in srgb, ${c} 30%, transparent)` }}>
-                                                    <Calendar className="h-6 w-6 flex-shrink-0" style={{ color: c }} />
-                                                    <div>
-                                                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Imtihongacha</p>
-                                                        <p className="text-xl font-bold" style={{ color: c }}>{d} kun qoldi</p>
-                                                    </div>
-                                                </div>
-                                            )
-                                        })()}
-                                        {/* Stats grid */}
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                            {[
-                                                { label: 'Ketma-ket kun', value: progressData?.currentStreak ?? 0, icon: <Flame className="h-5 w-5" />, color: '#ea580c' },
-                                                // XP mobilda yashirin — "Bugun" ekrani chipida allaqachon bor (takror + joy)
-                                                ...(isMobile ? [] : [{ label: 'XP', value: progressData?.xp ?? 0, icon: <Zap className="h-5 w-5" />, color: '#f59e0b' }]),
-                                                { label: 'Yechilgan testlar', value: myResults.length, icon: <ClipboardList className="h-5 w-5" />, color: 'var(--brand)' },
-                                                { label: "O'rtacha ball", value: `${Math.round(progressData?.avgScore ?? 0)}%`, icon: <Trophy className="h-5 w-5" />, color: 'var(--success)' },
-                                                { label: 'Kartochkalar', value: `${reviewedFlashcards}/${totalFlashcards || 0}`, icon: <Brain className="h-5 w-5" />, color: 'var(--brand)' },
-                                            ].map((s, i) => (
-                                                <div key={i} className="rounded-2xl p-3 sm:p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                                    <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
-                                                        <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `color-mix(in srgb, ${s.color} 10%, transparent)`, color: s.color }}>{s.icon}</div>
-                                                        <span className="text-[11px] sm:text-xs" style={{ color: 'var(--text-muted)' }}>{s.label}</span>
-                                                    </div>
-                                                    <p className="text-xl sm:text-2xl font-bold">{s.value}</p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        {/* Weekly activity */}
-                                        {progressData?.weeklyActivity && progressData.weeklyActivity.length > 0 && (
-                                            <div className="rounded-2xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                                <p className="text-sm font-semibold mb-4">Haftalik faollik</p>
-                                                <div className="flex items-end gap-2 h-20">
-                                                    {progressData.weeklyActivity.map((d, i) => {
-                                                        const max = Math.max(...progressData.weeklyActivity.map(x => x.count), 1)
-                                                        return (
-                                                            <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                                                                <div className="w-full rounded-t-lg transition-all" style={{ height: `${(d.count / max) * 60}px`, minHeight: '4px', background: d.count > 0 ? 'var(--brand)' : 'var(--bg-muted)' }} />
-                                                                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{d.day.slice(0,2)}</span>
-                                                            </div>
-                                                        )
-                                                    })}
-                                                </div>
-                                            </div>
-                                        )}
-                                        {/* Test results */}
-                                        {myResults.length > 0 && (
-                                            <div>
-                                                <p className="text-sm font-semibold mb-3">So'nggi testlar</p>
-                                                <div className="space-y-2">
-                                                    {myResults.slice(0, 5).map(r => {
-                                                        const summary = getAttemptSummary(r)
-                                                        return (
-                                                            <div key={r.id} className="rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                                                                <div className="flex items-center gap-3">
-                                                                    <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                                                                        style={{ background: summary.percent >= 70 ? 'color-mix(in srgb, var(--success) 12%, transparent)' : 'rgba(239,68,68,0.1)', color: summary.percent >= 70 ? 'var(--success)' : '#ef4444' }}>
-                                                                        <Trophy className="h-4 w-4" />
-                                                                    </div>
-                                                                <div className="flex-1 min-w-0">
-                                                                    <p className="text-sm font-medium truncate">{r.test?.title || publicTests.find(t => t.id === r.testId)?.title || 'Test'}</p>
-                                                                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{new Date(r.createdAt).toLocaleDateString('uz-UZ')}</p>
-                                                                </div>
-                                                                    <span className="text-sm font-bold flex-shrink-0" style={{ color: summary.percent >= 70 ? 'var(--success)' : '#ef4444' }}>{getAttemptMeta(r)}</span>
-                                                                </div>
-                                                                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
-                                                                    <span>{summary.correctCount}/{summary.answeredCount || r.total || 0} to'g'ri</span>
-                                                                    <span style={{ color: 'var(--text-muted)' }}>•</span>
-                                                                    <span>{summary.percent}%</span>
-                                                                    {r.grade && (
-                                                                        <>
-                                                                            <span style={{ color: 'var(--text-muted)' }}>•</span>
-                                                                            <span>{r.grade}</span>
-                                                                        </>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        )
-                                                    })}
-                                                </div>
-                                                {/* Zaif mavzu — BIR MARTA (avval har qatorda takrorlanardi: bir xil matn + tugma 5x) */}
-                                                {weakTopicSummary && (
-                                                    <button
-                                                        onClick={() => {
-                                                            setOverlayPanel(null)
-                                                            void handleAction('Zaif mavzular rejasi', `Mening zaif mavzularim: ${weakTopicSummary}. Shu mavzularni bugun o'rganish uchun qisqa reja tuzing va asosiy tushunchalarni tushuntiring.`)
-                                                        }}
-                                                        className="mt-3 w-full flex items-center gap-2.5 text-left text-[13px] font-semibold px-3.5 py-2.5 rounded-xl transition"
-                                                        style={{ background: 'var(--brand-light)', color: 'var(--brand-hover)' }}
-                                                    >
-                                                        <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-                                                        Zaif mavzularni o'rganish: {weakTopicSummary}
-                                                    </button>
-                                                )}
-                                            </div>
-                                        )}
-                                        {myResults.length === 0 && !progressData && (
-                                            <div className="flex flex-col items-center justify-center py-16 gap-3">
-                                                <div className="h-16 w-16 rounded-2xl flex items-center justify-center" style={{ background: 'var(--bg-muted)' }}>
-                                                    <BarChart2 className="h-8 w-8" style={{ color: 'var(--text-muted)' }} />
-                                                </div>
-                                                <p className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>Hozircha ma'lumot yo'q</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-
                                 {/* PRO — billing/status serverdagi entitlement bilan bir xil holatni ko'rsatadi */}
                                 {overlayPanel === 'pro' && (
                                     <div className="space-y-4">
@@ -5254,10 +5082,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                     <nav className="student-mobile-nav fixed bottom-0 left-0 right-0 flex items-stretch" aria-label="Mobil navigatsiya">
                         {([
                             { key: 'today', label: 'Bugun', Icon: House, active: isTodayView && !overlayPanel && !sideOpen, tap: () => { setOverlayPanel(null); setSideOpen(false); nav('/bugun') } },
-                            { key: 'learn', label: 'O‘rganish', Icon: BookOpen, active: overlayPanel === 'flashcards', badge: dueFlashcards.length, tap: () => { setSideOpen(false); setOverlayPanel('flashcards') } },
+                            { key: 'learn', label: 'O‘rganish', Icon: BookOpen, active: false, badge: dueFlashcards.length, tap: () => { setSideOpen(false); nav('/organish') } },
                             { key: 'tests', label: 'Testlar', Icon: ClipboardList, active: false, badge: newTestIds.size, tap: () => { markTestsSeen(); nav('/testlar') } },
                             { key: 'tutor', label: 'AI ustoz', Icon: MessageSquare, active: !!chatId && !overlayPanel && !sideOpen, tap: openAiTutor },
-                            { key: 'progress', label: 'Progress', Icon: TrendingUp, active: overlayPanel === 'progress', tap: () => { setSideOpen(false); setOverlayPanel('progress') } },
+                            { key: 'progress', label: 'Progress', Icon: TrendingUp, active: false, tap: () => { setSideOpen(false); nav('/progress') } },
                         ] as Array<{ key: string; label: string; Icon: typeof Menu; active: boolean; badge?: number; tap: () => void }>).map(tab => (
                             <button key={tab.key} type="button" onClick={tab.tap}
                                 className={`student-mobile-nav__item${tab.active ? ' is-active' : ''}`}
