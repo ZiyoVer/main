@@ -616,3 +616,74 @@
   color: var(--brand-hover);
   font-weight: 700;
 }
+
+/* ============================================================
+   Composer chip panel — fan, Tushuntir, Test, Reja, Rasm.
+   Segment control pill'lari (DESIGN.md ruxsat beradi); faqat real
+   rejim o'zgartiradi, o'zi prompt yubormaydi.
+   ============================================================ */
+.composer-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+
+.composer-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.composer-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.composer-chip svg {
+  color: var(--text-muted);
+}
+
+.composer-chip:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.composer-chip.is-active {
+  background: var(--brand-light);
+  color: var(--brand-hover);
+  border-color: color-mix(in srgb, var(--brand) 35%, var(--border));
+}
+
+.composer-chip.is-active svg {
+  color: var(--brand-hover);
+}
+
+.composer-chip:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+.composer-chip:disabled {
+  opacity: 0.5;
+}
+
+@media (pointer: coarse) {
+  .composer-chip {
+    min-height: 44px;
+    padding: 0 14px;
+  }
+}

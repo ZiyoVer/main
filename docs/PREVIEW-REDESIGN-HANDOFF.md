@@ -1,6 +1,6 @@
 # DTMMax Preview Redesign — Living Handoff
 
-> Oxirgi yangilanish: 2026-07-24  
+> Oxirgi yangilanish: 2026-07-25
 > Aktiv branch: `redesign/dtmmax-v2`  
 > Preview: `https://main-main-pr-1.up.railway.app`
 
@@ -134,10 +134,20 @@ komponent va utilitylarni bosqichma-bosqich chiqarish afzal.
 - Matnli PDF, skan PDF, DOCX va rasmdan AI test generatsiyasi.
 - Rasmli testlarda oldindan joy rezervi, lazy decoding va signed URL.
 - Paylov onboarding tokenidan OAuth2 access/refresh token aylanishi.
-- Gemini `gemini-3.1-flash-tts-preview` + doimiy `Charon` ovozi, kunlik quota
-  va provider xatosida quota refund.
 - Landing production ko‘rinishiga vaqtincha qaytarilgan.
 - Tayyor CTA promptlari foydalanuvchi xabari sifatida chatga chiqarilmaydi.
+- `Testlar` endi yarim overlay emas, alohida `/testlar` workspace sahifasiga
+  o‘tadi. Birinchi darajali bo‘limlar: Milliy sertifikat, mavzuli testlar,
+  blok testlar va natijalar.
+- Milliy Sertifikat sinov urinishidan HMAC-imzoli `DMS1` verification kodi
+  yaratiladi. Public `/sertifikat/:code` sahifasi QR, Code128 barcode va A4
+  landscape print/PDF oqimini beradi.
+- Productiondan oldin Railway’da barqaror, kamida 32 belgili
+  `CERTIFICATE_SECRET` alohida qo‘yiladi. Keyinchalik bu qiymatni almashtirish
+  eski verification kodlarini yaroqsiz qiladi.
+- Sertifikat har doim `DTMMax sinov imtihoni` va davlat sertifikati emasligi
+  haqidagi disclaimer bilan chiqadi; davlat ramzi yoki rasmiy tashkilot
+  brendingi ishlatilmaydi.
 - Admin grafiklari alohida lazy chunkka ajratilgan: AdminPanel shell
   taxminan 515 kB dan 140 kB ga tushgan.
 - PostCSS `8.5.23`ga yangilanib, `<=8.5.17` source-map path traversal
@@ -155,8 +165,6 @@ komponent va utilitylarni bosqichma-bosqich chiqarish afzal.
 - AI tutor: integral so‘rovida 3 savolli prerequisite diagnostika, noto‘g‘ri
   natijada `REMEDIATION`, to‘g‘ri natijada `LESSON`, dars oxirida aynan 5
   savolli trusted checkpoint o‘tgan.
-- TTS: `200 audio/wav`, `Charon`, `gemini-3.1-flash-tts-preview`, `RIFF/WAVE`
-  va quota increment jonli tasdiqlangan.
 - Role E2E: teacher create → admin pending/approve → student open/submit/review
   → teacher analytics. Pre-submit answer-key leak yo‘q, duplicate submit `409`,
   student admin endpointida `403`.
@@ -229,3 +237,18 @@ Test data faqat previewda yaratiladi va tekshiruvdan keyin tozalanadi.
 | 2026-07-24 | O‘quv checkpointi model ixtiyoriga qoldirilmaydi | DeepSeek bir jonli darsda 5 savolli blokni tashlab ketdi; server recovery va trusted validation qo‘shildi |
 | 2026-07-24 | React Router audit ogohlantirishi hozircha accepted/not-applicable | Zaiflik faqat unstable RSC yo‘liga tegishli; DTMMax BrowserRouter SPA |
 | 2026-07-24 | Paylov contracti support javobigacha muzlatildi | Payment turini taxmin qilish moliyaviy oqim va callback semantikasini buzishi mumkin |
+| 2026-07-25 | Charon TTS previewdan olib tashlandi | Ovozli javob talabi boshqa loyiha bilan adashib berilgan; DTMMax’da audio funksiyasi kerak emas |
+| 2026-07-25 | Test katalogi alohida `/testlar` sahifasiga ko‘chirildi | Yarim overlay axborot arxitekturasini siqardi; format va natijalar mustaqil workspace talab qiladi |
+| 2026-07-25 | Milliy Sertifikat natijasi imzolangan DTMMax sinov hujjati sifatida beriladi | Natijani ulashish va tekshirish mumkin bo‘ladi, lekin rasmiy davlat sertifikati bilan adashmaydi |
+| 2026-07-25 | AI ustozga sessiya raili: Diagnostika→Reja→Tushuntirish→Mashq→Natija, faqat real dalildan (struktur blok, test holati) | “ChatGPT klon” taassurufini yo‘qotish; o‘quvchi sessiyada qayerda ekanini biladi; dekorativ progress taqiqlangan |
+| 2026-07-25 | 1200+ belgilik AI javoblari yig‘iladigan qatlamga o‘tdi (qattiq chegara + “To‘liq o‘qish”; gradient fade yo‘q) | Chat matn to‘kish emas; uzun tushuntirish ixtiyoriy o‘qiladi |
+| 2026-07-25 | AI ustoz bo‘sh holati Bugun qadami bilan uzluksiz: diagnostika / tugallanmagan reja / zaif mavzu birinchi turadi | Onboarding continuity — generic promptlar o‘rniga real keyingi qadam |
+| 2026-07-25 | Xabar osti chiplari: “Mashqga aylantir” + “Tekshirib ko‘ramiz” (comprehension check) | Handoff talabi: har tushuntirishdan keyin tushunishni tekshirish |
+| 2026-07-25 | Sessiya raili FAQAT backend `LearningSession` dan: regex/uzunlik fevristikasi olib tashlandi; sessiya yo‘q chatda rail chizilmaydi | Soxta progress taqiqlangan — rail real DB holati (PREREQUISITE/LESSON/REMEDIATION/COMPLETED, stepIndex, lastCheckpoint) bilan ishlaydi |
+| 2026-07-25 | `GET /api/chat/:chatId/learning-session` read-only endpoint qo‘shildi (additive, mavjud contract o‘zgarmadi) | Frontend real holatni o‘qishining yagona yo‘li; soxta frontend taxminidan yaxshiroq |
+| 2026-07-25 | Rail effektiv `chatId ?? currentChat.id` dan o‘qiydi | `/suhbat` (ID’siz) holatda rail umuman chiqmasligi aniqlandi va tuzatildi |
+| 2026-07-25 | Uzun javob qisqarishi faqat paragraf chegarasida; ` ``` ` blok yoki `$$`/`\[` formula bor xabar umuman qisqartirilmaydi | Formula, test va muhim tushuntirishlar yarmidan kesilmasligi/yashirinmasligi shart |
+| 2026-07-25 | Bo‘sh holat tartibi: real reja → real zaif mavzu → diagnostika (faqat yangi o‘quvchi) | “Bugun davomi” real ma’lumotdan bo‘lishi kerak; diagnostika yangi akkaunt holati |
+| 2026-07-25 | Preview vizual QA o‘tkazildi: test akkaunt yaratilib, mobil (375px) va desktop (1280px) screenshotlar tekshirilib, akkaunt o‘chirildi | Rail (PREREQUISITE: Diagnostika joriy, Reja check), qatlam toggle va Bugun ekrani real holatda tasdiqlandi |
+| 2026-07-25 | Composer chip paneli: joriy fan, Tushuntir, Test, Reja, Rasm. Chip faqat rejim+placeholder o‘zgartiradi, bo‘sh inputda prompt YUBORMAYDI; texnik prompt `displayText` bilan yashirinadi | Tool discovery (recognition over recall); tayyor promptlar chatni ifloslamaydi. Rasm chipi mavjud fayl-tanlash oqimini ochadi; faqat real hook’lar |
+| 2026-07-25 | `SendOptions.displayText` qo‘shildi — composer rejimi prompt o‘rashining yagona kanali | Fayl bilan yuborishda ham texnik prompt bubble’ga o‘tmaydi |

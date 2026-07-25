@@ -35,6 +35,9 @@ interface Msg { id: string; role: string; content: string; createdAt: string }
 interface SendOptions {
     hideUserMessage?: boolean
     actionLabel?: string
+    // Texnik prompt o'rniga foydalanuvchi bubble'ida ko'rinadigan matn
+    // (composer chip rejimi: prompt yashirin, foydalanuvchi matni ko'rinadi)
+    displayText?: string
 }
 interface Profile { onboardingDone: boolean; examType?: 'DTM' | 'MS' | null; subject?: string; subject2?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string; totalTests?: number; avgScore?: number; abilityLevel?: number }
 interface PublicTest { id: string; title: string; shareLink: string; subject?: string; category?: string; source?: string; premium?: boolean; testType?: string; timeLimit?: number | null; _count?: { questions: number; attempts: number } }
@@ -912,10 +915,28 @@ const ChatInputArea = memo(function ChatInputArea({
         setInput('')
         setAttachedFiles([])
         setShowComposerOptions(false)
+        // Chip rejimi faolligida texnik prompt o'raladi; foydalanuvchi bubble'ida
+        // faqat o'zi yozgan matn (rejim labeli bilan) ko'rinadi — prompt yashirin.
+        let outText = text
+        let outDisplay: string | undefined
+        if (composerMode && text) {
+            const subjPrefix = composerSubject && composerSubject !== subject ? `Fan: ${composerSubject}. ` : ''
+            if (composerMode === 'explain') {
+                outText = `${subjPrefix}Quyidagi mavzuni bosqichma-bosqich, sodda tilda va hayotiy misol bilan tushuntir: ${text}`
+                outDisplay = `Tushuntir: ${text}`
+            } else if (composerMode === 'test') {
+                outText = `${subjPrefix}Quyidagi mavzudan 5 ta savollik interaktiv test tuz (matn qilib emas, test paneli uchun): ${text}`
+                outDisplay = `Test: ${text}`
+            } else {
+                outText = `${subjPrefix}Quyidagi so'rovga qisqa va bajariladigan o'quv rejasi tuz: ${text}`
+                outDisplay = `Reja: ${text}`
+            }
+        }
+        setComposerMode(null)
         if (textareaRef.current) textareaRef.current.style.height = 'auto'
         // Yuborish muvaffaqiyatsiz bo'lsa (masalan chat yaratilmadi) yozilgan matnni QAYTARAMIZ —
         // avval matn butunlay yo'qolardi
-        void Promise.resolve(onSend(text, files) as unknown).then(result => {
+        void Promise.resolve(onSend(outText, files, outDisplay ? { displayText: outDisplay } : undefined) as unknown).then(result => {
             if (result === false) {
                 setInput(text)
                 setAttachedFiles(files)
@@ -974,6 +995,38 @@ const ChatInputArea = memo(function ChatInputArea({
                             ))}
                         </div>
                     )}
+                    {/* Chip panel — fan, Tushuntir, Test, Reja, Rasm.
+                        Chip faqat rejim o'zgartiradi, hech qachon o'zi prompt yubormaydi. */}
+                    <div className="composer-chips" role="group" aria-label="Tezkor rejimlar">
+                        {subjectOptions.length > 0 && (
+                            <button type="button" className="composer-chip" onClick={cycleSubject}
+                                title={subjectOptions.length > 1 ? `Fanni almashtirish (${subjectOptions.join(' / ')})` : 'Joriy fan'}
+                                aria-label={`Joriy fan: ${composerSubject}`}>
+                                <GraduationCap className="h-3.5 w-3.5" aria-hidden="true" />
+                                <span>{composerSubject}</span>
+                            </button>
+                        )}
+                        <button type="button" className={`composer-chip${composerMode === 'explain' ? ' is-active' : ''}`}
+                            onClick={() => toggleMode('explain')} aria-pressed={composerMode === 'explain'}>
+                            <Lightbulb className="h-3.5 w-3.5" aria-hidden="true" />
+                            <span>Tushuntir</span>
+                        </button>
+                        <button type="button" className={`composer-chip${composerMode === 'test' ? ' is-active' : ''}`}
+                            onClick={() => toggleMode('test')} aria-pressed={composerMode === 'test'}>
+                            <ClipboardList className="h-3.5 w-3.5" aria-hidden="true" />
+                            <span>Test</span>
+                        </button>
+                        <button type="button" className={`composer-chip${composerMode === 'plan' ? ' is-active' : ''}`}
+                            onClick={() => toggleMode('plan')} aria-pressed={composerMode === 'plan'}>
+                            <Target className="h-3.5 w-3.5" aria-hidden="true" />
+                            <span>Reja</span>
+                        </button>
+                        <button type="button" className="composer-chip" onClick={() => fileInputRef.current?.click()}
+                            disabled={loading || uploadingFile} aria-label="Rasm yoki fayl tanlash">
+                            <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />
+                            <span>Rasm</span>
+                        </button>
+                    </div>
                     {/* Textarea */}
                     <textarea
                         ref={textareaRef}
@@ -981,7 +1034,7 @@ const ChatInputArea = memo(function ChatInputArea({
                         onChange={e => { setInput(e.target.value); adjustTextareaHeight() }}
                         onKeyDown={handleKeyDown}
                         onPaste={handlePaste}
-                        placeholder="Savolingizni yozing yoki masala rasmini biriktiring…"
+                        placeholder={composerPlaceholder}
                         disabled={loading}
                         rows={1}
                         className="w-full bg-transparent outline-none text-sm resize-none leading-relaxed px-4"
@@ -2309,15 +2362,15 @@ Iltimos, har bir savolni tahlil qilib ber:
                     ? `![${file.name}](${file.url}) `
                     : `📎 ${file.type === 'image' ? 'Rasm' : 'Fayl'}: ${file.name} ` // user bubble oddiy matn — ** ko'rsatmaydi
             })
-            if (text) { promptText += `\n\n${text}`; displayText += `\n\n${text}` }
+            if (text) { promptText += `\n\n${text}`; displayText += `\n\n${options.displayText ?? text}` }
             setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: displayText.trim(), createdAt: new Date().toISOString() }])
             const success = await streamToChat(targetChatId!, promptText.trim(), displayText.trim())
             if (success) logActivity(5)
         } else {
             if (!options.hideUserMessage) {
-                setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: text, createdAt: new Date().toISOString() }])
+                setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: options.displayText ?? text, createdAt: new Date().toISOString() }])
             }
-            const success = await streamToChat(targetChatId!, text, undefined, options)
+            const success = await streamToChat(targetChatId!, text, options.displayText, options)
             if (success) logActivity(5)
         }
     }, [aiQuota, chatId, loading, profile])
@@ -4215,6 +4268,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                             markTestsSeen()
                             nav('/testlar')
                         }}
+                        subject={currentChat?.subject || profile?.subject}
+                        subject2={profile?.subject2}
                     />}
                 </div>
 
