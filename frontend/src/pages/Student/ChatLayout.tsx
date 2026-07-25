@@ -26,9 +26,6 @@ import { useIsPro, PRO_PRICE, PRO_PRICE_PERIOD, PRO_FEATURES, FREE_FEATURES, PRO
 import { AiQuotaRail } from './chat/AiQuotaRail'
 import { useAiQuota } from './chat/useAiQuota'
 import type { AiQuota } from './chat/useAiQuota'
-import { TestCatalogControls } from './chat/TestCatalogControls'
-import { useTestCatalog } from './chat/useTestCatalog'
-import type { TestCatalogFormat, TestCatalogSort, TestCatalogView } from './chat/useTestCatalog'
 import SessionRail, { deriveSessionPhaseFromLearning } from './chat/SessionRail'
 import { useLearningSession } from './chat/useLearningSession'
 import '../../styles/student-workspace.css'
@@ -41,12 +38,6 @@ interface SendOptions {
 }
 interface Profile { onboardingDone: boolean; examType?: 'DTM' | 'MS' | null; subject?: string; subject2?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string; totalTests?: number; avgScore?: number; abilityLevel?: number }
 interface PublicTest { id: string; title: string; shareLink: string; subject?: string; category?: string; source?: string; premium?: boolean; testType?: string; timeLimit?: number | null; _count?: { questions: number; attempts: number } }
-
-function testTypeLabel(testType?: string | null): string | null {
-    if (testType === 'DTM_BLOCK') return 'DTM 189'
-    if (testType === 'MILLIY_SERTIFIKAT') return 'MS 75'
-    return null
-}
 
 /* Test manbasi badge'i — ishonch uchun (Rasmiy / Norasmiy / AI-bashorat). */
 function sourceBadge(source?: string | null): { label: string; bg: string; color: string } | null {
@@ -1120,7 +1111,7 @@ export default function ChatLayout() {
     const [profile, setProfile] = useState<Profile | null>(null)
     const [profileLoaded, setProfileLoaded] = useState(false)
     const [showOnboarding, setShowOnboarding] = useState(false)
-    const [overlayPanel, setOverlayPanel] = useState<'tests' | 'flashcards' | 'progress' | 'pro' | null>(null)
+    const [overlayPanel, setOverlayPanel] = useState<'flashcards' | 'progress' | 'pro' | null>(null)
     useEffect(() => {
         if (!overlayPanel) return
         const closeOnEscape = (event: KeyboardEvent) => {
@@ -1129,11 +1120,6 @@ export default function ChatLayout() {
         window.addEventListener('keydown', closeOnEscape)
         return () => window.removeEventListener('keydown', closeOnEscape)
     }, [overlayPanel])
-    const [testCatalogView, setTestCatalogView] = useState<TestCatalogView>('recommended')
-    const [testSubject, setTestSubject] = useState('all')
-    const [testFormat, setTestFormat] = useState<TestCatalogFormat>('all')
-    const [testSearch, setTestSearch] = useState('')
-    const [testSort, setTestSort] = useState<TestCatalogSort>('recommended')
     const [testQuestionIndex, setTestQuestionIndex] = useState(0)
     const [activeTestSource, setActiveTestSource] = useState<string | null>(null) // ochiq test panelining manbasi (badge uchun)
     // Test review: xato javob ostidagi per-savol AI tushuntirishi (panel ichida, mobil uchun)
@@ -1250,7 +1236,6 @@ export default function ChatLayout() {
     const testTimerDeadlineRef = useRef<number | null>(null)
     const chatIdRef = useRef<string | undefined>(chatId)
     const profileRef = useRef<Profile | null>(null)
-    const [testsLoading, setTestsLoading] = useState(false)
     // Ko'rilgan test IDlari (localStorage) — yangi testlarni aniqlash uchun
     const [newTestIds, setNewTestIds] = useState<Set<string>>(new Set())
     // Yechilgan testlar IDlarini localStorage da saqlaymiz
@@ -1348,26 +1333,6 @@ export default function ChatLayout() {
         flashMaximized, setFlashMaximized, flashWidth, setFlashWidth,
         flashDragRef, flashWidthRef, openFlashPanel,
     } = useFlashPanel()
-
-    const {
-        visibleTests,
-        recommendedTest,
-        subjects: testSubjects,
-        counts: testCatalogCounts,
-        resultCount: testCatalogResultCount,
-        isDone: isCatalogTestDone,
-    } = useTestCatalog({
-        tests: publicTests,
-        results: myResults,
-        completedTestIds: completedTestIdsRef.current,
-        view: testCatalogView,
-        subject: testSubject,
-        format: testFormat,
-        search: testSearch,
-        sort: testSort,
-        primarySubject: profile?.subject,
-        secondarySubject: profile?.subject2,
-    })
 
     // Essay panel states
     const [essayPanel, setEssayPanel] = useState<EssayPanel | null>(null)
@@ -1817,7 +1782,6 @@ Iltimos, har bir savolni tahlil qilib ber:
     }
 
     async function loadPublicTests() {
-        setTestsLoading(true)
         try {
             const data = await fetchApi('/tests/public')
             const tests = ensureArray<PublicTest>(data)
@@ -1829,7 +1793,7 @@ Iltimos, har bir savolni tahlil qilib ber:
             // Yangi testlar = ko'rilmaganlar
             const newIds = new Set<string>(tests.filter((t: any) => !seenSet.has(t.id)).map((t: any) => t.id))
             setNewTestIds(newIds)
-        } catch (err) { console.error('loadPublicTests:', err) } finally { setTestsLoading(false) }
+        } catch (err) { console.error('loadPublicTests:', err) }
     }
 
     function markTestsSeen() {
@@ -2303,10 +2267,9 @@ Iltimos, har bir savolni tahlil qilib ber:
         if (loading) return
         if (aiQuota && !aiQuota.unlimited && aiQuota.chat.used >= aiQuota.chat.limit) {
             toast("Bugungi AI limiti tugadi — tayyor testlarni limitsiz yechishingiz mumkin", { icon: '⚡' })
-            setOverlayPanel('tests')
             markTestsSeen()
-            void loadPublicTests()
-            void loadMyResults()
+            if (isMobile) setSideOpen(false)
+            nav('/testlar')
             return false
         }
 
@@ -4899,8 +4862,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                         style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: '0 12px 32px rgba(33,28,22,0.18)' }}>
                         <p className="text-[13px] leading-relaxed" style={{ color: 'var(--text-primary)' }}>
                             {tourStep === 0 && <><span className="font-bold" style={{ color: 'var(--brand)' }}>1/3 · Suhbat.</span> Savol yozing yoki rasm yuboring — AI tushuntiradi, test tuzadi, reja qiladi.</>}
-                            {tourStep === 1 && <><span className="font-bold" style={{ color: 'var(--brand)' }}>2/3 · Testlar.</span> Yon paneldagi «Testlar»da o'qituvchi va rasmiy DTM testlari — yechganingiz belgilanib boradi.</>}
-                            {tourStep === 2 && <><span className="font-bold" style={{ color: 'var(--brand)' }}>3/3 · Natijalar.</span> Zaif mavzularingiz va progress «Natijalar» bo'limida. Omad!</>}
+                            {tourStep === 1 && <><span className="font-bold" style={{ color: 'var(--brand)' }}>2/3 · Testlar.</span> «Testlar» alohida to‘liq sahifada ochiladi — rasmiy va o‘qituvchi testlari shu yerda tartiblangan.</>}
+                            {tourStep === 2 && <><span className="font-bold" style={{ color: 'var(--brand)' }}>3/3 · Natijalar.</span> Test markazidagi «Natijalarim» bo‘limida urinish va sertifikatlaringizni ko‘rasiz. Omad!</>}
                         </p>
                         <div className="flex items-center justify-end gap-2 mt-3">
                             <button onClick={finishTour} className="text-[12px] font-medium px-3 py-1.5 rounded-lg transition" style={{ color: 'var(--text-muted)' }}>
@@ -4927,18 +4890,16 @@ Iltimos, har bir savolni tahlil qilib ber:
                             <div className="flex items-center gap-3 px-4 sm:px-5 py-3.5 sm:py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                                 <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0"
                                     style={{ background: overlayPanel === 'progress' ? 'color-mix(in srgb, var(--success) 12%, transparent)' : 'color-mix(in srgb, var(--brand) 12%, transparent)' }}>
-                                    {overlayPanel === 'tests' && <ClipboardList className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
                                     {overlayPanel === 'flashcards' && <BookOpen className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
                                     {overlayPanel === 'progress' && <BarChart2 className="h-5 w-5" style={{ color: 'var(--text-primary)' }} />}
                                     {overlayPanel === 'pro' && <Sparkles className="h-5 w-5" style={{ color: 'var(--brand)' }} />}
                                 </div>
                                 <div className="flex-1">
                                     <h2 id="student-overlay-title" className="font-semibold text-base">
-                                        {overlayPanel === 'tests' ? 'Testlar' : overlayPanel === 'flashcards' ? 'O‘rganish' : overlayPanel === 'progress' ? 'Progress' : 'Pro'}
+                                        {overlayPanel === 'flashcards' ? 'O‘rganish' : overlayPanel === 'progress' ? 'Progress' : 'Pro'}
                                     </h2>
                                     <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                                        {overlayPanel === 'tests' ? (publicTests.length > 0 ? `${publicTests.length} ta test` : 'Bugungi tayyorgarlik shu yerdan boshlanadi')
-                                            : overlayPanel === 'flashcards' ? `${dueFlashcards.length} ta kartochka takrorlash kerak`
+                                        {overlayPanel === 'flashcards' ? `${dueFlashcards.length} ta kartochka takrorlash kerak`
                                             : overlayPanel === 'progress' ? 'O\'qish tahlili'
                                             : 'Rejalar va imkoniyatlar'}
                                     </p>
@@ -4950,122 +4911,6 @@ Iltimos, har bir savolni tahlil qilib ber:
 
                             {/* Content */}
                             <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-3.5 sm:py-4">
-                                {overlayPanel === 'tests' && (
-                                    <div className="test-catalog-content">
-                                        {/* 4.4: ma'lumot kelguncha skeleton kartalar */}
-                                        {testsLoading && publicTests.length === 0 && (
-                                            <div className="test-catalog-list test-catalog-skeleton" aria-label="Testlar yuklanmoqda">
-                                                {[0, 1, 2, 3].map(i => (
-                                                    <div key={i} className="test-catalog-skeleton__row animate-pulse">
-                                                        <div className="flex-1 space-y-2">
-                                                            <div className="h-3.5 rounded w-2/3" style={{ background: 'var(--bg-muted)' }} />
-                                                            <div className="h-3 rounded w-1/3" style={{ background: 'var(--bg-muted)' }} />
-                                                        </div>
-                                                        <div className="h-8 w-20 rounded-lg flex-shrink-0" style={{ background: 'var(--bg-muted)' }} />
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                        {!testsLoading && publicTests.length === 0 && (
-                                            <div className="flex flex-col items-center justify-center py-16 gap-3">
-                                                <div className="h-16 w-16 rounded-2xl flex items-center justify-center" style={{ background: 'var(--bg-muted)' }}>
-                                                    <ClipboardList className="h-8 w-8" style={{ color: 'var(--text-muted)' }} />
-                                                </div>
-                                                <p className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>Hozircha testlar yo'q</p>
-                                                <button onClick={() => { setOverlayPanel(null); void handleAction("AI test", "Menga o'z fanimdan 15 talik test tuzib ber.") }}
-                                                    className="text-xs font-semibold px-4 py-2 rounded-xl transition"
-                                                    style={{ background: 'var(--brand)', color: 'white' }}>
-                                                    AI'dan test so'rang
-                                                </button>
-                                            </div>
-                                        )}
-                                        {publicTests.length > 0 && (
-                                            <TestCatalogControls
-                                                view={testCatalogView}
-                                                onViewChange={setTestCatalogView}
-                                                counts={testCatalogCounts}
-                                                search={testSearch}
-                                                onSearchChange={setTestSearch}
-                                                subjects={testSubjects}
-                                                subject={testSubject}
-                                                onSubjectChange={setTestSubject}
-                                                format={testFormat}
-                                                onFormatChange={setTestFormat}
-                                                sort={testSort}
-                                                onSortChange={setTestSort}
-                                                resultCount={testCatalogResultCount}
-                                            />
-                                        )}
-                                        {publicTests.length > 0 && (() => {
-                                            const rows: Array<{ test: PublicTest; recommended: boolean }> = []
-                                            if (testCatalogView === 'recommended' && recommendedTest) {
-                                                rows.push({ test: recommendedTest, recommended: true })
-                                            }
-                                            visibleTests.forEach(test => rows.push({ test, recommended: false }))
-
-                                            if (rows.length === 0) {
-                                                return (
-                                                    <div className="test-catalog-empty">
-                                                        <ClipboardList aria-hidden="true" />
-                                                        <div>
-                                                            <p>Bu tanlovga mos test topilmadi</p>
-                                                            <span>Filtrlarni tozalang yoki boshqa bo‘limni tanlang.</span>
-                                                        </div>
-                                                        <button type="button" onClick={() => {
-                                                            setTestCatalogView('subjects')
-                                                            setTestSubject('all')
-                                                            setTestFormat('all')
-                                                            setTestSearch('')
-                                                        }}>
-                                                            Barcha testlar
-                                                        </button>
-                                                    </div>
-                                                )
-                                            }
-
-                                            return (
-                                                <div className="test-catalog-list">
-                                                    {rows.map(({ test: t, recommended }) => {
-                                                        const result = myResults.find(item => item.testId === t.id)
-                                                        const done = isCatalogTestDone(t)
-                                                        const type = testTypeLabel(t.testType)
-                                                        const source = sourceBadge(t.source)
-                                                        const summary = result ? getAttemptSummary(result) : null
-                                                        return (
-                                                            <button
-                                                                key={t.id}
-                                                                type="button"
-                                                                onClick={() => { void openPublicTest(t) }}
-                                                                className={`test-catalog-row${recommended ? ' is-recommended' : ''}${done ? ' is-completed' : ''}`}
-                                                            >
-                                                                <div className="test-catalog-row__main">
-                                                                    <div className="test-catalog-row__labels">
-                                                                        {recommended && <span className="test-catalog-recommended-label"><Target aria-hidden="true" /> Sizga mos</span>}
-                                                                        <span>{t.subject || 'Umumiy'}</span>
-                                                                    </div>
-                                                                    <p className="test-catalog-row__title">{t.title}</p>
-                                                                    <div className="test-catalog-row__meta">
-                                                                        <span>{t._count?.questions ?? 0} savol</span>
-                                                                        <span>{typeof t.timeLimit === 'number' && t.timeLimit > 0 ? `${t.timeLimit} daqiqa` : 'Vaqtsiz'}</span>
-                                                                        {type && <span>{type}</span>}
-                                                                        {source && <span>{source.label}</span>}
-                                                                        {t.premium && <span className="test-premium-badge"><Sparkles aria-hidden="true" /> Pro</span>}
-                                                                    </div>
-                                                                </div>
-                                                                <div className="test-catalog-row__action">
-                                                                    {done && summary && <span className="test-catalog-row__score">{summary.percent}%</span>}
-                                                                    <span>{done ? 'Ko‘rish' : 'Boshlash'}</span>
-                                                                    <ArrowRight aria-hidden="true" />
-                                                                </div>
-                                                            </button>
-                                                        )
-                                                    })}
-                                                </div>
-                                            )
-                                        })()}
-                                    </div>
-                                )}
-
                                 {overlayPanel === 'flashcards' && (
                                     <div className="space-y-3">
                                         <div className="rounded-2xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
