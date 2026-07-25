@@ -3244,8 +3244,9 @@ Iltimos, har bir savolni tahlil qilib ber:
     const MOBILE_TABBAR_PAD = 'calc(62px + env(safe-area-inset-bottom))'
 
     // Sessiya raili — FAQAT backend LearningSession real holatidan.
-    // Stream tugaganda va test topshirilganda qayta yuklanadi.
-    const learningSession = useLearningSession(chatId, streaming, testSubmitted)
+    // MUHIM: /suhbat (ID'siz) ham chat ko'rsatishi mumkin — effektiv ID kerak,
+    // yo'qsa rail hech qachon chiqmaydi. Stream/loading tugaganda qayta yuklanadi.
+    const learningSession = useLearningSession(chatId ?? currentChat?.id, loading, !!streaming, testSubmitted)
     const sessionPhase = useMemo(() => deriveSessionPhaseFromLearning(learningSession), [learningSession])
 
     return (
