@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, FileText, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, RotateCcw, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, ArrowUp, ArrowDown, ArrowRight, BarChart2, User, Calendar, Shield, Sparkles, Clock, Flame, Zap, Copy, MessageSquare, Pencil, MoreHorizontal, House } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, FileText, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, RotateCcw, AlertTriangle, TrendingUp, Brain, PenLine, CheckCircle, Bell, Trophy, ArrowUp, ArrowDown, ArrowRight, BarChart2, User, Calendar, Shield, Sparkles, Clock, Flame, Zap, Copy, MessageSquare, Pencil, MoreHorizontal, House } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import remarkGfm from 'remark-gfm'
@@ -29,6 +29,7 @@ import type { AiQuota } from './chat/useAiQuota'
 import { TestCatalogControls } from './chat/TestCatalogControls'
 import { useTestCatalog } from './chat/useTestCatalog'
 import type { TestCatalogFormat, TestCatalogSort, TestCatalogView } from './chat/useTestCatalog'
+import SessionRail, { deriveSessionPhase } from './chat/SessionRail'
 import '../../styles/student-workspace.css'
 
 interface Chat { id: string; title: string; subject?: string; subject2?: string; updatedAt: string; messageCount?: number }
@@ -563,6 +564,27 @@ const MdMessage = memo(({ content, isStreaming, messageId }: {
             blockquote: ({ children }) => <blockquote className="border-l-[3px] pl-4 pr-3 py-2 my-3" style={{ borderColor: 'var(--brand)', background: 'var(--brand-light)', color: 'var(--text-secondary)', borderRadius: '0 0.75rem 0.75rem 0' }}>{children}</blockquote>,
             hr: () => <hr className="my-4" style={{ borderColor: 'var(--border)' }} />,
         }}>{processedContent}</ReactMarkdown>
+    )
+})
+
+// Uzun AI javoblari qatlami — 1200+ belgilik "matn to'kish" yig'iladigan bo'ladi.
+// Gradient fade ISHLATILMAYDI (anti-pattern): qattiq chegara + alohida tugma.
+const AI_COLLAPSE_THRESHOLD = 1200
+const CollapsibleAiBubble = memo(({ content, messageId }: { content: string; messageId?: string }) => {
+    const [expanded, setExpanded] = useState(false)
+    const collapsible = content.length > AI_COLLAPSE_THRESHOLD
+    return (
+        <div className="bubble-ai">
+            <div className={collapsible && !expanded ? 'ai-msg-clamped' : undefined}>
+                <MdMessage content={content} messageId={messageId} />
+            </div>
+            {collapsible && (
+                <button type="button" className="ai-msg-toggle" onClick={() => setExpanded(v => !v)} aria-expanded={expanded}>
+                    {expanded ? <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />}
+                    {expanded ? 'Yig‘ish' : 'To‘liq o‘qish'}
+                </button>
+            )}
+        </div>
     )
 })
 
@@ -3196,6 +3218,12 @@ Iltimos, har bir savolni tahlil qilib ber:
     const mobileTabBarVisible = isMobile && !testPanel && !essayPanel && !flashPanel && !todoOpen
     const MOBILE_TABBAR_PAD = 'calc(62px + env(safe-area-inset-bottom))'
 
+    // Sessiya raili — suhbat qaysi o'quv bosqichida ekanini REAL dalillardan chiqaradi
+    const sessionPhase = useMemo(
+        () => deriveSessionPhase({ messages, testActive: !!testPanel, testSubmitted }),
+        [messages, testPanel, testSubmitted]
+    )
+
     return (
         <ChatContext.Provider value={chatContextValue}>
             <div className="kelviq student-workspace min-h-[100dvh] h-[100dvh] flex overflow-hidden relative">
@@ -3716,6 +3744,9 @@ Iltimos, har bir savolni tahlil qilib ber:
                         )}
                     </header>
 
+                    {/* Sessiya raili — faqat AI ustoz ko'rinishida, dalil topilganda */}
+                    {!isTodayView && sessionPhase && <SessionRail phase={sessionPhase} />}
+
                     {/* Messages */}
                     <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
                         onScroll={e => {
@@ -3948,14 +3979,50 @@ Iltimos, har bir savolni tahlil qilib ber:
                             </div>
                         ) : (
                             <div className="chat-thread max-w-[760px] mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6 sm:space-y-9">
-                                {messages.length === 0 && !loading && !streaming && (
+                                {messages.length === 0 && !loading && !streaming && (() => {
+                                    // Bo'sh holat — Bugun ekranining davomi: generic promptlar emas,
+                                    // o'quvchining REAL keyingi qadami birinchi turadi (onboarding continuity)
+                                    const weakTopic = progressData?.weakTopics?.[0]
+                                    const unfinishedTodo = homeTodos.find(item => !item.done)
+                                    const needsDiagnostic = myResults.length === 0 && (profile?.totalTests ?? 0) === 0
+                                    let focus: { title: string; description: string; prompt: string } | null = null
+                                    if (needsDiagnostic) {
+                                        const subjects = diagnosticSubjects(profile)
+                                        focus = {
+                                            title: 'Darajangizni aniqlaymiz',
+                                            description: subjects.length >= 2
+                                                ? `${subjects.join(' + ')} bo‘yicha diagnostik test — keyin shaxsiy reja`
+                                                : `${subjects[0] || 'Asosiy faningiz'} bo‘yicha shaxsiy boshlang‘ich test`,
+                                            prompt: buildDiagnosticPrompt(profile),
+                                        }
+                                    } else if (unfinishedTodo) {
+                                        focus = {
+                                            title: 'Bugungi rejani davom ettiramiz',
+                                            description: `Navbatdagi vazifa: ${unfinishedTodo.task}`,
+                                            prompt: `Bugungi rejadagi "${unfinishedTodo.task}" vazifani boshlashimga yordam ber: eng muhim birinchi qadamni ayt.`,
+                                        }
+                                    } else if (weakTopic) {
+                                        focus = {
+                                            title: `Zaif mavzu: ${weakTopic.topic}`,
+                                            description: 'Avval qisqa tushuntirish, keyin mashq bilan mustahkamlaymiz',
+                                            prompt: `"${weakTopic.topic}" mavzusini avval qisqa tushuntir, keyin 10 ta savollik mashq testi tuz — bu mening zaif mavzum, oxirida xatolarimni tushuntir.`,
+                                        }
+                                    }
+                                    return (
                                     <section className="ai-tutor-empty" aria-labelledby="ai-tutor-empty-title">
                                         <div className="ai-tutor-empty__icon"><BrainCircuit aria-hidden="true" /></div>
                                         <div>
-                                            <h1 id="ai-tutor-empty-title">AI ustoz bilan boshlang</h1>
-                                            <p>{profile?.subject ? `${profile.subject} bo‘yicha savol bering` : 'Savol, masala yoki mavzuni yozing'} — javobni bosqichma-bosqich tushuntiraman.</p>
+                                            <h1 id="ai-tutor-empty-title">{focus ? focus.title : 'AI ustoz bilan boshlang'}</h1>
+                                            <p>{focus
+                                                ? focus.description
+                                                : (profile?.subject ? `${profile.subject} bo‘yicha savol bering` : 'Savol, masala yoki mavzuni yozing') + ' — javobni bosqichma-bosqich tushuntiraman.'}</p>
                                         </div>
                                         <div className="ai-tutor-empty__actions" aria-label="Tezkor so‘rovlar">
+                                            {focus && (
+                                                <button type="button" className="ai-tutor-empty__focus" onClick={() => { void handleAction(focus.title, focus.prompt) }}>
+                                                    <span>Boshlash</span><ArrowRight aria-hidden="true" />
+                                                </button>
+                                            )}
                                             {[
                                                 { label: 'Mavzuni tushuntir', prompt: 'Menga qiyin bo‘layotgan mavzuni aniqlash uchun bitta savol ber, keyin uni sodda misol bilan tushuntir.' },
                                                 { label: 'Mashq tuz', prompt: "Menga o‘z fanimdan 5 ta qisqa mashq tuz va har javobimdan keyin izoh ber." },
@@ -3967,7 +4034,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             ))}
                                         </div>
                                     </section>
-                                )}
+                                    )
+                                })()}
                                 {messages.map((m, i) => {
                                     // Sana ajratgichi — kun almashganda "Bugun/Kecha/5-iyul" chizig'i
                                     const msgDay = m.createdAt ? new Date(m.createdAt).toDateString() : ''
@@ -4007,7 +4075,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                                             <div className="ai-msg-row msg-group">
                                                 <img src="/dtmmax-logo.png" alt="" aria-hidden="true" className="ai-avatar" />
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="bubble-ai"><MdMessage content={m.content} messageId={persistedAssistantMessageIdsRef.current.has(m.id) ? m.id : undefined} /></div>
+                                                    <CollapsibleAiBubble content={m.content} messageId={persistedAssistantMessageIdsRef.current.has(m.id) ? m.id : undefined} />
                                                     <div className="flex items-center gap-1 mt-1">
                                                         {messageTime && <span className="text-[10px] px-1" style={{ color: 'var(--text-muted)' }}>{messageTime}</span>}
                                                         <button type="button" className="msg-copy-btn"
@@ -4020,7 +4088,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                             {[
                                                                 { label: 'Sodda tushuntir', prompt: 'Oxirgi javobni yanada sodda, qisqa va tushunarli qilib qayta tushuntir.' },
                                                                 { label: 'Misol ko‘rsat', prompt: 'Oxirgi tushuntirgan mavzuni bitta sodda misol bilan yana tushuntir.' },
-                                                                { label: '3 ta mashq', prompt: 'Oxirgi mavzu bo‘yicha 3 ta qisqa mashq ber.' },
+                                                                { label: 'Mashqga aylantir', prompt: 'Oxirgi tushuntirgan mavzuni 5 ta savollik interaktiv test qilib ber — har javobimni darhol bahola.' },
+                                                                { label: 'Tekshirib ko‘ramiz', prompt: 'Oxirgi mavzuni qancha tushunganimni tekshir: menga 2-3 ta qisqa savol ber, javoblarimni bahola va xatolarimni tushuntir.' },
                                                             ].map(action => (
                                                                 <button key={action.label} type="button" onClick={() => { void handleAction(action.label, action.prompt) }}
                                                                     className="px-2.5 py-1 rounded-full text-[11px] font-medium transition"
