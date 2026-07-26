@@ -24,14 +24,14 @@ interface TimeSpentUser {
     onlineLastSeen: number | null
 }
 
-// Faol foydalanuvchilar metrikalari — kontrakt bo'yicha /stats yoki /admin/active-users
+// Faol foydalanuvchilar metrikalari — /analytics/stats kontrakti
 interface ActiveUsersMetrics {
     dau: number
     wau: number
     mau: number
 }
 
-// Stats yoki active-users javobidan dau/wau/mau ni xavfsiz ajratib oladi.
+// Stats javobidan dau/wau/mau ni xavfsiz ajratib oladi.
 // Backend hali bermasa null qaytaradi (UI kartalarni ko'rsatmaydi — crash bo'lmaydi).
 function pickActiveUsers(source: unknown): ActiveUsersMetrics | null {
     if (!source || typeof source !== 'object') return null
@@ -292,7 +292,7 @@ export default function AdminPanel() {
     const [statsError, setStatsError] = useState('')
     // Kunlik AI sarfi (bepul limitlar hisobi) — xarajat ko'zgusi
     const [aiUsage, setAiUsage] = useState<{ limits: { chat: number; vision: number }; today: { users: number; chat: number; vision: number; atChatLimit: number; atVisionLimit: number }; days: Array<{ day: string; users: number; chat: number; vision: number }> } | null>(null)
-    // Faol foydalanuvchilar: DAU / WAU / MAU (kontrakt: /stats yoki /admin/active-users)
+    // Faol foydalanuvchilar: DAU / WAU / MAU (/analytics/stats)
     const [activeUsers, setActiveUsers] = useState<ActiveUsersMetrics | null>(null)
     const [users, setUsers] = useState<any[]>([])
     const [docs, setDocs] = useState<any[]>([])
@@ -481,18 +481,10 @@ export default function AdminPanel() {
         else { setStats(null); setStatsError('Statistikani yuklab boʻlmadi') }
         if (aiUsageRes.status === 'fulfilled') setAiUsage(aiUsageRes.value)
 
-        // DAU/WAU/MAU — avval /stats javobidan, bo'lmasa /admin/active-users dan
+        // DAU/WAU/MAU yagona backend kontrakti — /analytics/stats.
+        // Mavjud bo'lmagan fallback endpointga so'rov yuborib 404 yaratmaymiz.
         const fromStats = statsRes.status === 'fulfilled' ? pickActiveUsers(statsRes.value) : null
-        if (fromStats) {
-            setActiveUsers(fromStats)
-        } else {
-            try {
-                const au = await fetchApi('/admin/active-users', { silent: true })
-                setActiveUsers(pickActiveUsers(au))
-            } catch {
-                setActiveUsers(null)
-            }
-        }
+        setActiveUsers(fromStats)
 
         if (timeSpentRes.status === 'fulfilled') {
             applyTimeSpentPayload(timeSpentRes.value)
