@@ -4908,9 +4908,9 @@ Iltimos, har bir savolni tahlil qilib ber:
                     })()
                 }
 
-                {/* 6.3: bir martalik mini-tur — intruziv modal EMAS, pastdagi kichik karta */}
+                {/* 6.3: bir martalik mini-tur — composerga tegmaydigan yuqori status karta */}
                 {tourStep >= 0 && !showOnboarding && profileLoaded && chatsLoaded && !overlayPanel && (
-                    <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-sm rounded-2xl p-4 k-fade-in"
+                    <div className="student-tour-card rounded-2xl p-4 k-fade-in" role="status" aria-live="polite"
                         style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: '0 12px 32px rgba(33,28,22,0.18)' }}>
                         <p className="text-[13px] leading-relaxed" style={{ color: 'var(--text-primary)' }}>
                             {tourStep === 0 && <><span className="font-bold" style={{ color: 'var(--brand)' }}>1/3 · Suhbat.</span> Savol yozing yoki rasm yuboring — AI tushuntiradi, test tuzadi, reja qiladi.</>}
@@ -4922,8 +4922,8 @@ Iltimos, har bir savolni tahlil qilib ber:
                                 O'tkazib yuborish
                             </button>
                             <button onClick={() => tourStep >= 2 ? finishTour() : setTourStep(s => s + 1)}
-                                className="text-[12px] font-semibold px-3.5 py-1.5 rounded-lg transition"
-                                style={{ background: 'var(--brand)', color: 'white' }}>
+                                className="text-[12px] font-bold px-3.5 py-1.5 rounded-lg transition"
+                                style={{ background: 'var(--brand)', color: 'var(--text-primary)' }}>
                                 {tourStep >= 2 ? 'Tushunarli' : 'Keyingi'}
                             </button>
                         </div>

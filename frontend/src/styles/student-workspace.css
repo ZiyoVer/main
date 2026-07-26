@@ -699,3 +699,22 @@
     padding: 0 14px;
   }
 }
+
+/* Bir martalik mini-tur input/composer ustini yopmaydi. Karta yuqori o'ngda
+   turadi; mobil ekranda ikkala chetdan xavfsiz masofa oladi. */
+.student-tour-card {
+  position: fixed;
+  z-index: 40;
+  top: 72px;
+  right: 20px;
+  width: min(384px, calc(100vw - 40px));
+}
+
+@media (max-width: 767px) {
+  .student-tour-card {
+    top: 66px;
+    right: 12px;
+    left: 12px;
+    width: auto;
+  }
+}
