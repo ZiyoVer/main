@@ -52,9 +52,20 @@ export function deriveSessionPhaseFromLearning(session: LearningSessionInfo | nu
     return { current: 'diagnostika', done: ['reja'], stepLabel }
 }
 
-export default function SessionRail({ phase }: { phase: SessionPhaseState }) {
+export default function SessionRail({ phase, session }: { phase: SessionPhaseState; session: LearningSessionInfo }) {
+    const progressLabel = session.plan.length > 0
+        ? `${Math.min(session.stepIndex + 1, session.plan.length)}/${session.plan.length} qadam`
+        : null
+
     return (
         <nav className="session-rail" aria-label="O‘quv sessiyasi bosqichlari">
+            <div className="session-rail__context" aria-label="Joriy o‘quv mavzusi">
+                {session.subject && <span>{session.subject}</span>}
+                {session.subject && <span aria-hidden="true">·</span>}
+                <strong>{session.topic}</strong>
+                {progressLabel && <span aria-hidden="true">·</span>}
+                {progressLabel && <span>{progressLabel}</span>}
+            </div>
             <ol>
                 {SESSION_PHASES.map((step, idx) => {
                     const isDone = phase.done.includes(step.id)

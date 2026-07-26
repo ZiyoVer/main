@@ -3819,7 +3819,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                     </header>
 
                     {/* Sessiya raili — faqat AI ustoz ko'rinishida, dalil topilganda */}
-                    {!isTodayView && sessionPhase && <SessionRail phase={sessionPhase} />}
+                    {!isTodayView && sessionPhase && learningSession?.topic && <SessionRail phase={sessionPhase} session={learningSession} />}
 
                     {/* Messages */}
                     <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
@@ -4182,13 +4182,6 @@ Iltimos, har bir savolni tahlil qilib ber:
                                     </React.Fragment>
                                     )
                                 })}
-                                {/* Ichki tahlil emas, foydalanuvchiga kerak bo'lgan sokin holat xabari. */}
-                                {thinkingText && !streaming && (
-                                    <div className="flex items-center gap-2 py-1">
-                                        <Lightbulb className="h-3.5 w-3.5" style={{ color: 'var(--text-muted)' }} />
-                                        <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Murakkab yechimni tartiblayapti...</span>
-                                    </div>
-                                )}
                                 {streaming && (
                                     <div className="flex ai-msg-row">
                                         <img src="/dtmmax-logo.png" alt="" aria-hidden="true" className="ai-avatar" />
@@ -4224,14 +4217,22 @@ Iltimos, har bir savolni tahlil qilib ber:
                                         </div>
                                     </div>
                                 )}
-                                {loading && !streaming && !thinkingText && (
-                                    <div className="flex py-1">
-                                        <span className="ai-generating"><span className="ai-star">✳</span> {getLoadingLabel(activeRequestPrompt ? [...messages, { role: 'user', content: activeRequestPrompt }] : messages)}</span>
-                                    </div>
-                                )}
-                                {loading && thinkingText && !streaming && (
-                                    <div className="flex py-1">
-                                        <span className="ai-generating"><span className="ai-star">✳</span> Fikrlamoqda...</span>
+                                {loading && !streaming && (
+                                    <div className="ai-msg-row" role="status" aria-live="polite">
+                                        <img src="/dtmmax-logo.png" alt="" aria-hidden="true" className="ai-avatar" />
+                                        <div className="ai-response-skeleton" aria-busy="true">
+                                            <span className="ai-generating">
+                                                <span className="ai-star">✳</span>
+                                                {thinkingText
+                                                    ? 'Murakkab yechimni tartiblayapti...'
+                                                    : getLoadingLabel(activeRequestPrompt ? [...messages, { role: 'user', content: activeRequestPrompt }] : messages)}
+                                            </span>
+                                            <div className="ai-response-skeleton__lines" aria-hidden="true">
+                                                <span />
+                                                <span />
+                                                <span />
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
                                 {/* Uzun suhbatda pastga tushish tugmasi (sticky, joy egallamaydi) */}
