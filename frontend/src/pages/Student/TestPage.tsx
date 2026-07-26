@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, type NavigateFunction } from 'react-router-dom'
-import { BrainCircuit, CheckCircle, XCircle, ArrowLeft, Sparkles, LogIn, Lock, MessageSquare, ChevronLeft, ChevronRight, Clock, Award } from 'lucide-react'
+import { BrainCircuit, CheckCircle, XCircle, ArrowLeft, Sparkles, LogIn, Lock, MessageSquare, ChevronLeft, ChevronRight, Clock, Award, RotateCcw } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
@@ -58,22 +58,87 @@ function getStudentQuestionText(question: unknown): string {
     return ''
 }
 
-function StudentQuestionImage({ src, compact = false, priority = false }: { src: string; compact?: boolean; priority?: boolean }) {
+type StudentImageKind = 'question' | 'option' | 'solution'
+
+function StudentQuestionImage({
+    src,
+    alt,
+    compact = false,
+    priority = false,
+    kind = 'question',
+    retryable = true
+}: {
+    src: string
+    alt?: string
+    compact?: boolean
+    priority?: boolean
+    kind?: StudentImageKind
+    retryable?: boolean
+}) {
     const [failed, setFailed] = useState(false)
-    useEffect(() => setFailed(false), [src])
+    const [loaded, setLoaded] = useState(false)
+    const [attempt, setAttempt] = useState(0)
+
+    useEffect(() => {
+        setFailed(false)
+        setLoaded(false)
+        setAttempt(0)
+    }, [src])
+
     if (failed) {
+        const message = kind === 'option'
+            ? 'Variant rasmi ochilmadi.'
+            : kind === 'solution'
+                ? 'Yechim rasmi ochilmadi.'
+                : 'Savol rasmi ochilmadi.'
         return (
-            <div className="mt-3 rounded-lg px-3 py-2 text-[12px] font-medium"
+            <div className={`test-workspace__image-error ${kind === 'question' ? 'mt-3' : 'mt-1.5'}`} role="alert"
                 style={{ color: 'var(--danger)', background: 'var(--danger-light)', border: '1px solid color-mix(in srgb, var(--danger) 25%, transparent)' }}>
-                Savol rasmi ochilmadi. Test muallifi rasmni qayta yuklashi kerak.
+                <span>{message} Internetni tekshirib, qayta urinib ko‘ring.</span>
+                {retryable && (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setFailed(false)
+                            setLoaded(false)
+                            setAttempt(current => current + 1)
+                        }}
+                        className="test-workspace__image-retry">
+                        <RotateCcw aria-hidden="true" className="h-3.5 w-3.5" />
+                        Qayta urinish
+                    </button>
+                )}
             </div>
         )
     }
-    return <img src={src} alt="Savol rasmi" onError={() => setFailed(true)}
-        width={compact ? 960 : 1200} height={compact ? 540 : 675}
+
+    const dimensions = kind === 'question'
+        ? { width: compact ? 960 : 1200, height: compact ? 540 : 675 }
+        : { width: 960, height: 540 }
+    const maxHeight = kind === 'question'
+        ? (compact ? 240 : undefined)
+        : kind === 'solution'
+            ? (compact ? 240 : 256)
+            : (compact ? 144 : 160)
+    const marginClass = kind === 'question'
+        ? (compact ? 'mt-3' : 'mb-3')
+        : 'mt-1.5'
+
+    return <img
+        key={`${src}:${attempt}`}
+        src={src}
+        alt={alt || (kind === 'question' ? 'Savol rasmi' : kind === 'solution' ? 'Yechim rasmi' : 'Javob varianti rasmi')}
+        onLoad={() => setLoaded(true)}
+        onError={() => {
+            setLoaded(false)
+            setFailed(true)
+        }}
+        width={dimensions.width}
+        height={dimensions.height}
         loading={priority ? 'eager' : 'lazy'} decoding="async" fetchPriority={priority ? 'high' : 'low'}
-        className={`${compact ? 'mt-3' : 'max-w-full rounded-lg border mb-3'}`}
-        style={{ borderColor: 'var(--border)', maxHeight: compact ? 240 : undefined, maxWidth: '100%', height: 'auto', objectFit: 'contain' }} />
+        aria-busy={!loaded}
+        className={`test-workspace__image ${loaded ? 'is-loaded' : 'is-loading'} ${marginClass}`}
+        style={{ maxHeight, maxWidth: '100%', height: 'auto', objectFit: 'contain' }} />
 }
 
 function formatAcceptedAnswerText(text: string | null | undefined) {
@@ -698,7 +763,7 @@ export default function TestPage() {
                         <button type="button" aria-label="Testdan chiqish" onClick={() => nav(token ? '/testlar' : '/')} className="h-7 w-7 flex items-center justify-center rounded-lg transition" style={{ color: 'var(--text-muted)' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                             <ArrowLeft className="h-4 w-4" />
                         </button>
-                        <img src="/dtmmax-logo.png" alt="DtmMax" width={32} height={32} className="h-8 w-8 rounded-md flex items-center justify-center" style={{ objectFit: 'contain' }} />
+                        <img src="/dtmmax-logo.png" alt="DTMMax" width={32} height={32} className="h-8 w-8 rounded-md flex items-center justify-center" style={{ objectFit: 'contain' }} />
                         <span className="text-sm font-bold truncate max-w-[200px]">{test?.title}</span>
                     </div>
                     <div className="flex items-center gap-3">
@@ -956,9 +1021,12 @@ export default function TestPage() {
                                                     <TextWithMath text={opt} />
                                                     {/* FAZA 3: variant rasmi */}
                                                     {Array.isArray(q.optionImages) && q.optionImages[oi] && (
-                                                        <img src={q.optionImages[oi]} alt={`${OPTS[oi]} variant rasmi`}
-                                                            loading={qi === 0 ? 'eager' : 'lazy'} decoding="async" fetchPriority={qi === 0 ? 'high' : 'low'}
-                                                            className="mt-1.5 rounded-lg border max-w-full" style={{ borderColor: 'var(--border)', maxHeight: '10rem' }} />
+                                                        <StudentQuestionImage
+                                                            src={q.optionImages[oi]}
+                                                            alt={`${OPTS[oi]} variant rasmi`}
+                                                            kind="option"
+                                                            retryable={false}
+                                                        />
                                                     )}
                                                 </span>
                                                 {submitted && oi === correctIdx && <CheckCircle className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--success)' }} />}
@@ -972,8 +1040,7 @@ export default function TestPage() {
                             {submitted && correct?.solutionImage && (
                                 <div className="mt-3 p-2.5 rounded-lg" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
                                     <p className="text-[11px] font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>Yechim:</p>
-                                    <img src={correct.solutionImage} alt="Yechim rasmi" loading="lazy" decoding="async" fetchPriority="low"
-                                        className="max-w-full rounded-lg" style={{ maxHeight: '16rem' }} />
+                                    <StudentQuestionImage src={correct.solutionImage} alt="Yechim rasmi" kind="solution" />
                                 </div>
                             )}
                         </div>
@@ -1270,7 +1337,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
             <header className="test-workspace__header h-12 flex-shrink-0 flex items-center justify-between px-4" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
                 <div className="flex items-center gap-2">
                     <button type="button" aria-label="Testdan chiqish" onClick={() => nav(token ? '/suhbat' : '/')} className="h-7 w-7 flex items-center justify-center rounded-lg" style={{ color: 'var(--text-muted)' }}><ArrowLeft className="h-4 w-4" /></button>
-                    <img src="/dtmmax-logo.png" alt="DtmMax" width={28} height={28} className="h-7 w-7 rounded-md flex items-center justify-center" style={{ objectFit: 'contain' }} />
+                    <img src="/dtmmax-logo.png" alt="DTMMax" width={28} height={28} className="h-7 w-7 rounded-md flex items-center justify-center" style={{ objectFit: 'contain' }} />
                     <span className="text-sm font-bold truncate max-w-[180px] sm:max-w-xs">{test?.title}</span>
                     <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold hidden sm:inline-flex" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>DTM</span>
                 </div>
@@ -1442,9 +1509,13 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                                         <TextWithMath text={opt} />
                                                         {/* FAZA 3: variant rasmi (DTM chap panel) */}
                                                         {Array.isArray(q.optionImages) && q.optionImages[oi] && (
-                                                            <img src={q.optionImages[oi]} alt={`${OPTS[oi]} variant rasmi`}
-                                                                loading={qi === 0 ? 'eager' : 'lazy'} decoding="async" fetchPriority={qi === 0 ? 'high' : 'low'}
-                                                                className="mt-1.5 rounded-lg border max-w-full" style={{ borderColor: 'var(--border)', maxHeight: '9rem', objectFit: 'contain' }} />
+                                                            <StudentQuestionImage
+                                                                src={q.optionImages[oi]}
+                                                                alt={`${OPTS[oi]} variant rasmi`}
+                                                                kind="option"
+                                                                compact
+                                                                retryable={false}
+                                                            />
                                                         )}
                                                     </span>
                                                     {submitted && oi === correctIdx && <CheckCircle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" style={{ color: 'var(--success)' }} />}
@@ -1458,8 +1529,7 @@ function DtmTestView({ test, answers, setAnswers, submitted, result, correctMap,
                                 {submitted && correct?.solutionImage && (
                                     <div className="mt-3 p-2.5 rounded-lg" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
                                         <p className="text-[11px] font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>Yechim:</p>
-                                        <img src={correct.solutionImage} alt="Yechim rasmi" loading="lazy" decoding="async" fetchPriority="low"
-                                            className="max-w-full rounded-lg" style={{ maxHeight: 240, objectFit: 'contain' }} />
+                                        <StudentQuestionImage src={correct.solutionImage} alt="Yechim rasmi" kind="solution" compact />
                                     </div>
                                 )}
                             </article>

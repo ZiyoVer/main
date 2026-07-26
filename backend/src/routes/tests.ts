@@ -1477,9 +1477,12 @@ router.get('/by-link/:shareLink', optionalAuthenticate, testReadLimiter, async (
         // aks holda o'quvchi devtools orqali barcha javoblarni ko'ra oladi
         const assetUrlExpiresIn = getTestAssetUrlExpiresInSeconds(test.timeLimit)
         const sanitizedQuestions = await Promise.all(test.questions.map(async (q: any) => {
-            const resolvedImageUrl = await resolveStoredS3Url(q.imageUrl, assetUrlExpiresIn)
-            // FAZA 3: variant rasmlari — o'quvchiga signed URL massivi ketadi (xom ref emas)
-            const resolvedOptionImages = await resolveStoredOptionImages(q.optionImages, assetUrlExpiresIn)
+            // Asosiy va variant rasmlari mustaqil: ikkalasining signed URL'ini parallel
+            // tayyorlaymiz. Ko'p rasmli test ochilganda bir savol ichida ortiqcha kutish qolmaydi.
+            const [resolvedImageUrl, resolvedOptionImages] = await Promise.all([
+                resolveStoredS3Url(q.imageUrl, assetUrlExpiresIn),
+                resolveStoredOptionImages(q.optionImages, assetUrlExpiresIn)
+            ])
             // Javob kaliti va yechim reference'i submitdan OLDIN brauzerga chiqmaydi.
             // Matching/multipart ichidagi kalitlar pastda alohida sanitized qilinadi.
             const qRest = stripPreSubmitAnswerFields(q)
