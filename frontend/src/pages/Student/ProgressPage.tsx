@@ -79,7 +79,7 @@ export default function ProgressPage() {
         try {
             const [progressData, resultsData, profileData, dueData] = await Promise.all([
                 fetchApi('/progress/me', { silent: true }).catch(() => null),
-                fetchApi('/tests/my-results', { silent: true }),
+                fetchApi('/tests/my-results', { silent: true }).catch(() => []),
                 fetchApi('/profile', { silent: true }).catch(() => null),
                 fetchApi('/flashcards/due', { silent: true }).catch(() => null),
             ])

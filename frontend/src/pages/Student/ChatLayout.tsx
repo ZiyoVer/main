@@ -3332,12 +3332,12 @@ Iltimos, har bir savolni tahlil qilib ber:
                             aria-current={isTodayView && !overlayPanel ? 'page' : undefined}>
                             <House className="h-4 w-4 flex-shrink-0" /> Bugun
                         </button>
-                        <button type="button" onClick={() => { if (isMobile) setSideOpen(false); nav('/organish') }}
+                        <button type="button" onClick={() => { setOverlayPanel(null); if (isMobile) setSideOpen(false); nav('/organish') }}
                             className="student-primary-nav__item">
                             <BookOpen className="h-4 w-4 flex-shrink-0" /> O‘rganish
                             {dueFlashcards.length > 0 && <span className="student-nav-count">{dueFlashcards.length > 9 ? '9+' : dueFlashcards.length}</span>}
                         </button>
-                        <button type="button" onClick={() => { markTestsSeen(); if (isMobile) setSideOpen(false); nav('/testlar') }}
+                        <button type="button" onClick={() => { setOverlayPanel(null); markTestsSeen(); if (isMobile) setSideOpen(false); nav('/testlar') }}
                             className="student-primary-nav__item">
                             <ClipboardList className="h-4 w-4 flex-shrink-0" />
                             Testlar
@@ -3348,7 +3348,7 @@ Iltimos, har bir savolni tahlil qilib ber:
                             aria-current={chatId && !overlayPanel ? 'page' : undefined}>
                             <MessageSquare className="h-4 w-4 flex-shrink-0" /> AI ustoz
                         </button>
-                        <button type="button" onClick={() => { if (isMobile) setSideOpen(false); nav('/progress') }}
+                        <button type="button" onClick={() => { setOverlayPanel(null); if (isMobile) setSideOpen(false); nav('/progress') }}
                             className="student-primary-nav__item">
                             <TrendingUp className="h-4 w-4 flex-shrink-0" /> Progress
                         </button>
@@ -4932,7 +4932,11 @@ Iltimos, har bir savolni tahlil qilib ber:
 
                 {/* ===== OVERLAY PANELS ===== */}
                 {overlayPanel && (
-                    <div className="student-overlay fixed inset-0 z-50 flex" onClick={() => setOverlayPanel(null)}>
+                    <div
+                        className="student-overlay fixed inset-0 z-50 flex"
+                        style={!isMobile && sideOpen ? { left: `${sidebarWidth}px` } : undefined}
+                        onClick={() => setOverlayPanel(null)}
+                    >
                         <div className="student-overlay__backdrop absolute inset-0 k-fade-in" />
                         <div className="student-overlay__panel relative ml-auto h-full flex flex-col overflow-hidden k-slide-in-right" role="dialog" aria-modal="true" aria-labelledby="student-overlay-title"
                             style={{ width: '100%', maxWidth: '680px', ...(mobileTabBarVisible ? { paddingBottom: MOBILE_TABBAR_PAD } : {}) }}
@@ -5082,10 +5086,10 @@ Iltimos, har bir savolni tahlil qilib ber:
                     <nav className="student-mobile-nav fixed bottom-0 left-0 right-0 flex items-stretch" aria-label="Mobil navigatsiya">
                         {([
                             { key: 'today', label: 'Bugun', Icon: House, active: isTodayView && !overlayPanel && !sideOpen, tap: () => { setOverlayPanel(null); setSideOpen(false); nav('/bugun') } },
-                            { key: 'learn', label: 'O‘rganish', Icon: BookOpen, active: false, badge: dueFlashcards.length, tap: () => { setSideOpen(false); nav('/organish') } },
-                            { key: 'tests', label: 'Testlar', Icon: ClipboardList, active: false, badge: newTestIds.size, tap: () => { markTestsSeen(); nav('/testlar') } },
+                            { key: 'learn', label: 'O‘rganish', Icon: BookOpen, active: false, badge: dueFlashcards.length, tap: () => { setOverlayPanel(null); setSideOpen(false); nav('/organish') } },
+                            { key: 'tests', label: 'Testlar', Icon: ClipboardList, active: false, badge: newTestIds.size, tap: () => { setOverlayPanel(null); markTestsSeen(); nav('/testlar') } },
                             { key: 'tutor', label: 'AI ustoz', Icon: MessageSquare, active: !!chatId && !overlayPanel && !sideOpen, tap: openAiTutor },
-                            { key: 'progress', label: 'Progress', Icon: TrendingUp, active: false, tap: () => { setSideOpen(false); nav('/progress') } },
+                            { key: 'progress', label: 'Progress', Icon: TrendingUp, active: false, tap: () => { setOverlayPanel(null); setSideOpen(false); nav('/progress') } },
                         ] as Array<{ key: string; label: string; Icon: typeof Menu; active: boolean; badge?: number; tap: () => void }>).map(tab => (
                             <button key={tab.key} type="button" onClick={tab.tap}
                                 className={`student-mobile-nav__item${tab.active ? ' is-active' : ''}`}

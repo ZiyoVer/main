@@ -1,33 +1,34 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { useState, useEffect, lazy, Suspense } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { Toaster } from 'react-hot-toast'
 import { useAuthStore, type AuthUser } from './store/authStore'
 import ErrorBoundary from './components/ErrorBoundary'
 import EmailVerifyBanner from './components/EmailVerifyBanner'
+import { lazyWithRetry } from './lib/lazyWithRetry'
 
 // Lazy loading — katta komponentlar kerak bo'lgandagina yuklanadi (bundle size -40%)
-const Landing = lazy(() => import('./pages/Landing'))
-const Login = lazy(() => import('./pages/Auth/Login'))
-const Register = lazy(() => import('./pages/Auth/Register'))
-const AdminLogin = lazy(() => import('./pages/Auth/AdminLogin'))
-const ForgotPassword = lazy(() => import('./pages/Auth/ForgotPassword'))
-const ResetPassword = lazy(() => import('./pages/Auth/ResetPassword'))
-const EmailVerify = lazy(() => import('./pages/Auth/EmailVerify'))
-const VerifyEmailNotice = lazy(() => import('./pages/Auth/VerifyEmailNotice'))
-const ProResult = lazy(() => import('./pages/ProResult'))
-const GoogleCallback = lazy(() => import('./pages/Auth/GoogleCallback'))
-const ChatLayout = lazy(() => import('./pages/Student/ChatLayout'))
-const TestPage = lazy(() => import('./pages/Student/TestPage'))
-const TestsPage = lazy(() => import('./pages/Student/TestsPage'))
-const OrganishPage = lazy(() => import('./pages/Student/OrganishPage'))
-const ProgressPage = lazy(() => import('./pages/Student/ProgressPage'))
-const CertificatePage = lazy(() => import('./pages/Student/CertificatePage'))
-const AdminPanel = lazy(() => import('./pages/Admin/AdminPanel'))
-const TeacherPanel = lazy(() => import('./pages/Teacher/TeacherPanel'))
-const NotFound = lazy(() => import('./pages/NotFound'))
-const Terms = lazy(() => import('./pages/Terms'))
-const Privacy = lazy(() => import('./pages/Privacy'))
-const Oferta = lazy(() => import('./pages/Oferta'))
+const Landing = lazyWithRetry(() => import('./pages/Landing'))
+const Login = lazyWithRetry(() => import('./pages/Auth/Login'))
+const Register = lazyWithRetry(() => import('./pages/Auth/Register'))
+const AdminLogin = lazyWithRetry(() => import('./pages/Auth/AdminLogin'))
+const ForgotPassword = lazyWithRetry(() => import('./pages/Auth/ForgotPassword'))
+const ResetPassword = lazyWithRetry(() => import('./pages/Auth/ResetPassword'))
+const EmailVerify = lazyWithRetry(() => import('./pages/Auth/EmailVerify'))
+const VerifyEmailNotice = lazyWithRetry(() => import('./pages/Auth/VerifyEmailNotice'))
+const ProResult = lazyWithRetry(() => import('./pages/ProResult'))
+const GoogleCallback = lazyWithRetry(() => import('./pages/Auth/GoogleCallback'))
+const ChatLayout = lazyWithRetry(() => import('./pages/Student/ChatLayout'))
+const TestPage = lazyWithRetry(() => import('./pages/Student/TestPage'))
+const TestsPage = lazyWithRetry(() => import('./pages/Student/TestsPage'))
+const OrganishPage = lazyWithRetry(() => import('./pages/Student/OrganishPage'))
+const ProgressPage = lazyWithRetry(() => import('./pages/Student/ProgressPage'))
+const CertificatePage = lazyWithRetry(() => import('./pages/Student/CertificatePage'))
+const AdminPanel = lazyWithRetry(() => import('./pages/Admin/AdminPanel'))
+const TeacherPanel = lazyWithRetry(() => import('./pages/Teacher/TeacherPanel'))
+const NotFound = lazyWithRetry(() => import('./pages/NotFound'))
+const Terms = lazyWithRetry(() => import('./pages/Terms'))
+const Privacy = lazyWithRetry(() => import('./pages/Privacy'))
+const Oferta = lazyWithRetry(() => import('./pages/Oferta'))
 
 function PageLoader() {
     // Spinner 250ms KECHIKIB chiqadi: tez sahifa almashishlarda (chunk keshda)

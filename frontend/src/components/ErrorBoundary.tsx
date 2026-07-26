@@ -1,5 +1,5 @@
 import { Component, ErrorInfo, ReactNode } from 'react'
-import { BrainCircuit } from 'lucide-react'
+import { isChunkLoadError } from '@/lib/lazyWithRetry'
 
 interface Props { children: ReactNode; resetKey?: string }
 interface State { hasError: boolean; error?: Error }
@@ -46,20 +46,25 @@ export default class ErrorBoundary extends Component<Props, State> {
 
     render() {
         if (this.state.hasError) {
+            const chunkError = isChunkLoadError(this.state.error)
             return (
                 <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-page)', padding: '20px' }}>
                     <div style={{ textAlign: 'center', maxWidth: '400px' }}>
-                        <img src="/dtmmax-logo.png" alt="DtmMax" style={{ width: '56px', height: '56px', borderRadius: '16px', objectFit: 'contain', margin: '0 auto 20px', display: 'block' }} />
-                        <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '8px' }}>Xatolik yuz berdi</h2>
+                        <img src="/dtmmax-logo.png" alt="DTMMax" style={{ width: '56px', height: '56px', borderRadius: '16px', objectFit: 'contain', margin: '0 auto 20px', display: 'block' }} />
+                        <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '8px' }}>
+                            {chunkError ? 'Sayt yangilandi' : 'Xatolik yuz berdi'}
+                        </h2>
                         <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '24px', lineHeight: 1.6 }}>
-                            Kutilmagan xatolik. Sahifani yangilab ko'ring.
+                            {chunkError
+                                ? 'Yangi versiyani ochish uchun sahifani bir marta yangilang.'
+                                : "Kutilmagan xatolik. Sahifani yangilab ko'ring."}
                         </p>
                         <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
                             <button
                                 onClick={this.reloadWithCacheBust}
-                                style={{ background: 'var(--brand)', color: 'white', border: 'none', borderRadius: '10px', padding: '12px 28px', fontWeight: 600, fontSize: '14px', cursor: 'pointer' }}
+                                style={{ background: 'var(--brand)', color: 'var(--text-primary)', border: 'none', borderRadius: '10px', padding: '12px 28px', fontWeight: 700, fontSize: '14px', cursor: 'pointer' }}
                             >
-                                Sahifani yangilash
+                                {chunkError ? 'Yangi versiyani ochish' : 'Sahifani yangilash'}
                             </button>
                             <button
                                 onClick={this.openHomeWithoutRedirect}
