@@ -385,6 +385,10 @@ export default function TeacherPanel() {
     const fileInputRef = useRef<HTMLInputElement>(null)
     const pendingImportScrollRef = useRef(false)
     const dtmControlStats = useMemo(() => getDtmControlStats(questions), [questions])
+    const unverifiedAnswerCount = useMemo(
+        () => questions.filter(question => question.answerVerified === false).length,
+        [questions]
+    )
 
     // DTM blok-bo'limli forma: yopiq bo'limlar + har blokka alohida AI import
     const [collapsedBlocks, setCollapsedBlocks] = useState<Set<DtmBlockTypeValue>>(new Set())
@@ -1085,6 +1089,16 @@ export default function TeacherPanel() {
         // Klient-tomon tekshiruv — backend qabul qiladigan turlar (PDF, Word, rasm) va multer 20MB limiti bilan mos
         const fileError = aiFileError(aiFile)
         if (fileError) { setAiError(fileError); return }
+        const hasExistingContent = questions.some(question =>
+            question.text.trim()
+            || question.imageUrl
+            || question.options.some(option => option.trim())
+            || question.optionImages?.some(Boolean)
+            || question.solutionImageUrl
+        )
+        if (hasExistingContent && !confirm('AI import joriy savollarni yangi savollar bilan almashtiradi. Davom etasizmi?')) {
+            return
+        }
         setAiGenerating(true); setAiError(''); setAiDone(false)
         try {
             const formData = new FormData()
@@ -2095,7 +2109,7 @@ export default function TeacherPanel() {
                                     <div>
                                         <p className="text-[13px] font-semibold">AI bilan yaratish</p>
                                         <p className="text-[11px]" style={aiDone ? { color: 'var(--info)' } : mutedText}>
-                                            {aiDone ? `✨ ${questions.length} ta savol yaratildi` : 'PDF yoki screenshot yuklang — AI savollarni tayyorlaydi'}
+                                            {aiDone ? `✨ ${questions.length} ta savol yaratildi` : 'PDF, DOCX yoki screenshot yuklang — AI savollarni tayyorlaydi'}
                                         </p>
                                     </div>
                                 </div>
@@ -2119,8 +2133,8 @@ export default function TeacherPanel() {
                                         <div className="flex items-center justify-center gap-2.5">
                                             <Upload className="h-5 w-5 flex-shrink-0" style={{ color: 'var(--border-strong)' }} />
                                             <div className="text-left">
-                                                <p className="text-[13px]" style={secondaryText}>Screenshot yoki PDF yuklash</p>
-                                                <p className="text-[11px]" style={mutedText}>PNG, JPG, PDF · max 20MB</p>
+                                                <p className="text-[13px]" style={secondaryText}>PDF, DOCX yoki screenshot yuklash</p>
+                                                <p className="text-[11px]" style={mutedText}>PNG, JPG, PDF, DOCX · max 20MB</p>
                                             </div>
                                         </div>
                                     )}
@@ -2140,12 +2154,37 @@ export default function TeacherPanel() {
                                 <p className="text-[12px] font-semibold" style={secondaryText}>{questions.length} ta savol</p>
                                 {aiDone && <span className="text-[11px] px-2 py-0.5 rounded" style={{ color: 'var(--info)', background: 'color-mix(in srgb, var(--info) 10%, transparent)' }}>✨ AI yaratgan</span>}
                             </div>
+                            {unverifiedAnswerCount > 0 && (
+                                <div className="rounded-xl px-3.5 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5"
+                                    role="status"
+                                    style={{ color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a' }}>
+                                    <div>
+                                        <p className="text-[12px] font-bold">{unverifiedAnswerCount} ta AI javobi tekshiruv kutmoqda</p>
+                                        <p className="text-[11px] mt-0.5">To‘g‘ri variantlarni ko‘rib chiqing. Hammasi tasdiqlanmaguncha test saqlanmaydi.</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const firstQuestion = questions.find(question => question.answerVerified === false)
+                                            if (!firstQuestion) return
+                                            setExpandedQ(previous => new Set(previous).add(firstQuestion.uid))
+                                            requestAnimationFrame(() => {
+                                                document.getElementById(`teacher-question-${firstQuestion.uid}`)
+                                                    ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                                            })
+                                        }}
+                                        className="h-9 px-3 rounded-lg text-[11px] font-bold flex-shrink-0"
+                                        style={{ color: '#78350f', background: '#fff', border: '1px solid #fcd34d' }}>
+                                        Birinchisini tekshirish
+                                    </button>
+                                </div>
+                            )}
 
                             {(() => {
                                 // Bitta savol kartasi — tekis ro'yxatda ham, DTM blok bo'limida ham ishlatiladi.
                                 // qi — questions massividagi HAQIQIY indeks (updateQ/removeQ shu bilan ishlaydi).
                                 const renderQuestionCard = (q: Question, qi: number, displayLabel: string) => (
-                                <div key={q.uid} className="rounded-xl p-3.5 space-y-2 transition" style={{ ...cardStyle, borderColor: aiDone ? 'color-mix(in srgb, var(--info) 20%, transparent)' : 'var(--border)' }}
+                                <div key={q.uid} id={`teacher-question-${q.uid}`} className="rounded-xl p-3.5 space-y-2 transition" style={{ ...cardStyle, borderColor: aiDone ? 'color-mix(in srgb, var(--info) 20%, transparent)' : 'var(--border)', scrollMarginTop: 118 }}
                                     onPaste={(e) => {
                                         const items = e.clipboardData?.items
                                         if (!items) return
