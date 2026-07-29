@@ -1263,6 +1263,8 @@ export default function ChatLayout() {
     const [exportLoading, setExportLoading] = useState(false)
     const [exportErr, setExportErr] = useState('')
     const [exportOk, setExportOk] = useState(false)
+    const [logoutAllLoading, setLogoutAllLoading] = useState(false)
+    const [logoutAllErr, setLogoutAllErr] = useState('')
     const [showDeleteModal, setShowDeleteModal] = useState(false)
     const [deletePassword, setDeletePassword] = useState('')
     const [deleteLoading, setDeleteLoading] = useState(false)
@@ -3783,6 +3785,42 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                         setChangePwLoading(false)
                                                     }}
                                                     className="btn btn-outline h-9 text-sm px-5 disabled:opacity-40">{changePwLoading ? 'Saqlanmoqda...' : user?.passwordConfigured === false ? 'Parol yaratish' : 'Parolni yangilash'}</button>
+                                            </div>
+                                            <div className="pt-4 space-y-3" style={{ borderTop: '1px solid var(--border)' }}>
+                                                <div className="space-y-1">
+                                                    <p className="text-sm font-semibold flex items-center gap-2">
+                                                        <LogOut className="h-4 w-4" />
+                                                        Faol sessiyalar
+                                                    </p>
+                                                    <p className="text-xs leading-5" style={{ color: 'var(--text-secondary)' }}>
+                                                        Boshqa qurilmada akkauntingiz ochiq qolgan bo‘lsa, barcha qurilmalardan birdan chiqing. Joriy qurilma ham chiqadi.
+                                                    </p>
+                                                </div>
+                                                {logoutAllErr && (
+                                                    <div role="alert" className="text-sm px-3 py-2 rounded-lg" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>
+                                                        {logoutAllErr}
+                                                    </div>
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    disabled={logoutAllLoading}
+                                                    onClick={async () => {
+                                                        setLogoutAllErr('')
+                                                        setLogoutAllLoading(true)
+                                                        try {
+                                                            await fetchApi('/auth/account/logout-all', { method: 'POST', silent: true })
+                                                            clearSession()
+                                                            nav('/kirish?reason=logout-all', { replace: true })
+                                                        } catch (error: unknown) {
+                                                            setLogoutAllErr(error instanceof Error ? error.message : 'Barcha sessiyalarni tugatib bo‘lmadi')
+                                                            setLogoutAllLoading(false)
+                                                        }
+                                                    }}
+                                                    className="btn btn-outline h-11 text-sm px-4 disabled:opacity-40 flex items-center justify-center gap-2"
+                                                >
+                                                    <LogOut className="h-4 w-4" />
+                                                    {logoutAllLoading ? 'Tugatilmoqda...' : 'Barcha qurilmalardan chiqish'}
+                                                </button>
                                             </div>
                                             <div className="pt-4 space-y-3" style={{ borderTop: '1px solid var(--border)' }}>
                                                 <div className="space-y-1">

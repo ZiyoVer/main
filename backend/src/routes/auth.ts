@@ -1035,6 +1035,25 @@ router.put('/change-password', authenticate, async (req: AuthRequest, res) => {
     }
 })
 
+// Barcha qurilmalardagi JWT sessiyalarini birdan bekor qiladi. Joriy token ham
+// shu javobdan keyingi birinchi so'rovda authVersion mos kelmagani uchun rad etiladi.
+router.post('/account/logout-all', authLimiter, authenticate, async (req: AuthRequest, res) => {
+    try {
+        await prisma.user.update({
+            where: { id: req.user.id },
+            data: { authVersion: { increment: 1 } },
+        })
+        res.setHeader('Cache-Control', 'no-store')
+        res.json({
+            message: 'Barcha qurilmalardagi sessiyalar tugatildi.',
+            sessionRevoked: true,
+        })
+    } catch (e) {
+        console.error('logout-all error:', e)
+        res.status(500).json({ error: 'Barcha sessiyalarni tugatib bo\'lmadi' })
+    }
+})
+
 // Foydalanuvchining o'z ma'lumotlari nusxasi. Parol qayta tekshiriladi;
 // auth/reset tokenlar, parol hash'i, AI test answer-keylari va xom payment
 // webhook meta eksportga kirmaydi.

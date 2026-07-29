@@ -37,6 +37,7 @@ Joriy baho:
 | Password change’da re-auth | Bor | Joriy parol qayta tekshiriladi |
 | Eski JWT’larni bekor qilish | Bor | `User.authVersion` oshiriladi |
 | Server-side logout | Bor | Token Redis blacklist’ga qo‘shiladi |
+| Barcha qurilmalardan chiqish | Bor | `authVersion` atomik oshiriladi; barcha eski JWT’lar bekor bo‘ladi |
 | Self-service account delete | Bor | `DELETE /api/auth/account`, parol talab qilinadi |
 | Adminni self-delete’dan himoya | Bor | `ADMIN` uchun `403` |
 | Google-only account himoyasi | Bor | O‘chirishdan oldin parol yaratish talab qilinadi |
@@ -89,7 +90,7 @@ Server logout javobiga `Clear-Site-Data` qo‘shish hali alohida baholanadi.
 | O‘chirishni bekor qilish / restore | Yo‘q | Hard-delete qaytarilmaydi; bu universal majburiy talab emas |
 | Data export | Bor (JSON) | Parol qayta tekshiriladi; sirlar va server-only answer-keylar chiqarilmaydi |
 | Emailni almashtirish + qayta tasdiqlash | Yo‘q | Account recovery uchun muhim |
-| Faol sessiyalar/qurilmalar ro‘yxati | Yo‘q | Faqat password change/reset hammasini bekor qiladi |
+| Faol sessiyalar/qurilmalar ro‘yxati | Yo‘q | Barchasini birdan tugatish bor, alohida qurilmalar ko‘rinmaydi |
 | Bitta qurilmani masofadan chiqarish | Yo‘q | JWT per-device registry yo‘q |
 | MFA | Yo‘q | Kamida `ADMIN` va `TEACHER` uchun tavsiya etiladi |
 | Delete confirmation email | Yo‘q | Noto‘g‘ri o‘chirishni aniqlashga yordam beradi |
@@ -119,7 +120,7 @@ Server logout javobiga `Clear-Site-Data` qo‘shish hali alohida baholanadi.
 ### Batch 2 — Account recovery va nazorat
 
 1. Email change + yangi emailni tasdiqlash + eski emailga security notice.
-2. “Barcha sessiyalardan chiqish” tugmasi.
+2. ~~“Barcha sessiyalardan chiqish” tugmasi.~~
 3. Aktiv sessiyalar/devices modeli va bitta sessiyani bekor qilish.
 4. Admin/teacher uchun MFA.
 
