@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { clearUserLocalArtifacts } from '@/lib/storagePrune'
 
 export interface AuthUser {
     id: string
@@ -34,7 +35,7 @@ interface AuthState {
     logout: () => void
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
     token: localStorage.getItem('token'),
     user: readStoredUser(),
     hydrated: false,
@@ -66,6 +67,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     clearSession: () => {
         // localStorage BILAN birga store state ham tozalanadi — faqat localStorage
         // tozalansa xotiradagi eski user/token bilan desync bo'lardi
+        clearUserLocalArtifacts(get().user?.id ?? readStoredUser()?.id)
         localStorage.removeItem('token')
         localStorage.removeItem('user')
         set({ token: null, user: null, hydrated: true })
@@ -82,6 +84,7 @@ export const useAuthStore = create<AuthState>((set) => ({
                 keepalive: true,
             }).catch(() => { /* offline yoki server xato — lokal chiqish davom etadi */ })
         }
+        clearUserLocalArtifacts(get().user?.id ?? readStoredUser()?.id)
         localStorage.removeItem('token')
         localStorage.removeItem('user')
         set({ token: null, user: null, hydrated: true })

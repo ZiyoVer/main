@@ -16,6 +16,10 @@ import { logAdminAction } from '../utils/adminAudit'
 import { getAiQuotaStatus } from '../utils/aiQuota'
 import { AUTH_ERROR_CODES, authError } from '../utils/authErrors'
 import { signAuthToken } from '../utils/authToken'
+import {
+    TeacherDeletionImpact,
+    teacherDeletionRequiresAdmin,
+} from '../utils/accountDeletionPolicy'
 
 const router = Router()
 
@@ -155,6 +159,25 @@ async function getActorEmail(actorId: string): Promise<string | null> {
         console.warn('getActorEmail muvaffaqiyatsiz:', err)
         return null
     }
+}
+
+async function getTeacherDeletionImpact(teacherId: string): Promise<TeacherDeletionImpact> {
+    const [tests, attempts, sessions] = await Promise.all([
+        prisma.test.count({ where: { creatorId: teacherId } }),
+        prisma.testAttempt.count({
+            where: {
+                userId: { not: teacherId },
+                test: { creatorId: teacherId },
+            },
+        }),
+        prisma.testSession.count({
+            where: {
+                userId: { not: teacherId },
+                test: { creatorId: teacherId },
+            },
+        }),
+    ])
+    return { tests, attempts, sessions }
 }
 
 function isTemporaryDnsError(code?: string): boolean {
@@ -668,24 +691,14 @@ router.delete('/users/:userId', authenticate, requireRole('ADMIN'), async (req: 
         if (target.role === 'TEACHER') {
             const force = req.query.force === 'true' || req.body?.confirm === true
             if (!force) {
-                const teacherTests = await prisma.test.findMany({
-                    where: { creatorId: uid },
-                    select: { id: true }
-                })
-                const testIds = teacherTests.map((t: { id: string }) => t.id)
-                // Faqat BOSHQA o'quvchilarning urinishlari kollateral hisoblanadi
-                const collateralAttempts = testIds.length > 0
-                    ? await prisma.testAttempt.count({
-                        where: { testId: { in: testIds }, userId: { not: uid } }
-                    })
-                    : 0
-
-                if (teacherTests.length > 0 && collateralAttempts > 0) {
+                const impact = await getTeacherDeletionImpact(uid)
+                if (teacherDeletionRequiresAdmin(impact)) {
                     return res.status(409).json({
-                        error: `Bu o'qituvchini o'chirish ${teacherTests.length} ta testni va boshqa o'quvchilarning ${collateralAttempts} ta test urinishini ham o'chirib yuboradi. Bu amalni bajarish uchun majburiy tasdiq kerak.`,
+                        error: `Bu o'qituvchini o'chirish ${impact.tests} ta testni, boshqa o'quvchilarning ${impact.attempts} ta urinishini va ${impact.sessions} ta test sessiyasini ham o'chirib yuboradi. Bu amalni bajarish uchun majburiy tasdiq kerak.`,
                         requiresConfirmation: true,
-                        tests: teacherTests.length,
-                        attempts: collateralAttempts
+                        tests: impact.tests,
+                        attempts: impact.attempts,
+                        sessions: impact.sessions
                     })
                 }
             }
@@ -1042,6 +1055,27 @@ router.delete('/account', authenticate, async (req: AuthRequest, res) => {
         const valid = await bcrypt.compare(password, user.password)
         if (!valid) return res.status(400).json({ error: 'Parol noto\'g\'ri' })
         const uid = user.id
+
+        // O'qituvchi testlari boshqa o'quvchilarning urinish yoki faol sessiyalariga
+        // bog'langan bo'lsa self-delete kaskadi ularning ma'lumotini ham o'chiradi.
+        // Self-service oqimida bunday kollateral o'chirishga force berilmaydi:
+        // admin testlarni boshqa egaga o'tkazishi yoki alohida tasdiqlashi kerak.
+        if (user.role === 'TEACHER') {
+            const impact = await getTeacherDeletionImpact(uid)
+            if (teacherDeletionRequiresAdmin(impact)) {
+                return res.status(409).json({
+                    ...authError(
+                        `Akkauntga ${impact.tests} ta test, boshqa o'quvchilarning ${impact.attempts} ta natijasi va ${impact.sessions} ta test sessiyasi bog'langan. Ma'lumotlar yo'qolmasligi uchun administratorga murojaat qiling.`,
+                        AUTH_ERROR_CODES.ACCOUNT_DELETE_SHARED_TEST_DATA
+                    ),
+                    requiresAdminTransfer: true,
+                    tests: impact.tests,
+                    attempts: impact.attempts,
+                    sessions: impact.sessions,
+                })
+            }
+        }
+
         const userChats = await prisma.chat.findMany({ where: { userId: uid }, select: { id: true } })
         const chatIds = userChats.map((c: { id: string }) => c.id)
         await prisma.$transaction([

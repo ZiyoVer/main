@@ -7,6 +7,29 @@ const LRU_KEY = 'dtmmax_key_lru_v1'
 const PRUNE_PREFIXES = ['dtmmax_ans_', 'dtmmax_pub_ans_', 'dtmmax_correct_', 'dtmmax_tp_ans_']
 const KEEP_PER_PREFIX = 50
 
+export function isUserScopedDtmmaxKey(key: string, userId: string): boolean {
+    if (!userId) return false
+
+    const exactKeys = new Set([
+        `dtmmax_done_tests_${userId}`,
+        `dtmmax_done_ai_tests_${userId}`,
+        `dtmmax_seen_tests_${userId}`,
+        `dtmmax_test_result_${userId}`,
+        `dtmmax_analysis_chat_id_${userId}`,
+        `dtmmax_essay_draft_${userId}`,
+        `dtmmax_teacher_draft_${userId}_v1`,
+        `dtmmax_todo_items_v1_${userId}`,
+    ])
+    if (exactKeys.has(key)) return true
+
+    return [
+        `dtmmax_ans_${userId}_`,
+        `dtmmax_pub_ans_${userId}_`,
+        `dtmmax_tp_ans_${userId}_`,
+        `dtmmax_todo_items_v1_${userId}_`,
+    ].some(prefix => key.startsWith(prefix))
+}
+
 function readLru(): Record<string, number> {
     try {
         const parsed = JSON.parse(localStorage.getItem(LRU_KEY) || '{}')
@@ -42,6 +65,37 @@ export function pruneDtmmaxStorage(): void {
         }
         writeLru(lru)
     } catch { /* prune hech qachon ilovani yiqitmasin */ }
+}
+
+// Logout, account switch va account delete paytida boshqa userga sizishi mumkin
+// bo'lgan o'quv/test keshlarini bitta joydan tozalaydi. Theme va onboarding tour
+// kabi qurilmaga tegishli sozlamalar ataylab saqlanadi.
+export function clearUserLocalArtifacts(userId?: string | null): void {
+    if (!userId) return
+    try {
+        const keysToRemove: string[] = []
+        for (let index = 0; index < localStorage.length; index++) {
+            const key = localStorage.key(index)
+            if (key && isUserScopedDtmmaxKey(key, userId)) keysToRemove.push(key)
+        }
+
+        // Flashcard signature'lari ilgari global saqlangan. Ularni sessiyalar
+        // orasida qoldirish yangi akkauntda kartani noto'g'ri "allaqachon saqlandi"
+        // deb belgilashi mumkin.
+        keysToRemove.push('dtmmax_flash_posted_v1')
+        const uniqueKeys = [...new Set(keysToRemove)]
+        uniqueKeys.forEach(key => localStorage.removeItem(key))
+
+        const lru = readLru()
+        let lruChanged = false
+        for (const key of uniqueKeys) {
+            if (Object.prototype.hasOwnProperty.call(lru, key)) {
+                delete lru[key]
+                lruChanged = true
+            }
+        }
+        if (lruChanged) writeLru(lru)
+    } catch { /* storage mavjud bo'lmasa logout baribir davom etadi */ }
 }
 
 // Per-test kalitlarni yozishning yagona yo'li: LRU belgisi + quota to'lsa prune qilib qayta urinish

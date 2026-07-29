@@ -1,5 +1,6 @@
 import { Component, ErrorInfo, ReactNode } from 'react'
 import { isChunkLoadError } from '@/lib/lazyWithRetry'
+import { clearUserLocalArtifacts } from '@/lib/storagePrune'
 
 interface Props { children: ReactNode; resetKey?: string }
 interface State { hasError: boolean; error?: Error }
@@ -22,6 +23,8 @@ export default class ErrorBoundary extends Component<Props, State> {
 
     private logoutAndOpenLogin = () => {
         try {
+            const storedUser = JSON.parse(localStorage.getItem('user') || 'null') as { id?: unknown } | null
+            clearUserLocalArtifacts(typeof storedUser?.id === 'string' ? storedUser.id : null)
             localStorage.removeItem('token')
             localStorage.removeItem('user')
         } catch { /* ignore */ }

@@ -14,17 +14,17 @@ DTMMax’ning asosiy auth va password-recovery oqimi production darajasiga yaqin
 email tasdiqlash, enumeration’ga chidamli forgot-password javobi, cheklangan
 reset token, xavfli amalda parolni qayta so‘rash va JWT revocation mavjud.
 
-Account lifecycle to‘liq emas. Eng katta xavf — `TEACHER` self-delete oqimi
-test o‘chirishdagi mavjud collision guard’ni chetlab o‘tishi. Shu sabab
-o‘qituvchi akkauntini o‘chirganda uning testlari va boshqa o‘quvchilarning
-natijalari foreign-key cascade orqali o‘chishi mumkin.
+Account lifecycle to‘liq emas. Auditda topilgan eng katta xavf — `TEACHER`
+self-delete oqimining boshqa o‘quvchilar natijasini cascade orqali o‘chirishi —
+shu branchda guard bilan yopildi. Object storage lifecycle, user data export,
+email change va device/session boshqaruvi hali qolgan.
 
 Joriy baho:
 
 - Auth va password recovery: **8/10**
 - Session lifecycle: **7/10**
-- Account deletion va data lifecycle: **5/10**
-- Umumiy account lifecycle: **7/10**
+- Account deletion va data lifecycle: **6/10**
+- Umumiy account lifecycle: **7.5/10**
 
 ## Nima mavjud
 
@@ -42,18 +42,20 @@ Joriy baho:
 
 ## Kritik topilmalar
 
-### AC-01 — Teacher self-delete collateral data yo‘qotishi
+### AC-01 — Teacher self-delete collateral data yo‘qotishi — tuzatildi
 
-**Fakt.** Admin user-delete oqimida o‘qituvchining testlari va boshqa
-foydalanuvchilarning urinishlari borligi tekshiriladi. Self-delete oqimida bu
-guard yo‘q. `Test.creator` esa `onDelete: Cascade`.
+**Oldingi fakt.** Admin user-delete oqimida o‘qituvchining testlari va boshqa
+foydalanuvchilarning urinishlari borligi tekshirilgan, self-delete oqimida esa
+bu guard yo‘q edi. `Test.creator` `onDelete: Cascade`.
 
-Natijada teacher self-delete testlarni, test savollarini, sessiyalarni va
-boshqa o‘quvchilarning natijalarini ham cascade orqali o‘chirishi mumkin.
+**Joriy holat.** `getTeacherDeletionImpact()` boshqa userning urinishlari va
+test sessiyalarini sanaydi. Self-delete kollateral ma’lumot bo‘lsa `409
+ACCOUNT_DELETE_SHARED_TEST_DATA` qaytaradi. Admin delete ham endi urinish bilan
+birga tugallanmagan sessiyalarni hisoblaydi. Policy uchun uchta regression test
+bor.
 
-**Tavsiya:** self-delete’da admin oqimidagi collision guard’ni qayta ishlatish.
-Bog‘langan student natijasi bo‘lsa testlarni platforma egasiga transfer qilish
-yoki akkauntni anonymize/deactivate qilish; cascade delete qilmaslik.
+Keyingi bosqichda admin uchun testlarni platforma egasiga transfer qilish yoki
+teacher akkauntini anonymize/deactivate qilish oqimi qo‘shilishi mumkin.
 
 ### AC-02 — Object storage cleanup isbotlanmagan
 
@@ -69,16 +71,15 @@ aytib bo‘lmaydi.
 yig‘ish, DB commitdan keyin retryable cleanup job ishlatish va yakuniy cleanup
 holatini audit qilish.
 
-### AC-03 — Browser storage to‘liq tozalanmaydi
+### AC-03 — Browser storage to‘liq tozalanmaydi — asosiy qismi tuzatildi
 
-**Fakt.** Logout faqat `token` va `user`ni o‘chiradi. Account-delete UI bundan
-tashqari faqat joriy essay draft’ni o‘chiradi. User-scoped
-`dtmmax_done_*`, `dtmmax_test_result_*`, `dtmmax_todo_*` va boshqa keshlar
-qurilmada qolishi mumkin.
+**Oldingi fakt.** Logout faqat `token` va `user`ni o‘chirgan. Account-delete UI
+bundan tashqari faqat joriy essay draft’ni o‘chirgan.
 
-**Tavsiya:** bitta `clearUserLocalArtifacts(userId)` funksiyasi va logout,
-account-delete, account-switch oqimlarida yagona chaqiriq. Server logout
-javobiga ehtiyotkor `Clear-Site-Data` siyosatini alohida baholash.
+**Joriy holat.** `clearUserLocalArtifacts(userId)` user-scoped test javoblari,
+natijalar, reja, essay va teacher draft keshlarini logout/account-switch/delete
+oqimlarida tozalaydi. Theme va onboarding kabi qurilma sozlamalari saqlanadi.
+Server logout javobiga `Clear-Site-Data` qo‘shish hali alohida baholanadi.
 
 ## Muhim bo‘shliqlar
 
@@ -107,11 +108,12 @@ javobiga ehtiyotkor `Clear-Site-Data` siyosatini alohida baholash.
 
 ### Batch 1 — Data-loss va privacy guard
 
-1. Teacher self-delete collision guard.
+1. ~~Teacher self-delete collision guard.~~
 2. Test/chat file object inventory va retryable S3 cleanup.
-3. User-scoped browser storage’ni yagona funksiyada tozalash.
-4. Regression test: boshqa studentning natijasi teacher delete bilan
-   yo‘qolmasligi.
+3. ~~User-scoped browser storage’ni yagona funksiyada tozalash.~~
+4. Endpoint-level regression test: boshqa studentning natijasi teacher delete
+   bilan yo‘qolmasligi. Policy unit testlari qo‘shildi; route integration testi
+   hali kerak.
 
 ### Batch 2 — Account recovery va nazorat
 
