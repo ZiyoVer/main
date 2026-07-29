@@ -48,7 +48,7 @@ frontend/src/hooks/useTestPanel.ts            ← Test panel state
 backend/src/routes/chat.ts                    ← AI streaming (SSE)
 backend/src/routes/tests.ts                   ← Test CRUD + Rasch
 backend/src/routes/auth.ts                    ← Auth + email
-backend/prisma/schema.prisma                  ← 24 model
+backend/prisma/schema.prisma                  ← 25 model
 mcp-server/src/index.ts                       ← MCP server
 ```
 
@@ -58,7 +58,7 @@ mcp-server/src/index.ts                       ← MCP server
 
 - **Frontend:** React 19 + Vite 7 + TypeScript + Tailwind v4 + Zustand + KaTeX
 - **Backend:** Express 5 + Prisma 5 + JWT + Resend + DeepSeek/OpenAI SDK
-- **Database:** PostgreSQL — 24 Prisma model
+- **Database:** PostgreSQL — 25 Prisma model
 - **AI:** `deepseek-v4-pro` asosiy, `deepseek-v4-flash` tezkor fallback,
   `gemini-3.5-flash` zaxira; vision/OCR Gemini orqali
 - **Auth:** JWT 7 kun | Rollar: STUDENT, TEACHER, ADMIN

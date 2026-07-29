@@ -66,7 +66,7 @@ main platforma/
 │   │       ├── rasch.ts               ← Rasch model (adaptiv baholash)
 │   │       ├── email.ts               ← Resend email
 │   │       └── db.ts                  ← Prisma client
-│   └── prisma/schema.prisma           ← 24 ta model
+│   └── prisma/schema.prisma           ← 25 ta model
 ├── mcp-server/                        ← MCP server (Claude+Codex uchun)
 │   └── src/index.ts
 ├── .mcp.json                          ← Claude Code MCP config

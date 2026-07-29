@@ -19,15 +19,17 @@ self-delete oqimining boshqa o‘quvchilar natijasini cascade orqali o‘chirish
 shu branchda guard bilan yopildi. User-scoped browser keshini tozalash va
 parol bilan qayta tasdiqlanadigan JSON data export ham qo‘shildi. Auth
 javoblariga `no-store`, muvaffaqiyatli hard-delete javobiga esa
-`Clear-Site-Data` qo‘shildi. Object storage lifecycle, email change va alohida
-device/session boshqaruvi hali qolgan.
+`Clear-Site-Data` qo‘shildi. Account/test/document bilan bog‘langan S3
+obyektlari durable deletion outbox orqali retry qilinadi. Email change, alohida
+device/session boshqaruvi va yuborilmay qolgan vaqtinchalik upload retentioni
+hali qolgan.
 
 Joriy baho:
 
 - Auth va password recovery: **8/10**
 - Session lifecycle: **7/10**
-- Account deletion va data lifecycle: **6/10**
-- Umumiy account lifecycle: **7.5/10**
+- Account deletion va data lifecycle: **7/10**
+- Umumiy account lifecycle: **8/10**
 
 ## Nima mavjud
 
@@ -62,19 +64,22 @@ bor.
 Keyingi bosqichda admin uchun testlarni platforma egasiga transfer qilish yoki
 teacher akkauntini anonymize/deactivate qilish oqimi qo‘shilishi mumkin.
 
-### AC-02 — Object storage cleanup isbotlanmagan
+### AC-02 — Object storage cleanup — asosiy oqimlar tuzatildi
 
-**Fakt.** Account-delete transaction DB yozuvlarini o‘chiradi, lekin S3
-objectlari uchun `deleteFromS3` chaqiruvi yo‘q. Test delete route’da ham object
-cleanup topilmadi.
+**Oldingi fakt.** Account/test delete transaction DB yozuvlarini o‘chirgan,
+lekin S3 objectlari uchun ishonchli cleanup bo‘lmagan. Document delete esa S3
+xatosini yutib yuborib, DB yozuvini baribir o‘chirgan.
 
-**Taxmin.** Chat fayllari yoki savol rasmlari DB qatori o‘chgandan keyin S3’da
-orphan bo‘lib qolishi mumkin. Aniq sonni object-key inventarizatsiyasisiz
-aytib bo‘lmaydi.
+**Joriy holat.** Chat rasmlari DB’da `s3key:` stable ref bilan saqlanadi; eski
+signed URL’dan key querysiz ajratiladi. Account, test va RAG document
+o‘chirishda object keylar DB delete bilan bitta transaction ichida
+`ObjectDeletionJob` outbox’iga yoziladi. Worker lease, exponential backoff va
+reference-check bilan qayta urinadi; boshqa yozuv hali shu keyni ishlatsa
+obyekt o‘chirilmaydi.
 
-**Tavsiya:** deletion manifest tuzish, transactiondan oldin object keylarni
-yig‘ish, DB commitdan keyin retryable cleanup job ishlatish va yakuniy cleanup
-holatini audit qilish.
+**Qolgan bo‘shliq.** Chatga yuklanib, lekin xabar sifatida yuborilmagan rasm
+uchun DB reference yaratilmaydi. Bunday orphan uploadlar uchun bucket
+lifecycle yoki alohida upload registry/retention cleanup hali kerak.
 
 ### AC-03 — Browser storage to‘liq tozalanmaydi — asosiy qismi tuzatildi
 
@@ -115,7 +120,7 @@ logoutda saqlanadi. Account hard-delete muvaffaqiyatli bo‘lsa server
 ### Batch 1 — Data-loss va privacy guard
 
 1. ~~Teacher self-delete collision guard.~~
-2. Test/chat file object inventory va retryable S3 cleanup.
+2. ~~Account/test/document object inventory va retryable S3 cleanup.~~
 3. ~~User-scoped browser storage’ni yagona funksiyada tozalash.~~
 4. Endpoint-level regression test: boshqa studentning natijasi teacher delete
    bilan yo‘qolmasligi. Policy unit testlari qo‘shildi; route integration testi

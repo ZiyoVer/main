@@ -128,6 +128,7 @@ import notificationsRoutes from './routes/notifications'
 import knowledgeRoutes from './routes/knowledge'
 import adminRoutes from './routes/admin'
 import billingRoutes from './routes/billing'
+import { startObjectDeletionWorker } from './utils/objectDeletion'
 
 app.get('/api/health', async (_req, res) => {
     try {
@@ -226,9 +227,11 @@ async function bootstrap() {
     const server = app.listen(PORT, () => {
         console.log(`🚀 DTMMax server: port ${PORT}`)
     })
+    const stopObjectDeletionWorker = startObjectDeletionWorker()
 
     // Graceful shutdown
     const shutdown = async () => {
+        stopObjectDeletionWorker()
         server.close(async () => {
             await prisma.$disconnect()
             process.exit(0)

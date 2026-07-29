@@ -2,8 +2,10 @@
 
 Bu runbook `redesign/dtmmax-v2` commit `701a6e85c8e2dba8b1d391f5be1824951e67f9ae`
 uchun 2026-07-29 kuni olingan production inventarizatsiyasi va lokal clone
-rehearsal natijasiga bog‘langan. Boshqa schema yoki migration qo‘shilsa, bu
-runbookni qayta tekshirmasdan ishlatish mumkin emas.
+rehearsal natijasiga bog‘langan. `20260729110000_add_object_deletion_jobs`
+additive migrationi shu clone’ning alohida nusxasida qayta tekshirildi. Boshqa
+schema yoki migration qo‘shilsa, bu runbookni yana tekshirmasdan ishlatish
+mumkin emas.
 
 ## Tasdiqlangan holat
 
@@ -16,16 +18,20 @@ runbookni qayta tekshirmasdan ishlatish mumkin emas.
   - `User.googleSubject`
   - `User.passwordConfigured`
   - `AiTestSession.sourceMessageId`
-- Quyidagi 5 migration hali real DDL sifatida bajarilishi kerak:
+- Quyidagi 6 migration hali real DDL sifatida bajarilishi kerak:
   - `20260718180000_add_auth_version`
   - `20260718181000_add_google_identity`
   - `20260718190000_trust_ai_test_sessions`
   - `20260724183000_add_tts_daily_quota`
   - `20260725120000_remove_tts_daily_quota`
+  - `20260729110000_add_object_deletion_jobs`
 
 Production backup lokal clone’ga tiklandi. Reconciliation aynan shu tartibda
-bajarildi, 5 migration xatosiz qo‘llandi, barcha 24 biznes jadvalidagi qatorlar
-soni o‘zgarmadi va yakuniy `migrate diff` `No difference detected` qaytardi.
+bajarildi. Dastlabki 5 migration xatosiz qo‘llandi. Keyin shu tayyor clone’dan
+`dtmmax_object_queue_clone` nusxasi olindi va oltinchi migration normal
+`prisma migrate deploy` orqali qo‘llandi. Avvalgi 24 biznes jadvalidagi qatorlar
+soni o‘zgarmadi, `ObjectDeletionJob` jadvali bo‘sh yaratildi va yakuniy
+`migrate diff` `No difference detected` qaytardi.
 
 Rehearsal backup:
 
@@ -100,7 +106,7 @@ railway run -s Postgres -e production sh -lc '
 '
 ```
 
-Bu bosqichdan keyin `migrate status` aynan 5 pending migration ko‘rsatishi
+Bu bosqichdan keyin `migrate status` aynan 6 pending migration ko‘rsatishi
 kerak. Boshqa natija chiqsa to‘xtash kerak.
 
 ## 4. Qolgan additive migrationlarni qo‘llash
@@ -135,6 +141,8 @@ Production’ga yangi kod deploy qilinishidan oldin:
 - `User.passwordConfigured` mavjud va eski userlar uchun `true`;
 - `User.googleSubject` nullable va unique;
 - `AiTestSession.sourceMessageId` nullable, unique va `Message(id)`ga foreign key;
+- `ObjectDeletionJob` mavjud, deploydan keyin dastlab bo‘sh va worker uchun
+  `status/nextAttemptAt`, `status/leaseExpiresAt` indekslari bor;
 - login, `/api/auth/me`, public test ochilishi va read-only admin statistika
   so‘rovi ishlashi tekshiriladi.
 

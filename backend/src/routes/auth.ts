@@ -20,6 +20,11 @@ import {
     TeacherDeletionImpact,
     teacherDeletionRequiresAdmin,
 } from '../utils/accountDeletionPolicy'
+import {
+    collectUserObjectKeys,
+    enqueueObjectDeletions,
+    triggerObjectDeletionDrain,
+} from '../utils/objectDeletion'
 
 const router = Router()
 
@@ -186,6 +191,32 @@ async function getTeacherDeletionImpact(teacherId: string): Promise<TeacherDelet
         }),
     ])
     return { tests, attempts, sessions }
+}
+
+async function deleteUserAndOwnedData(userId: string, objectKeys: string[]): Promise<void> {
+    const userChats = await prisma.chat.findMany({
+        where: { userId },
+        select: { id: true },
+    })
+    const chatIds = userChats.map(chat => chat.id)
+
+    await prisma.$transaction(async tx => {
+        // Outbox va DB delete bitta transaction: server shu nuqtada yiqilsa ham
+        // object cleanup vazifasi yo'qolmaydi.
+        await enqueueObjectDeletions(tx, objectKeys)
+        await tx.notification.deleteMany({ where: { userId } })
+        await tx.visitLog.deleteMany({ where: { userId } })
+        await tx.message.deleteMany({ where: { chatId: { in: chatIds } } })
+        await tx.chat.deleteMany({ where: { userId } })
+        await tx.testAttempt.deleteMany({ where: { userId } })
+        await tx.flashcard.deleteMany({ where: { userId } })
+        await tx.topicStat.deleteMany({ where: { userId } })
+        await tx.userProgress.deleteMany({ where: { userId } })
+        await tx.studentProfile.deleteMany({ where: { userId } })
+        await tx.user.delete({ where: { id: userId } })
+    })
+
+    triggerObjectDeletionDrain()
 }
 
 function isTemporaryDnsError(code?: string): boolean {
@@ -712,22 +743,8 @@ router.delete('/users/:userId', authenticate, requireRole('ADMIN'), async (req: 
             }
         }
 
-        // Avval chatlar ID larini olamiz (message delete uchun)
-        const userChats = await prisma.chat.findMany({ where: { userId: uid }, select: { id: true } })
-        const chatIds = userChats.map(c => c.id)
-
-        await prisma.$transaction([
-            prisma.notification.deleteMany({ where: { userId: uid } }),
-            prisma.visitLog.deleteMany({ where: { userId: uid } }),
-            prisma.message.deleteMany({ where: { chatId: { in: chatIds } } }),
-            prisma.chat.deleteMany({ where: { userId: uid } }),
-            prisma.testAttempt.deleteMany({ where: { userId: uid } }),
-            prisma.flashcard.deleteMany({ where: { userId: uid } }),
-            prisma.topicStat.deleteMany({ where: { userId: uid } }),
-            prisma.userProgress.deleteMany({ where: { userId: uid } }),
-            prisma.studentProfile.deleteMany({ where: { userId: uid } }),
-            prisma.user.delete({ where: { id: uid } })
-        ])
+        const objectKeys = await collectUserObjectKeys(uid)
+        await deleteUserAndOwnedData(uid, objectKeys)
 
         // AUDIT (best-effort)
         await logAdminAction(req.user.id, await getActorEmail(req.user.id), 'USER_DELETE', 'USER', uid, {
@@ -1387,20 +1404,8 @@ router.delete('/account', authenticate, async (req: AuthRequest, res) => {
             }
         }
 
-        const userChats = await prisma.chat.findMany({ where: { userId: uid }, select: { id: true } })
-        const chatIds = userChats.map((c: { id: string }) => c.id)
-        await prisma.$transaction([
-            prisma.notification.deleteMany({ where: { userId: uid } }),
-            prisma.visitLog.deleteMany({ where: { userId: uid } }),
-            prisma.message.deleteMany({ where: { chatId: { in: chatIds } } }),
-            prisma.chat.deleteMany({ where: { userId: uid } }),
-            prisma.testAttempt.deleteMany({ where: { userId: uid } }),
-            prisma.flashcard.deleteMany({ where: { userId: uid } }),
-            prisma.topicStat.deleteMany({ where: { userId: uid } }),
-            prisma.userProgress.deleteMany({ where: { userId: uid } }),
-            prisma.studentProfile.deleteMany({ where: { userId: uid } }),
-            prisma.user.delete({ where: { id: uid } })
-        ])
+        const objectKeys = await collectUserObjectKeys(uid)
+        await deleteUserAndOwnedData(uid, objectKeys)
         // Account qaytarib bo'lmaydigan tarzda o'chirilgach, shu origin ostidagi
         // browser cache va storage'da eski user ma'lumoti qolmasin.
         res.setHeader('Clear-Site-Data', '"cache", "storage"')

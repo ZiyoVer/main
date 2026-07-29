@@ -84,6 +84,27 @@ export function extractS3Key(value?: string | null): string | null {
     }
 }
 
+export function extractS3KeysFromText(value?: string | null): string[] {
+    if (!value) return []
+
+    const candidates = new Set<string>([value])
+    for (const match of value.matchAll(/!\[[^\]]*]\(([^)]+)\)/g)) {
+        if (match[1]) candidates.add(match[1])
+    }
+    for (const match of value.matchAll(/s3key:[^"',)\]\s]+/g)) {
+        candidates.add(match[0])
+    }
+    for (const match of value.matchAll(/https?:\/\/[^"')\]\s]+/g)) {
+        candidates.add(match[0])
+    }
+
+    return [...new Set(
+        [...candidates]
+            .map(candidate => extractS3Key(candidate))
+            .filter((key): key is string => Boolean(key))
+    )]
+}
+
 export async function getSignedS3Url(key: string, expiresIn = 60 * 60): Promise<string> {
     return getSignedUrl(s3, new GetObjectCommand({ Bucket: BUCKET, Key: key }), { expiresIn })
 }

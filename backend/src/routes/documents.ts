@@ -4,10 +4,11 @@ import rateLimit from 'express-rate-limit'
 import path from 'path'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
-import { uploadToS3, deleteFromS3, getSignedS3Url } from '../utils/s3'
+import { extractS3KeysFromText, uploadToS3, getSignedS3Url } from '../utils/s3'
 import { createEmbeddings, hasEmbeddingClient, serializeEmbedding } from '../utils/embeddings'
 import { normalizeSubject } from '../utils/subjects'
 import { extractPdfText } from '../utils/pdfText'
+import { enqueueObjectDeletions, triggerObjectDeletionDrain } from '../utils/objectDeletion'
 
 const uploadLimiter = rateLimit({
     windowMs: 60 * 1000,
@@ -259,12 +260,17 @@ router.get('/:id/download-url', authenticate, requireRole('ADMIN'), async (req: 
 // Admin: Hujjat o'chirish
 router.delete('/:id', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
     try {
-        // S3 dan ham o'chirish
         const doc = await prisma.document.findUnique({ where: { id: req.params.id as string } })
-        if (doc?.s3Key) {
-            try { await deleteFromS3(doc.s3Key) } catch { }
-        }
-        await prisma.document.delete({ where: { id: req.params.id as string } })
+        if (!doc) return res.status(404).json({ error: 'Hujjat topilmadi' })
+
+        const objectKeys = doc.s3Key
+            ? [doc.s3Key]
+            : extractS3KeysFromText(doc.s3Url)
+        await prisma.$transaction(async tx => {
+            await enqueueObjectDeletions(tx, objectKeys)
+            await tx.document.delete({ where: { id: doc.id } })
+        })
+        triggerObjectDeletionDrain()
         res.json({ message: 'Hujjat o\'chirildi' })
     } catch (e) {
         res.status(500).json({ error: 'Server xatoligi' })

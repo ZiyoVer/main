@@ -35,6 +35,11 @@ import { extractPdfText } from '../utils/pdfText'
 import { prepareQuestionImage, QuestionImageValidationError } from '../utils/questionImage'
 import { generateGeminiVisionContent, GeminiVisionImage } from '../utils/geminiVision'
 import { createCertificateCode, verifyCertificateCode } from '../utils/certificateCode'
+import {
+    collectTestObjectKeys,
+    enqueueObjectDeletions,
+    triggerObjectDeletionDrain,
+} from '../utils/objectDeletion'
 
 const TEST_SUBMIT_GRACE_MS = 5000
 
@@ -2254,57 +2259,62 @@ router.patch('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), testMuta
                 ? reqSourceEdit
                 : undefined
 
-        const updated = await prisma.test.update({
-            where: { id: existing.id },
-            data: {
-                title,
-                description: description || null,
-                subject: normalizedSubject,
-                subject2: normalizedSubject2,
-                isPublic: Boolean(isPublic),
-                approved: approvedAfterEdit,
-                approvedAt: approvedAfterEdit && wantsPublicEdit && isAdminEditor ? new Date() : null,
-                approvedById: approvedAfterEdit && wantsPublicEdit && isAdminEditor ? req.user.id : null,
-                testType: normalizedTestType,
-                ...(resolvedSourceEdit ? { source: resolvedSourceEdit } : {}),
-                ...(isAdminEditor ? { premium: Boolean(req.body.premium) } : {}), // premiumни faqat admin o'zgartiradi
-                timeLimit: timeLimit || null,
-                questions: {
-                    deleteMany: {},
-                    create: questions.map((q: IncomingCreateQuestion, i: number) => {
-                        const questionType = q.questionType || 'mcq'
-                        const blockType = normalizeDtmBlockType(typeof q.blockType === 'string' ? q.blockType : undefined)
-                        const coefficient = normalizedTestType === 'DTM_BLOCK'
-                            ? (parseQuestionCoefficient(q.coefficient) ?? getDefaultDtmCoefficient(blockType, normalizedSubject))
-                            : null
+        const previousObjectKeys = await collectTestObjectKeys(existing.id)
+        const updated = await prisma.$transaction(async tx => {
+            await enqueueObjectDeletions(tx, previousObjectKeys)
+            return tx.test.update({
+                where: { id: existing.id },
+                data: {
+                    title,
+                    description: description || null,
+                    subject: normalizedSubject,
+                    subject2: normalizedSubject2,
+                    isPublic: Boolean(isPublic),
+                    approved: approvedAfterEdit,
+                    approvedAt: approvedAfterEdit && wantsPublicEdit && isAdminEditor ? new Date() : null,
+                    approvedById: approvedAfterEdit && wantsPublicEdit && isAdminEditor ? req.user.id : null,
+                    testType: normalizedTestType,
+                    ...(resolvedSourceEdit ? { source: resolvedSourceEdit } : {}),
+                    ...(isAdminEditor ? { premium: Boolean(req.body.premium) } : {}), // premiumни faqat admin o'zgartiradi
+                    timeLimit: timeLimit || null,
+                    questions: {
+                        deleteMany: {},
+                        create: questions.map((q: IncomingCreateQuestion, i: number) => {
+                            const questionType = q.questionType || 'mcq'
+                            const blockType = normalizeDtmBlockType(typeof q.blockType === 'string' ? q.blockType : undefined)
+                            const coefficient = normalizedTestType === 'DTM_BLOCK'
+                                ? (parseQuestionCoefficient(q.coefficient) ?? getDefaultDtmCoefficient(blockType, normalizedSubject))
+                                : null
 
-                        return {
-                            text: q.text || '',
-                            imageUrl: q.imageUrl || null,
-                            options: questionType === 'open' ? '[]'
-                                : questionType === 'multipart_open' ? (typeof q.options === 'string' ? q.options : JSON.stringify(q.options))
-                                    : questionType === 'matching' ? (typeof q.options === 'string' ? q.options : JSON.stringify(q.options))
-                                        : JSON.stringify(q.options),
-                            // FAZA 3: variant/yechim rasmlari (create bilan bir xil mantiq)
-                            optionImages: (questionType === 'open' || questionType === 'matching' || questionType === 'multipart_open')
-                                ? null
-                                : sanitizeIncomingOptionImages(q.optionImages, Array.isArray(q.options) ? q.options.length : 0),
-                            solutionImageUrl: sanitizeIncomingImageRef(q.solutionImageUrl),
-                            correctIdx: (questionType === 'open' || questionType === 'matching' || questionType === 'multipart_open') ? -1 : (q.correctIdx ?? 0),
-                            correctText: questionType === 'open' ? (q.correctText?.trim() || null) : null,
-                            questionType,
-                            answerSource: q.answerSource || null,
-                            answerVerified: q.answerVerified !== false,
-                            difficulty: q.difficulty || 0,
-                            orderIdx: i,
-                            blockType,
-                            coefficient
-                        }
-                    })
-                }
-            },
-            include: { questions: true }
+                            return {
+                                text: q.text || '',
+                                imageUrl: q.imageUrl || null,
+                                options: questionType === 'open' ? '[]'
+                                    : questionType === 'multipart_open' ? (typeof q.options === 'string' ? q.options : JSON.stringify(q.options))
+                                        : questionType === 'matching' ? (typeof q.options === 'string' ? q.options : JSON.stringify(q.options))
+                                            : JSON.stringify(q.options),
+                                // FAZA 3: variant/yechim rasmlari (create bilan bir xil mantiq)
+                                optionImages: (questionType === 'open' || questionType === 'matching' || questionType === 'multipart_open')
+                                    ? null
+                                    : sanitizeIncomingOptionImages(q.optionImages, Array.isArray(q.options) ? q.options.length : 0),
+                                solutionImageUrl: sanitizeIncomingImageRef(q.solutionImageUrl),
+                                correctIdx: (questionType === 'open' || questionType === 'matching' || questionType === 'multipart_open') ? -1 : (q.correctIdx ?? 0),
+                                correctText: questionType === 'open' ? (q.correctText?.trim() || null) : null,
+                                questionType,
+                                answerSource: q.answerSource || null,
+                                answerVerified: q.answerVerified !== false,
+                                difficulty: q.difficulty || 0,
+                                orderIdx: i,
+                                blockType,
+                                coefficient
+                            }
+                        })
+                    },
+                },
+                include: { questions: true },
+            })
         })
+        triggerObjectDeletionDrain()
 
         res.json(updated)
     } catch (e) {
@@ -3621,7 +3631,12 @@ router.delete('/:testId', authenticate, requireRole('TEACHER', 'ADMIN'), async (
         if (!existing) return res.status(404).json({ error: 'Test topilmadi yoki ruxsat yo\'q' })
         if (sendTestMutationConflict(res, existing)) return
 
-        await prisma.test.delete({ where: { id: existing.id } })
+        const objectKeys = await collectTestObjectKeys(existing.id)
+        await prisma.$transaction(async tx => {
+            await enqueueObjectDeletions(tx, objectKeys)
+            await tx.test.delete({ where: { id: existing.id } })
+        })
+        triggerObjectDeletionDrain()
 
         // AUDIT (best-effort) — faqat admin o'chirishi audit qilinadi
         if (isAdmin) {
