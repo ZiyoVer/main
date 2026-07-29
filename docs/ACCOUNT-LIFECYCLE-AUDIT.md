@@ -109,15 +109,21 @@ logoutda saqlanadi. Account hard-delete muvaffaqiyatli bo‘lsa server
 | Delete confirmation email | Yo‘q | Noto‘g‘ri o‘chirishni aniqlashga yordam beradi |
 | Retention/backup deletion oynasi | Hujjatlanmagan | Privacy policy aniq muddat bermaydi |
 
-## Privacy policy nomuvofiqliklari
+## Privacy policy tekshiruvi
 
-- `support@dtmmax.pro` domeni mahsulotning `dtmmax.uz` domeniga mos emas.
-- “Barcha ma’lumotlar shifrlangan holda saqlanadi” da’vosi ilova kodidan
-  to‘liq isbotlanmaydi; hosting va backup konfiguratsiyasi bilan tasdiqlash
-  kerak.
-- “Akkaunt va barcha ma’lumotlar o‘chiriladi” da’vosi object storage va backup
-  retention tasdiqlanmaguncha haddan tashqari qat’iy.
-- LocalStorage’da siyosatda sanalganlardan ko‘proq o‘quv/test holati saqlanadi.
+Quyidagi oldingi nomuvofiqliklar tuzatildi:
+
+- aloqa manzili mahsulot domenidagi `support@dtmmax.uz`ga keltirildi;
+- isbotlanmagan “barcha ma’lumotlar shifrlangan” da’vosi o‘rniga HTTPS,
+  bcrypt, token muddati va role-based access kabi tekshiriladigan himoyalar
+  yozildi;
+- hard-delete’dan keyingi object storage/backup retentioni alohida texnik
+  jarayon bo‘lishi ochiq aytildi;
+- localStorage’da token bilan birga test javoblari, natijalar, o‘quv rejalari
+  va draftlar bo‘lishi mumkinligi sanaldi.
+
+Qolgan tashqi qaror: production backup’lari uchun aniq retention muddati
+infratuzilma siyosati sifatida belgilanib, Privacy sahifasiga kiritilishi kerak.
 
 ## Tavsiya etilgan 3 batch
 

@@ -64,7 +64,7 @@ export default function ProResult() {
         <div className="kelviq min-h-screen flex items-center justify-center p-5" style={{ background: 'var(--bg-page)' }}>
             <div className="w-full max-w-sm anim-up">
                 <div className="flex items-center gap-2 justify-center mb-8">
-                    <img src="/dtmmax-logo.png" alt="DtmMax" className="h-11 w-11 rounded-xl" style={{ objectFit: 'contain' }} />
+                    <img src="/dtmmax-logo.png" alt="DTMMax" className="h-11 w-11 rounded-xl" style={{ objectFit: 'contain' }} />
                     <span className="font-bold text-xl tracking-tight">DTMMax</span>
                 </div>
                 <div className="card text-center" style={{ padding: '2.5rem 2rem' }}>
