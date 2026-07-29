@@ -38,6 +38,7 @@ import { createCertificateCode, verifyCertificateCode } from '../utils/certifica
 import {
     collectTestObjectKeys,
     enqueueObjectDeletions,
+    scheduleUnclaimedObjectDeletion,
     triggerObjectDeletionDrain,
 } from '../utils/objectDeletion'
 
@@ -2350,6 +2351,7 @@ router.post('/upload-image', authenticate, requireRole('TEACHER', 'ADMIN'), uplo
             // bir haftagacha qayta downloadni tejaydi.
             { cacheControl: 'private, max-age=604800, immutable' },
         )
+        await scheduleUnclaimedObjectDeletion(s3Result.key)
 
         res.json({
             url: await getSignedS3Url(s3Result.key),

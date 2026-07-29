@@ -8,7 +8,11 @@ import { extractS3KeysFromText, uploadToS3, getSignedS3Url } from '../utils/s3'
 import { createEmbeddings, hasEmbeddingClient, serializeEmbedding } from '../utils/embeddings'
 import { normalizeSubject } from '../utils/subjects'
 import { extractPdfText } from '../utils/pdfText'
-import { enqueueObjectDeletions, triggerObjectDeletionDrain } from '../utils/objectDeletion'
+import {
+    enqueueObjectDeletions,
+    scheduleUnclaimedObjectDeletion,
+    triggerObjectDeletionDrain,
+} from '../utils/objectDeletion'
 
 const uploadLimiter = rateLimit({
     windowMs: 60 * 1000,
@@ -76,6 +80,7 @@ router.post('/upload', authenticate, requireRole('ADMIN'), uploadLimiter, upload
         let s3Warning = ''
         try {
             const s3Result = await uploadToS3(buffer, req.file.originalname, 'documents')
+            await scheduleUnclaimedObjectDeletion(s3Result.key)
             s3Url = s3Result.url
             s3Key = s3Result.key
         } catch (e) {
@@ -161,6 +166,7 @@ router.post('/chat-upload', authenticate, uploadSingle, async (req: AuthRequest,
         const folder = isImage ? 'chat-images' : 'chat-files'
 
         const s3Result = await uploadToS3(req.file.buffer, req.file.originalname, folder)
+        await scheduleUnclaimedObjectDeletion(s3Result.key)
 
         res.json({
             url: await getSignedS3Url(s3Result.key),

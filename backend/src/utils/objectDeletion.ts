@@ -21,6 +21,7 @@ const DELETE_BATCH_SIZE = 25
 const DELETE_LEASE_MS = 5 * 60 * 1000
 const DELETE_POLL_MS = 5 * 60 * 1000
 const MAX_BACKOFF_MS = 24 * 60 * 60 * 1000
+const UNCLAIMED_UPLOAD_RETENTION_MS = 48 * 60 * 60 * 1000
 
 let activeDrain: Promise<void> | null = null
 
@@ -75,15 +76,59 @@ export async function collectTestObjectKeys(testId: string): Promise<string[]> {
 export async function enqueueObjectDeletions(
     tx: Pick<Prisma.TransactionClient, 'objectDeletionJob'>,
     keys: string[],
+    options?: { notBefore?: Date },
 ): Promise<number> {
     const unique = [...new Set(keys.filter(Boolean))]
     if (unique.length === 0) return 0
+    const notBefore = options?.notBefore ?? new Date()
 
     const result = await tx.objectDeletionJob.createMany({
-        data: unique.map(objectKey => ({ objectKey })),
+        data: unique.map(objectKey => ({
+            objectKey,
+            nextAttemptAt: notBefore,
+        })),
         skipDuplicates: true,
     })
+
+    // Oldinroq yaratilgan, lekin uzoqroqqa rejalangan cleanup job bo‘lsa,
+    // haqiqiy delete hodisasi uni "hozir"ga tezlashtira olishi kerak.
+    await tx.objectDeletionJob.updateMany({
+        where: {
+            objectKey: { in: unique },
+            status: 'PENDING',
+            nextAttemptAt: { gt: notBefore },
+        },
+        data: { nextAttemptAt: notBefore },
+    })
     return result.count
+}
+
+/**
+ * Upload endpointi objectni DB yozuviga ulashdan oldin chaqiradi.
+ * 48 soat ichida Message/TestQuestion/Document reference paydo bo‘lmasa,
+ * odatiy deletion worker uni orphan sifatida o‘chiradi.
+ */
+export async function scheduleUnclaimedObjectDeletion(
+    objectKey: string,
+    retentionMs = UNCLAIMED_UPLOAD_RETENTION_MS,
+): Promise<void> {
+    try {
+        await enqueueObjectDeletions(prisma, [objectKey], {
+            notBefore: new Date(Date.now() + Math.max(0, retentionMs)),
+        })
+    } catch (queueError) {
+        // Queue yozilmasa "muvaffaqiyatli upload" qaytarmaymiz. Yangi objectni
+        // imkon qadar darhol qaytarib o‘chirib, orphan paydo bo‘lishini to‘xtatamiz.
+        try {
+            await deleteFromS3(objectKey)
+        } catch (cleanupError) {
+            console.error(
+                'Untracked S3 uploadni qaytarib o‘chirish xatosi:',
+                cleanupError instanceof Error ? cleanupError.message : 'UnknownError',
+            )
+        }
+        throw queueError
+    }
 }
 
 export function objectDeletionBackoffMs(attempt: number): number {

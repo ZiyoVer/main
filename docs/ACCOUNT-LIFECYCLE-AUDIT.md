@@ -20,9 +20,10 @@ shu branchda guard bilan yopildi. User-scoped browser keshini tozalash va
 parol bilan qayta tasdiqlanadigan JSON data export ham qo‘shildi. Auth
 javoblariga `no-store`, muvaffaqiyatli hard-delete javobiga esa
 `Clear-Site-Data` qo‘shildi. Account/test/document bilan bog‘langan S3
-obyektlari durable deletion outbox orqali retry qilinadi. Email change, alohida
-device/session boshqaruvi va yuborilmay qolgan vaqtinchalik upload retentioni
-hali qolgan.
+obyektlari durable deletion outbox orqali retry qilinadi. Upload yaratilishi
+bilan 48 soatlik unclaimed-cleanup job ham yoziladi: DB reference paydo bo‘lsa
+obyekt saqlanadi, paydo bo‘lmasa avtomatik o‘chiriladi. Email change va alohida
+device/session boshqaruvi hali qolgan.
 
 Joriy baho:
 
@@ -77,9 +78,12 @@ o‘chirishda object keylar DB delete bilan bitta transaction ichida
 reference-check bilan qayta urinadi; boshqa yozuv hali shu keyni ishlatsa
 obyekt o‘chirilmaydi.
 
-**Qolgan bo‘shliq.** Chatga yuklanib, lekin xabar sifatida yuborilmagan rasm
-uchun DB reference yaratilmaydi. Bunday orphan uploadlar uchun bucket
-lifecycle yoki alohida upload registry/retention cleanup hali kerak.
+**Unclaimed upload guard.** Chat/test/document upload endpointlari yangi
+obyektni darhol 48 soatlik delayed deletion job bilan ro‘yxatdan o‘tkazadi.
+Worker muddat kelganda Message/TestQuestion/Document reference’larini
+tekshiradi: reference bo‘lsa faqat job yopiladi, bo‘lmasa S3 obyekt o‘chiriladi.
+Queue yozilmasa endpoint objectni qaytarib o‘chiradi va uploadni muvaffaqiyatli
+deb ko‘rsatmaydi.
 
 ### AC-03 — Browser storage to‘liq tozalanmaydi — asosiy qismi tuzatildi
 

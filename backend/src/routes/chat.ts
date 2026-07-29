@@ -15,6 +15,7 @@ import {
     toStoredS3Ref,
     uploadToS3,
 } from '../utils/s3'
+import { scheduleUnclaimedObjectDeletion } from '../utils/objectDeletion'
 import { AI_MODELS, deepseekThinking } from '../utils/aiModels'
 import { extractTrustedAiTestQuestions, learningPurposeForStage } from '../utils/aiTestSession'
 import { detectBroadLearningTopic } from '../utils/learningIntent'
@@ -2175,6 +2176,7 @@ router.post('/:chatId/upload-file', authenticate, requireVerified, uploadSingle,
             try {
                 const s3Name = `${Date.now()}-${originalname.replace(/\s+/g, '-')}`
                 const s3Result = await uploadToS3(buffer, s3Name, 'chat', mimetype)
+                await scheduleUnclaimedObjectDeletion(s3Result.key)
                 imageRef = toStoredS3Ref(s3Result.key)
                 // 7 kun (AWS signed URL maksimumi) — default 1 soat edi, chat tarixida rasm tez o'lardi
                 imageUrl = await getSignedS3Url(s3Result.key, 7 * 24 * 60 * 60)
