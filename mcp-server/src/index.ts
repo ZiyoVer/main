@@ -193,6 +193,14 @@ function createServer(): McpServer {
     'DTMMax loyihasi haqida to\'liq ma\'lumot — stack, arxitektura, muhim fayllar',
     {},
     async () => {
+      const chatLayoutLines = readFileSync(
+        join(ROOT, 'frontend/src/pages/Student/ChatLayout.tsx'),
+        'utf-8'
+      ).split('\n').length
+      const prismaModelCount = (
+        readFileSync(join(ROOT, 'backend/prisma/schema.prisma'), 'utf-8')
+          .match(/^model\s+\w+/gm) ?? []
+      ).length
       const info = `# DTMMax Platform — Loyiha Ma'lumoti
 
 ## Nima bu?
@@ -203,7 +211,7 @@ tayyorlaydigan AI-platformasi.
 - **Frontend**: React 19 + Vite 7 + TypeScript + Tailwind CSS v4
 - **Backend**: Node.js + Express 5 + TypeScript + Prisma 5
 - **Database**: PostgreSQL (Railway da joylashgan)
-- **AI**: DeepSeek API (chat/reasoning) + GPT-4o-mini (OCR/vision)
+- **AI**: DeepSeek v4 Pro/Flash (chat/reasoning) + Gemini Flash (fallback va vision/OCR)
 - **Auth**: JWT (7 kun), rollar: STUDENT / TEACHER / ADMIN
 - **Email**: Resend (noreply@dtmmax.uz)
 - **Deploy**: Railway (backend + frontend birgalikda)
@@ -213,7 +221,7 @@ tayyorlaydigan AI-platformasi.
 main platforma/
 ├── frontend/          # React ilovasi
 │   └── src/
-│       ├── pages/Student/ChatLayout.tsx   ← ASOSIY (2900+ qator)
+│       ├── pages/Student/ChatLayout.tsx   ← ASOSIY (${chatLayoutLines} qator)
 │       ├── pages/Teacher/TeacherPanel.tsx ← O'qituvchi paneli
 │       ├── pages/Admin/AdminPanel.tsx     ← Admin paneli
 │       └── hooks/useTestPanel.ts          ← Test panel logikasi
@@ -223,7 +231,7 @@ main platforma/
 │   │   ├── routes/tests.ts     ← Test CRUD + Rasch scoring
 │   │   ├── routes/auth.ts      ← Auth + email verification
 │   │   └── utils/rasch.ts      ← Rasch model (adaptiv baholash)
-│   └── prisma/schema.prisma    ← 16 ta model
+│   └── prisma/schema.prisma    ← ${prismaModelCount} ta model
 └── mcp-server/        ← BU SERVER (Claude Code + Codex uchun)
 \`\`\`
 
@@ -234,11 +242,12 @@ main platforma/
 
 ## Muhim konstantalar
 - Admin email: admin@dtmmax.uz
-- Frontend URL: https://dtmmax.pro
+- Frontend URL: https://www.dtmmax.uz
 - JWT muddati: 7 kun
-- AI model (chat): deepseek-chat
-- AI model (reasoning): deepseek-reasoner
-- Vision model: gpt-4o-mini
+- AI model (chat): deepseek-v4-pro
+- AI model (tezkor fallback): deepseek-v4-flash
+- AI model (zaxira): gemini-3.5-flash
+- Vision/OCR model: Gemini Flash
 `
       return { content: [{ type: 'text', text: info }] }
     }

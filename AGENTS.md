@@ -36,7 +36,7 @@ main platforma/
 │   ├── src/
 │   │   ├── pages/
 │   │   │   ├── Student/
-│   │   │   │   ├── ChatLayout.tsx     ← ASOSIY fayl (2900+ qator)
+│   │   │   │   ├── ChatLayout.tsx     ← ASOSIY fayl (5200+ qator)
 │   │   │   │   └── TestPage.tsx       ← Ommaviy test sahifasi
 │   │   │   ├── Teacher/
 │   │   │   │   └── TeacherPanel.tsx   ← Test yaratish + analytics
@@ -66,7 +66,7 @@ main platforma/
 │   │       ├── rasch.ts               ← Rasch model (adaptiv baholash)
 │   │       ├── email.ts               ← Resend email
 │   │       └── db.ts                  ← Prisma client
-│   └── prisma/schema.prisma           ← 16 ta model
+│   └── prisma/schema.prisma           ← 24 ta model
 ├── mcp-server/                        ← MCP server (Claude+Codex uchun)
 │   └── src/index.ts
 ├── .mcp.json                          ← Claude Code MCP config
@@ -140,7 +140,7 @@ tekshirish tartibi uchun `docs/PREVIEW-REDESIGN-HANDOFF.md` ni o‘qi.
 ```
 POST   /api/auth/login              ← Login
 POST   /api/auth/register           ← Ro'yxatdan o'tish
-POST   /api/chat/messages           ← AI streaming (SSE)
+POST   /api/chat/:chatId/stream     ← AI streaming (SSE)
 GET    /api/tests/by-link/:link     ← Ommaviy test
 POST   /api/tests/:id/submit        ← Test topshirish
 POST   /api/tests/generate-ai       ← AI test generatsiya
@@ -179,4 +179,29 @@ ALLOWED_ORIGINS=https://www.dtmmax.uz
 PORT=8080
 ADMIN_EMAIL=admin@dtmmax.uz
 ADMIN_PASSWORD=...
+REDIS_URL=redis://...
+REDIS_REQUIRED=true
+S3_ACCESS_KEY=...
+S3_SECRET_KEY=...
+S3_BUCKET=...
+S3_ENDPOINT=...
+S3_REGION=auto
+merchant_id=...
+Token=...                         # bir martalik Paylov onboarding tokeni
+PAYLOV_CONSUMER_KEY=...
+PAYLOV_CONSUMER_SECRET=...
+PAYLOV_USERNAME=...
+PAYLOV_PASSWORD=...
+PAYLOV_CALLBACK_LOGIN=...
+PAYLOV_CALLBACK_PASSWORD=...
+BILLING_PROVIDER=paylov
+PAYLOV_FLOW=oauth2
+PAYLOV_ENVIRONMENT=sandbox
+BILLING_SANDBOX_TEST=false
+PRO_ENFORCED=false
 ```
+
+Paylov `Token` qiymati API Bearer tokeni emas. U merchant onboardingda bir marta
+ishlatiladi; backend access/refresh tokenlarni consumer credentiallar va
+username/password orqali o‘zi oladi. Sandbox karta oqimi faqat
+`BILLING_SANDBOX_TEST=true` va `ADMIN` akkauntida ishlaydi.

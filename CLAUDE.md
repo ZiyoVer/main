@@ -107,11 +107,19 @@ RESEND_API_KEY, EMAIL_FROM, FRONTEND_URL, ALLOWED_ORIGINS,
 PORT, ADMIN_EMAIL, ADMIN_PASSWORD, GOOGLE_CLIENT_ID,
 # Rasm saqlash (SAVOL + CHAT RASMLARI) — Railway Bucket "sorted-toolbox" (S3-mos):
 S3_ACCESS_KEY, S3_SECRET_KEY, S3_BUCKET, S3_ENDPOINT, S3_REGION=auto,
-# To'lov (Paylov hosted checkout):
-merchant_id, Token, PAYLOV_CALLBACK_LOGIN, PAYLOV_CALLBACK_PASSWORD,
-BILLING_PROVIDER=paylov, PRO_ENFORCED=false, BILLING_SANDBOX_TEST=false
+# To'lov (Paylov OAuth2 karta + OTP):
+merchant_id, Token, PAYLOV_CONSUMER_KEY, PAYLOV_CONSUMER_SECRET,
+PAYLOV_USERNAME, PAYLOV_PASSWORD,
+PAYLOV_CALLBACK_LOGIN, PAYLOV_CALLBACK_PASSWORD,
+BILLING_PROVIDER=paylov, PAYLOV_FLOW=oauth2,
+PAYLOV_ENVIRONMENT=sandbox, PRO_ENFORCED=false, BILLING_SANDBOX_TEST=false
 ```
 
+> **Paylov:** `Token` Bearer token emas — bir martalik merchant onboarding tokeni.
+> U orqali yaratilgan consumer key/secret va username/password OAuth2 access
+> tokenini avtomatik olish uchun backendga qo‘yiladi. Sandbox faqat
+> `BILLING_SANDBOX_TEST=true` va `ADMIN` akkauntida ochiladi.
+>
 > **Rasm saqlash:** Railway Bucket (S3-mos, private). Kod `s3.ts` env'ni bir nechta
 > nom variantida o'qiydi (S3_* | Railway ACCESS_KEY_ID/... | AWS_*). Region = `auto`.
 > Eski Wasabi o'lik (hisob inactive) — qaytib ishlatma. Rasmlar o'quvchiga signed URL bilan beriladi.
