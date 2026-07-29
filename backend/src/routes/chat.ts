@@ -9,7 +9,12 @@ import { Prisma } from '@prisma/client'
 import { aiSettingsCache, aiSettingsCacheTime, AI_SETTINGS_TTL, setAISettingsCache, AISettingsData } from '../utils/aiSettingsCache'
 import { cosineSimilarity, createEmbedding, createEmbeddings, parseEmbedding, serializeEmbedding } from '../utils/embeddings'
 import { getSubjectVariants, normalizeSubject } from '../utils/subjects'
-import { uploadToS3, getSignedS3Url } from '../utils/s3'
+import {
+    getSignedS3Url,
+    resolveS3RefsInMarkdown,
+    toStoredS3Ref,
+    uploadToS3,
+} from '../utils/s3'
 import { AI_MODELS, deepseekThinking } from '../utils/aiModels'
 import { extractTrustedAiTestQuestions, learningPurposeForStage } from '../utils/aiTestSession'
 import { detectBroadLearningTopic } from '../utils/learningIntent'
@@ -1498,7 +1503,11 @@ router.get('/:chatId/messages', authenticate, async (req: AuthRequest, res) => {
             },
             orderBy: { createdAt: 'asc' }
         })
-        res.json({ chat, messages })
+        const resolvedMessages = await Promise.all(messages.map(async message => ({
+            ...message,
+            content: await resolveS3RefsInMarkdown(message.content, 7 * 24 * 60 * 60),
+        })))
+        res.json({ chat, messages: resolvedMessages })
     } catch (e) {
         res.status(500).json({ error: 'Server xatoligi' })
     }
@@ -2135,6 +2144,7 @@ router.post('/:chatId/upload-file', authenticate, requireVerified, uploadSingle,
         let extractedText = ''
         let fileType = 'other'
         let imageUrl: string | null = null
+        let imageRef: string | null = null
 
         if (mimetype === 'application/pdf') {
             fileType = 'pdf'
@@ -2165,6 +2175,7 @@ router.post('/:chatId/upload-file', authenticate, requireVerified, uploadSingle,
             try {
                 const s3Name = `${Date.now()}-${originalname.replace(/\s+/g, '-')}`
                 const s3Result = await uploadToS3(buffer, s3Name, 'chat', mimetype)
+                imageRef = toStoredS3Ref(s3Result.key)
                 // 7 kun (AWS signed URL maksimumi) — default 1 soat edi, chat tarixida rasm tez o'lardi
                 imageUrl = await getSignedS3Url(s3Result.key, 7 * 24 * 60 * 60)
             } catch (s3Err: any) {
@@ -2211,7 +2222,7 @@ router.post('/:chatId/upload-file', authenticate, requireVerified, uploadSingle,
             extractedText = extractedText.substring(0, 15000) + '\n...(fayl qisqartirildi)'
         }
 
-        res.json({ text: extractedText, fileName: originalname, fileType, imageUrl })
+        res.json({ text: extractedText, fileName: originalname, fileType, imageUrl, imageRef })
     } catch (e: any) {
         console.error('File upload error:', e.message)
         res.status(500).json({ error: 'Fayl o\'qib bo\'lmadi' })
@@ -2250,12 +2261,15 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
     let userMessageSaved = false
     let assistantMessageSaved = false
     try {
-        const { content, thinking, displayText, todoContext, learningSessionId } = req.body
+        const { content, thinking, displayText, persistedDisplayText, todoContext, learningSessionId } = req.body
         const hideUserMessage = req.body.hideUserMessage === true
         const actionLabel = typeof req.body.actionLabel === 'string'
             ? req.body.actionLabel.trim().slice(0, 80)
             : ''
         if (!content?.trim()) return res.status(400).json({ error: 'Xabar bo\'sh' })
+        const savedUserContent = (
+            typeof persistedDisplayText === 'string' ? persistedDisplayText.trim() : ''
+        ) || displayText?.trim() || content
 
         // Bepul kunlik AI limiti (xarajat shipi) — SSE boshlanishidan OLDIN tekshiriladi,
         // shunda frontend oddiy 429 JSON oladi va xabarni toast qiladi
@@ -2280,7 +2294,6 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
 
         // saveOnly rejimi: AI chaqirmasdan faqat xabarlarni saqlash (guest test tahlili uchun)
         if (req.body.saveOnly && req.body.aiResponse) {
-            const savedUserContent = displayText?.trim() || content
             await prisma.message.create({
                 data: {
                     chatId: chat.id,
@@ -2296,8 +2309,6 @@ router.post('/:chatId/stream', authenticate, requireVerified, async (req: AuthRe
             await prisma.chat.update({ where: { id: chat.id }, data: { title: shortTitle } })
             return res.json({ success: true, id: savedAi.id })
         }
-
-        const savedUserContent = displayText?.trim() || content
 
         // Oldingi xabarlar — eng YANGI 20 ta (desc + reverse = to'g'ri tartib).
         // TOKEN TEJASH: 80 ta history har xabarda 20-40k input token edi; o'quv holati

@@ -38,6 +38,9 @@ interface SendOptions {
     // Texnik prompt o'rniga foydalanuvchi bubble'ida ko'rinadigan matn
     // (composer chip rejimi: prompt yashirin, foydalanuvchi matni ko'rinadi)
     displayText?: string
+    // Rasmli xabarda DB'ga muddati o'tadigan signed URL emas, `s3key:` stable
+    // ref yoziladi. Live bubble esa yuqoridagi displayText bilan signed URL ko'rsatadi.
+    persistedDisplayText?: string
 }
 interface Profile { onboardingDone: boolean; examType?: 'DTM' | 'MS' | null; subject?: string; subject2?: string; examDate?: string; targetScore?: number; weakTopics?: string; strongTopics?: string; concerns?: string; totalTests?: number; avgScore?: number; abilityLevel?: number }
 interface PublicTest { id: string; title: string; shareLink: string; subject?: string; category?: string; source?: string; premium?: boolean; testType?: string; timeLimit?: number | null; _count?: { questions: number; attempts: number } }
@@ -607,7 +610,16 @@ const CollapsibleAiBubble = memo(({ content, messageId }: { content: string; mes
     )
 })
 
-type AttachedFile = { id: string; name: string; text: string; type: string; previewUrl?: string; url?: string | null; uploading?: boolean }
+type AttachedFile = {
+    id: string
+    name: string
+    text: string
+    type: string
+    previewUrl?: string
+    url?: string | null
+    storageRef?: string | null
+    uploading?: boolean
+}
 
 const TODO_STORAGE_PREFIX = 'dtmmax_todo_items_v1'
 
@@ -851,7 +863,14 @@ const ChatInputArea = memo(function ChatInputArea({
                 // Server rad etsa (400/413/500) chip "yuklandi" bo'lib qolmasin (avval jim 'undefined' ketardi)
                 if (!res.ok || !data?.text) throw new Error(data?.error || 'Fayl qayta ishlanmadi')
                 setAttachedFiles(prev => prev.map(f => f.id === chip.id
-                    ? { ...f, text: data.text, type: data.fileType || f.type, url: data.imageUrl || null, uploading: false }
+                    ? {
+                        ...f,
+                        text: data.text,
+                        type: data.fileType || f.type,
+                        url: data.imageUrl || null,
+                        storageRef: data.imageRef || null,
+                        uploading: false,
+                    }
                     : f))
             } catch (e: any) {
                 // Xato — chip olib tashlanadi va sababi AYTILADI (jim qolmaydi)
@@ -2208,6 +2227,9 @@ Iltimos, har bir savolni tahlil qilib ber:
                     thinking: requestThinkingMode,
                     learningSessionId: learningSessionIdRef.current || undefined,
                     ...(displayText !== undefined && { displayText }),
+                    ...(options.persistedDisplayText !== undefined && {
+                        persistedDisplayText: options.persistedDisplayText,
+                    }),
                     ...(hideUserMessage && { hideUserMessage: true }),
                     ...(options.actionLabel && { actionLabel: options.actionLabel }),
                     todoContext: requestTodoContext,
@@ -2412,6 +2434,7 @@ Iltimos, har bir savolni tahlil qilib ber:
         if (files.length > 0) {
             let promptText = ''
             let displayText = ''
+            let persistedDisplayText = ''
             files.forEach(file => {
                 promptText += `📎 **${file.name}** faylidan:\n\n${file.text}\n\n`
                 // Rasm bo'lsa — chat xabarida RASMNING O'ZI ko'rinadi (markdown img, bubble render qiladi).
@@ -2419,10 +2442,23 @@ Iltimos, har bir savolni tahlil qilib ber:
                 displayText += file.type === 'image' && file.url
                     ? `![${file.name}](${file.url}) `
                     : `📎 ${file.type === 'image' ? 'Rasm' : 'Fayl'}: ${file.name} ` // user bubble oddiy matn — ** ko'rsatmaydi
+                persistedDisplayText += file.type === 'image' && file.storageRef
+                    ? `![${file.name}](${file.storageRef}) `
+                    : `📎 ${file.type === 'image' ? 'Rasm' : 'Fayl'}: ${file.name} `
             })
-            if (text) { promptText += `\n\n${text}`; displayText += `\n\n${options.displayText ?? text}` }
+            if (text) {
+                const visibleText = options.displayText ?? text
+                promptText += `\n\n${text}`
+                displayText += `\n\n${visibleText}`
+                persistedDisplayText += `\n\n${visibleText}`
+            }
             setMessages(prev => [...prev, { id: 'temp-u', role: 'user', content: displayText.trim(), createdAt: new Date().toISOString() }])
-            const success = await streamToChat(targetChatId!, promptText.trim(), displayText.trim())
+            const success = await streamToChat(
+                targetChatId!,
+                promptText.trim(),
+                displayText.trim(),
+                { persistedDisplayText: persistedDisplayText.trim() },
+            )
             if (success) logActivity(5)
         } else {
             if (!options.hideUserMessage) {
