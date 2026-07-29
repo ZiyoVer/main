@@ -1035,6 +1035,290 @@ router.put('/change-password', authenticate, async (req: AuthRequest, res) => {
     }
 })
 
+// Foydalanuvchining o'z ma'lumotlari nusxasi. Parol qayta tekshiriladi;
+// auth/reset tokenlar, parol hash'i, AI test answer-keylari va xom payment
+// webhook meta eksportga kirmaydi.
+router.post('/account/export', authLimiter, authenticate, async (req: AuthRequest, res) => {
+    try {
+        const { password } = req.body
+        const user = await prisma.user.findUnique({
+            where: { id: req.user.id },
+            select: {
+                id: true,
+                password: true,
+                passwordConfigured: true,
+            },
+        })
+        if (!user) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' })
+        if (!user.passwordConfigured) {
+            return res.status(409).json(authError(
+                'Ma\'lumotlarni yuklab olishdan oldin xavfsizlik bo\'limida parol yarating.',
+                AUTH_ERROR_CODES.PASSWORD_SETUP_REQUIRED
+            ))
+        }
+        if (typeof password !== 'string' || !password || Buffer.byteLength(password, 'utf8') > BCRYPT_MAX_BYTES) {
+            return res.status(400).json({ error: 'Parol noto\'g\'ri' })
+        }
+        if (!(await bcrypt.compare(password, user.password))) {
+            return res.status(400).json({ error: 'Parol noto\'g\'ri' })
+        }
+
+        const account = await prisma.user.findUnique({
+            where: { id: user.id },
+            select: {
+                id: true,
+                email: true,
+                name: true,
+                role: true,
+                status: true,
+                emailVerified: true,
+                passwordConfigured: true,
+                createdAt: true,
+                updatedAt: true,
+                profile: true,
+                progress: true,
+                topicStats: {
+                    select: {
+                        subject: true,
+                        topic: true,
+                        correct: true,
+                        total: true,
+                        lastPracticed: true,
+                        createdAt: true,
+                    },
+                },
+                flashcards: {
+                    select: {
+                        id: true,
+                        subject: true,
+                        front: true,
+                        back: true,
+                        nextReview: true,
+                        interval: true,
+                        ease: true,
+                        repetitions: true,
+                        createdAt: true,
+                    },
+                },
+                chats: {
+                    select: {
+                        id: true,
+                        title: true,
+                        subject: true,
+                        subject2: true,
+                        createdAt: true,
+                        updatedAt: true,
+                        messages: {
+                            select: {
+                                id: true,
+                                role: true,
+                                content: true,
+                                fileType: true,
+                                createdAt: true,
+                            },
+                            orderBy: { createdAt: 'asc' },
+                        },
+                    },
+                    orderBy: { createdAt: 'asc' },
+                },
+                testAttempts: {
+                    select: {
+                        id: true,
+                        answers: true,
+                        score: true,
+                        rawScore: true,
+                        scoreMax: true,
+                        grade: true,
+                        raschAbility: true,
+                        createdAt: true,
+                        test: {
+                            select: {
+                                id: true,
+                                title: true,
+                                subject: true,
+                                subject2: true,
+                                testType: true,
+                                shareLink: true,
+                            },
+                        },
+                    },
+                    orderBy: { createdAt: 'asc' },
+                },
+                testSessions: {
+                    select: {
+                        id: true,
+                        startedAt: true,
+                        expiresAt: true,
+                        submittedAt: true,
+                        createdAt: true,
+                        test: {
+                            select: {
+                                id: true,
+                                title: true,
+                                subject: true,
+                                subject2: true,
+                                testType: true,
+                            },
+                        },
+                    },
+                    orderBy: { createdAt: 'asc' },
+                },
+                testsCreated: {
+                    select: {
+                        id: true,
+                        title: true,
+                        description: true,
+                        isPublic: true,
+                        approved: true,
+                        subject: true,
+                        subject2: true,
+                        testType: true,
+                        source: true,
+                        premium: true,
+                        timeLimit: true,
+                        shareLink: true,
+                        createdAt: true,
+                        updatedAt: true,
+                        questions: {
+                            select: {
+                                id: true,
+                                text: true,
+                                imageUrl: true,
+                                options: true,
+                                optionImages: true,
+                                correctIdx: true,
+                                correctText: true,
+                                solutionImageUrl: true,
+                                questionType: true,
+                                topic: true,
+                                answerSource: true,
+                                answerVerified: true,
+                                difficulty: true,
+                                blockType: true,
+                                coefficient: true,
+                                orderIdx: true,
+                            },
+                            orderBy: { orderIdx: 'asc' },
+                        },
+                    },
+                    orderBy: { createdAt: 'asc' },
+                },
+                notificationsReceived: {
+                    select: {
+                        id: true,
+                        sender: {
+                            select: {
+                                name: true,
+                            },
+                        },
+                        title: true,
+                        message: true,
+                        targetType: true,
+                        targetId: true,
+                        isRead: true,
+                        createdAt: true,
+                    },
+                    orderBy: { createdAt: 'asc' },
+                },
+                subscriptions: {
+                    select: {
+                        id: true,
+                        plan: true,
+                        status: true,
+                        startedAt: true,
+                        expiresAt: true,
+                        provider: true,
+                        createdAt: true,
+                        updatedAt: true,
+                    },
+                    orderBy: { createdAt: 'asc' },
+                },
+                payments: {
+                    select: {
+                        id: true,
+                        amount: true,
+                        currency: true,
+                        status: true,
+                        provider: true,
+                        createdAt: true,
+                        updatedAt: true,
+                    },
+                    orderBy: { createdAt: 'asc' },
+                },
+                aiTestSessions: {
+                    select: {
+                        id: true,
+                        subject: true,
+                        purpose: true,
+                        learningSessionId: true,
+                        submittedAt: true,
+                        createdAt: true,
+                    },
+                    orderBy: { createdAt: 'asc' },
+                },
+                learningSessions: {
+                    select: {
+                        id: true,
+                        chatId: true,
+                        subject: true,
+                        topic: true,
+                        status: true,
+                        stage: true,
+                        stepIndex: true,
+                        plan: true,
+                        prerequisites: true,
+                        prerequisiteState: true,
+                        masteryState: true,
+                        lastCheckpoint: true,
+                        createdAt: true,
+                        updatedAt: true,
+                    },
+                    orderBy: { createdAt: 'asc' },
+                },
+                aiDailyUsage: {
+                    select: {
+                        day: true,
+                        chatCount: true,
+                        visionCount: true,
+                    },
+                    orderBy: { day: 'asc' },
+                },
+                visitLogs: {
+                    select: {
+                        action: true,
+                        ip: true,
+                        createdAt: true,
+                    },
+                    orderBy: { createdAt: 'asc' },
+                },
+            },
+        })
+        if (!account) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' })
+
+        const exportDocument = {
+            format: 'DTMMax account export',
+            version: 1,
+            generatedAt: new Date().toISOString(),
+            excluded: [
+                'Parol hash, auth/reset/verification tokenlari',
+                'AI testlarning topshirilmagan answer-keylari',
+                'Payment provider transaction ID va xom webhook payloadlari',
+                'Yuklangan binary fayllarning o‘zi',
+            ],
+            account,
+        }
+        const fileDate = new Date().toISOString().slice(0, 10)
+        res.setHeader('Cache-Control', 'no-store')
+        res.setHeader('Pragma', 'no-cache')
+        res.setHeader('Content-Type', 'application/json; charset=utf-8')
+        res.setHeader('Content-Disposition', `attachment; filename="dtmmax-data-${fileDate}.json"`)
+        res.status(200).send(JSON.stringify(exportDocument, null, 2))
+    } catch (e) {
+        console.error('account export error:', e)
+        res.status(500).json({ error: 'Ma\'lumotlar nusxasini tayyorlab bo\'lmadi' })
+    }
+})
+
 // Akkauntni o'chirish
 router.delete('/account', authenticate, async (req: AuthRequest, res) => {
     try {

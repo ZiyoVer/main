@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { BrainCircuit, Plus, Trash2, LogOut, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, FileText, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, RotateCcw, AlertTriangle, TrendingUp, PenLine, CheckCircle, Bell, Trophy, ArrowUp, ArrowDown, ArrowRight, User, Calendar, Shield, Sparkles, Clock, Flame, Zap, Copy, MessageSquare, Pencil, MoreHorizontal, House } from 'lucide-react'
+import { BrainCircuit, Plus, Trash2, LogOut, Menu, X, GraduationCap, ClipboardList, Settings, BookOpen, Target, FileText, Square, Lightbulb, Maximize2, Minimize2, Paperclip, Layers, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, RotateCcw, AlertTriangle, TrendingUp, PenLine, CheckCircle, Bell, Trophy, ArrowUp, ArrowDown, ArrowRight, User, Calendar, Shield, Sparkles, Clock, Flame, Zap, Copy, MessageSquare, Pencil, MoreHorizontal, House, Download } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import remarkGfm from 'remark-gfm'
@@ -1259,6 +1259,10 @@ export default function ChatLayout() {
     const [changePwLoading, setChangePwLoading] = useState(false)
     const [changePwErr, setChangePwErr] = useState('')
     const [changePwOk, setChangePwOk] = useState(false)
+    const [exportPassword, setExportPassword] = useState('')
+    const [exportLoading, setExportLoading] = useState(false)
+    const [exportErr, setExportErr] = useState('')
+    const [exportOk, setExportOk] = useState(false)
     const [showDeleteModal, setShowDeleteModal] = useState(false)
     const [deletePassword, setDeletePassword] = useState('')
     const [deleteLoading, setDeleteLoading] = useState(false)
@@ -1288,6 +1292,57 @@ export default function ChatLayout() {
     const aiSessionByMessageRef = useRef<Map<string, string>>(new Map())
     const aiSessionResolveSeqRef = useRef(0)
     const publicTestReviewRef = useRef<Map<string, { questions: any[]; answers: Record<number, string> }>>(new Map())
+
+    const downloadAccountExport = async () => {
+        if (!exportPassword || exportLoading) return
+        setExportErr('')
+        setExportOk(false)
+        setExportLoading(true)
+
+        try {
+            const response = await fetch('/api/auth/account/export', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({ password: exportPassword }),
+            })
+
+            if (response.status === 401) {
+                clearSession()
+                nav('/kirish?reason=session', { replace: true })
+                return
+            }
+            if (!response.ok) {
+                const text = await response.text()
+                let message = 'Ma’lumotlar nusxasini tayyorlab bo‘lmadi'
+                try {
+                    const body = text ? JSON.parse(text) as { error?: string } : {}
+                    if (body.error) message = body.error
+                } catch {
+                    if (text) message = text
+                }
+                throw new Error(message)
+            }
+
+            const blob = await response.blob()
+            const url = URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            link.href = url
+            link.download = `dtmmax-data-${new Date().toISOString().slice(0, 10)}.json`
+            document.body.appendChild(link)
+            link.click()
+            link.remove()
+            window.setTimeout(() => URL.revokeObjectURL(url), 0)
+            setExportPassword('')
+            setExportOk(true)
+        } catch (error: unknown) {
+            setExportErr(error instanceof Error ? error.message : 'Ma’lumotlar nusxasini tayyorlab bo‘lmadi')
+        } finally {
+            setExportLoading(false)
+        }
+    }
     const persistedAssistantMessageIdsRef = useRef<Set<string>>(new Set())
     const testTimerDeadlineRef = useRef<number | null>(null)
     const chatIdRef = useRef<string | undefined>(chatId)
@@ -3728,6 +3783,67 @@ Iltimos, har bir savolni tahlil qilib ber:
                                                         setChangePwLoading(false)
                                                     }}
                                                     className="btn btn-outline h-9 text-sm px-5 disabled:opacity-40">{changePwLoading ? 'Saqlanmoqda...' : user?.passwordConfigured === false ? 'Parol yaratish' : 'Parolni yangilash'}</button>
+                                            </div>
+                                            <div className="pt-4 space-y-3" style={{ borderTop: '1px solid var(--border)' }}>
+                                                <div className="space-y-1">
+                                                    <p className="text-sm font-semibold flex items-center gap-2">
+                                                        <Download className="h-4 w-4" />
+                                                        Ma’lumotlar nusxasi
+                                                    </p>
+                                                    <p className="text-xs leading-5" style={{ color: 'var(--text-secondary)' }}>
+                                                        Profil, chat, o‘quv natijalari va to‘lov tarixingiz JSON faylga yig‘iladi. Parol, token va maxfiy test javoblari kiritilmaydi.
+                                                    </p>
+                                                </div>
+                                                {exportOk && (
+                                                    <div role="status" className="text-sm px-3 py-2 rounded-lg" style={{ background: 'var(--success-light)', color: 'var(--success)' }}>
+                                                        Ma’lumotlar nusxasi yuklab olindi.
+                                                    </div>
+                                                )}
+                                                {exportErr && (
+                                                    <div role="alert" className="text-sm px-3 py-2 rounded-lg" style={{ background: 'var(--danger-light)', color: 'var(--danger)' }}>
+                                                        {exportErr}
+                                                    </div>
+                                                )}
+                                                {user?.passwordConfigured === false ? (
+                                                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                                                        Nusxani yuklab olish uchun avval yuqorida parol yarating.
+                                                    </p>
+                                                ) : (
+                                                    <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
+                                                        <div className="flex-1 space-y-1.5">
+                                                            <label htmlFor="account-export-password" className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+                                                                Tasdiqlash uchun joriy parol
+                                                            </label>
+                                                            <input
+                                                                id="account-export-password"
+                                                                type="password"
+                                                                autoComplete="current-password"
+                                                                value={exportPassword}
+                                                                onChange={e => {
+                                                                    setExportPassword(e.target.value)
+                                                                    setExportErr('')
+                                                                    setExportOk(false)
+                                                                }}
+                                                                onKeyDown={e => {
+                                                                    if (e.key === 'Enter') {
+                                                                        e.preventDefault()
+                                                                        void downloadAccountExport()
+                                                                    }
+                                                                }}
+                                                                className="input text-sm h-11"
+                                                            />
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            disabled={exportLoading || !exportPassword}
+                                                            onClick={() => void downloadAccountExport()}
+                                                            className="btn btn-outline h-11 text-sm px-4 disabled:opacity-40 flex items-center justify-center gap-2 whitespace-nowrap"
+                                                        >
+                                                            <Download className="h-4 w-4" />
+                                                            {exportLoading ? 'Tayyorlanmoqda...' : 'JSON yuklab olish'}
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="rounded-xl p-4 space-y-2" style={{ border: '1px solid var(--danger-light)' }}>
                                                 <p className="text-sm font-semibold" style={{ color: 'var(--danger)' }}>Xavfli zona</p>

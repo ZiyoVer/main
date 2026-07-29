@@ -16,8 +16,9 @@ reset token, xavfli amalda parolni qayta so‘rash va JWT revocation mavjud.
 
 Account lifecycle to‘liq emas. Auditda topilgan eng katta xavf — `TEACHER`
 self-delete oqimining boshqa o‘quvchilar natijasini cascade orqali o‘chirishi —
-shu branchda guard bilan yopildi. Object storage lifecycle, user data export,
-email change va device/session boshqaruvi hali qolgan.
+shu branchda guard bilan yopildi. User-scoped browser keshini tozalash va
+parol bilan qayta tasdiqlanadigan JSON data export ham qo‘shildi. Object storage
+lifecycle, email change va device/session boshqaruvi hali qolgan.
 
 Joriy baho:
 
@@ -86,7 +87,7 @@ Server logout javobiga `Clear-Site-Data` qo‘shish hali alohida baholanadi.
 | Imkoniyat | Joriy holat | Izoh |
 |---|---|---|
 | O‘chirishni bekor qilish / restore | Yo‘q | Hard-delete qaytarilmaydi; bu universal majburiy talab emas |
-| Data export | Faqat admin | User o‘z ma’lumotini yuklab ololmaydi |
+| Data export | Bor (JSON) | Parol qayta tekshiriladi; sirlar va server-only answer-keylar chiqarilmaydi |
 | Emailni almashtirish + qayta tasdiqlash | Yo‘q | Account recovery uchun muhim |
 | Faol sessiyalar/qurilmalar ro‘yxati | Yo‘q | Faqat password change/reset hammasini bekor qiladi |
 | Bitta qurilmani masofadan chiqarish | Yo‘q | JWT per-device registry yo‘q |
@@ -124,7 +125,7 @@ Server logout javobiga `Clear-Site-Data` qo‘shish hali alohida baholanadi.
 
 ### Batch 3 — User data lifecycle
 
-1. User uchun JSON/ZIP data export.
+1. ~~User uchun JSON data export.~~
 2. Mahsulot qaroriga ko‘ra 14 kunlik deletion grace yoki hard-delete’ni
    saqlab, ikki bosqichli tasdiq va email xabarnoma.
 3. Retention, backup va object deletion muddatlarini privacy policy’da aniq
