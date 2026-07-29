@@ -17,8 +17,10 @@ reset token, xavfli amalda parolni qayta so‘rash va JWT revocation mavjud.
 Account lifecycle to‘liq emas. Auditda topilgan eng katta xavf — `TEACHER`
 self-delete oqimining boshqa o‘quvchilar natijasini cascade orqali o‘chirishi —
 shu branchda guard bilan yopildi. User-scoped browser keshini tozalash va
-parol bilan qayta tasdiqlanadigan JSON data export ham qo‘shildi. Object storage
-lifecycle, email change va device/session boshqaruvi hali qolgan.
+parol bilan qayta tasdiqlanadigan JSON data export ham qo‘shildi. Auth
+javoblariga `no-store`, muvaffaqiyatli hard-delete javobiga esa
+`Clear-Site-Data` qo‘shildi. Object storage lifecycle, email change va alohida
+device/session boshqaruvi hali qolgan.
 
 Joriy baho:
 
@@ -38,6 +40,7 @@ Joriy baho:
 | Eski JWT’larni bekor qilish | Bor | `User.authVersion` oshiriladi |
 | Server-side logout | Bor | Token Redis blacklist’ga qo‘shiladi |
 | Barcha qurilmalardan chiqish | Bor | `authVersion` atomik oshiriladi; barcha eski JWT’lar bekor bo‘ladi |
+| Auth response cache himoyasi | Bor | Barcha `/api/auth/*` javoblari `Cache-Control: no-store` qaytaradi |
 | Self-service account delete | Bor | `DELETE /api/auth/account`, parol talab qilinadi |
 | Adminni self-delete’dan himoya | Bor | `ADMIN` uchun `403` |
 | Google-only account himoyasi | Bor | O‘chirishdan oldin parol yaratish talab qilinadi |
@@ -80,8 +83,9 @@ bundan tashqari faqat joriy essay draft’ni o‘chirgan.
 
 **Joriy holat.** `clearUserLocalArtifacts(userId)` user-scoped test javoblari,
 natijalar, reja, essay va teacher draft keshlarini logout/account-switch/delete
-oqimlarida tozalaydi. Theme va onboarding kabi qurilma sozlamalari saqlanadi.
-Server logout javobiga `Clear-Site-Data` qo‘shish hali alohida baholanadi.
+oqimlarida tozalaydi. Theme va onboarding kabi qurilma sozlamalari oddiy
+logoutda saqlanadi. Account hard-delete muvaffaqiyatli bo‘lsa server
+`Clear-Site-Data: "cache", "storage"` ham qaytaradi.
 
 ## Muhim bo‘shliqlar
 

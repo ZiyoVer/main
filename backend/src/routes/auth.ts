@@ -23,6 +23,14 @@ import {
 
 const router = Router()
 
+// Auth endpointlar token, account holati yoki xavfsizlikka oid natija qaytaradi.
+// Browser/proxy ularni tarixiy cache'dan takroran bermasligi kerak.
+router.use((_req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store')
+    res.setHeader('Pragma', 'no-cache')
+    next()
+})
+
 // Google OAuth — GOOGLE_CLIENT_ID o'rnatilmasa inert (endpoint 503 qaytaradi)
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID
 const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null
@@ -1393,6 +1401,9 @@ router.delete('/account', authenticate, async (req: AuthRequest, res) => {
             prisma.studentProfile.deleteMany({ where: { userId: uid } }),
             prisma.user.delete({ where: { id: uid } })
         ])
+        // Account qaytarib bo'lmaydigan tarzda o'chirilgach, shu origin ostidagi
+        // browser cache va storage'da eski user ma'lumoti qolmasin.
+        res.setHeader('Clear-Site-Data', '"cache", "storage"')
         res.json({ message: 'Akkaunt o\'chirildi' })
     } catch (e) {
         console.error('delete account error:', e)
