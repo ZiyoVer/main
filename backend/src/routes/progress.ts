@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import prisma from '../utils/db'
 import { authenticate } from '../middleware/auth'
+import { tashkentDayDifference, tashkentDayKey, tashkentDayWindow } from '../utils/activityDay'
 
 const router = Router()
 
@@ -56,14 +57,15 @@ router.get('/me', async (req: any, res) => {
         })
         const dayMap: Record<string, number> = {}
         for (const a of weeklyLogs) {
-            const key = a.createdAt.toISOString().split('T')[0]
+            const key = tashkentDayKey(a.createdAt)
             dayMap[key] = (dayMap[key] || 0) + 1
         }
         const DAY_NAMES = ['Ya', 'Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh']
         const weeklyActivity = Array.from({ length: 7 }, (_, i) => {
             const d = new Date(Date.now() - (6 - i) * 24 * 60 * 60 * 1000)
-            const key = d.toISOString().split('T')[0]
-            return { day: DAY_NAMES[d.getDay()], count: dayMap[key] || 0 }
+            const shifted = new Date(d.getTime() + 5 * 60 * 60 * 1000)
+            const key = tashkentDayKey(d)
+            return { day: DAY_NAMES[shifted.getUTCDay()], count: dayMap[key] || 0 }
         })
 
         // Streak hisoblash (barcha activity loglari asosida)
@@ -75,11 +77,11 @@ router.get('/me', async (req: any, res) => {
         })
 
         const sortedDays = Array.from(new Set(
-            activityLogs.map((l: any) => l.createdAt.toISOString().split('T')[0])
+            activityLogs.map((l: any) => tashkentDayKey(l.createdAt))
         )).sort((a: string, b: string) => b.localeCompare(a))
 
-        const todayStr = new Date().toISOString().split('T')[0]
-        const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+        const todayStr = tashkentDayKey(new Date())
+        const yesterdayStr = tashkentDayKey(new Date(Date.now() - 86400000))
 
         let currentStreak = 0
         let longestStreak = 0
@@ -166,68 +168,61 @@ router.post('/activity', async (req: any, res) => {
         const XP_PER_ACTIVITY = 10
 
         const now = new Date()
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        const day = tashkentDayWindow(now)
 
-        // Bugun allaqachon faollik bo'lganmi?
-        const startOfDay = new Date()
-        startOfDay.setHours(0, 0, 0, 0)
-        const alreadyActive = await prisma.visitLog.findFirst({
-            where: {
-                userId,
-                action: 'activity',
-                createdAt: { gte: startOfDay }
-            }
-        })
-        if (alreadyActive) {
-            const current = await prisma.userProgress.findUnique({ where: { userId } })
-            return res.json({
-                xp: current?.xp || 0,
-                streak: current?.streak || 0,
-                longestStreak: current?.longestStreak || 0,
-                xpGained: 0,
-                alreadyDone: true,
-                message: 'Bugun allaqachon faollik qayd etildi'
+        // Advisory lock barcha Railway replica/processlarida shu user+Tashkent kuni uchun
+        // faqat bitta requestni o'tkazadi. Recheck lock ichida — parallel POST ikki marta XP bermaydi.
+        const result = await prisma.$transaction(async (tx) => {
+            await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${'activity:' + userId + ':' + day.key}, 0))`
+            const alreadyActive = await tx.visitLog.findFirst({
+                where: {
+                    userId,
+                    action: 'activity',
+                    createdAt: { gte: day.start, lt: day.end },
+                },
+                select: { id: true },
             })
-        }
+            if (alreadyActive) {
+                const current = await tx.userProgress.findUnique({ where: { userId } })
+                return { progress: current, xpGained: 0, alreadyDone: true }
+            }
 
-        const xpGained = XP_PER_ACTIVITY
-
-        // Bitta UPSERT orqali xavfsiz qilib yozish (race-condition ni oldini oladi)
-        const updated = await prisma.$transaction(async (tx) => {
             const current = await tx.userProgress.findUnique({ where: { userId } })
-
-            let xp = (current?.xp || 0) + xpGained
             let streak = current ? current.streak : 1
             let longestStreak = current ? current.longestStreak : 1
+            let xpGained = XP_PER_ACTIVITY
 
             if (current?.lastActiveDate) {
-                const lastDate = new Date(current.lastActiveDate)
-                const lastDay = new Date(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate())
-                const diffDays = Math.floor((today.getTime() - lastDay.getTime()) / (1000 * 60 * 60 * 24))
+                const diffDays = tashkentDayDifference(now, current.lastActiveDate)
 
                 if (diffDays === 1) {
                     streak += 1
                     longestStreak = Math.max(streak, longestStreak)
-                    if (streak % 7 === 0) xp += 50
-                    else if (streak % 3 === 0) xp += 15
+                    if (streak % 7 === 0) xpGained += 50
+                    else if (streak % 3 === 0) xpGained += 15
                 } else if (diffDays > 1) {
                     streak = 1
                 }
             }
 
             await tx.visitLog.create({ data: { userId, action: 'activity' } })
-            return await tx.userProgress.upsert({
+            const progress = await tx.userProgress.upsert({
                 where: { userId },
-                create: { userId, xp, streak, longestStreak, lastActiveDate: now },
-                update: { xp, streak, longestStreak, lastActiveDate: now }
+                create: { userId, xp: xpGained, streak, longestStreak, lastActiveDate: now },
+                // XP boshqa qonuniy manba (masalan flashcard) bilan bir vaqtda yozilsa ham
+                // read-modify-write orqali uni bosib yubormaydi.
+                update: { xp: { increment: xpGained }, streak, longestStreak, lastActiveDate: now },
             })
+            return { progress, xpGained, alreadyDone: false }
         })
 
         res.json({
-            xp: updated.xp,
-            streak: updated.streak,
-            longestStreak: updated.longestStreak,
-            xpGained: xpGained,
+            xp: result.progress?.xp || 0,
+            streak: result.progress?.streak || 0,
+            longestStreak: result.progress?.longestStreak || 0,
+            xpGained: result.xpGained,
+            alreadyDone: result.alreadyDone,
+            ...(result.alreadyDone ? { message: 'Bugun allaqachon faollik qayd etildi' } : {}),
         })
     } catch (e) {
         console.error('Progress activity error:', e)
@@ -236,42 +231,16 @@ router.post('/activity', async (req: any, res) => {
 })
 
 // ────────────────────────────────────────────────────────────
-// POST /api/progress/topic — Mavzu statistikasini yangilash
-// Body: { subject, topic, correct, total }
+// POST /api/progress/topic — legacy client-write endpoint.
+// TopicStat faqat server baholagan test/checkpoint natijalaridan yangilanadi.
+// Klient yuborgan correct/total qiymatlarini persist qilish learning profilini
+// soxtalashtirishga imkon berardi, shuning uchun endpoint ataylab yopilgan.
 // ────────────────────────────────────────────────────────────
-router.post('/topic', async (req: any, res) => {
-    try {
-        const userId = req.user.id
-        const { subject, topic, correct, total } = req.body
-        const normalizedSubject = typeof subject === 'string' ? subject.trim() : ''
-        const normalizedTopic = typeof topic === 'string' ? topic.trim() : ''
-        const totalValue = Number(total)
-        const correctValue = correct === undefined ? 0 : Number(correct)
-
-        if (!normalizedSubject || !normalizedTopic || total === undefined) {
-            return res.status(400).json({ error: 'subject, topic, total majburiy' })
-        }
-        if (!Number.isFinite(totalValue) || totalValue <= 0 || !Number.isInteger(totalValue)) {
-            return res.status(400).json({ error: 'total musbat butun son bo\'lishi kerak' })
-        }
-        if (!Number.isFinite(correctValue) || correctValue < 0 || !Number.isInteger(correctValue)) {
-            return res.status(400).json({ error: 'correct manfiy bo\'lmagan butun son bo\'lishi kerak' })
-        }
-        if (correctValue > totalValue) {
-            return res.status(400).json({ error: 'correct total dan katta bo\'lishi mumkin emas' })
-        }
-
-        const stat = await prisma.topicStat.upsert({
-            where: { userId_subject_topic: { userId, subject: normalizedSubject, topic: normalizedTopic } },
-            create: { userId, subject: normalizedSubject, topic: normalizedTopic, correct: correctValue, total: totalValue, lastPracticed: new Date() },
-            update: { correct: { increment: correctValue }, total: { increment: totalValue }, lastPracticed: new Date() }
-        })
-
-        res.json(stat)
-    } catch (e) {
-        console.error(e)
-        res.status(500).json({ error: 'Server xatoligi' })
-    }
+router.post('/topic', (_req, res) => {
+    res.status(410).json({
+        error: 'Mavzu statistikasi faqat server baholagan test natijalaridan yangilanadi.',
+        code: 'CLIENT_TOPIC_STATS_DISABLED',
+    })
 })
 
 export default router

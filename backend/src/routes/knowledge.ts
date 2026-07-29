@@ -1,11 +1,11 @@
 import { Router } from 'express'
 import multer from 'multer'
-import pdfParse from 'pdf-parse'
 import mammoth from 'mammoth'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
 import { createEmbedding, createEmbeddings, hasEmbeddingClient, serializeEmbedding } from '../utils/embeddings'
 import { SUBJECTS, isCanonicalSubject, normalizeSubject } from '../utils/subjects'
+import { extractPdfText } from '../utils/pdfText'
 
 const router = Router()
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 * 1024 * 1024 } })
@@ -179,8 +179,8 @@ router.post('/pdf-import', authenticate, requireRole('ADMIN'), upload.single('fi
     let text = ''
 
     if (ext === 'pdf') {
-      const data = await pdfParse(req.file.buffer)
-      text = data.text
+      const extracted = await extractPdfText(req.file.buffer)
+      text = extracted.text
     } else if (ext === 'docx' || ext === 'doc') {
       const result = await mammoth.extractRawText({ buffer: req.file.buffer })
       text = result.value

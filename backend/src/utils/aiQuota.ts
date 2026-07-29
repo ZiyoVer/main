@@ -6,7 +6,7 @@ import prisma from './db'
  *
  * chat   — barcha DeepSeek so'rovlari: chat xabari, test/essay/flashcard yaratish
  *          (ular chat oqimi orqali keladi), xato tushuntirish.
- * vision — rasm/OCR tahlili (OpenAI orqali, eng qimmat yo'l) — alohida, qattiqroq.
+ * vision — rasm/OCR tahlili (Gemini orqali, eng qimmat yo'l) — alohida, qattiqroq.
  *
  * Tayyor public testlarni yechish AI ishlatmaydi — CHEKSIZ, bu yerga kirmaydi.
  */

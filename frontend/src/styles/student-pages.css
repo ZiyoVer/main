@@ -1,0 +1,871 @@
+/* ============================================================
+   Student to'liq sahifalar shell'i — /organish va /progress.
+   TestsPage arxitekturasiga mos (topbar + intro + ichki navigatsiya +
+   loading/empty/error), lekin alohida namespace: .spage-*.
+   Focus Rail: ochiq sectionlar, divider, kam soya, semantik ranglar.
+   ============================================================ */
+
+.spage {
+  min-height: 100dvh;
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font-family: 'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* ---- Topbar ---- */
+.spage__topbar {
+  min-height: 64px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-card) 94%, transparent);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  backdrop-filter: blur(14px);
+}
+
+.spage__topbar-inner {
+  max-width: 1080px;
+  margin: 0 auto;
+  min-height: 64px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.spage__back {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.spage__back:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.spage__back svg {
+  width: 18px;
+  height: 18px;
+}
+
+.spage__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+.spage__brand img {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  object-fit: contain;
+}
+
+.spage__topbar-context {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.spage__topbar-context strong {
+  color: var(--text-primary);
+  font-weight: 650;
+}
+
+.spage__user {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- Main ---- */
+.spage__main {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 28px 20px 96px;
+}
+
+.spage__intro {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 20px;
+}
+
+.spage__eyebrow {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--brand-hover);
+  margin-bottom: 6px;
+}
+
+.spage__intro h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  margin: 0 0 6px;
+}
+
+.spage__intro p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  max-width: 52ch;
+}
+
+.spage__summary {
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.spage__summary > div {
+  min-width: 92px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.spage__summary strong {
+  font-size: 1.25rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.spage__summary span {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ---- Ichki navigatsiya ---- */
+.spage__sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  padding: 4px 0 20px;
+}
+
+.spage__sections > button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  text-align: left;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.spage__sections > button:hover {
+  border-color: var(--border-strong);
+}
+
+.spage__sections > button.is-active {
+  border-color: color-mix(in srgb, var(--brand) 45%, var(--border));
+  background: var(--brand-light);
+  color: var(--text-primary);
+}
+
+.spage__sections > button:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+.spage__sections svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.spage__sections > button.is-active svg {
+  color: var(--brand-hover);
+}
+
+.spage__sections span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.spage__sections strong {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.spage__sections small {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.spage__sections em {
+  margin-left: auto;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.spage__sections > button.is-active em {
+  background: color-mix(in srgb, var(--brand) 14%, transparent);
+  color: var(--brand-hover);
+}
+
+/* ---- Loading / empty ---- */
+.spage__loading {
+  border-top: 1px solid var(--border);
+}
+
+.spage__loading div {
+  height: 96px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(90deg, transparent, var(--bg-card), transparent);
+  background-size: 260% 100%;
+  animation: spage-loading 1.3s ease-in-out infinite;
+}
+
+@keyframes spage-loading {
+  to { background-position: -160% 0; }
+}
+
+.spage__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 56px 20px;
+  text-align: center;
+}
+
+.spage__empty svg {
+  width: 28px;
+  height: 28px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.spage__empty strong {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.spage__empty span {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  max-width: 40ch;
+}
+
+.spage__empty button {
+  margin-top: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  transition: background-color 160ms ease;
+}
+
+.spage__empty button:hover {
+  background: var(--bg-surface);
+}
+
+.spage__empty--inline {
+  padding: 40px 16px;
+}
+
+/* ---- Panel (ochiq section) ---- */
+.spage-panel {
+  border-top: 1px solid var(--border);
+  padding: 20px 0;
+}
+
+.spage-panel h2 {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+
+.spage-panel__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.spage-panel__row p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.spage-panel__percent {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--brand-hover);
+  background: var(--brand-light);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+.spage-panel__track,
+.spage-review__track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-muted);
+  overflow: hidden;
+}
+
+.spage-panel__track span,
+.spage-review__track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--brand);
+  transition: width 400ms ease;
+}
+
+.spage-panel__cta {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--brand) 30%, var(--border));
+  border-radius: 12px;
+  background: var(--brand-light);
+}
+
+.spage-panel__cta > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.spage-panel__cta strong {
+  font-size: 13.5px;
+  font-weight: 650;
+}
+
+.spage-panel__cta span {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.spage-panel__action,
+.spage-review__knew {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 10px;
+  background: var(--text-primary);
+  color: var(--text-inverse);
+  font-size: 13px;
+  font-weight: 650;
+  flex-shrink: 0;
+  transition: opacity 160ms ease;
+}
+
+.spage-panel__action:hover,
+.spage-review__knew:hover {
+  opacity: 0.88;
+}
+
+.spage-panel__action svg,
+.spage-review__knew svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* ---- Takrorlash sessiyasi ---- */
+.spage-review {
+  border-top: 1px solid var(--border);
+  padding: 20px 0;
+  max-width: 640px;
+}
+
+.spage-review__meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 8px;
+}
+
+.spage-review__card {
+  margin-top: 14px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+}
+
+.spage-review__side {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.spage-review__side svg {
+  width: 13px;
+  height: 13px;
+}
+
+.spage-review__side--answer {
+  color: var(--success);
+}
+
+.spage-review__front {
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.spage-review__reveal {
+  margin-top: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  transition: background-color 160ms ease;
+}
+
+.spage-review__reveal:hover {
+  background: var(--bg-muted);
+}
+
+.spage-review__reveal svg {
+  width: 15px;
+  height: 15px;
+}
+
+.spage-review__answer {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.spage-review__answer p {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.spage-review__grade {
+  margin-top: 16px;
+  display: flex;
+  gap: 10px;
+}
+
+.spage-review__again {
+  flex: 1;
+  min-height: 48px;
+  border-radius: 10px;
+  border: 1.5px solid var(--danger);
+  background: transparent;
+  color: var(--danger);
+  font-size: 14px;
+  font-weight: 650;
+  transition: background-color 160ms ease;
+}
+
+.spage-review__again:hover {
+  background: var(--danger-light);
+}
+
+.spage-review__knew {
+  flex: 1;
+  min-height: 48px;
+  justify-content: center;
+  font-size: 14px;
+}
+
+/* ---- Kartochka/natija/zaif mavzu ro'yxatlari ---- */
+.spage__filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.spage__filters button {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.spage__filters button.is-active {
+  background: var(--brand-light);
+  color: var(--brand-hover);
+  border-color: color-mix(in srgb, var(--brand) 35%, var(--border));
+}
+
+.spage-cardlist {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+}
+
+.spage-cardlist__row {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+
+.spage-cardlist__front {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.spage-cardlist__back {
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+.spage-cardlist__subject {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.spage-cardlist__subject svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ---- Countdown ---- */
+.spage-countdown {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--info) 30%, var(--border));
+  background: color-mix(in srgb, var(--info) 8%, var(--bg-card));
+}
+
+.spage-countdown svg {
+  width: 22px;
+  height: 22px;
+  color: var(--info);
+  flex-shrink: 0;
+}
+
+.spage-countdown span {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.spage-countdown strong {
+  font-size: 1.15rem;
+  font-weight: 750;
+  color: var(--info);
+}
+
+.spage-countdown.is-soon {
+  border-color: color-mix(in srgb, var(--warning) 35%, var(--border));
+  background: color-mix(in srgb, var(--warning) 10%, var(--bg-card));
+}
+
+.spage-countdown.is-soon svg,
+.spage-countdown.is-soon strong {
+  color: var(--warning);
+}
+
+.spage-countdown.is-urgent {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
+  background: color-mix(in srgb, var(--danger) 8%, var(--bg-card));
+}
+
+.spage-countdown.is-urgent svg,
+.spage-countdown.is-urgent strong {
+  color: var(--danger);
+}
+
+/* ---- Stats ---- */
+.spage-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+  padding-bottom: 20px;
+}
+
+.spage-stats__item {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.spage-stats__icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--bg-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+
+.spage-stats__icon svg {
+  width: 15px;
+  height: 15px;
+  color: var(--text-secondary);
+}
+
+.spage-stats__item strong {
+  font-size: 1.3rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.spage-stats__item span {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ---- Haftalik faollik ---- */
+.spage-week {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 96px;
+  margin-top: 12px;
+}
+
+.spage-week__day {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  height: 100%;
+}
+
+.spage-week__bar {
+  width: 100%;
+  border-radius: 6px 6px 0 0;
+  transition: height 400ms ease;
+}
+
+.spage-week__label {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* ---- Natija va zaif mavzu qatorlari ---- */
+.spage-result,
+.spage-weak {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.spage-result__mark,
+.spage-weak__icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+.spage-result__mark svg,
+.spage-weak__icon svg {
+  width: 16px;
+  height: 16px;
+  color: var(--danger);
+}
+
+.spage-result__mark.is-good {
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+.spage-result__mark.is-good svg {
+  color: var(--success);
+}
+
+.spage-weak__icon {
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+}
+
+.spage-weak__icon svg {
+  color: var(--warning);
+}
+
+.spage-result__copy,
+.spage-weak__copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.spage-result__copy strong,
+.spage-weak__copy strong {
+  font-size: 13.5px;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spage-result__copy span,
+.spage-weak__copy span {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.spage-result__score {
+  font-size: 13px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  color: var(--danger);
+  flex-shrink: 0;
+}
+
+.spage-result__score.is-good {
+  color: var(--success);
+}
+
+.spage-weak__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: var(--text-primary);
+  color: var(--text-inverse);
+  font-size: 12.5px;
+  font-weight: 650;
+  flex-shrink: 0;
+  transition: opacity 160ms ease;
+}
+
+.spage-weak__action:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.spage-weak__action:disabled {
+  opacity: 0.5;
+}
+
+.spage-weak__action svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 640px) {
+  .spage__main {
+    padding: 20px 14px 96px;
+  }
+
+  .spage__intro {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+
+  .spage__brand span,
+  .spage__topbar-context span:first-child,
+  .spage__topbar-context span[aria-hidden="true"] {
+    display: none;
+  }
+
+  .spage__user {
+    max-width: 96px;
+  }
+
+  .spage-review__grade {
+    flex-direction: column;
+  }
+}

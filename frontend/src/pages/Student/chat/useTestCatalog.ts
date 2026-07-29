@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { normalizeSubjectValue } from '@/constants'
 
-export type TestCatalogView = 'recommended' | 'all' | 'completed'
+export type TestCatalogView = 'recommended' | 'dtm' | 'subjects' | 'mine'
 export type TestCatalogSort = 'recommended' | 'new' | 'popular'
 export type TestCatalogFormat = 'all' | 'REGULAR' | 'DTM_BLOCK' | 'MILLIY_SERTIFIKAT'
 
@@ -86,17 +86,19 @@ export function useTestCatalog<T extends TestCatalogItem>({
         const recommendedCount = recommendedPool.length
         const completedCount = tests.filter(isDone).length
 
-        let base = view === 'completed'
+        let base = view === 'mine'
             ? tests.filter(isDone)
             : view === 'recommended'
                 ? recommendedPool
+                : view === 'dtm'
+                    ? tests.filter(test => test.testType === 'DTM_BLOCK')
                 : tests
 
         base = base.filter(matchesFilters)
 
         let visibleTests = base.slice().sort((a, b) => {
             const doneDiff = Number(isDone(a)) - Number(isDone(b))
-            if (doneDiff !== 0 && view !== 'completed') return doneDiff
+            if (doneDiff !== 0 && view !== 'mine') return doneDiff
             if (sort === 'popular') return (b._count?.attempts ?? 0) - (a._count?.attempts ?? 0)
             if (sort === 'recommended') return relevanceScore(b) - relevanceScore(a)
             return (originalIndex.get(a.id) ?? 0) - (originalIndex.get(b.id) ?? 0)
@@ -120,8 +122,9 @@ export function useTestCatalog<T extends TestCatalogItem>({
             resultCount,
             counts: {
                 recommended: recommendedCount,
-                all: tests.length,
-                completed: completedCount,
+                dtm: tests.filter(test => test.testType === 'DTM_BLOCK').length,
+                subjects: tests.length,
+                mine: completedCount,
             },
             isDone,
         }

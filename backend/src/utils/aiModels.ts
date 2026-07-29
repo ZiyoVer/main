@@ -2,6 +2,8 @@ export const AI_MODELS = {
     deepseekPro: 'deepseek-v4-pro',
     deepseekFlash: 'deepseek-v4-flash',
     geminiFlash: 'gemini-3.5-flash',
+    geminiFlashLite: 'gemini-3.5-flash-lite',
+    geminiLegacyFlashLite: 'gemini-3.1-flash-lite',
 } as const
 
 export interface DeepSeekThinkingOptions {

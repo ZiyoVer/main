@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { BrainCircuit, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react'
 import { fetchApi } from '@/lib/api'
+import { useAuthStore } from '@/store/authStore'
 
 export default function ResetPassword() {
     const { token } = useParams<{ token: string }>()
@@ -40,6 +41,9 @@ export default function ResetPassword() {
                 method: 'POST',
                 body: JSON.stringify({ token, password })
             })
+            // Backend authVersion'ni oshirib barcha eski JWTlarni bekor qiladi.
+            // Shu browserdagi revoked sessiyani ham darhol olib tashlaymiz.
+            useAuthStore.getState().clearSession()
             setSuccess(true)
             if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current)
             redirectTimerRef.current = setTimeout(() => {
@@ -56,7 +60,7 @@ export default function ResetPassword() {
         <div className="kelviq min-h-screen flex items-center justify-center p-5" style={{ background: 'var(--bg-page)' }}>
             <div className="w-full max-w-sm">
                 <div className="flex items-center gap-2 justify-center mb-8">
-                    <img src="/dtmmax-logo.png" alt="DtmMax" className="h-11 w-11 rounded-xl flex items-center justify-center" style={{ objectFit: 'contain' }} />
+                    <img src="/dtmmax-logo.png" alt="DTMMax" className="h-11 w-11 rounded-xl flex items-center justify-center" style={{ objectFit: 'contain' }} />
                     <span className="font-bold text-xl tracking-tight">DTMMax</span>
                 </div>
 

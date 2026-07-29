@@ -17,6 +17,10 @@ model User {
   name      String
   role      Role     @default(STUDENT)
   status    String   @default("ACTIVE") // ACTIVE | SUSPENDED
+  // Parol/rol/xavfsizlik o'zgarganda oshiriladi; eski JWTlar darhol yaroqsiz bo'ladi.
+  authVersion Int    @default(0)
+  googleSubject String? @unique
+  passwordConfigured Boolean @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -131,6 +135,7 @@ model Message {
   fileUrl   String?  // Agar fayl yuklangan bo'lsa
   fileType  String?  // "image", "pdf", "word"
   createdAt DateTime @default(now())
+  aiTestSession AiTestSession?
 
   @@index([chatId])
   @@index([chatId, createdAt])
@@ -383,6 +388,23 @@ model AdminAuditLog {
   @@index([createdAt])
 }
 
+// DB yozuvi o'chirilgandan keyin S3 obyektini ishonchli va qayta urinib
+// tozalash uchun durable outbox. Object key unique: bir obyekt uchun bir job.
+model ObjectDeletionJob {
+  id             String   @id @default(cuid())
+  objectKey      String   @unique
+  status         String   @default("PENDING") // PENDING | PROCESSING
+  attempts       Int      @default(0)
+  nextAttemptAt  DateTime @default(now())
+  leaseExpiresAt DateTime?
+  lastError      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([status, leaseExpiresAt])
+}
+
 // ============ TO'LOV / OBUNA (agregator: Octo/Multicard) ============
 // Scaffolding — to'lov amalda yoqilishi sandbox kalit + webhook ulanishini kutadi.
 
@@ -465,6 +487,10 @@ model AiTestSession {
   learningSession LearningSession? @relation(fields: [learningSessionId], references: [id], onDelete: SetNull)
   purpose     String?   // PREREQUISITE | CHECKPOINT | REMEDIATION
   questions   String    // JSON: [{q,a,b,c,d,correct,topic,difficulty}] — to'g'ri javoblar bilan (server-only)
+  // Faqat server saqlagan assistant xabaridan yaratilgan sessiya trusted hisoblanadi.
+  // Legacy/client answer-key sessiyalarida null qoladi va ular progressga ta'sir qilmaydi.
+  sourceMessageId String? @unique
+  sourceMessage Message? @relation(fields: [sourceMessageId], references: [id], onDelete: SetNull)
   submittedAt DateTime?
   createdAt   DateTime  @default(now())
 

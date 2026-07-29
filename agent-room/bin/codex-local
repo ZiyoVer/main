@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+
+# `codex` may be installed by NVM while the parent process uses another Node
+# architecture. Run the CLI with the Node binary next to its own launcher.
+codex_bin="${AGENT_ROOM_CODEX_BIN:-$(command -v codex || true)}"
+
+if [ -z "$codex_bin" ]; then
+  echo "Codex CLI topilmadi. AGENT_ROOM_CODEX_BIN yoki PATH ni tekshiring." >&2
+  exit 127
+fi
+
+node_bin="$(dirname "$codex_bin")/node"
+if [ ! -x "$node_bin" ]; then
+  echo "Codex bilan bir papkadagi Node topilmadi: $node_bin" >&2
+  exit 127
+fi
+
+exec "$node_bin" "$codex_bin" "$@"

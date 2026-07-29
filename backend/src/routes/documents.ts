@@ -4,9 +4,15 @@ import rateLimit from 'express-rate-limit'
 import path from 'path'
 import prisma from '../utils/db'
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth'
-import { uploadToS3, deleteFromS3, getSignedS3Url } from '../utils/s3'
+import { extractS3KeysFromText, uploadToS3, getSignedS3Url } from '../utils/s3'
 import { createEmbeddings, hasEmbeddingClient, serializeEmbedding } from '../utils/embeddings'
 import { normalizeSubject } from '../utils/subjects'
+import { extractPdfText } from '../utils/pdfText'
+import {
+    enqueueObjectDeletions,
+    scheduleUnclaimedObjectDeletion,
+    triggerObjectDeletionDrain,
+} from '../utils/objectDeletion'
 
 const uploadLimiter = rateLimit({
     windowMs: 60 * 1000,
@@ -47,9 +53,8 @@ router.post('/upload', authenticate, requireRole('ADMIN'), uploadLimiter, upload
 
         // PDF parse
         if (ext === '.pdf') {
-            const pdfParse = require('pdf-parse')
-            const data = await pdfParse(buffer)
-            text = data.text
+            const extracted = await extractPdfText(buffer)
+            text = extracted.text
         }
         // Word parse
         else if (ext === '.docx' || ext === '.doc') {
@@ -75,6 +80,7 @@ router.post('/upload', authenticate, requireRole('ADMIN'), uploadLimiter, upload
         let s3Warning = ''
         try {
             const s3Result = await uploadToS3(buffer, req.file.originalname, 'documents')
+            await scheduleUnclaimedObjectDeletion(s3Result.key)
             s3Url = s3Result.url
             s3Key = s3Result.key
         } catch (e) {
@@ -160,6 +166,7 @@ router.post('/chat-upload', authenticate, uploadSingle, async (req: AuthRequest,
         const folder = isImage ? 'chat-images' : 'chat-files'
 
         const s3Result = await uploadToS3(req.file.buffer, req.file.originalname, folder)
+        await scheduleUnclaimedObjectDeletion(s3Result.key)
 
         res.json({
             url: await getSignedS3Url(s3Result.key),
@@ -259,12 +266,17 @@ router.get('/:id/download-url', authenticate, requireRole('ADMIN'), async (req: 
 // Admin: Hujjat o'chirish
 router.delete('/:id', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res) => {
     try {
-        // S3 dan ham o'chirish
         const doc = await prisma.document.findUnique({ where: { id: req.params.id as string } })
-        if (doc?.s3Key) {
-            try { await deleteFromS3(doc.s3Key) } catch { }
-        }
-        await prisma.document.delete({ where: { id: req.params.id as string } })
+        if (!doc) return res.status(404).json({ error: 'Hujjat topilmadi' })
+
+        const objectKeys = doc.s3Key
+            ? [doc.s3Key]
+            : extractS3KeysFromText(doc.s3Url)
+        await prisma.$transaction(async tx => {
+            await enqueueObjectDeletions(tx, objectKeys)
+            await tx.document.delete({ where: { id: doc.id } })
+        })
+        triggerObjectDeletionDrain()
         res.json({ message: 'Hujjat o\'chirildi' })
     } catch (e) {
         res.status(500).json({ error: 'Server xatoligi' })

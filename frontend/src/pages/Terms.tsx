@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { BrainCircuit, ArrowLeft } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 
 export default function Terms() {
     return (
@@ -12,7 +12,7 @@ export default function Terms() {
                         Orqaga
                     </Link>
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
-                        <img src="/dtmmax-logo.png" alt="DtmMax" style={{ width: '34px', height: '34px', borderRadius: '8px', objectFit: 'contain', display: 'block' }} />
+                        <img src="/dtmmax-logo.png" alt="DTMMax" style={{ width: '34px', height: '34px', borderRadius: '8px', objectFit: 'contain', display: 'block' }} />
                         <span style={{ fontWeight: 700, fontSize: '16px' }}>DTMMax</span>
                     </div>
                     <div style={{ width: '60px' }} />
@@ -24,7 +24,7 @@ export default function Terms() {
                 <div className="card" style={{ padding: '2.5rem' }}>
                     <h1 style={{ fontSize: '28px', fontWeight: 800, marginBottom: '8px' }}>Foydalanish shartlari</h1>
                     <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '32px' }}>
-                        Oxirgi yangilanish: 2026 yil 1 mart
+                        Oxirgi yangilanish: 2026 yil 29 iyul
                     </p>
 
                     <div style={{ lineHeight: 1.8, fontSize: '15px', color: 'var(--text-secondary)' }}>
@@ -33,8 +33,9 @@ export default function Terms() {
                             DTMMax haqida
                         </h2>
                         <p style={{ marginBottom: '16px' }}>
-                            DTMMax — DTM (Davlat Test Markazi) va Milliy Sertifikat imtihonlariga tayyorlanadigan bepul ta'lim platformasi.
+                            DTMMax — DTM (Davlat Test Markazi) va Milliy Sertifikat imtihonlariga tayyorlanadigan ta'lim platformasi.
                             Platforma sun'iy intellekt (AI) yordamida shaxsiy o'qitish, testlar va o'quv natijalarini kuzatish imkoniyatini taqdim etadi.
+                            Platformada bepul va alohida ko'rsatiladigan pullik imkoniyatlar bo'lishi mumkin.
                         </p>
 
                         <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', marginTop: '28px', marginBottom: '12px' }}>
@@ -67,7 +68,7 @@ export default function Terms() {
                         </h2>
                         <p style={{ marginBottom: '16px' }}>
                             Foydalanuvchi o'z akkauntining xavfsizligi uchun to'liq javobgar. Akkauntingizga ruxsatsiz kirish aniqlansa,
-                            darhol support@dtmmax.pro manziliga xabar bering. Shubhali faoliyat aniqlanganda DTMMax akkauntni bloklash yoki
+                            darhol support@dtmmax.uz manziliga xabar bering. Shubhali faoliyat aniqlanganda DTMMax akkauntni bloklash yoki
                             o'chirish huquqini o'zida saqlab qoladi.
                         </p>
 
@@ -108,7 +109,7 @@ export default function Terms() {
 
                         <div style={{ marginTop: '32px', padding: '16px', borderRadius: '12px', background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
                             <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
-                                Savollar uchun: <a href="mailto:support@dtmmax.pro" style={{ color: 'var(--brand)', textDecoration: 'none' }}>support@dtmmax.pro</a>
+                                Savollar uchun: <a href="mailto:support@dtmmax.uz" style={{ color: 'var(--brand)', textDecoration: 'none' }}>support@dtmmax.uz</a>
                             </p>
                         </div>
                     </div>

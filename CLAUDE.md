@@ -5,14 +5,18 @@
 DTMMax — O'zbekistonda DTM va Milliy Sertifikat imtihonlariga tayyorlaydigan
 AI-ta'lim platformasi. React + Express + PostgreSQL + DeepSeek AI.
 
-**Domain:** www.dtmmax.uz (jonli; dtmmax.uz www'siz hali sozlanmagan) | **Deploy:** Railway | **Branch:** main
+**Domain:** www.dtmmax.uz | **Deploy:** Railway | **Aktiv preview branch:** `redesign/dtmmax-v2`
 **GitHub:** https://github.com/ZiyoVer/main
 
 ---
 
 ## MUHIM QOIDALAR (har doim amal qil)
 
-1. **Git push:** Har qanday o'zgarishdan keyin `git add → commit → push origin main`
+1. **Git xavfsizligi:** `main` va `reysh` himoyalangan. Foydalanuvchining alohida
+   ruxsatisiz ularga merge yoki push qilma. Redesign ishlari faqat
+   `redesign/dtmmax-v2` preview branchida yoki Agent Room yaratgan
+   `agent/<agent>/<task>` worktree branchida bajariladi. Agent task branchini
+   hech qachon remote'ga o'zi push qilmaydi.
 2. **Til:** O'zbek tilida javob ber va yoz
 3. **To'liq qil:** Yuzaki qilma — boshlagan narsani oxirigacha yetkazib qo'y
 4. **TypeScript:** strict, `any` ishlatma
@@ -37,14 +41,14 @@ get_routes, get_project_info, get_env_vars, run_safe_command, get_recent_changes
 ## Muhim fayllar
 
 ```
-frontend/src/pages/Student/ChatLayout.tsx     ← Asosiy UI (2900+ qator)
+frontend/src/pages/Student/ChatLayout.tsx     ← Asosiy UI (5000+ qator, yuqori risk)
 frontend/src/pages/Teacher/TeacherPanel.tsx   ← O'qituvchi paneli
 frontend/src/pages/Admin/AdminPanel.tsx       ← Admin paneli
 frontend/src/hooks/useTestPanel.ts            ← Test panel state
 backend/src/routes/chat.ts                    ← AI streaming (SSE)
 backend/src/routes/tests.ts                   ← Test CRUD + Rasch
 backend/src/routes/auth.ts                    ← Auth + email
-backend/prisma/schema.prisma                  ← 16 model
+backend/prisma/schema.prisma                  ← 25 model
 mcp-server/src/index.ts                       ← MCP server
 ```
 
@@ -54,8 +58,9 @@ mcp-server/src/index.ts                       ← MCP server
 
 - **Frontend:** React 19 + Vite 7 + TypeScript + Tailwind v4 + Zustand + KaTeX
 - **Backend:** Express 5 + Prisma 5 + JWT + Resend + DeepSeek/OpenAI SDK
-- **Database:** PostgreSQL — 16 Prisma model
-- **AI:** deepseek-chat (ASOSIY — chat + test/essay/flashcard generatsiya), gemini-2.5-flash (vision/OCR + DeepSeek-429/balans zaxira)
+- **Database:** PostgreSQL — 25 Prisma model
+- **AI:** `deepseek-v4-pro` asosiy, `deepseek-v4-flash` tezkor fallback,
+  `gemini-3.5-flash` zaxira; vision/OCR Gemini orqali
 - **Auth:** JWT 7 kun | Rollar: STUDENT, TEACHER, ADMIN
 
 ---
@@ -102,11 +107,19 @@ RESEND_API_KEY, EMAIL_FROM, FRONTEND_URL, ALLOWED_ORIGINS,
 PORT, ADMIN_EMAIL, ADMIN_PASSWORD, GOOGLE_CLIENT_ID,
 # Rasm saqlash (SAVOL + CHAT RASMLARI) — Railway Bucket "sorted-toolbox" (S3-mos):
 S3_ACCESS_KEY, S3_SECRET_KEY, S3_BUCKET, S3_ENDPOINT, S3_REGION=auto,
-# To'lov (Paylov hosted checkout):
-merchant_id, Token, PAYLOV_CALLBACK_LOGIN, PAYLOV_CALLBACK_PASSWORD,
-BILLING_PROVIDER=paylov, PRO_ENFORCED=false, BILLING_SANDBOX_TEST=false
+# To'lov (Paylov OAuth2 karta + OTP):
+merchant_id, Token, PAYLOV_CONSUMER_KEY, PAYLOV_CONSUMER_SECRET,
+PAYLOV_USERNAME, PAYLOV_PASSWORD,
+PAYLOV_CALLBACK_LOGIN, PAYLOV_CALLBACK_PASSWORD,
+BILLING_PROVIDER=paylov, PAYLOV_FLOW=oauth2,
+PAYLOV_ENVIRONMENT=sandbox, PRO_ENFORCED=false, BILLING_SANDBOX_TEST=false
 ```
 
+> **Paylov:** `Token` Bearer token emas — bir martalik merchant onboarding tokeni.
+> U orqali yaratilgan consumer key/secret va username/password OAuth2 access
+> tokenini avtomatik olish uchun backendga qo‘yiladi. Sandbox faqat
+> `BILLING_SANDBOX_TEST=true` va `ADMIN` akkauntida ochiladi.
+>
 > **Rasm saqlash:** Railway Bucket (S3-mos, private). Kod `s3.ts` env'ni bir nechta
 > nom variantida o'qiydi (S3_* | Railway ACCESS_KEY_ID/... | AWS_*). Region = `auto`.
 > Eski Wasabi o'lik (hisob inactive) — qaytib ishlatma. Rasmlar o'quvchiga signed URL bilan beriladi.

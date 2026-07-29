@@ -52,16 +52,57 @@ export function toStoredS3Ref(key: string): string {
     return `${S3_REF_PREFIX}${key}`
 }
 
+function decodeS3Key(rawKey: string): string | null {
+    try {
+        const key = decodeURIComponent(rawKey).replace(/^\/+/, '')
+        return key && !key.includes('\0') ? key : null
+    } catch {
+        return null
+    }
+}
+
 export function extractS3Key(value?: string | null): string | null {
     if (!value) return null
-    if (value.startsWith(S3_REF_PREFIX)) return value.slice(S3_REF_PREFIX.length)
-
-    const bucketPrefix = `${getBaseUrl()}/${BUCKET}/`
-    if (value.startsWith(bucketPrefix)) {
-        return decodeURIComponent(value.slice(bucketPrefix.length))
+    if (value.startsWith(S3_REF_PREFIX)) {
+        return decodeS3Key(value.slice(S3_REF_PREFIX.length).split(/[?#]/, 1)[0])
     }
 
-    return null
+    try {
+        const target = new URL(value)
+        const endpoint = new URL(getBaseUrl())
+        if (target.origin !== endpoint.origin) return null
+
+        const endpointPath = endpoint.pathname.replace(/\/+$/, '')
+        const bucketPath = `${endpointPath}/${encodeURIComponent(BUCKET)}/`
+        if (!target.pathname.startsWith(bucketPath)) return null
+
+        // URL.search ataylab olinmaydi: eski signed URL'larda query keyga
+        // qo'shilib, DeleteObject noto'g'ri obyektga ketmasligi kerak.
+        return decodeS3Key(target.pathname.slice(bucketPath.length))
+    } catch {
+        return null
+    }
+}
+
+export function extractS3KeysFromText(value?: string | null): string[] {
+    if (!value) return []
+
+    const candidates = new Set<string>([value])
+    for (const match of value.matchAll(/!\[[^\]]*]\(([^)]+)\)/g)) {
+        if (match[1]) candidates.add(match[1])
+    }
+    for (const match of value.matchAll(/s3key:[^"',)\]\s]+/g)) {
+        candidates.add(match[0])
+    }
+    for (const match of value.matchAll(/https?:\/\/[^"')\]\s]+/g)) {
+        candidates.add(match[0])
+    }
+
+    return [...new Set(
+        [...candidates]
+            .map(candidate => extractS3Key(candidate))
+            .filter((key): key is string => Boolean(key))
+    )]
 }
 
 export async function getSignedS3Url(key: string, expiresIn = 60 * 60): Promise<string> {
@@ -79,6 +120,36 @@ export async function resolveStoredS3Url(value?: string | null, expiresIn = 60 *
 }
 
 /**
+ * Chat xabaridagi markdown rasm manzillarini yangi signed URL'ga aylantiradi.
+ * Yangi xabarlar `s3key:` stable ref saqlaydi; eski xabarlardagi muddati o'tgan
+ * bucket signed URL'lari ham extractS3Key orqali yangilanadi.
+ */
+export async function resolveS3RefsInMarkdown(
+    content: string,
+    expiresIn = 60 * 60,
+): Promise<string> {
+    const markdownImage = /(!\[[^\]]*]\()([^)]+)(\))/g
+    const targets = Array.from(content.matchAll(markdownImage))
+        .map(match => match[2])
+        .filter((target): target is string => Boolean(target))
+    const uniqueTargets = [...new Set(targets)]
+
+    if (uniqueTargets.length === 0) return content
+
+    const resolved = new Map<string, string>()
+    await Promise.all(uniqueTargets.map(async (target) => {
+        const key = extractS3Key(target)
+        if (!key) return
+        resolved.set(target, await getSignedS3Url(key, expiresIn))
+    }))
+    if (resolved.size === 0) return content
+
+    return content.replace(markdownImage, (full, prefix: string, target: string, suffix: string) => {
+        return `${prefix}${resolved.get(target) ?? target}${suffix}`
+    })
+}
+
+/**
  * Faylni S3 ga yuklash
  * @returns Stable storage URL
  */
@@ -86,7 +157,8 @@ export async function uploadToS3(
     buffer: Buffer,
     originalName: string,
     folder: string = 'uploads',
-    contentType?: string
+    contentType?: string,
+    options?: { cacheControl?: string },
 ): Promise<{ key: string; url: string }> {
     const ext = path.extname(originalName)
     const key = `${folder}/${uuid()}${ext}`
@@ -96,6 +168,7 @@ export async function uploadToS3(
         Key: key,
         Body: buffer,
         ContentType: contentType || getMimeType(ext),
+        ...(options?.cacheControl ? { CacheControl: options.cacheControl } : {}),
     }))
 
     const url = buildS3Url(key)

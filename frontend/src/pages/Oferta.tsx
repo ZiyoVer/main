@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 
 /* =========================================================================
-   DtmMax — Ommaviy oferta (public offer).
+   DTMMax — Ommaviy oferta (public offer).
    O'zbekiston FK 367/369-moddalariga muvofiq: to'lovni amalga oshirish =
    ushbu oferta shartlarini to'liq qabul qilish (akzept).
 
@@ -30,8 +30,8 @@ export default function Oferta() {
                         Orqaga
                     </Link>
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
-                        <img src="/dtmmax-logo.png" alt="DtmMax" style={{ width: '34px', height: '34px', borderRadius: '8px', objectFit: 'contain', display: 'block' }} />
-                        <span style={{ fontWeight: 700, fontSize: '16px' }}>DtmMax</span>
+                        <img src="/dtmmax-logo.png" alt="DTMMax" style={{ width: '34px', height: '34px', borderRadius: '8px', objectFit: 'contain', display: 'block' }} />
+                        <span style={{ fontWeight: 700, fontSize: '16px' }}>DTMMax</span>
                     </div>
                     <div style={{ width: '60px' }} />
                 </div>
@@ -42,14 +42,14 @@ export default function Oferta() {
                 <div className="card" style={{ padding: '2.5rem' }}>
                     <h1 style={{ fontSize: '28px', fontWeight: 800, marginBottom: '8px' }}>Ommaviy oferta</h1>
                     <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '24px' }}>
-                        DtmMax Pro obunasi uchun ommaviy shartnoma · Oxirgi yangilanish: «sana»
+                        DTMMax Pro obunasi uchun ommaviy shartnoma · Oxirgi yangilanish: 2026 yil 29 iyul
                     </p>
 
                     <div style={{ marginBottom: '24px', padding: '14px 16px', borderRadius: '12px', background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
                         <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.7 }}>
                             Ushbu ommaviy oferta (keyingi o'rinlarda — «Oferta») O'zbekiston Respublikasi
                             Fuqarolik kodeksining 367 va 369-moddalariga muvofiq, noma'lum doiradagi
-                            shaxslarga DtmMax Pro xizmatidan foydalanish bo'yicha rasmiy taklifdir.
+                            shaxslarga DTMMax Pro xizmatidan foydalanish bo'yicha rasmiy taklifdir.
                             Xizmat haqini to'lash — Oferta shartlarini to'liq va so'zsiz qabul qilish (akzept) hisoblanadi.
                         </p>
                     </div>
@@ -59,13 +59,13 @@ export default function Oferta() {
                         <ul style={{ paddingLeft: '20px', marginBottom: '16px' }}>
                             <li style={{ marginBottom: '8px' }}><b>Ijrochi</b> — «MChJ/YaTT nomi», STIR «STIR», xizmatni taqdim etuvchi.</li>
                             <li style={{ marginBottom: '8px' }}><b>Foydalanuvchi</b> — xizmatdan foydalanuvchi va to'lovni amalga oshirgan jismoniy shaxs.</li>
-                            <li style={{ marginBottom: '8px' }}><b>Xizmat</b> — DtmMax platformasidagi Pro obuna (kengaytirilgan imkoniyatlar).</li>
+                            <li style={{ marginBottom: '8px' }}><b>Xizmat</b> — DTMMax platformasidagi Pro obuna (kengaytirilgan imkoniyatlar).</li>
                             <li style={{ marginBottom: '8px' }}><b>Sayt</b> — https://dtmmax.uz va uning subdomenlari.</li>
                         </ul>
 
                         <H2>2. Shartnoma predmeti</H2>
                         <p style={{ marginBottom: '16px' }}>
-                            Ijrochi Foydalanuvchiga DtmMax Pro obunasi doirasidagi raqamli ta'lim
+                            Ijrochi Foydalanuvchiga DTMMax Pro obunasi doirasidagi raqamli ta'lim
                             xizmatidan (AI repetitor, kengaytirilgan tahlil va boshqa Pro imkoniyatlar)
                             obuna muddati davomida foydalanish huquqini taqdim etadi. Asosiy (bepul)
                             imkoniyatlar barcha foydalanuvchilar uchun ochiq qoladi.
@@ -73,9 +73,10 @@ export default function Oferta() {
 
                         <H2>3. Xizmat narxi va to'lov tartibi</H2>
                         <ul style={{ paddingLeft: '20px', marginBottom: '16px' }}>
-                            <li style={{ marginBottom: '8px' }}>Pro obuna narxi: <b>35 000 so'm / oy</b> (yoki Saytda ko'rsatilgan amaldagi narx).</li>
-                            <li style={{ marginBottom: '8px' }}>To'lov O'zbekiston to'lov tizimlari (Payme, Click, Uzum) orqali, to'lov agregatori vositasida amalga oshiriladi.</li>
-                            <li style={{ marginBottom: '8px' }}>Obuna to'lov amalga oshirilган paytdan boshlab faollashadi va to'langan muddat tugaguncha amal qiladi.</li>
+                            <li style={{ marginBottom: '8px' }}>Pro obuna narxi: <b>35 000 so'm / 30 kun</b> (yoki Saytda ko'rsatilgan amaldagi narx).</li>
+                            <li style={{ marginBottom: '8px' }}>To'lov Paylov to'lov provayderi va u qo'llab-quvvatlaydigan bank kartalari orqali amalga oshiriladi.</li>
+                            <li style={{ marginBottom: '8px' }}>Obuna to'lov amalga oshirilgan paytdan boshlab faollashadi va to'langan muddat tugaguncha amal qiladi.</li>
+                            <li style={{ marginBottom: '8px' }}>Obuna avtomatik uzaytirilmaydi; keyingi 30 kun uchun foydalanuvchi to'lovni o'zi qayta tasdiqlaydi.</li>
                             <li style={{ marginBottom: '8px' }}>Narx Ijrochi tomonidan o'zgartirilishi mumkin; o'zgarish faqat keyingi to'lov davriga taalluqli bo'ladi.</li>
                         </ul>
 
@@ -83,7 +84,7 @@ export default function Oferta() {
                         <p style={{ marginBottom: '16px' }}>
                             Xizmat raqamli ko'rinishda darhol taqdim etilgani sababli, faollashtirilgan
                             obuna uchun to'lov, qoida tariqasida, qaytarilmaydi. Texnik nosozlik tufayli
-                            xizmatdan umuman foydalanib bo'lmagan hollarda Foydalanuvchi «email»
+                            xizmatdan umuman foydalanib bo'lmagan hollarda Foydalanuvchi support@dtmmax.uz
                             manziliga murojaat qilishi mumkin; ariza qonun hujjatlariga muvofiq
                             ko'rib chiqiladi.
                         </p>

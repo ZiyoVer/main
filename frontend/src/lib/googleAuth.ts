@@ -11,12 +11,23 @@ function randomString(len = 32): string {
 
 const STATE_KEY = 'g_oauth_state'
 const NONCE_KEY = 'g_oauth_nonce'
+const RETURN_KEY = 'g_oauth_return_to'
 
-export function startGoogleLogin(clientId: string) {
+export function safeGoogleReturnTo(value: unknown): string | null {
+    if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) return null
+    if (value === '/bugun' || value === '/suhbat' || value === '/chat') return value
+    if (value.startsWith('/suhbat/') || value.startsWith('/chat/') || value.startsWith('/test/')) return value
+    return null
+}
+
+export function startGoogleLogin(clientId: string, returnTo?: unknown) {
     const state = randomString()
     const nonce = randomString()
     sessionStorage.setItem(STATE_KEY, state)
     sessionStorage.setItem(NONCE_KEY, nonce)
+    const safeReturnTo = safeGoogleReturnTo(returnTo)
+    if (safeReturnTo) sessionStorage.setItem(RETURN_KEY, safeReturnTo)
+    else sessionStorage.removeItem(RETURN_KEY)
 
     const params = new URLSearchParams({
         client_id: clientId,
@@ -28,6 +39,12 @@ export function startGoogleLogin(clientId: string) {
         prompt: 'select_account',
     })
     window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString()
+}
+
+export function consumeGoogleReturnTo(): string | null {
+    const value = safeGoogleReturnTo(sessionStorage.getItem(RETURN_KEY))
+    sessionStorage.removeItem(RETURN_KEY)
+    return value
 }
 
 /* Callback sahifasida URL fragment'ini o'qish + state tekshirish.

@@ -14,14 +14,14 @@ export interface TodoItem {
 }
 
 interface ChatContextValue {
-  onOpenTest: (jsonStr: string) => void
+  onOpenTest: (jsonStr: string, messageId: string) => void
   onProfileUpdate: (data: { weakTopics?: string[]; strongTopics?: string[] }) => void
   onOpenFlash: (jsonStr: string) => void
   onOpenEssay: (data: EssayPanel) => void
   onSetTodo: (items: Omit<TodoItem, 'id' | 'done'>[]) => void
   onMarkTodoDoneByTask: (taskName: string) => void
   // Chat test kartasi tugallangan AI test uchun "Natijani ko'rish" ko'rsatishi uchun
-  isAiTestDone: (jsonStr: string) => boolean
+  isAiTestDone: (jsonStr: string, messageId?: string) => boolean
 }
 
 const ChatContext = createContext<ChatContextValue>({

@@ -1,0 +1,2 @@
+ALTER TABLE "AiDailyUsage"
+DROP COLUMN IF EXISTS "ttsCount";

@@ -3,8 +3,11 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
+import { installChunkRecovery } from './lib/lazyWithRetry'
 import './index.css'
 import './styles/kelviq.css'
+
+installChunkRecovery()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>

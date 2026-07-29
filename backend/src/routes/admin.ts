@@ -120,6 +120,7 @@ router.get('/users/:id', authenticate, requireRole('ADMIN'), async (req: AuthReq
                 name: true,
                 email: true,
                 role: true,
+                status: true,
                 createdAt: true,
                 emailVerified: true,
                 profile: {
@@ -189,9 +190,11 @@ router.get('/users/:id', authenticate, requireRole('ADMIN'), async (req: AuthReq
 
         res.json({
             user: {
+                id: user.id,
                 name: user.name,
                 email: user.email,
                 role: user.role,
+                status: user.status,
                 createdAt: user.createdAt,
                 emailVerified: user.emailVerified,
             },

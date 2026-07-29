@@ -7,3 +7,6 @@ dist
 uploads/
 mcp-server/node_modules
 mcp-server/build
+agent-room/node_modules
+agent-room/build
+.agent-room/
