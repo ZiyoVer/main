@@ -67,3 +67,9 @@ Merge/deploy’dan oldin alohida tasdiqlangan operatsion jarayon talab qilinadi:
 Qaysi migrationni `resolve` qilish inventarizatsiya natijasiga bog‘liq. Shu sabab
 production uchun ko‘r-ko‘rona ko‘chiriladigan `resolve` komandalar bu hujjatda
 berilmaydi.
+
+2026-07-29 kuni olingan production inventarizatsiyasi va tasdiqlangan lokal
+rehearsal uchun commitga bog‘langan aniq operator tartibi:
+[`docs/PRODUCTION-MIGRATION-CUTOVER.md`](../docs/PRODUCTION-MIGRATION-CUTOVER.md).
+U yangi migration yoki schema o‘zgarishidan keyin avtomatik ravishda haqiqiy
+deb hisoblanmaydi; qayta rehearsal talab qilinadi.
