@@ -18,6 +18,8 @@ interface BillingConfig {
     sandboxTestMode: boolean
     paylovFlow: 'oauth2' | 'hosted' | null
     paylovEnvironment: 'sandbox' | 'production' | null
+    paylovOAuthConfigured: boolean
+    paylovOnboardingRequired: boolean
     callbackConfigured: boolean
     officialGateway: boolean
 }
@@ -63,20 +65,23 @@ function errorMessage(error: unknown): string {
     const providerCode = apiError?.data?.providerCode
     const networkCode = apiError?.data?.networkCode
     const messages: Record<string, string> = {
-        billing_not_configured: 'Railway’da merchant_id yoki Token topilmadi/yaroqsiz. UUID va OAuth2 test tokenini tekshiring.',
+        billing_not_configured: 'Railway’dagi merchant_id topilmadi yoki UUID formati noto‘g‘ri.',
         billing_price_invalid: 'PRO_PRICE_UZS musbat butun son bo‘lishi kerak.',
         paylov_not_active_provider: 'BILLING_PROVIDER hozir Paylov emas.',
         paylov_oauth2_not_enabled: 'PAYLOV_FLOW=oauth2 o‘rnatilmagan.',
+        paylov_oauth_credentials_missing: 'Onboarding tugallanmagan. Railway’ga PAYLOV_CONSUMER_KEY, PAYLOV_CONSUMER_SECRET, PAYLOV_USERNAME va PAYLOV_PASSWORD qo‘shilishi kerak.',
+        paylov_oauth_credentials_rejected: 'Paylov OAuth2 credentiallarni rad etdi. Consumer key/secret va username/passwordni tekshiring.',
+        paylov_oauth_invalid_response: 'Paylov OAuth2 token javobi kutilgan formatga mos kelmadi.',
+        paylov_oauth_invalid_token_response: 'Paylov access/refresh tokenlarni to‘liq qaytarmadi.',
+        paylov_oauth_invalid_token_type: 'Paylov kutilgan Bearer token turini qaytarmadi.',
+        paylov_oauth_unavailable: 'Paylov OAuth2 token xizmati vaqtincha ishlamayapti.',
         paylov_sandbox_disabled: 'Sandbox sinovi o‘chiq. BILLING_SANDBOX_TEST=true bo‘lishi kerak.',
         paylov_sandbox_admin_only: 'Sandbox to‘lovi faqat administrator uchun ochiq.',
         paylov_environment_conflict: 'Sandbox va production sozlamalari bir vaqtda yoqilgan. Muhitlarni ajrating.',
         paylov_card_invalid: 'Karta raqami 16 ta raqamdan iborat bo‘lishi kerak.',
         paylov_expiry_invalid: 'Amal muddatini kartada yozilgan MM/YY formatida kiriting.',
         paylov_otp_invalid: 'Tasdiqlash kodi 6 ta raqamdan iborat bo‘lishi kerak.',
-        paylov_token_prefix_invalid: 'Railway’dagi Token qiymatidan “Bearer” yoki “Token:” prefiksini olib tashlang. Faqat tokenning o‘zi qolishi kerak.',
-        paylov_token_quotes_invalid: 'Railway’dagi Token qiymati qo‘shtirnoqsiz yozilishi kerak.',
-        paylov_token_format_invalid: 'Railway’dagi Token bir qatorli bo‘lishi va ichida bo‘shliq yoki yashirin yangi qator bo‘lmasligi kerak.',
-        paylov_token_rejected: 'Paylov Tokenni rad etdi. Railway’dagi Token OAuth2 sandbox uchun berilganini tekshiring.',
+        paylov_token_rejected: 'Paylov access tokenni rad etdi; server uni avtomatik yangilab qayta urinib ko‘rdi.',
         paylov_provider_rejected: 'Paylov so‘rovni rad etdi.',
         paylov_gateway_error: 'Paylov gateway xato javob qaytardi.',
         paylov_invalid_response: 'Paylov javobi kutilgan formatga mos kelmadi.',
@@ -273,6 +278,7 @@ export default function PaylovSandboxPanel() {
                 <div className="flex flex-wrap gap-1.5">
                     {statusBadge(config.paylovEnvironment === 'sandbox', config.paylovEnvironment === 'sandbox' ? 'Sandbox' : 'Production')}
                     {statusBadge(config.paylovFlow === 'oauth2', config.paylovFlow === 'oauth2' ? 'OAuth2' : 'Hosted')}
+                    {statusBadge(config.paylovOAuthConfigured, config.paylovOAuthConfigured ? 'Credential tayyor' : 'Onboarding kerak')}
                     {statusBadge(sandboxReady, sandboxReady ? 'Tayyor' : 'Sozlanmagan')}
                 </div>
             </div>
@@ -304,9 +310,9 @@ export default function PaylovSandboxPanel() {
                             <div>
                                 <p className="text-[13px] font-semibold">Sandbox sinoviga tayyor emas</p>
                                 <p className="text-[12px] mt-1 leading-relaxed">
-                                    Railway’da BILLING_PROVIDER=paylov, PAYLOV_FLOW=oauth2,
-                                    PAYLOV_ENVIRONMENT=sandbox va BILLING_SANDBOX_TEST=true bo‘lishi kerak.
-                                    merchant_id hamda Token ham to‘ldiriladi.
+                                    {config.paylovOnboardingRequired
+                                        ? 'Emaildagi Token onboarding uchun tayyor. Uni bir marta ishlatib consumer key/secret olish, keyin Railway’ga PAYLOV_CONSUMER_KEY, PAYLOV_CONSUMER_SECRET, PAYLOV_USERNAME va PAYLOV_PASSWORD qo‘shish kerak.'
+                                        : 'Railway’da BILLING_PROVIDER=paylov, PAYLOV_FLOW=oauth2, PAYLOV_ENVIRONMENT=sandbox, BILLING_SANDBOX_TEST=true, merchant_id va to‘rtta OAuth2 credential to‘liq bo‘lishi kerak.'}
                                 </p>
                             </div>
                         </div>
